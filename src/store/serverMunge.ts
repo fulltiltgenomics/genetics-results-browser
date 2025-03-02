@@ -9,7 +9,7 @@ export const mungeGeneModelResponse = (data: string): GeneModel[] => {
   }, {} as { [key: string]: number });
   const geneModels = [] as GeneModel[];
   const gene2exons = {} as {
-    [key: string]: { strand: number; exonStarts: number[]; exonEnds: number[] };
+    [key: string]: { ensg: string; strand: number; exonStarts: number[]; exonEnds: number[] };
   };
   for (let i = 1; i < rows.length; i++) {
     if (rows[i].length === 0) {
@@ -17,11 +17,12 @@ export const mungeGeneModelResponse = (data: string): GeneModel[] => {
     }
     const fields = rows[i].split("\t");
     const geneName = fields[headerIndex["Gene name"]];
+    const ensg = fields[headerIndex["Gene stable ID version"]].split(".")[0];
     const strand = parseInt(fields[headerIndex["Strand"]]);
     const exonStart = parseInt(fields[headerIndex["Exon region start (bp)"]]);
     const exonEnd = parseInt(fields[headerIndex["Exon region end (bp)"]]);
     if (!gene2exons[geneName]) {
-      gene2exons[geneName] = { strand: strand, exonStarts: [], exonEnds: [] };
+      gene2exons[geneName] = { ensg: ensg, strand: strand, exonStarts: [], exonEnds: [] };
     }
     gene2exons[geneName].exonStarts.push(exonStart);
     gene2exons[geneName].exonEnds.push(exonEnd);
@@ -29,6 +30,7 @@ export const mungeGeneModelResponse = (data: string): GeneModel[] => {
   for (const geneName in gene2exons) {
     geneModels.push({
       geneName: geneName,
+      ensg: gene2exons[geneName].ensg,
       strand: gene2exons[geneName].strand,
       exonStarts: gene2exons[geneName].exonStarts,
       exonEnds: gene2exons[geneName].exonEnds,

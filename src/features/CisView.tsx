@@ -1,17 +1,4 @@
-import {
-  Box,
-  FormControlLabel,
-  lighten,
-  Radio,
-  RadioGroup,
-  styled,
-  Switch,
-  Table,
-  TableBody,
-  TableCell,
-  TableRow,
-  Typography,
-} from "@mui/material";
+import { Box, styled, Table, TableBody, TableCell, TableRow, Typography } from "@mui/material";
 import {
   useCSQuery,
   useGeneModelByGeneQuery,
@@ -19,15 +6,11 @@ import {
   useVariantAnnotationQuery,
 } from "@/store/serverQuery";
 import CSPlot from "./CSPlot";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CSDatum, CSStatus, SelectedVariantStats, TraitStatus } from "@/types/types.gene";
 import config from "@/config.json";
 import VariantCSInfoBox from "./VariantCSInfoBox";
 import CisViewOptions from "./CisViewOptions";
-// import ArrowCircleUpIcon from "@mui/icons-material/ArrowCircleUp";
-// import ArrowCircleDownIcon from "@mui/icons-material/ArrowCircleDown";
-// import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
-// import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
 import NorthIcon from "@mui/icons-material/North";
 import SouthIcon from "@mui/icons-material/South";
 
@@ -70,26 +53,40 @@ const CisView = ({ geneName }: { geneName: string }) => {
     "#6a3d9a", // dark purple
   ];
 
-  const { data, isPending, isError, error } = useCSQuery(geneName);
-  const {
-    data: metadata,
-    isPending: metaisPending,
-    isError: metaIsError,
-    error: metaError,
-  } = useTraitMetadataQuery(data?.map((d) => ({ resource: d.resource, phenocode: d.trait })));
-  const {
-    data: annoData,
-    isPending: annoIsPending,
-    isError: annoIsError,
-    error: annoError,
-  } = useVariantAnnotationQuery(Array.from(new Set(data?.flatMap((d) => d.variant))));
-
   const {
     data: geneModels,
     isPending: geneModelsIsPending,
     isError: geneModelsIsError,
     error: geneModelsError,
   } = useGeneModelByGeneQuery(geneName);
+  const geneModel = useMemo(() => {
+    if (!geneModels) {
+      return undefined;
+    }
+    return geneModels.find((gm) => gm.geneName === geneName);
+  }, [geneModels, geneName]);
+  const geneNames = useMemo(() => {
+    return [geneName, geneModel?.ensg].filter((n) => n !== undefined);
+  }, [geneName, geneModel]);
+
+  const { data, isPending, isError, error } = useCSQuery(geneName, {
+    eQTL: geneNames,
+    pQTL: geneNames,
+  });
+
+  const {
+    data: metadata,
+    isPending: metaisPending,
+    isError: metaIsError,
+    error: metaError,
+  } = useTraitMetadataQuery(data?.map((d) => ({ resource: d.resource, phenocode: d.trait })));
+
+  const {
+    data: annoData,
+    isPending: annoIsPending,
+    isError: annoIsError,
+    error: annoError,
+  } = useVariantAnnotationQuery(Array.from(new Set(data?.flatMap((d) => d.variant))));
 
   const [codingOnly, setCodingOnly] = useState(false);
   const [traitStatus, setTraitStatus] = useState<TraitStatus | undefined>(undefined);
@@ -378,11 +375,11 @@ const CisView = ({ geneName }: { geneName: string }) => {
   if (!geneName) {
     return <Typography>Enter a gene name</Typography>;
   }
-  if (isPending || metaisPending || geneModelsIsPending) {
-    return <Typography>Loading...</Typography>;
-  }
   if (isError || metaIsError || annoIsError || geneModelsIsError) {
     return <Typography>{(error || metaError || annoError || geneModelsError)!.message}</Typography>;
+  }
+  if (isPending || metaisPending || geneModelsIsPending) {
+    return <Typography>Loading...</Typography>;
   }
 
   return (

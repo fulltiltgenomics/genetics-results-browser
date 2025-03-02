@@ -78,117 +78,28 @@ export const useGeneModelQuery = (
   });
 };
 
-// export const _useCSQuery = (gene: string | undefined): UseQueryResult<CSDatum[], Error> => {
-//   return useQuery<CSDatum[]>({
-//     queryKey: ["_cs-data", gene],
-//     queryFn: () =>
-//       axios.get<string>(`${config.api_url}/gene_cs/${gene}?padding=500000`).then((response) => {
-//         const rows = response.data.split("\n");
-//         const header = rows[0].split("\t");
-//         const headerIndex = header.reduce((acc, field) => {
-//           acc[field.replace("#", "")] = header.indexOf(field);
-//           return acc;
-//         }, {} as { [key: string]: number });
-//         const trait2data: { [trait: string]: CSDatum } = {};
-//         const trait2uniqCS: { [trait: string]: Set<string> } = {};
-//         const csRegex = /_L?(\d+)$/;
-//         for (let i = 1; i < rows.length; i++) {
-//           if (rows[i].length === 0) {
-//             continue;
-//           }
-//           if (rows[i].startsWith("!")) {
-//             throw Error(rows[i].slice(1));
-//           }
-//           const fields = rows[i].split("\t");
-//           const resource = fields[headerIndex["resource"]];
-//           if (resource === "eQTL_Catalogue_R7") {
-//             //TODO remove this
-//             continue;
-//           }
-//           const dataset = fields[headerIndex["dataset"]];
-//           const trait = fields[headerIndex["trait"]];
-//           const variant = `${fields[headerIndex["chr"]]}:${fields[headerIndex["pos"]]}:${
-//             fields[headerIndex["ref"]]
-//           }:${fields[headerIndex["alt"]]}`;
-//           const pos = fields[headerIndex["pos"]];
-//           const pip = fields[headerIndex["pip"]];
-//           const mlog10p = fields[headerIndex["mlog10p"]];
-//           const csId = fields[headerIndex["cs_id"]];
-//           const traitId = `${resource}|${dataset}|${trait}`;
-//           const traitCSId = `${traitId}=${csId}`;
-//           const chr = fields[headerIndex["chr"]];
-//           if (!trait2data[traitId]) {
-//             trait2data[traitId] = {
-//               resource: resource,
-//               dataset: dataset,
-//               trait: trait,
-//               traitId: traitId,
-//               chr: chr,
-//               variant: [],
-//               pos: [],
-//               pip: [],
-//               mlog10p: [],
-//               beta: [],
-//               se: [],
-//               csId: [],
-//               traitCSId: [],
-//               csNumber: [],
-//               numberOfCSs: 0,
-//               csSize: [],
-//               csMinR2: [],
-//             };
-//           }
-//           trait2data[traitId].variant.push(variant);
-//           trait2data[traitId].pos.push(parseInt(pos));
-//           trait2data[traitId].pip.push(parseFloat(pip));
-//           trait2data[traitId].mlog10p.push(parseFloat(mlog10p));
-//           trait2data[traitId].beta.push(parseFloat(fields[headerIndex["beta"]]));
-//           trait2data[traitId].se.push(parseFloat(fields[headerIndex["se"]]));
-//           trait2data[traitId].traitCSId.push(traitCSId);
-//           trait2data[traitId].csId.push(csId);
-//           trait2data[traitId].csNumber.push(parseInt(csId.match(csRegex)![1]));
-//           trait2data[traitId].csSize.push(parseFloat(fields[headerIndex["cs_size"]]));
-//           trait2data[traitId].csMinR2.push(parseFloat(fields[headerIndex["cs_min_r2"]]));
-//           if (!trait2uniqCS[traitId]) {
-//             trait2uniqCS[traitId] = new Set<string>();
-//           }
-//           trait2uniqCS[traitId].add(csId);
-//         }
-//         const data = Object.keys(trait2data).map((traitId) => ({
-//           resource: trait2data[traitId].resource,
-//           dataset: trait2data[traitId].dataset,
-//           trait: trait2data[traitId].trait,
-//           traitId: traitId,
-//           chr: trait2data[traitId].chr,
-//           variant: trait2data[traitId].variant,
-//           pos: trait2data[traitId].pos,
-//           pip: trait2data[traitId].pip,
-//           mlog10p: trait2data[traitId].mlog10p,
-//           beta: trait2data[traitId].beta,
-//           se: trait2data[traitId].se,
-//           csId: trait2data[traitId].csId,
-//           traitCSId: trait2data[traitId].traitCSId,
-//           csNumber: trait2data[traitId].csNumber,
-//           csSize: trait2data[traitId].csSize,
-//           csMinR2: trait2data[traitId].csMinR2,
-//           numberOfCSs: trait2uniqCS[traitId].size,
-//         }));
-//         return data;
-//       }),
-//     enabled: !!gene,
-//     staleTime: Infinity,
-//   });
-// };
+class CSQueryError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "CSQueryError";
+  }
+}
 
-export const useCSQuery = (gene: string | undefined): UseQueryResult<CSDatum[], Error> => {
+export const useCSQuery = (
+  gene: string | undefined,
+  filterTraits: { [key: string]: string[] } | undefined
+): UseQueryResult<CSDatum[], Error> => {
   return useQuery<CSDatum[]>({
-    queryKey: ["cs-data", gene],
+    queryKey: ["cs-data", gene, filterTraits],
     queryFn: () =>
       axios
         .get<string>(`${config.api_url}/gene_cs/${gene}?padding=${config.gene_view.gene_padding}`)
         .then((response) => {
           const rows = response.data.split("\n");
           const header = rows[0].split("\t");
+          if (header[0].startsWith("!")) {
+            throw new CSQueryError(header[0].slice(1));
+          }
           const headerIndex = header.reduce((acc, field) => {
             acc[field.replace("#", "")] = header.indexOf(field);
             return acc;
@@ -201,16 +112,20 @@ export const useCSQuery = (gene: string | undefined): UseQueryResult<CSDatum[], 
               continue;
             }
             if (rows[i].startsWith("!")) {
-              throw Error(rows[i].slice(1));
+              throw new CSQueryError(rows[i].slice(1));
             }
             const fields = rows[i].split("\t");
             const resource = fields[headerIndex["resource"]];
-            if (resource === "eQTL_Catalogue_R7") {
-              //TODO remove this
+            const dataset = fields[headerIndex["dataset"]];
+            const dataType = fields[headerIndex["data_type"]];
+            const trait = fields[headerIndex["trait"]];
+            if (
+              filterTraits !== undefined &&
+              filterTraits[dataType] !== undefined &&
+              !filterTraits[dataType].includes(trait)
+            ) {
               continue;
             }
-            const dataset = fields[headerIndex["dataset"]];
-            const trait = fields[headerIndex["trait"]];
             const variant = `${fields[headerIndex["chr"]]}:${fields[headerIndex["pos"]]}:${
               fields[headerIndex["ref"]]
             }:${fields[headerIndex["alt"]]}`;
@@ -239,7 +154,6 @@ export const useCSQuery = (gene: string | undefined): UseQueryResult<CSDatum[], 
                 mlog10p: [],
                 beta: [],
                 se: [],
-                // traitCSId: [],
                 numberOfCSs: 0,
               };
             }
