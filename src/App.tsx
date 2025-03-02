@@ -6,6 +6,8 @@ import { indigo, pink } from "@mui/material/colors";
 import Header from "./features/page/Header";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import CircularProgress from "@mui/material/CircularProgress"; // Import a component for fallback
+import { Box } from "@mui/material";
+import GeneContainer from "./features/GeneContainer";
 
 const TableContainer = lazy(() => import("./features/table/TableContainer"));
 const About = lazy(() => import("./features/page/About"));
@@ -49,16 +51,18 @@ export const App = () => {
       <QueryClientProvider client={queryClient}>
         <ThemeProvider theme={theme}>
           <CssBaseline enableColorScheme />
-          <div style={{ padding: "10px" }}>
+          <Box p={1.5}>
             <Header />
             <Suspense fallback={<CircularProgress />}>
               <Routes>
-                <Route path="/" element={<TableContainer />} />
+                {/* <Route path="/" element={<TableContainer />} /> */}
+                <Route path="/" element={<GeneContainer />} />
+                <Route path="/gene/:geneName" element={<GeneContainer />} />
                 <Route path="/about" element={<About />} />
                 <Route path="/changelog" element={<ChangeLog />} />
               </Routes>
             </Suspense>
-          </div>
+          </Box>
         </ThemeProvider>
       </QueryClientProvider>
     </BrowserRouter>

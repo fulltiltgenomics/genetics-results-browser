@@ -2,9 +2,9 @@
   "compilerOptions": {
     "outDir": "./static/",
     "sourceMap": true,
-    "lib": ["es6", "dom"],
-    "module": "ES2022",
-    "target": "ES2022",
+    "lib": ["esnext", "dom"],
+    "module": "esnext",
+    "target": "esnext",
     "moduleResolution": "node",
     "strict": true,
     "jsx": "react-jsx",
@@ -16,7 +16,11 @@
     "noImplicitReturns": true,
     "strictNullChecks": true,
     "strictFunctionTypes": true,
-    "forceConsistentCasingInFileNames": true
+    "forceConsistentCasingInFileNames": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"]
+    }
   },
   "include": ["./src/"]
 }

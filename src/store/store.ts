@@ -218,3 +218,15 @@ export const useDataStore = create<DataState>()(
     setActiveTab: (tab) => set({ activeTab: tab }),
   }))
 );
+
+interface GeneViewState {
+  activeTab: string;
+  setActiveTab: (tab: string) => void;
+}
+
+export const useGeneViewStore = create<GeneViewState>()(
+  subscribeWithSelector((set) => ({
+    activeTab: "cis",
+    setActiveTab: (tab) => set({ activeTab: tab }),
+  }))
+);

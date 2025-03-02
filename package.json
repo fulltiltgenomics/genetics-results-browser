@@ -4,10 +4,9 @@
   "description": "genetics result browser",
   "main": "src/index.tsx",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "npx webpack --mode production",
-    "dev": "npx webpack --mode development --watch",
-    "flask": "nodemon"
+    "dev": "vite --host --port 3000",
+    "build": "vite build",
+    "serve": "vite preview --host"
   },
   "author": "jkarjala@broadinstitute.org",
   "license": "MIT",
@@ -22,6 +21,11 @@
     "axios": "^1.7.2",
     "chart.js": "^4.4.3",
     "crypto-js": "^4.1.1",
+    "d3-array": "^3.2.4",
+    "d3-scale": "^4.0.2",
+    "d3-selection": "^3.0.0",
+    "d3-transition": "^3.0.1",
+    "d3-zoom": "^3.0.0",
     "export-to-csv": "^1.3.0",
     "lz-string": "^1.5.0",
     "material-react-table": "^2.13.0",
@@ -34,20 +38,18 @@
   },
   "devDependencies": {
     "@types/crypto-js": "^4.2.2",
+    "@types/d3-array": "^3.2.1",
+    "@types/d3-scale": "^4.0.8",
+    "@types/d3-selection": "^3.0.11",
+    "@types/d3-zoom": "^3.0.8",
     "@types/react": "^18.3.3",
     "@types/react-dom": "^18.3.0",
-    "clean-webpack-plugin": "^4.0.0",
-    "compression-webpack-plugin": "^11.1.0",
-    "fork-ts-checker-notifier-webpack-plugin": "^9.0.0",
-    "fork-ts-checker-webpack-plugin": "^9.0.2",
-    "html-webpack-plugin": "^5.6.0",
-    "nodemon": "^3.1.4",
+    "@vitejs/plugin-react": "^4.3.4",
     "source-map-loader": "^5.0.0",
     "ts-loader": "^9.5.1",
     "typescript": "^5.5.3",
-    "webpack": "^5.92.1",
-    "webpack-bundle-analyzer": "^4.10.2",
-    "webpack-cli": "^5.1.4"
+    "vite": "^6.0.5",
+    "vite-tsconfig-paths": "^5.1.4"
   },
   "nodemonConfig": {
     "watch": [
