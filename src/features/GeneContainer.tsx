@@ -3,16 +3,17 @@ import { Box, Button, Tab, Tabs, TextField, Typography } from "@mui/material";
 import TabPanel from "@mui/lab/TabPanel";
 import { TabContext } from "@mui/lab";
 import CisView from "./CisView";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { GeneViewState } from "@/types/types.store";
 
 const GeneContainer = () => {
   const params = useParams();
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useGeneViewStore((state) => [
-    state.activeTab,
-    state.setActiveTab,
-  ]);
+  const selectActiveTab = useCallback((state: GeneViewState) => state.activeTab, []);
+  const selectSetActiveTab = useCallback((state: GeneViewState) => state.setActiveTab, []);
+  const activeTab = useGeneViewStore(selectActiveTab);
+  const setActiveTab = useGeneViewStore(selectSetActiveTab);
   const [geneName, setGeneName] = useState("");
   useEffect(() => {
     if (params.geneName) {

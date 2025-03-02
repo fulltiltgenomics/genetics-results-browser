@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
 import { Phenotype, TableData, DataType, QTLType } from "../types/types";
 import { filterRows } from "./munge";
+import { GeneViewState } from "@/types/types.store";
 
 interface DataState {
   message: string | undefined;
@@ -218,11 +219,6 @@ export const useDataStore = create<DataState>()(
     setActiveTab: (tab) => set({ activeTab: tab }),
   }))
 );
-
-interface GeneViewState {
-  activeTab: string;
-  setActiveTab: (tab: string) => void;
-}
 
 export const useGeneViewStore = create<GeneViewState>()(
   subscribeWithSelector((set) => ({
