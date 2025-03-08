@@ -32,9 +32,9 @@ const VariantCSInfoBox = ({
             gridTemplateColumns="auto auto"
             gridTemplateRows="auto auto"
             gap="0 8px">
-            <Typography>traits with an overlapping cs</Typography>
+            <Typography>traits with an overlapping CS</Typography>
             <Typography>{traitStatus.csOverlappingTraits}</Typography>
-            <Typography>traits with a cs with this variant</Typography>
+            <Typography>traits with a CS with this variant</Typography>
             <Typography>{traitStatus.variantOverlappingTraits}</Typography>
           </Box>
         ) : (

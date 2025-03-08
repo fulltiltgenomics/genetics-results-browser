@@ -142,14 +142,14 @@ export type Dataset = {
   resource: string;
   data_type: DataType;
   dataset_id: string;
-  study_id?: string;
+  study_id: string;
   study_label: string;
-  sample_group?: string;
-  tissue_id?: string;
-  tissue_label?: string;
-  condition_label?: string;
-  sample_size?: number;
-  quant_method?: string;
+  sample_group: string;
+  tissue_id: string;
+  tissue_label: string;
+  condition_label: string;
+  sample_size: number;
+  quant_method: string;
 };
 
 export type ApiResponseMeta = {

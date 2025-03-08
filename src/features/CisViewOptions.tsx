@@ -48,7 +48,7 @@ const CisViewOptions = ({
       </Box>
       <Box display="flex" flexDirection="column">
         <Typography>
-          {disabled ? "loading coding variants..." : "show only cs with coding variants"}
+          {disabled ? "loading coding variants..." : "show only CSs with coding variants"}
         </Typography>
         <FormControlLabel
           control={

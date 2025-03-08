@@ -1,6 +1,7 @@
 export type CSDatum = {
   resource: string;
   dataset: string;
+  dataType: string;
   trait: string;
   traitId: string;
   chr: string;

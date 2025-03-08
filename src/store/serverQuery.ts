@@ -1,6 +1,6 @@
 import { useQuery, UseQueryResult } from "@tanstack/react-query";
 import axios from "axios";
-import { Config, DataType, Phenotype, TableData } from "../types/types";
+import { Config, Dataset, DataType, Phenotype, TableData } from "../types/types";
 import { CSDatum, GeneModel } from "@/types/types.gene";
 import config from "@/config.json";
 import { mungeGeneModelResponse } from "./serverMunge";
@@ -140,6 +140,7 @@ export const useCSQuery = (
               traitCS2data[traitCSId] = {
                 resource: resource,
                 dataset: dataset,
+                dataType: dataType,
                 trait: trait,
                 traitId: traitId,
                 traitCSId: traitCSId,
@@ -171,6 +172,7 @@ export const useCSQuery = (
           const data = Object.keys(traitCS2data).map((traitCSId) => ({
             resource: traitCS2data[traitCSId].resource,
             dataset: traitCS2data[traitCSId].dataset,
+            dataType: traitCS2data[traitCSId].dataType,
             trait: traitCS2data[traitCSId].trait,
             traitId: traitCS2data[traitCSId].traitId,
             chr: traitCS2data[traitCSId].chr,
@@ -190,6 +192,50 @@ export const useCSQuery = (
           return data;
         }),
     enabled: !!gene,
+    staleTime: Infinity,
+  });
+};
+
+export const useDatasetMetadataQuery = (
+  datasets: string[] | undefined
+): UseQueryResult<{ [key: string]: Dataset }, Error> => {
+  return useQuery<{ [key: string]: Dataset }>({
+    queryKey: ["dataset-metadata", datasets],
+    queryFn: () => {
+      const response = axios
+        .post<string>(`${config.api_url}/dataset_metadata`, datasets)
+        .then((response) => {
+          const rows = response.data.split("\n");
+          const header = rows[0].split("\t");
+          const headerIndex = header.reduce((acc, field) => {
+            acc[field.replace("#", "")] = header.indexOf(field);
+            return acc;
+          }, {} as { [key: string]: number });
+          const datasetId2metadata = {} as { [key: string]: Dataset };
+          for (let i = 1; i < rows.length; i++) {
+            if (rows[i].length === 0) {
+              continue;
+            }
+            const fields = rows[i].split("\t");
+            datasetId2metadata[fields[headerIndex["dataset_id"]]] = {
+              resource: fields[headerIndex["resource"]],
+              data_type: fields[headerIndex["data_type"]] as DataType,
+              dataset_id: fields[headerIndex["dataset_id"]],
+              study_id: fields[headerIndex["study_id"]],
+              study_label: fields[headerIndex["study_label"]],
+              sample_group: fields[headerIndex["sample_group"]],
+              tissue_id: fields[headerIndex["tissue_id"]],
+              tissue_label: fields[headerIndex["tissue_label"]],
+              condition_label: fields[headerIndex["condition_label"]],
+              sample_size: parseInt(fields[headerIndex["sample_size"]]),
+              quant_method: fields[headerIndex["quant_method"]],
+            };
+          }
+          return datasetId2metadata;
+        });
+      return response;
+    },
+    enabled: !!datasets && datasets.length > 0,
     staleTime: Infinity,
   });
 };

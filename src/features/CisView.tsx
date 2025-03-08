@@ -1,6 +1,7 @@
 import { Box, styled, Table, TableBody, TableCell, TableRow, Typography } from "@mui/material";
 import {
   useCSQuery,
+  useDatasetMetadataQuery,
   useGeneModelByGeneQuery,
   useTraitMetadataQuery,
   useVariantAnnotationQuery,
@@ -22,14 +23,14 @@ const CleanTableCell = styled(TableCell)({
 
 const CisView = ({ geneName }: { geneName: string }) => {
   const resourceOrder = [
-    ["FinnGen", "FG"],
-    ["FinnGen_kanta", "KNT"],
-    ["FinnGen_drugs", "DRG"],
+    ["FinnGen", "Core"],
+    ["FinnGen_kanta", "Kanta"],
+    ["FinnGen_drugs", "Drug"],
     ["UKBB_119", "UKB"],
     ["BBJ_79", "BBJ"],
-    ["FinnGen_pQTL", "FGp"],
-    ["UKBB_pQTL", "UKp"],
-    ["FinnGen_eQTL", "FGe"],
+    ["FinnGen_pQTL", "FinnGen"],
+    ["UKBB_pQTL", "UKB-PPP"],
+    ["FinnGen_eQTL", "FinnGen"],
     ["eQTL_Catalogue_R7", "EQT"],
     ["NMR", "NMR"],
   ];
@@ -80,6 +81,18 @@ const CisView = ({ geneName }: { geneName: string }) => {
     isError: metaIsError,
     error: metaError,
   } = useTraitMetadataQuery(data?.map((d) => ({ resource: d.resource, phenocode: d.trait })));
+
+  const {
+    data: datasetMetadata,
+    isFetching: datasetMetadataIsFetching,
+    isError: datasetMetadataIsError,
+    error: datasetMetadataError,
+  } = useDatasetMetadataQuery(
+    // TODO harmonize dataset metadata across resources
+    data
+      ?.filter((d) => d.resource.startsWith("eQTL_Catalogue") && d.trait === geneName)
+      .map((d) => d.dataset)
+  );
 
   const {
     data: annoData,
@@ -276,6 +289,9 @@ const CisView = ({ geneName }: { geneName: string }) => {
       if (resourceAIndex !== resourceBIndex) {
         return resourceAIndex - resourceBIndex;
       }
+      if (a.dataset !== b.dataset) {
+        return a.dataset.localeCompare(b.dataset);
+      }
       if (a.trait === b.trait) {
         return a.csNumber - b.csNumber;
       }
@@ -287,24 +303,38 @@ const CisView = ({ geneName }: { geneName: string }) => {
     const rows = sortedData?.map((d) => {
       let color = "white";
       let traitName = d.trait;
-      let resourceShortName = "NIL";
-      let tissue = "";
+      let resourceShortName = "TBA";
       const highlighted = highlightCSs === undefined || highlightCSs.has(d.traitCSId);
       const resourceIndex = resourceOrder.findIndex((resource) => d.resource === resource[0]);
       if (resourceIndex === -1) {
         console.error(`Resource not found: ${d.resource}`);
       } else {
         color = highlighted ? colors[resourceIndex] : "#444444";
+        // TODO traitName and resourceShortName are a hack based on the resource now
         if (!metaisPending && metadata !== undefined) {
           const trait = metadata[`${d.resource}|${d.trait}`];
-          if (trait === undefined) {
-            console.error(`Metadata not found for ${d.resource}|${d.trait}`);
-          } else {
+          if (trait !== undefined) {
             traitName = trait.phenostring;
-            // tissue = trait.phenostring;
+          }
+        }
+        if (d.dataType === "pQTL") {
+          if (d.resource === "FinnGen_pQTL") {
+            d.trait = d.dataset.match(/FinnGen_(.*?)_/)?.[1] || "NA";
+          } else {
+            d.trait = "Olink"; // UKBB
           }
         }
         resourceShortName = resourceOrder[resourceIndex][1];
+        if (datasetMetadata !== undefined) {
+          const metadata = datasetMetadata[d.dataset];
+          if (metadata !== undefined) {
+            traitName = metadata.tissue_label;
+            resourceShortName = metadata.study_label;
+          }
+        }
+        if (d.dataType === "eQTL" && d.resource === "FinnGen_eQTL") {
+          d.trait = d.dataset.match(/FinnGen_(.*?)_/)?.[1] || "NA";
+        }
       }
 
       return (
@@ -346,13 +376,20 @@ const CisView = ({ geneName }: { geneName: string }) => {
           <CleanTableCell align="right" style={{ width: "20px", marginRight: "5px", color: color }}>
             {d.csSize}
           </CleanTableCell>
-          <CleanTableCell align="right" style={{ width: "25px", marginRight: "5px", color: color }}>
+          <CleanTableCell
+            align="right"
+            style={{
+              width: "60px",
+              marginRight: "5px",
+              color: color,
+              overflow: "scroll",
+              whiteSpace: "nowrap",
+            }}>
             {resourceShortName}
           </CleanTableCell>
           <CleanTableCell
             style={{
-              maxWidth: config.gene_view.maxTitleWidth,
-              textOverflow: "ellipsis",
+              width: config.gene_view.titleWidth,
               overflow: "scroll",
               display: "inline-flex",
               alignItems: "center",
@@ -375,10 +412,14 @@ const CisView = ({ geneName }: { geneName: string }) => {
   if (!geneName) {
     return <Typography>Enter a gene name</Typography>;
   }
-  if (isError || metaIsError || annoIsError || geneModelsIsError) {
-    return <Typography>{(error || metaError || annoError || geneModelsError)!.message}</Typography>;
+  if (isError || metaIsError || annoIsError || geneModelsIsError || datasetMetadataIsError) {
+    return (
+      <Typography>
+        {(error || metaError || annoError || geneModelsError || datasetMetadataError)!.message}
+      </Typography>
+    );
   }
-  if (isPending || metaisPending || geneModelsIsPending) {
+  if (isPending || metaisPending || geneModelsIsPending || datasetMetadataIsFetching) {
     return <Typography>Loading...</Typography>;
   }
 
@@ -399,7 +440,7 @@ const CisView = ({ geneName }: { geneName: string }) => {
         </Typography>
         <Box display="flex" flexDirection="row">
           <Box display="flex" flexDirection="column">
-            <Box height={geneModelHeight} width={config.gene_view.maxTitleWidth} />
+            <Box height={geneModelHeight} width={config.gene_view.titleWidth} />
             <Box>{titleRows}</Box>
           </Box>
           <CSPlot
@@ -409,7 +450,7 @@ const CisView = ({ geneName }: { geneName: string }) => {
             varAnno={annoData}
             resources={resourceOrder.map((r) => r[0])}
             colors={colors}
-            width={windowWidth - config.gene_view.maxTitleWidth - 100}
+            width={windowWidth - config.gene_view.titleWidth - 100}
             rowHeight={config.gene_view.rowHeight}
             highlightTrait={mouseOverTrait}
             setHighlightTrait={setMouseOverTrait}

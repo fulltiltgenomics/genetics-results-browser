@@ -1,5 +1,10 @@
 {
   "target": "public",
   "title": "annopublic.finngen.fi / variant annotation and interpretation based on global human genomics results",
-  "last_updated": "Oct 2024"
+  "last_updated": "Oct 2024",
+  "gene_view": {
+    "gene_padding": 500000,
+    "rowHeight": 20,
+    "titleWidth": 250
+  }
 }
