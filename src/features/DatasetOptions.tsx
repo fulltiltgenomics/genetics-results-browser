@@ -2,9 +2,23 @@ import { Box, FormControlLabel, Stack, Switch, Typography } from "@mui/material"
 import { useMemo } from "react";
 import config from "@/config.json";
 import { useGeneViewStore } from "@/store/store.gene";
+import { CSDatum } from "@/types/types.gene";
 
-const DatasetOptions = ({ disabled }: { disabled: boolean }) => {
+const DatasetOptions = ({ data }: { data: CSDatum[] | undefined }) => {
   const { resourceToggles, toggleResource } = useGeneViewStore();
+
+  const resourceCountsByDataType = useMemo(() => {
+    return data?.reduce((acc, d) => {
+      if (!acc[d.dataType]) {
+        acc[d.dataType] = {};
+      }
+      if (!acc[d.dataType][d.resource]) {
+        acc[d.dataType][d.resource] = 0;
+      }
+      acc[d.dataType][d.resource]++;
+      return acc;
+    }, {} as Record<string, Record<string, number>>);
+  }, [data]);
 
   const datatype2resources = useMemo(() => {
     return config.gene_view.resources.reduce((acc, resource) => {
@@ -27,7 +41,9 @@ const DatasetOptions = ({ disabled }: { disabled: boolean }) => {
     <Box display="flex" flexDirection="row" gap={4}>
       {Object.entries(datatype2resources).map(([datatype, resources]) => (
         <Box key={datatype}>
-          <Typography style={{ marginLeft: 8 }}>{datatype}</Typography>
+          <Typography style={{ marginLeft: 8, fontWeight: "bold", userSelect: "none" }}>
+            {datatype}
+          </Typography>
           <Stack direction="row" spacing={2} sx={{ maxWidth: "fit-content" }}>
             {getResourceColumns(resources).map((column, colIndex) => (
               <Stack key={colIndex}>
@@ -40,7 +56,9 @@ const DatasetOptions = ({ disabled }: { disabled: boolean }) => {
                           checked={resourceToggles[resource.dataName] ?? true}
                           onChange={() => toggleResource(resource.dataName)}
                           name={resource.dataName}
-                          disabled={disabled}
+                          disabled={
+                            resourceCountsByDataType?.[datatype]?.[resource.dataName] === undefined
+                          }
                           size="small"
                           sx={{
                             "& .MuiSwitch-switchBase": {
@@ -49,11 +67,15 @@ const DatasetOptions = ({ disabled }: { disabled: boolean }) => {
                           }}
                         />
                       }
-                      label={resource.label}
+                      label={`${resourceCountsByDataType?.[datatype]?.[resource.dataName] || 0} ${
+                        resource.label
+                      }`}
                       sx={{
                         margin: 0,
                         "& .MuiFormControlLabel-label": {
                           color: resource.color,
+                          userSelect: "none",
+                          width: 70,
                         },
                       }}
                     />

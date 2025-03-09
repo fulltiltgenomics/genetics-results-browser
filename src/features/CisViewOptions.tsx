@@ -17,11 +17,13 @@ const CisViewOptions = ({
   setCodingOnly: (codingOnly: boolean) => void;
   disabled: boolean;
 }) => {
+  const toggleLabelWidth = 75;
+  const rowHeight = 30;
   return (
     <Box display="flex" flexDirection="column" ml={10}>
       <Box display="flex" flexDirection="row" alignItems="center">
         <Typography style={{ width: 200 }}>
-          {disabled ? "loading coding variants..." : "show only CSs with coding variants"}
+          {disabled ? "Loading coding variants..." : "Show only CSs with coding variants"}
         </Typography>
         <FormControlLabel
           control={
@@ -36,8 +38,8 @@ const CisViewOptions = ({
           sx={{ margin: 0 }}
         />
       </Box>
-      <Box display="flex" flexDirection="row" alignItems="center" style={{ height: 30 }}>
-        <Typography style={{ width: 200 }}>max CS size</Typography>
+      <Box display="flex" flexDirection="row" alignItems="center" style={{ height: rowHeight }}>
+        <Typography style={{ width: 200 }}>Max CS size</Typography>
         <RadioGroup
           row
           value={maxCsSize}
@@ -52,6 +54,7 @@ const CisViewOptions = ({
               margin: 0,
               marginRight: 1,
               "& .MuiTypography-root": { fontSize: "0.875rem" },
+              width: toggleLabelWidth,
             }}
           />
           <FormControlLabel
@@ -62,6 +65,7 @@ const CisViewOptions = ({
               margin: 0,
               marginRight: 1,
               "& .MuiTypography-root": { fontSize: "0.875rem" },
+              width: toggleLabelWidth,
             }}
           />
           <FormControlLabel
@@ -72,6 +76,7 @@ const CisViewOptions = ({
               margin: 0,
               marginRight: 1,
               "& .MuiTypography-root": { fontSize: "0.875rem" },
+              width: toggleLabelWidth,
             }}
           />
           <FormControlLabel
@@ -80,13 +85,15 @@ const CisViewOptions = ({
             label="unlimited"
             sx={{
               margin: 0,
+              marginRight: 1,
               "& .MuiTypography-root": { fontSize: "0.875rem" },
+              width: toggleLabelWidth,
             }}
           />
         </RadioGroup>
       </Box>
-      <Box display="flex" flexDirection="row" alignItems="center" style={{ height: 30 }}>
-        <Typography style={{ width: 200 }}>min lead p-value</Typography>
+      <Box display="flex" flexDirection="row" alignItems="center" style={{ height: rowHeight }}>
+        <Typography style={{ width: 200 }}>Min lead p-value</Typography>
         <RadioGroup
           row
           value={minLeadMlog10p}
@@ -101,6 +108,7 @@ const CisViewOptions = ({
               margin: 0,
               marginRight: 1,
               "& .MuiTypography-root": { fontSize: "0.875rem" },
+              width: toggleLabelWidth,
             }}
           />
           <FormControlLabel
@@ -111,6 +119,7 @@ const CisViewOptions = ({
               margin: 0,
               marginRight: 1,
               "& .MuiTypography-root": { fontSize: "0.875rem" },
+              width: toggleLabelWidth,
             }}
           />
           <FormControlLabel
@@ -119,7 +128,9 @@ const CisViewOptions = ({
             label="1e-12"
             sx={{
               margin: 0,
+              marginRight: 1,
               "& .MuiTypography-root": { fontSize: "0.875rem" },
+              width: toggleLabelWidth,
             }}
           />
         </RadioGroup>

@@ -1,4 +1,15 @@
-import { Box, styled, Table, TableBody, TableCell, TableRow, Typography } from "@mui/material";
+import {
+  Box,
+  Collapse,
+  IconButton,
+  styled,
+  Table,
+  TableBody,
+  TableCell,
+  TableRow,
+  Typography,
+  useMediaQuery,
+} from "@mui/material";
 import {
   useCSQuery,
   useDatasetMetadataQuery,
@@ -17,6 +28,7 @@ import SouthIcon from "@mui/icons-material/South";
 import DatasetOptions from "./DatasetOptions";
 import { useThemeStore } from "@/store/store.theme";
 import { useGeneViewStore } from "@/store/store.gene";
+import HelpOutlineIcon from "@mui/icons-material/HelpOutline";
 
 const CleanTableCell = styled(TableCell)({
   padding: 0,
@@ -25,7 +37,9 @@ const CleanTableCell = styled(TableCell)({
 });
 
 const CisView = ({ geneName }: { geneName: string }) => {
+  const prefersDarkMode = useMediaQuery("(prefers-color-scheme: dark)");
   const { isDarkMode } = useThemeStore();
+  const isActualDarkMode = isDarkMode ?? prefersDarkMode;
   const { resourceToggles } = useGeneViewStore();
   const {
     data: geneModels,
@@ -75,6 +89,7 @@ const CisView = ({ geneName }: { geneName: string }) => {
   } = useVariantAnnotationQuery(Array.from(new Set(data?.flatMap((d) => d.variant))));
 
   const [codingOnly, setCodingOnly] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
   const [traitStatus, setTraitStatus] = useState<TraitStatus | undefined>(undefined);
   const [csStatus, setCsStatus] = useState<CSStatus | undefined>(undefined);
   const [selectedVariantStats, setSelectedVariantStats] = useState<
@@ -110,18 +125,26 @@ const CisView = ({ geneName }: { geneName: string }) => {
     return [minPos, maxPos];
   }, [data, geneModels, geneName]);
 
-  const filteredData: CSDatum[] | undefined = useMemo(() => {
+  const {
+    filteredData,
+    filteredDataWithResourceToggles,
+  }: {
+    filteredData: CSDatum[] | undefined;
+    filteredDataWithResourceToggles: CSDatum[] | undefined;
+  } = useMemo(() => {
     console.time("filter data");
-    const fd = data?.filter(
+    const filteredData = data?.filter(
       (d) =>
         d.mlog10p.filter((mlog10p) => mlog10p >= minLeadMlog10p).length > 0 &&
         d.csSize <= maxCsSize &&
         d.variant.length > 0 &&
-        (annoData && codingOnly ? d.variant.some((v) => annoData[v]?.isCoding) : true) &&
-        resourceToggles[d.resource]
+        (annoData && codingOnly ? d.variant.some((v) => annoData[v]?.isCoding) : true)
+    );
+    const filteredDataWithResourceToggles = filteredData?.filter(
+      (d) => resourceToggles[d.resource]
     );
     console.timeEnd("filter data");
-    return fd;
+    return { filteredData, filteredDataWithResourceToggles };
   }, [data, annoData, maxCsSize, minLeadMlog10p, codingOnly, resourceToggles]);
 
   const setHighlightVariant = (csDatum: CSDatum | undefined, index: number | undefined) => {
@@ -259,7 +282,7 @@ const CisView = ({ geneName }: { geneName: string }) => {
   }, []);
 
   const sortedData = useMemo(() => {
-    return filteredData?.sort((a, b) => {
+    return filteredDataWithResourceToggles?.sort((a, b) => {
       const resourceAIndex = config.gene_view.resources.findIndex(
         (resource) => a.resource === resource.dataName
       );
@@ -277,7 +300,7 @@ const CisView = ({ geneName }: { geneName: string }) => {
       }
       return a.trait.localeCompare(b.trait);
     });
-  }, [filteredData]);
+  }, [filteredDataWithResourceToggles]);
 
   const titleRows = useMemo(() => {
     const rows = sortedData?.map((d) => {
@@ -293,7 +316,7 @@ const CisView = ({ geneName }: { geneName: string }) => {
       } else {
         color = highlighted
           ? resource.color
-          : isDarkMode
+          : isActualDarkMode
           ? config.gene_view.colors.dimDark
           : config.gene_view.colors.dim;
         // TODO traitName and resourceShortName are a hack based on the resource now
@@ -331,7 +354,7 @@ const CisView = ({ geneName }: { geneName: string }) => {
           style={{
             color: color,
             backgroundColor:
-              d.traitId === mouseOverTrait ? (isDarkMode ? "black" : "#eeeeee") : "inherit",
+              d.traitId === mouseOverTrait ? (isActualDarkMode ? "black" : "#eeeeee") : "inherit",
             height: config.gene_view.rowHeight,
             cursor: "pointer",
             display: "flex",
@@ -351,7 +374,7 @@ const CisView = ({ geneName }: { geneName: string }) => {
                   height: 20,
                   color: highlighted
                     ? "red"
-                    : isDarkMode
+                    : isActualDarkMode
                     ? config.gene_view.colors.dimDark
                     : config.gene_view.colors.dim,
                 }}
@@ -362,7 +385,7 @@ const CisView = ({ geneName }: { geneName: string }) => {
                   height: 20,
                   color: highlighted
                     ? "green"
-                    : isDarkMode
+                    : isActualDarkMode
                     ? config.gene_view.colors.dimDark
                     : config.gene_view.colors.dim,
                 }}
@@ -423,7 +446,7 @@ const CisView = ({ geneName }: { geneName: string }) => {
     <>
       <Box display="flex" flexDirection="column">
         <Box display="flex" flexDirection="row" mt={2} mb={2}>
-          <DatasetOptions disabled={isPending} />
+          <DatasetOptions data={filteredData} />
           <CisViewOptions
             maxCsSize={maxCsSize}
             setMaxCsSize={setMaxCsSize}
@@ -434,9 +457,37 @@ const CisView = ({ geneName }: { geneName: string }) => {
             disabled={annoIsPending}
           />
         </Box>
-        <Typography>
-          Hold <code>ctrl</code> and scroll to zoom
-        </Typography>
+        <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1, mb: 2 }}>
+          <IconButton size="small" onClick={() => setShowHelp(!showHelp)} sx={{ mt: 0.5 }}>
+            <HelpOutlineIcon />
+          </IconButton>
+          <Collapse in={showHelp}>
+            <Typography>Each row represents a credible set.</Typography>
+            <Typography>
+              The arrow before the trait name shows signal direction: up for risk/increasing (red)
+              and down for protective/decreasing (green).
+            </Typography>
+            <Typography>
+              The number before the trait name shows the number of variants in the credible set.
+            </Typography>
+            <Typography>
+              The height of each bar represents the posterior inclusion probability (PIP) of the
+              variant in the credible set.
+            </Typography>
+            <Typography>
+              Different data sources have different colors. pLoF variants are highlighted in red and
+              other coding variants in orange.
+            </Typography>
+            <Typography>
+              eQTL and pQTL variants that affect the input gene are shown. There can be other QTL
+              variants affecting other genes in the region but they are not shown.
+            </Typography>
+            <Typography style={{ marginBottom: "10px" }}>
+              Hover over trait names or variants to highlight traits with an overlapping credible
+              set. Hold <code>ctrl</code> and scroll on the credible set area to zoom.
+            </Typography>
+          </Collapse>
+        </Box>
         <Box display="flex" flexDirection="row">
           <Box display="flex" flexDirection="column">
             <Box height={geneModelHeight} width={config.gene_view.titleWidth} />

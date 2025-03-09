@@ -5,6 +5,7 @@ import { D3ZoomEvent, zoom, zoomIdentity, ZoomTransform } from "d3-zoom";
 import { CSDatum, GeneModel } from "@/types/types.gene";
 import { useThemeStore } from "@/store/store.theme";
 import config from "@/config.json";
+import { useMediaQuery } from "@mui/material";
 
 const CSPlot = ({
   geneName,
@@ -41,7 +42,9 @@ const CSPlot = ({
   geneModelHeight: number;
   setGeneModelHeight?: (height: number) => void;
 }) => {
+  const prefersDarkMode = useMediaQuery("(prefers-color-scheme: dark)");
   const { isDarkMode } = useThemeStore();
+  const isActualDarkMode = isDarkMode ?? prefersDarkMode;
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const geneModelCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const [mousePos, setMousePos] = useState<{ x: number; y: number } | undefined>(undefined);
@@ -79,7 +82,8 @@ const CSPlot = ({
       geneStart: number,
       geneEnd: number
     ) => {
-      const color = geneName === geneModel.geneName ? (isDarkMode ? "white" : "black") : "#888888";
+      const color =
+        geneName === geneModel.geneName ? (isActualDarkMode ? "white" : "black") : "#888888";
       const geneLineY = geneModelY + exonHeight / 2;
 
       // gene line
@@ -122,7 +126,7 @@ const CSPlot = ({
       context.fillText(geneModel.geneName, geneNameX, geneNameY);
       context.fillStyle = color;
     },
-    [scales.x, isDarkMode]
+    [scales.x, isActualDarkMode]
   );
 
   const drawGeneModels = useCallback(
@@ -186,7 +190,7 @@ const CSPlot = ({
         context.beginPath();
         context.moveTo(mousePos.x, 0);
         context.lineTo(mousePos.x, geneModelHeight);
-        context.strokeStyle = "rgba(255, 255, 255, 0.3)";
+        context.strokeStyle = isActualDarkMode ? "rgba(255, 255, 255, 0.3)" : "rgba(0, 0, 0, 0.3)";
         context.lineWidth = 1;
         context.stroke();
       }
@@ -220,7 +224,7 @@ const CSPlot = ({
         }
 
         if (d.traitId === highlightTrait) {
-          context.fillStyle = isDarkMode ? "black" : "#eeeeee";
+          context.fillStyle = isActualDarkMode ? "black" : "#eeeeee";
           context.fillRect(scales.x(0), yPos, 10000000000, rowHeight);
         }
         if (
@@ -237,14 +241,16 @@ const CSPlot = ({
           const xPos = x(pos);
           const pipHeight = pipScale(d.pip[j]);
           if (d.variant[j] === highlightVariant) {
-            color = isDarkMode ? "white" : "black";
+            color = isActualDarkMode ? "white" : "black";
           } else if (varAnno !== undefined && varAnno[d.variant[j]]?.isLoF) {
             color = config.gene_view.colors.plof;
           } else if (varAnno !== undefined && varAnno[d.variant[j]]?.isCoding) {
             color = config.gene_view.colors.coding;
           }
           if (highlightCS && !highlightCS.has(d.traitCSId)) {
-            color = isDarkMode ? config.gene_view.colors.dimDark : config.gene_view.colors.dim;
+            color = isActualDarkMode
+              ? config.gene_view.colors.dimDark
+              : config.gene_view.colors.dim;
           }
           context.beginPath();
           context.moveTo(xPos, yPos + rowHeight);
@@ -258,14 +264,23 @@ const CSPlot = ({
         context.beginPath();
         context.moveTo(mousePos.x, 0);
         context.lineTo(mousePos.x, csAreaHeight);
-        context.strokeStyle = "rgba(255, 255, 255, 0.3)";
+        context.strokeStyle = isActualDarkMode ? "rgba(255, 255, 255, 0.3)" : "rgba(0, 0, 0, 0.3)";
         context.lineWidth = 1;
         context.stroke();
       }
 
       context.restore();
     },
-    [scales, data, highlightTrait, highlightVariant, highlightCS, zoomTransform, mousePos]
+    [
+      scales,
+      data,
+      highlightTrait,
+      highlightVariant,
+      highlightCS,
+      zoomTransform,
+      mousePos,
+      isActualDarkMode,
+    ]
   );
 
   const zoomBehavior = useMemo(
@@ -388,7 +403,7 @@ const CSPlot = ({
         width={width}
         height={csAreaHeight}
         style={{ display: "block" }}></canvas>
-      <div style={{ height: "20px" }}></div>
+      <div style={{ height: "60px" }}></div>
     </div>
   );
 };

@@ -16,8 +16,8 @@ const ChangeLog = lazy(() => import("./features/page/ChangeLog"));
 
 export const App = () => {
   const prefersDarkMode = useMediaQuery("(prefers-color-scheme: dark)");
-  const storedTheme = useThemeStore((state) => state.isDarkMode);
-  const isDarkMode = storedTheme ?? prefersDarkMode;
+  const { isDarkMode } = useThemeStore();
+  const isActualDarkMode = isDarkMode ?? prefersDarkMode;
 
   const theme = useMemo(
     () =>
@@ -25,7 +25,7 @@ export const App = () => {
         palette: {
           primary: indigo,
           secondary: pink,
-          mode: isDarkMode ? "dark" : "light",
+          mode: isActualDarkMode ? "dark" : "light",
         },
         typography: {
           body1: {
