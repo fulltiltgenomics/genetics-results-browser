@@ -1,6 +1,8 @@
 import { Box, Typography } from "@mui/material";
 import { pValRepr } from "./table/utils/tableutil";
 import { CSStatus, SelectedVariantStats, TraitStatus } from "@/types/types.gene";
+import { useGeneViewStore } from "@/store/store.gene";
+import config from "@/config.json";
 
 const VariantCSInfoBox = ({
   traitStatus,
@@ -71,7 +73,17 @@ const VariantCSInfoBox = ({
             <Box display="flex" flexDirection="row">
               <Box display="grid" gridTemplateRows="2" style={{ paddingRight: "16px" }}>
                 <Typography key="variant">{selectedVariantStats.variant}</Typography>
-                <Typography key="consequence">{selectedVariantStats.consequence}</Typography>
+                <Typography
+                  key="consequence"
+                  style={{
+                    color: selectedVariantStats.isLoF
+                      ? config.gene_view.colors.plof
+                      : selectedVariantStats.isCoding
+                      ? config.gene_view.colors.coding
+                      : "inherit",
+                  }}>
+                  {selectedVariantStats.consequence}
+                </Typography>
               </Box>
               <Box display="grid" gridTemplateColumns="auto auto auto auto" gap="0 8px">
                 <Typography>p-value</Typography>

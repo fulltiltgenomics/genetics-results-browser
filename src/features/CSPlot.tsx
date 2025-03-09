@@ -3,6 +3,8 @@ import { select } from "d3-selection";
 import { scaleLinear, scaleBand, scaleOrdinal, scalePow } from "d3-scale";
 import { D3ZoomEvent, zoom, zoomIdentity, ZoomTransform } from "d3-zoom";
 import { CSDatum, GeneModel } from "@/types/types.gene";
+import { useThemeStore } from "@/store/store.theme";
+import config from "@/config.json";
 
 const CSPlot = ({
   geneName,
@@ -10,7 +12,6 @@ const CSPlot = ({
   range,
   varAnno,
   resources,
-  colors,
   rowHeight,
   width,
   highlightTrait,
@@ -27,8 +28,7 @@ const CSPlot = ({
   data: CSDatum[];
   range: number[];
   varAnno: { [key: string]: { [key: string]: string | boolean } } | undefined;
-  resources: string[];
-  colors: string[];
+  resources: Record<string, string>[];
   rowHeight: number;
   width: number;
   highlightTrait?: string;
@@ -41,6 +41,7 @@ const CSPlot = ({
   geneModelHeight: number;
   setGeneModelHeight?: (height: number) => void;
 }) => {
+  const { isDarkMode } = useThemeStore();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const geneModelCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const [mousePos, setMousePos] = useState<{ x: number; y: number } | undefined>(undefined);
@@ -55,15 +56,16 @@ const CSPlot = ({
   const csAreaHeight = data.length * rowHeight;
 
   const scales = useMemo(() => {
-    const colorScale = scaleOrdinal<string>().domain(resources).range(colors);
+    const colorScale = scaleOrdinal<string>()
+      .domain(resources.map((r) => r.dataName))
+      .range(resources.map((r) => r.color));
     const pipScale = scalePow().exponent(0.5).domain([0, 1]).range([0, rowHeight]);
     const x = scaleLinear<number>().range([0, width]).domain(range);
     const y = scaleBand<number>()
       .range([0, csAreaHeight])
       .domain(data.map((_, i) => i));
-
     return { colorScale, pipScale, x, y };
-  }, [resources, colors, rowHeight, width, range, data, csAreaHeight]);
+  }, [resources, rowHeight, width, range, data, csAreaHeight]);
 
   const helperLines = false;
   const verticalLine = true;
@@ -77,7 +79,7 @@ const CSPlot = ({
       geneStart: number,
       geneEnd: number
     ) => {
-      const color = geneName === geneModel.geneName ? "white" : "#999999";
+      const color = geneName === geneModel.geneName ? (isDarkMode ? "white" : "black") : "#888888";
       const geneLineY = geneModelY + exonHeight / 2;
 
       // gene line
@@ -94,7 +96,6 @@ const CSPlot = ({
         context.rect(scales.x(start), geneModelY, scales.x(end) - scales.x(start), exonHeight);
         context.fillStyle = color;
         context.fill();
-        context.fillStyle = "black";
       });
 
       // strand direction arrow
@@ -121,7 +122,7 @@ const CSPlot = ({
       context.fillText(geneModel.geneName, geneNameX, geneNameY);
       context.fillStyle = color;
     },
-    [scales.x]
+    [scales.x, isDarkMode]
   );
 
   const drawGeneModels = useCallback(
@@ -219,7 +220,7 @@ const CSPlot = ({
         }
 
         if (d.traitId === highlightTrait) {
-          context.fillStyle = "black";
+          context.fillStyle = isDarkMode ? "black" : "#eeeeee";
           context.fillRect(scales.x(0), yPos, 10000000000, rowHeight);
         }
         if (
@@ -236,14 +237,14 @@ const CSPlot = ({
           const xPos = x(pos);
           const pipHeight = pipScale(d.pip[j]);
           if (d.variant[j] === highlightVariant) {
-            color = "white";
+            color = isDarkMode ? "white" : "black";
           } else if (varAnno !== undefined && varAnno[d.variant[j]]?.isLoF) {
-            color = "red";
+            color = config.gene_view.colors.plof;
           } else if (varAnno !== undefined && varAnno[d.variant[j]]?.isCoding) {
-            color = "orange";
+            color = config.gene_view.colors.coding;
           }
           if (highlightCS && !highlightCS.has(d.traitCSId)) {
-            color = "#444444";
+            color = isDarkMode ? config.gene_view.colors.dimDark : config.gene_view.colors.dim;
           }
           context.beginPath();
           context.moveTo(xPos, yPos + rowHeight);

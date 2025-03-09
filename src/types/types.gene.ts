@@ -40,6 +40,8 @@ export type CSStatus = {
 export type SelectedVariantStats = {
   variant: string;
   consequence: string;
+  isLoF: boolean;
+  isCoding: boolean;
   mlog10p: number;
   pip: number;
   beta: number;

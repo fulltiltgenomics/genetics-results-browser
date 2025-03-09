@@ -14,6 +14,9 @@ import VariantCSInfoBox from "./VariantCSInfoBox";
 import CisViewOptions from "./CisViewOptions";
 import NorthIcon from "@mui/icons-material/North";
 import SouthIcon from "@mui/icons-material/South";
+import DatasetOptions from "./DatasetOptions";
+import { useThemeStore } from "@/store/store.theme";
+import { useGeneViewStore } from "@/store/store.gene";
 
 const CleanTableCell = styled(TableCell)({
   padding: 0,
@@ -22,38 +25,8 @@ const CleanTableCell = styled(TableCell)({
 });
 
 const CisView = ({ geneName }: { geneName: string }) => {
-  const resourceOrder = [
-    ["FinnGen", "Core"],
-    ["FinnGen_kanta", "Kanta"],
-    ["FinnGen_drugs", "Drug"],
-    ["UKBB_119", "UKB"],
-    ["BBJ_79", "BBJ"],
-    ["FinnGen_pQTL", "FinnGen"],
-    ["UKBB_pQTL", "UKB-PPP"],
-    ["FinnGen_eQTL", "FinnGen"],
-    ["eQTL_Catalogue_R7", "EQT"],
-    ["NMR", "NMR"],
-  ];
-
-  const colors = [
-    "#1f77b4", // blue
-    "#1f77b4", // blue
-    "#1f77b4", // blue
-    "#2ca02c", // green
-    "#9467bd", // purple
-    "#1f77b4", // blue
-    "#2ca02c", // green
-    "#1f77b4", // blue
-    "#e377c2", // pink
-    "#8c564b", // brown
-    "#bcbd22", // yellow-green
-    "#17becf", // cyan
-    "#7f7f7f", // gray
-    "#1f78b4", // dark blue
-    "#33a02c", // dark green
-    "#6a3d9a", // dark purple
-  ];
-
+  const { isDarkMode } = useThemeStore();
+  const { resourceToggles } = useGeneViewStore();
   const {
     data: geneModels,
     isPending: geneModelsIsPending,
@@ -144,11 +117,12 @@ const CisView = ({ geneName }: { geneName: string }) => {
         d.mlog10p.filter((mlog10p) => mlog10p >= minLeadMlog10p).length > 0 &&
         d.csSize <= maxCsSize &&
         d.variant.length > 0 &&
-        (annoData && codingOnly ? d.variant.some((v) => annoData[v]?.isCoding) : true)
+        (annoData && codingOnly ? d.variant.some((v) => annoData[v]?.isCoding) : true) &&
+        resourceToggles[d.resource]
     );
     console.timeEnd("filter data");
     return fd;
-  }, [data, annoData, maxCsSize, minLeadMlog10p, codingOnly]);
+  }, [data, annoData, maxCsSize, minLeadMlog10p, codingOnly, resourceToggles]);
 
   const setHighlightVariant = (csDatum: CSDatum | undefined, index: number | undefined) => {
     if (
@@ -180,6 +154,8 @@ const CisView = ({ geneName }: { geneName: string }) => {
       setSelectedVariantStats({
         variant: csDatum.variant[index],
         consequence: String(annoData?.[csDatum.variant[index]]?.consequence || "not in gnomAD"),
+        isLoF: annoData?.[csDatum.variant[index]]?.isLoF as boolean,
+        isCoding: annoData?.[csDatum.variant[index]]?.isCoding as boolean,
         mlog10p: csDatum.mlog10p[index],
         pip: csDatum.pip[index],
         beta: csDatum.beta[index],
@@ -284,8 +260,12 @@ const CisView = ({ geneName }: { geneName: string }) => {
 
   const sortedData = useMemo(() => {
     return filteredData?.sort((a, b) => {
-      const resourceAIndex = resourceOrder.findIndex((resource) => a.resource === resource[0]);
-      const resourceBIndex = resourceOrder.findIndex((resource) => b.resource === resource[0]);
+      const resourceAIndex = config.gene_view.resources.findIndex(
+        (resource) => a.resource === resource.dataName
+      );
+      const resourceBIndex = config.gene_view.resources.findIndex(
+        (resource) => b.resource === resource.dataName
+      );
       if (resourceAIndex !== resourceBIndex) {
         return resourceAIndex - resourceBIndex;
       }
@@ -305,11 +285,17 @@ const CisView = ({ geneName }: { geneName: string }) => {
       let traitName = d.trait;
       let resourceShortName = "TBA";
       const highlighted = highlightCSs === undefined || highlightCSs.has(d.traitCSId);
-      const resourceIndex = resourceOrder.findIndex((resource) => d.resource === resource[0]);
-      if (resourceIndex === -1) {
+      const resource = config.gene_view.resources.find(
+        (resource) => d.resource === resource.dataName
+      );
+      if (resource === undefined) {
         console.error(`Resource not found: ${d.resource}`);
       } else {
-        color = highlighted ? colors[resourceIndex] : "#444444";
+        color = highlighted
+          ? resource.color
+          : isDarkMode
+          ? config.gene_view.colors.dimDark
+          : config.gene_view.colors.dim;
         // TODO traitName and resourceShortName are a hack based on the resource now
         if (!metaisPending && metadata !== undefined) {
           const trait = metadata[`${d.resource}|${d.trait}`];
@@ -324,7 +310,7 @@ const CisView = ({ geneName }: { geneName: string }) => {
             d.trait = "Olink"; // UKBB
           }
         }
-        resourceShortName = resourceOrder[resourceIndex][1];
+        resourceShortName = resource.label;
         if (datasetMetadata !== undefined) {
           const metadata = datasetMetadata[d.dataset];
           if (metadata !== undefined) {
@@ -344,12 +330,14 @@ const CisView = ({ geneName }: { geneName: string }) => {
           data-trait-id={d.traitId}
           style={{
             color: color,
-            backgroundColor: d.traitId === mouseOverTrait ? "black" : "inherit",
+            backgroundColor:
+              d.traitId === mouseOverTrait ? (isDarkMode ? "black" : "#eeeeee") : "inherit",
             height: config.gene_view.rowHeight,
             cursor: "pointer",
             display: "flex",
             alignItems: "center",
             justifyContent: "flex-start",
+            width: config.gene_view.titleWidth,
           }}
           onMouseEnter={() => onRowMouseEnter(d.traitCSId)}
           onMouseLeave={() => {
@@ -361,14 +349,22 @@ const CisView = ({ geneName }: { geneName: string }) => {
               <NorthIcon
                 style={{
                   height: 20,
-                  color: highlighted ? "red" : "#444444",
+                  color: highlighted
+                    ? "red"
+                    : isDarkMode
+                    ? config.gene_view.colors.dimDark
+                    : config.gene_view.colors.dim,
                 }}
               />
             ) : (
               <SouthIcon
                 style={{
                   height: 20,
-                  color: highlighted ? "green" : "#444444",
+                  color: highlighted
+                    ? "green"
+                    : isDarkMode
+                    ? config.gene_view.colors.dimDark
+                    : config.gene_view.colors.dim,
                 }}
               />
             )}
@@ -389,7 +385,7 @@ const CisView = ({ geneName }: { geneName: string }) => {
           </CleanTableCell>
           <CleanTableCell
             style={{
-              width: config.gene_view.titleWidth,
+              width: config.gene_view.titleWidth - 80,
               overflow: "scroll",
               display: "inline-flex",
               alignItems: "center",
@@ -426,31 +422,33 @@ const CisView = ({ geneName }: { geneName: string }) => {
   return (
     <>
       <Box display="flex" flexDirection="column">
-        <CisViewOptions
-          maxCsSize={maxCsSize}
-          setMaxCsSize={setMaxCsSize}
-          minLeadMlog10p={minLeadMlog10p}
-          setMinLeadMlog10p={setMinLeadMlog10p}
-          codingOnly={codingOnly}
-          setCodingOnly={setCodingOnly}
-          disabled={annoIsPending}
-        />
+        <Box display="flex" flexDirection="row" mt={2} mb={2}>
+          <DatasetOptions disabled={isPending} />
+          <CisViewOptions
+            maxCsSize={maxCsSize}
+            setMaxCsSize={setMaxCsSize}
+            minLeadMlog10p={minLeadMlog10p}
+            setMinLeadMlog10p={setMinLeadMlog10p}
+            codingOnly={codingOnly}
+            setCodingOnly={setCodingOnly}
+            disabled={annoIsPending}
+          />
+        </Box>
         <Typography>
           Hold <code>ctrl</code> and scroll to zoom
         </Typography>
         <Box display="flex" flexDirection="row">
           <Box display="flex" flexDirection="column">
             <Box height={geneModelHeight} width={config.gene_view.titleWidth} />
-            <Box>{titleRows}</Box>
+            <Box sx={{ overflow: "hidden" }}>{titleRows}</Box>
           </Box>
           <CSPlot
             geneName={geneName}
             data={sortedData || []}
             range={range}
             varAnno={annoData}
-            resources={resourceOrder.map((r) => r[0])}
-            colors={colors}
-            width={windowWidth - config.gene_view.titleWidth - 100}
+            resources={config.gene_view.resources}
+            width={windowWidth - config.gene_view.titleWidth - 50}
             rowHeight={config.gene_view.rowHeight}
             highlightTrait={mouseOverTrait}
             setHighlightTrait={setMouseOverTrait}

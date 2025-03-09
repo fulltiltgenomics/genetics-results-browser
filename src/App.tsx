@@ -6,16 +6,18 @@ import { indigo, pink } from "@mui/material/colors";
 import Header from "./features/page/Header";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import CircularProgress from "@mui/material/CircularProgress"; // Import a component for fallback
-import { Box } from "@mui/material";
+import { Box, useMediaQuery } from "@mui/material";
 import GeneContainer from "./features/GeneContainer";
+import { useThemeStore } from "./store/store.theme";
 
 const TableContainer = lazy(() => import("./features/table/TableContainer"));
 const About = lazy(() => import("./features/page/About"));
 const ChangeLog = lazy(() => import("./features/page/ChangeLog"));
 
 export const App = () => {
-  //TODO dark/light mode
-  const prefersDarkMode = true; //useMediaQuery('(prefers-color-scheme: dark)');
+  const prefersDarkMode = useMediaQuery("(prefers-color-scheme: dark)");
+  const storedTheme = useThemeStore((state) => state.isDarkMode);
+  const isDarkMode = storedTheme ?? prefersDarkMode;
 
   const theme = useMemo(
     () =>
@@ -23,7 +25,7 @@ export const App = () => {
         palette: {
           primary: indigo,
           secondary: pink,
-          mode: prefersDarkMode ? "dark" : "light",
+          mode: isDarkMode ? "dark" : "light",
         },
         typography: {
           body1: {
@@ -32,7 +34,7 @@ export const App = () => {
           fontSize: 12,
         },
       }),
-    [prefersDarkMode]
+    [isDarkMode]
   );
 
   const queryClient = new QueryClient({
