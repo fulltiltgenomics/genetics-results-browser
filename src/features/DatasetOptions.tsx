@@ -39,53 +39,66 @@ const DatasetOptions = ({ data }: { data: CSDatum[] | undefined }) => {
 
   return (
     <Box display="flex" flexDirection="row" gap={4}>
-      {Object.entries(datatype2resources).map(([datatype, resources]) => (
-        <Box key={datatype}>
-          <Typography style={{ marginLeft: 8, fontWeight: "bold", userSelect: "none" }}>
-            {datatype}
-          </Typography>
-          <Stack direction="row" spacing={2} sx={{ maxWidth: "fit-content" }}>
-            {getResourceColumns(resources).map((column, colIndex) => (
-              <Stack key={colIndex}>
-                <Box display="flex" flexDirection="column">
-                  {column.map((resource) => (
-                    <FormControlLabel
-                      key={resource.dataName}
-                      control={
-                        <Switch
-                          checked={resourceToggles[resource.dataName] ?? true}
-                          onChange={() => toggleResource(resource.dataName)}
-                          name={resource.dataName}
-                          disabled={
-                            resourceCountsByDataType?.[datatype]?.[resource.dataName] === undefined
-                          }
-                          size="small"
-                          sx={{
-                            "& .MuiSwitch-switchBase": {
-                              padding: 0.5,
-                            },
-                          }}
-                        />
-                      }
-                      label={`${resourceCountsByDataType?.[datatype]?.[resource.dataName] || 0} ${
-                        resource.label
-                      }`}
-                      sx={{
-                        margin: 0,
-                        "& .MuiFormControlLabel-label": {
-                          color: resource.color,
-                          userSelect: "none",
-                          width: 70,
-                        },
-                      }}
-                    />
-                  ))}
-                </Box>
-              </Stack>
-            ))}
-          </Stack>
-        </Box>
-      ))}
+      {Object.entries(datatype2resources)
+        .sort((a, b) => {
+          if (a[0] === "GWAS" && b[0] !== "GWAS") return -1;
+          if (a[0] !== "GWAS" && b[0] === "GWAS") return 1;
+          if (a[0] === "pQTL" && b[0] !== "pQTL") return -1;
+          if (a[0] !== "pQTL" && b[0] === "pQTL") return 1;
+          if (a[0] === "eQTL" && b[0] !== "eQTL") return -1;
+          if (a[0] !== "eQTL" && b[0] === "eQTL") return 1;
+          if (a[0] === "metaboQTL" && b[0] !== "metaboQTL") return -1;
+          if (a[0] !== "metaboQTL" && b[0] === "metaboQTL") return 1;
+          return 0;
+        })
+        .map(([datatype, resources]) => (
+          <Box key={datatype}>
+            <Typography style={{ marginLeft: 8, fontWeight: "bold", userSelect: "none" }}>
+              {datatype}
+            </Typography>
+            <Stack direction="row" spacing={2} sx={{ maxWidth: "fit-content" }}>
+              {getResourceColumns(resources).map((column, colIndex) => (
+                <Stack key={colIndex}>
+                  <Box display="flex" flexDirection="column">
+                    {column.map((resource) => (
+                      <FormControlLabel
+                        key={resource.dataName}
+                        control={
+                          <Switch
+                            checked={resourceToggles[resource.dataName] ?? true}
+                            onChange={() => toggleResource(resource.dataName)}
+                            name={resource.dataName}
+                            disabled={
+                              resourceCountsByDataType?.[datatype]?.[resource.dataName] ===
+                              undefined
+                            }
+                            size="small"
+                            sx={{
+                              "& .MuiSwitch-switchBase": {
+                                padding: 0.5,
+                              },
+                            }}
+                          />
+                        }
+                        label={`${resourceCountsByDataType?.[datatype]?.[resource.dataName] || 0} ${
+                          resource.label
+                        }`}
+                        sx={{
+                          margin: 0,
+                          "& .MuiFormControlLabel-label": {
+                            color: resource.color,
+                            userSelect: "none",
+                            width: 70,
+                          },
+                        }}
+                      />
+                    ))}
+                  </Box>
+                </Stack>
+              ))}
+            </Stack>
+          </Box>
+        ))}
     </Box>
   );
 };

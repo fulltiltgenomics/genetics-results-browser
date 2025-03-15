@@ -53,7 +53,7 @@
         "dataName": "NMR",
         "label": "NMR",
         "resource": "NMR",
-        "dataType": "GWAS",
+        "dataType": "metaboQTL",
         "color": "#8c564b"
       },
       {
