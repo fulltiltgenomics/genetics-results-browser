@@ -17,6 +17,12 @@ export type CSDatum = {
   numberOfCSs: number;
   csSize: number;
   csMinR2: number;
+  consequence: string[];
+  isCoding: boolean[];
+  isLoF: boolean[];
+  af: string[];
+  gene: string[];
+  rsid: string[];
 };
 
 export type GeneModel = {

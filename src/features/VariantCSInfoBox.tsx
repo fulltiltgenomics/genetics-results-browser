@@ -1,5 +1,5 @@
 import { Box, Typography } from "@mui/material";
-import { pValRepr } from "./table/utils/tableutil";
+import { cleanConsequence, pValRepr } from "./table/utils/tableutil";
 import { CSStatus, SelectedVariantStats, TraitStatus } from "@/types/types.gene";
 import config from "@/config.json";
 
@@ -82,7 +82,7 @@ const VariantCSInfoBox = ({
                     ? config.gene_view.colors.coding
                     : "inherit",
                 }}>
-                {selectedVariantStats.consequence}
+                {cleanConsequence(selectedVariantStats.consequence)}
               </Typography>
             </Box>
             <Box display="grid" gridTemplateColumns="auto auto auto auto" gap="0 8px">

@@ -15,6 +15,21 @@ export const pValRepr = (mlogp: number): string => {
   return repr;
 };
 
+export const afRepr = (af: string): string => {
+  const afNumber = parseFloat(af);
+  if (afNumber === 0) {
+    return "0";
+  }
+  if (afNumber < 0.001) {
+    return afNumber.toExponential(2);
+  }
+  return afNumber.toPrecision(2);
+};
+
+export const cleanConsequence = (consequence: string): string => {
+  return consequence.replace(/_variant/g, "").replace(/_/g, " ");
+};
+
 // TODO if the threshold is the same across resources, just show the number
 export const renderPThreshold = (clientData: TableData, thres: number): string => {
   if (thres === 1) {

@@ -7,6 +7,7 @@ import {
   TableBody,
   TableCell,
   TableRow,
+  Tooltip,
   Typography,
   useMediaQuery,
 } from "@mui/material";
@@ -31,6 +32,7 @@ import { useThemeStore } from "@/store/store.theme";
 import { useGeneViewStore } from "@/store/store.gene";
 import HelpOutlineIcon from "@mui/icons-material/HelpOutline";
 import TransGeneList from "./TransGeneList";
+import { afRepr, cleanConsequence, pValRepr } from "./table/utils/tableutil";
 
 const CleanTableCell = styled(TableCell)({
   padding: 0,
@@ -142,13 +144,6 @@ const CisView = ({ geneName }: { geneName: string }) => {
       .map((d) => d.dataset)
   );
 
-  const {
-    data: annoData,
-    isPending: annoIsPending,
-    isError: annoIsError,
-    error: annoError,
-  } = useVariantAnnotationQuery(Array.from(new Set(data?.flatMap((d) => d.variant))), true);
-
   const [codingOnly, setCodingOnly] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [traitStatus, setTraitStatus] = useState<TraitStatus | undefined>(undefined);
@@ -178,14 +173,14 @@ const CisView = ({ geneName }: { geneName: string }) => {
         d.mlog10p.filter((mlog10p) => mlog10p >= minLeadMlog10p).length > 0 &&
         d.csSize <= maxCsSize &&
         d.variant.length > 0 &&
-        (annoData && codingOnly ? d.variant.some((v) => annoData[v]?.isCoding) : true)
+        (!codingOnly || d.isCoding.some((c) => c))
     );
     const filteredDataWithResourceToggles = filteredData?.filter(
       (d) => resourceToggles[d.resource]
     );
     console.timeEnd("filter data");
     return { filteredData, filteredDataWithResourceToggles };
-  }, [data, annoData, maxCsSize, minLeadMlog10p, codingOnly, resourceToggles]);
+  }, [data, maxCsSize, minLeadMlog10p, codingOnly, resourceToggles]);
 
   const setHighlightVariant = (csDatum: CSDatum | undefined, index: number | undefined) => {
     if (
@@ -216,14 +211,14 @@ const CisView = ({ geneName }: { geneName: string }) => {
       });
       setSelectedVariantStats({
         variant: csDatum.variant[index],
-        consequence: String(annoData?.[csDatum.variant[index]]?.consequence || "not in gnomAD"),
-        isLoF: annoData?.[csDatum.variant[index]]?.isLoF as boolean,
-        isCoding: annoData?.[csDatum.variant[index]]?.isCoding as boolean,
+        consequence: csDatum.consequence[index] || "not in gnomAD",
+        isLoF: csDatum.isLoF[index],
+        isCoding: csDatum.isCoding[index],
         mlog10p: csDatum.mlog10p[index],
         pip: csDatum.pip[index],
         beta: csDatum.beta[index],
         se: csDatum.se[index],
-        af: String(annoData?.[csDatum.variant[index]]?.af || "not in gnomAD"),
+        af: String(csDatum.af[index] || "not in gnomAD"),
       });
     } else {
       setHighlightedVariant(undefined);
@@ -386,6 +381,8 @@ const CisView = ({ geneName }: { geneName: string }) => {
         }
       }
 
+      const topPipVariantIndex = d.pip.indexOf(Math.max(...d.pip));
+
       return (
         <TableRow
           key={d.traitCSId}
@@ -408,7 +405,7 @@ const CisView = ({ geneName }: { geneName: string }) => {
             setHighlightCSs(undefined);
           }}>
           <CleanTableCell>
-            {d.beta[0] > 0 ? (
+            {d.beta[topPipVariantIndex] > 0 ? (
               <NorthIcon
                 style={{
                   height: 20,
@@ -456,7 +453,52 @@ const CisView = ({ geneName }: { geneName: string }) => {
               whiteSpace: "nowrap",
               color: color,
             }}>
-            {traitName}
+            <Tooltip
+              title={
+                <>
+                  <Typography style={{ fontWeight: "bold" }}>Top PIP variant</Typography>
+                  <Box mb={2} />
+                  <Typography>{d.variant[topPipVariantIndex]}</Typography>
+                  <Typography>
+                    {d.gene[topPipVariantIndex] == "NA" ? "" : `${d.gene[topPipVariantIndex]} `}
+                    {cleanConsequence(d.consequence[topPipVariantIndex])}
+                  </Typography>
+                  <Box mb={2} />
+                  <Table>
+                    <TableBody>
+                      <TableRow>
+                        <CleanTableCell style={{ color: "white" }}>PIP</CleanTableCell>
+                        <CleanTableCell style={{ color: "white" }}>
+                          {d.pip[topPipVariantIndex].toFixed(3)}
+                        </CleanTableCell>
+                      </TableRow>
+                      <TableRow>
+                        <CleanTableCell style={{ color: "white", paddingRight: "5px" }}>
+                          p-value
+                        </CleanTableCell>
+                        <CleanTableCell style={{ color: "white" }}>
+                          {pValRepr(d.mlog10p[topPipVariantIndex])}
+                        </CleanTableCell>
+                      </TableRow>
+                      <TableRow>
+                        <CleanTableCell style={{ color: "white" }}>beta</CleanTableCell>
+                        <CleanTableCell style={{ color: "white" }}>
+                          {d.beta[topPipVariantIndex].toFixed(2)}
+                        </CleanTableCell>
+                      </TableRow>
+                      <TableRow>
+                        <CleanTableCell style={{ color: "white" }}>AF</CleanTableCell>
+                        <CleanTableCell style={{ color: "white" }}>
+                          {afRepr(d.af[topPipVariantIndex])}
+                        </CleanTableCell>
+                      </TableRow>
+                    </TableBody>
+                  </Table>
+                </>
+              }
+              placement="top">
+              <Typography>{traitName}</Typography>
+            </Tooltip>
           </CleanTableCell>
         </TableRow>
       );
@@ -471,10 +513,10 @@ const CisView = ({ geneName }: { geneName: string }) => {
   if (!geneName) {
     return <Typography>Enter a gene name</Typography>;
   }
-  if (isError || metaIsError || annoIsError || geneModelsIsError || datasetMetadataIsError) {
+  if (isError || metaIsError || geneModelsIsError || datasetMetadataIsError) {
     return (
       <Typography>
-        {(error || metaError || annoError || geneModelsError || datasetMetadataError)!.message}
+        {(error || metaError || geneModelsError || datasetMetadataError)!.message}
       </Typography>
     );
   }
@@ -494,7 +536,7 @@ const CisView = ({ geneName }: { geneName: string }) => {
             setMinLeadMlog10p={setMinLeadMlog10p}
             codingOnly={codingOnly}
             setCodingOnly={setCodingOnly}
-            disabled={annoIsPending}
+            disabled={false}
           />
         </Box>
         <Box sx={{ display: "flex", alignItems: "flex-start", gap: 1, mb: 2 }}>
@@ -537,7 +579,6 @@ const CisView = ({ geneName }: { geneName: string }) => {
             geneName={geneName}
             data={sortedData || []}
             range={range?.slice(1) || [0, 0, 0]}
-            varAnno={annoData}
             resources={config.gene_view.resources}
             width={windowWidth - config.gene_view.titleWidth - 50 - config.gene_view.transGeneWidth}
             rowHeight={config.gene_view.rowHeight}

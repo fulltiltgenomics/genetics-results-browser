@@ -11,7 +11,6 @@ const CSPlot = ({
   geneName,
   data,
   range,
-  varAnno,
   resources,
   rowHeight,
   width,
@@ -28,7 +27,6 @@ const CSPlot = ({
   geneName: string;
   data: CSDatum[];
   range: number[];
-  varAnno: { [key: string]: { [key: string]: string | boolean | undefined } } | undefined;
   resources: Record<string, string>[];
   rowHeight: number;
   width: number;
@@ -242,9 +240,9 @@ const CSPlot = ({
           const pipHeight = pipScale(d.pip[j]);
           if (d.variant[j] === highlightVariant) {
             color = isActualDarkMode ? "white" : "black";
-          } else if (varAnno !== undefined && varAnno[d.variant[j]]?.isLoF) {
+          } else if (d.isLoF[j]) {
             color = config.gene_view.colors.plof;
-          } else if (varAnno !== undefined && varAnno[d.variant[j]]?.isCoding) {
+          } else if (d.isCoding[j]) {
             color = config.gene_view.colors.coding;
           }
           if (highlightCS && !highlightCS.has(d.traitCSId)) {

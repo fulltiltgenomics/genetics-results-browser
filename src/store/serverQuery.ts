@@ -5,6 +5,37 @@ import { CSDatum, GeneModel } from "@/types/types.gene";
 import config from "@/config.json";
 import { mungeGeneModelResponse } from "./serverMunge";
 
+// TODO hash
+const isCoding = (mostSevere: string): boolean => {
+  return (
+    mostSevere === "missense_variant" ||
+    mostSevere === "frameshift" ||
+    mostSevere === "inframe_insertion" ||
+    mostSevere === "inframe_deletion" ||
+    mostSevere === "transcript_ablation" ||
+    mostSevere === "stop_gained" ||
+    mostSevere === "stop_lost" ||
+    mostSevere === "start_lost" ||
+    mostSevere === "splice_acceptor" ||
+    mostSevere === "splice_donor" ||
+    mostSevere === "incomplete_terminal_codon" ||
+    mostSevere === "protein_altering" ||
+    mostSevere === "coding_sequence"
+  );
+};
+
+const isLoF = (mostSevere: string): boolean => {
+  return (
+    mostSevere === "transcript_ablation" ||
+    mostSevere === "splice_acceptor" ||
+    mostSevere === "splice_donor" ||
+    mostSevere === "stop_gained" ||
+    mostSevere === "frameshift" ||
+    mostSevere === "stop_lost" ||
+    mostSevere === "start_lost"
+  );
+};
+
 export const useConfigQuery = (): UseQueryResult<Config, Error> => {
   return useQuery<Config>({
     queryKey: ["config"],
@@ -136,6 +167,10 @@ export const useCSQuery = (
             const traitId = `${resource}|${dataset}|${trait}`;
             const traitCSId = `${traitId}=${csId}`;
             const chr = fields[headerIndex["chr"]];
+            const rsid = fields[headerIndex["rsids"]];
+            const consequence = fields[headerIndex["most_severe"]];
+            const af = fields[headerIndex["AF"]];
+            const gene = fields[headerIndex["gene_most_severe"]];
             if (!traitCS2data[traitCSId]) {
               traitCS2data[traitCSId] = {
                 resource: resource,
@@ -156,6 +191,12 @@ export const useCSQuery = (
                 beta: [],
                 se: [],
                 numberOfCSs: 0,
+                consequence: [],
+                isCoding: [],
+                isLoF: [],
+                af: [],
+                gene: [],
+                rsid: [],
               };
             }
             traitCS2data[traitCSId].variant.push(variant);
@@ -164,6 +205,12 @@ export const useCSQuery = (
             traitCS2data[traitCSId].mlog10p.push(parseFloat(mlog10p));
             traitCS2data[traitCSId].beta.push(parseFloat(fields[headerIndex["beta"]]));
             traitCS2data[traitCSId].se.push(parseFloat(fields[headerIndex["se"]]));
+            traitCS2data[traitCSId].consequence.push(consequence);
+            traitCS2data[traitCSId].isCoding.push(isCoding(consequence));
+            traitCS2data[traitCSId].isLoF.push(isLoF(consequence));
+            traitCS2data[traitCSId].af.push(af);
+            traitCS2data[traitCSId].gene.push(gene);
+            traitCS2data[traitCSId].rsid.push(rsid);
             if (!trait2uniqCS[traitId]) {
               trait2uniqCS[traitId] = new Set<string>();
             }
@@ -188,6 +235,12 @@ export const useCSQuery = (
             csSize: traitCS2data[traitCSId].csSize,
             csMinR2: traitCS2data[traitCSId].csMinR2,
             numberOfCSs: trait2uniqCS[traitCS2data[traitCSId].traitId].size,
+            consequence: traitCS2data[traitCSId].consequence,
+            isCoding: traitCS2data[traitCSId].isCoding,
+            isLoF: traitCS2data[traitCSId].isLoF,
+            af: traitCS2data[traitCSId].af,
+            gene: traitCS2data[traitCSId].gene,
+            rsid: traitCS2data[traitCSId].rsid,
           }));
           return data;
         }),
@@ -251,6 +304,10 @@ export const useCSTransQuery = (
           const csId = fields[headerIndex["cs_id"]];
           const traitId = `${resource}|${dataset}|${trait}`;
           const traitCSId = `${traitId}=${csId}`;
+          const consequence = fields[headerIndex["most_severe"]];
+          const af = fields[headerIndex["AF"]];
+          const gene = fields[headerIndex["gene_most_severe"]];
+          const rsid = fields[headerIndex["rsids"]];
           if (!traitCS2data[traitCSId]) {
             traitCS2data[traitCSId] = {
               resource: resource,
@@ -271,6 +328,12 @@ export const useCSTransQuery = (
               beta: [],
               se: [],
               numberOfCSs: 0,
+              consequence: [],
+              isCoding: [],
+              isLoF: [],
+              af: [],
+              gene: [],
+              rsid: [],
             };
           }
           traitCS2data[traitCSId].variant.push(variant);
@@ -279,6 +342,12 @@ export const useCSTransQuery = (
           traitCS2data[traitCSId].mlog10p.push(parseFloat(mlog10p));
           traitCS2data[traitCSId].beta.push(parseFloat(fields[headerIndex["beta"]]));
           traitCS2data[traitCSId].se.push(parseFloat(fields[headerIndex["se"]]));
+          traitCS2data[traitCSId].consequence.push(consequence);
+          traitCS2data[traitCSId].isCoding.push(isCoding(consequence));
+          traitCS2data[traitCSId].isLoF.push(isLoF(consequence));
+          traitCS2data[traitCSId].af.push(af);
+          traitCS2data[traitCSId].gene.push(gene);
+          traitCS2data[traitCSId].rsid.push(rsid);
           if (!trait2uniqCS[traitId]) {
             trait2uniqCS[traitId] = new Set<string>();
           }
@@ -303,6 +372,12 @@ export const useCSTransQuery = (
           csSize: traitCS2data[traitCSId].csSize,
           csMinR2: traitCS2data[traitCSId].csMinR2,
           numberOfCSs: trait2uniqCS[traitCS2data[traitCSId].traitId].size,
+          consequence: traitCS2data[traitCSId].consequence,
+          isCoding: traitCS2data[traitCSId].isCoding,
+          isLoF: traitCS2data[traitCSId].isLoF,
+          af: traitCS2data[traitCSId].af,
+          gene: traitCS2data[traitCSId].gene,
+          rsid: traitCS2data[traitCSId].rsid,
         }));
         return data;
       }),
@@ -402,37 +477,6 @@ export const useTraitMetadataQuery = (
     enabled: !!traits && traits.length > 0,
     staleTime: Infinity,
   });
-};
-
-// TODO hash
-const isCoding = (mostSevere: string): boolean => {
-  return (
-    mostSevere === "missense" ||
-    mostSevere === "frameshift" ||
-    mostSevere === "inframe insertion" ||
-    mostSevere === "inframe deletion" ||
-    mostSevere === "transcript ablation" ||
-    mostSevere === "stop gained" ||
-    mostSevere === "stop lost" ||
-    mostSevere === "start lost" ||
-    mostSevere === "splice acceptor" ||
-    mostSevere === "splice donor" ||
-    mostSevere === "incomplete terminal codon" ||
-    mostSevere === "protein altering" ||
-    mostSevere === "coding sequence"
-  );
-};
-
-const isLoF = (mostSevere: string): boolean => {
-  return (
-    mostSevere === "transcript ablation" ||
-    mostSevere === "splice acceptor" ||
-    mostSevere === "splice donor" ||
-    mostSevere === "stop gained" ||
-    mostSevere === "frameshift" ||
-    mostSevere === "stop lost" ||
-    mostSevere === "start lost"
-  );
 };
 
 export const useVariantAnnotationQuery = (
