@@ -28,7 +28,7 @@ const CSPlot = ({
   geneName: string;
   data: CSDatum[];
   range: number[];
-  varAnno: { [key: string]: { [key: string]: string | boolean } } | undefined;
+  varAnno: { [key: string]: { [key: string]: string | boolean | undefined } } | undefined;
   resources: Record<string, string>[];
   rowHeight: number;
   width: number;

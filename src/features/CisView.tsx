@@ -12,6 +12,7 @@ import {
 } from "@mui/material";
 import {
   useCSQuery,
+  useCSTransQuery,
   useDatasetMetadataQuery,
   useGeneModelByGeneQuery,
   useTraitMetadataQuery,
@@ -29,6 +30,7 @@ import DatasetOptions from "./DatasetOptions";
 import { useThemeStore } from "@/store/store.theme";
 import { useGeneViewStore } from "@/store/store.gene";
 import HelpOutlineIcon from "@mui/icons-material/HelpOutline";
+import TransGeneList from "./TransGeneList";
 
 const CleanTableCell = styled(TableCell)({
   padding: 0,
@@ -62,6 +64,65 @@ const CisView = ({ geneName }: { geneName: string }) => {
     pQTL: geneNames,
   });
 
+  const range = useMemo(() => {
+    if (!geneModel || !data || data.length === 0) {
+      return undefined;
+    }
+    const minPos =
+      geneModel.exonStarts.reduce((acc, d) => {
+        return Math.max(acc, d);
+      }, -Infinity) - config.gene_view.gene_padding;
+    const maxPos =
+      geneModel.exonEnds.reduce((acc, d) => {
+        return Math.max(acc, d);
+      }, -Infinity) + config.gene_view.gene_padding;
+    return [Number(geneModel.chr.replace("X", "23").replace("Y", "24")), minPos, maxPos];
+  }, [data, geneModel, geneName]);
+
+  const {
+    data: transData,
+    isPending: transIsPending,
+    isError: transIsError,
+    error: transError,
+  } = useCSTransQuery(geneName, range);
+
+  const {
+    data: transAnnoData,
+    isFetching: transAnnoIsFetching,
+    isError: transAnnoIsError,
+    error: transAnnoError,
+  } = useVariantAnnotationQuery(
+    useMemo(() => {
+      if (!transData) return [];
+      const highestPipVariants = transData.map((d) => {
+        const maxPipIndex = d.pip.reduce(
+          (maxIndex, currentPip, currentIndex, arr) =>
+            currentPip > arr[maxIndex] ? currentIndex : maxIndex,
+          0
+        );
+        return d.variant[maxPipIndex];
+      });
+      return [...new Set(highestPipVariants)];
+    }, [transData]),
+    false
+  );
+
+  const transGenes = useMemo(() => {
+    if (transAnnoIsFetching) {
+      return undefined;
+    }
+    if (!transAnnoData) {
+      return [];
+    }
+    return Array.from(
+      new Set(
+        Object.values(transAnnoData ?? {})
+          .filter((d) => d.gene !== undefined)
+          .map((d) => d.gene)
+      )
+    ) as string[];
+  }, [transAnnoData, transAnnoIsFetching]);
+
   const {
     data: metadata,
     isPending: metaisPending,
@@ -86,7 +147,7 @@ const CisView = ({ geneName }: { geneName: string }) => {
     isPending: annoIsPending,
     isError: annoIsError,
     error: annoError,
-  } = useVariantAnnotationQuery(Array.from(new Set(data?.flatMap((d) => d.variant))));
+  } = useVariantAnnotationQuery(Array.from(new Set(data?.flatMap((d) => d.variant))), true);
 
   const [codingOnly, setCodingOnly] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
@@ -103,27 +164,6 @@ const CisView = ({ geneName }: { geneName: string }) => {
   const [isZoomEnabled, setIsZoomEnabled] = useState(false);
   const [geneModelHeight, setGeneModelHeight] = useState<number>(0);
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
-
-  const range = useMemo(() => {
-    if (!geneModels || !data || data.length === 0) {
-      return [0, 0];
-    }
-    const minPos =
-      geneModels.reduce((acc, d) => {
-        if (d.geneName === geneName) {
-          return Math.max(acc, ...d.exonStarts);
-        }
-        return acc;
-      }, -Infinity) - config.gene_view.gene_padding;
-    const maxPos =
-      geneModels.reduce((acc, d) => {
-        if (d.geneName === geneName) {
-          return Math.max(acc, ...d.exonEnds);
-        }
-        return acc;
-      }, -Infinity) + config.gene_view.gene_padding;
-    return [minPos, maxPos];
-  }, [data, geneModels, geneName]);
 
   const {
     filteredData,
@@ -496,10 +536,10 @@ const CisView = ({ geneName }: { geneName: string }) => {
           <CSPlot
             geneName={geneName}
             data={sortedData || []}
-            range={range}
+            range={range?.slice(1) || [0, 0, 0]}
             varAnno={annoData}
             resources={config.gene_view.resources}
-            width={windowWidth - config.gene_view.titleWidth - 50}
+            width={windowWidth - config.gene_view.titleWidth - 50 - config.gene_view.transGeneWidth}
             rowHeight={config.gene_view.rowHeight}
             highlightTrait={mouseOverTrait}
             setHighlightTrait={setMouseOverTrait}
@@ -511,6 +551,7 @@ const CisView = ({ geneName }: { geneName: string }) => {
             geneModelHeight={geneModelHeight}
             setGeneModelHeight={setGeneModelHeight}
           />
+          <TransGeneList transGenes={transGenes} width={config.gene_view.transGeneWidth} />
         </Box>
       </Box>
       <VariantCSInfoBox

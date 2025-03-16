@@ -196,6 +196,121 @@ export const useCSQuery = (
   });
 };
 
+export const useCSTransQuery = (
+  gene: string | undefined,
+  range: number[] | undefined,
+  filterTraits?: { [key: string]: string[] } | undefined
+): UseQueryResult<CSDatum[], Error> => {
+  return useQuery<CSDatum[]>({
+    queryKey: ["cs-trans-data", gene, range, filterTraits],
+    queryFn: () =>
+      axios.get<string>(`${config.api_url}/gene_cs_trans/${gene}`).then((response) => {
+        const rows = response.data.split("\n");
+        const header = rows[0].split("\t");
+        if (header[0].startsWith("!")) {
+          throw new CSQueryError(header[0].slice(1));
+        }
+        const headerIndex = header.reduce((acc, field) => {
+          acc[field.replace("#", "")] = header.indexOf(field);
+          return acc;
+        }, {} as { [key: string]: number });
+        const traitCS2data: { [traitCSId: string]: CSDatum } = {};
+        const trait2uniqCS: { [trait: string]: Set<string> } = {};
+        const csRegex = /_L?(\d+)$/;
+        for (let i = 1; i < rows.length; i++) {
+          if (rows[i].length === 0) {
+            continue;
+          }
+          if (rows[i].startsWith("!")) {
+            throw new CSQueryError(rows[i].slice(1));
+          }
+          const fields = rows[i].split("\t");
+          const resource = fields[headerIndex["resource"]];
+          const dataset = fields[headerIndex["dataset"]];
+          const dataType = fields[headerIndex["data_type"]];
+          const trait = fields[headerIndex["gene"]];
+          if (
+            filterTraits !== undefined &&
+            filterTraits[dataType] !== undefined &&
+            !filterTraits[dataType].includes(trait)
+          ) {
+            continue;
+          }
+          const variant = `${fields[headerIndex["chr"]]}:${fields[headerIndex["pos"]]}:${
+            fields[headerIndex["ref"]]
+          }:${fields[headerIndex["alt"]]}`;
+          const chr = fields[headerIndex["chr"]];
+          const chrNum = Number(chr.replace("X", "23").replace("Y", "24"));
+          const pos = parseInt(fields[headerIndex["pos"]]);
+          // filter out cis, TODO should this be on a CS level not variant level?
+          if (range !== undefined && chrNum === range[0] && pos >= range[1] && pos <= range[2]) {
+            continue;
+          }
+          const pip = fields[headerIndex["pip"]];
+          const mlog10p = fields[headerIndex["mlog10p"]];
+          const csId = fields[headerIndex["cs_id"]];
+          const traitId = `${resource}|${dataset}|${trait}`;
+          const traitCSId = `${traitId}=${csId}`;
+          if (!traitCS2data[traitCSId]) {
+            traitCS2data[traitCSId] = {
+              resource: resource,
+              dataset: dataset,
+              dataType: dataType,
+              trait: trait,
+              traitId: traitId,
+              traitCSId: traitCSId,
+              csId: csId,
+              csNumber: parseInt(csId.match(csRegex)![1]),
+              csSize: parseFloat(fields[headerIndex["cs_size"]]),
+              csMinR2: parseFloat(fields[headerIndex["cs_min_r2"]]),
+              chr: chr,
+              variant: [],
+              pos: [],
+              pip: [],
+              mlog10p: [],
+              beta: [],
+              se: [],
+              numberOfCSs: 0,
+            };
+          }
+          traitCS2data[traitCSId].variant.push(variant);
+          traitCS2data[traitCSId].pos.push(pos);
+          traitCS2data[traitCSId].pip.push(parseFloat(pip));
+          traitCS2data[traitCSId].mlog10p.push(parseFloat(mlog10p));
+          traitCS2data[traitCSId].beta.push(parseFloat(fields[headerIndex["beta"]]));
+          traitCS2data[traitCSId].se.push(parseFloat(fields[headerIndex["se"]]));
+          if (!trait2uniqCS[traitId]) {
+            trait2uniqCS[traitId] = new Set<string>();
+          }
+          trait2uniqCS[traitId].add(csId);
+        }
+        const data = Object.keys(traitCS2data).map((traitCSId) => ({
+          resource: traitCS2data[traitCSId].resource,
+          dataset: traitCS2data[traitCSId].dataset,
+          dataType: traitCS2data[traitCSId].dataType,
+          trait: traitCS2data[traitCSId].trait,
+          traitId: traitCS2data[traitCSId].traitId,
+          chr: traitCS2data[traitCSId].chr,
+          variant: traitCS2data[traitCSId].variant,
+          pos: traitCS2data[traitCSId].pos,
+          pip: traitCS2data[traitCSId].pip,
+          mlog10p: traitCS2data[traitCSId].mlog10p,
+          beta: traitCS2data[traitCSId].beta,
+          se: traitCS2data[traitCSId].se,
+          csId: traitCS2data[traitCSId].csId,
+          traitCSId: traitCS2data[traitCSId].traitCSId,
+          csNumber: traitCS2data[traitCSId].csNumber,
+          csSize: traitCS2data[traitCSId].csSize,
+          csMinR2: traitCS2data[traitCSId].csMinR2,
+          numberOfCSs: trait2uniqCS[traitCS2data[traitCSId].traitId].size,
+        }));
+        return data;
+      }),
+    enabled: !!gene && !!range,
+    staleTime: Infinity,
+  });
+};
+
 export const useDatasetMetadataQuery = (
   datasets: string[] | undefined
 ): UseQueryResult<{ [key: string]: Dataset }, Error> => {
@@ -321,17 +436,18 @@ const isLoF = (mostSevere: string): boolean => {
 };
 
 export const useVariantAnnotationQuery = (
-  variants: string[] | undefined
-): UseQueryResult<{ [key: string]: { [key: string]: string | boolean } }, Error> => {
+  variants: string[] | undefined,
+  withRange: boolean
+): UseQueryResult<{ [key: string]: { [key: string]: string | boolean | undefined } }, Error> => {
   if (!variants || variants.length === 0) {
-    return useQuery<{ [key: string]: { [key: string]: string | boolean } }>({
+    return useQuery<{ [key: string]: { [key: string]: string | boolean | undefined } }>({
       queryKey: ["variant-annotation", "none"],
       queryFn: () => Promise.resolve({}),
       enabled: false,
     });
   }
-  return useQuery<{ [key: string]: { [key: string]: string | boolean } }>({
-    queryKey: ["variant-annotation", variants],
+  return useQuery<{ [key: string]: { [key: string]: string | boolean | undefined } }>({
+    queryKey: ["variant-annotation", variants, withRange],
     queryFn: () => {
       console.time("variant annotation");
       const sortedVariants = variants.slice().sort((a, b) => {
@@ -343,7 +459,10 @@ export const useVariantAnnotationQuery = (
       const start = parseInt(sortedVariants[0].split(":")[1]);
       const end = parseInt(sortedVariants[sortedVariants.length - 1].split(":")[1]);
       const response = axios
-        .post<string>(`${config.api_url}/variant_annotation/${chr}/${start}/${end}`, variants)
+        .post<string>(
+          `${config.api_url}/variant_annotation${withRange ? `_range/${chr}/${start}/${end}` : ""}`,
+          variants
+        )
         .then((response) => {
           // console.time("variant annotation parsing");
           const rows = response.data.split("\n");
@@ -353,7 +472,7 @@ export const useVariantAnnotationQuery = (
             return acc;
           }, {} as { [key: string]: number });
           // TODO typing
-          const var2anno = {} as { [key: string]: { [key: string]: string | boolean } };
+          const var2anno = {} as { [key: string]: { [key: string]: string | boolean | undefined } };
           for (let i = 1; i < rows.length; i++) {
             if (rows[i].length === 0) {
               continue;
@@ -366,12 +485,17 @@ export const useVariantAnnotationQuery = (
               .toLowerCase()
               .replace("_variant", "")
               .replace(/_/g, " ");
+            let gene: string | undefined = fields[headerIndex["gene_most_severe"]];
+            if (gene === "NA") {
+              gene = undefined;
+            }
             var2anno[variant] = {
               rsid: fields[headerIndex["rsids"]],
               consequence: consequence,
               isCoding: isCoding(consequence),
               isLoF: isLoF(consequence),
               af: fields[headerIndex["AF"]],
+              gene: gene,
             };
           }
           // console.timeEnd("variant annotation parsing");

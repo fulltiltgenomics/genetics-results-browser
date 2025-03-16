@@ -7,6 +7,7 @@
     "gene_padding": 500000,
     "rowHeight": 20,
     "titleWidth": 400,
+    "transGeneWidth": 150,
     "colors": {
       "coding": "orange",
       "plof": "red",

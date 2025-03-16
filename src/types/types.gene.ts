@@ -22,6 +22,7 @@ export type CSDatum = {
 export type GeneModel = {
   geneName: string;
   ensg: string;
+  chr: string;
   strand: number;
   exonStarts: number[];
   exonEnds: number[];
