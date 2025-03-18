@@ -4,37 +4,7 @@ import { Config, Dataset, DataType, Phenotype, TableData } from "../types/types"
 import { CSDatum, GeneModel } from "@/types/types.gene";
 import config from "@/config.json";
 import { mungeGeneModelResponse } from "./serverMunge";
-
-// TODO hash
-const isCoding = (mostSevere: string): boolean => {
-  return (
-    mostSevere === "missense_variant" ||
-    mostSevere === "frameshift" ||
-    mostSevere === "inframe_insertion" ||
-    mostSevere === "inframe_deletion" ||
-    mostSevere === "transcript_ablation" ||
-    mostSevere === "stop_gained" ||
-    mostSevere === "stop_lost" ||
-    mostSevere === "start_lost" ||
-    mostSevere === "splice_acceptor" ||
-    mostSevere === "splice_donor" ||
-    mostSevere === "incomplete_terminal_codon" ||
-    mostSevere === "protein_altering" ||
-    mostSevere === "coding_sequence"
-  );
-};
-
-const isLoF = (mostSevere: string): boolean => {
-  return (
-    mostSevere === "transcript_ablation" ||
-    mostSevere === "splice_acceptor" ||
-    mostSevere === "splice_donor" ||
-    mostSevere === "stop_gained" ||
-    mostSevere === "frameshift" ||
-    mostSevere === "stop_lost" ||
-    mostSevere === "start_lost"
-  );
-};
+import { isCoding, isLoF } from "@/utils/coding";
 
 export const useConfigQuery = (): UseQueryResult<Config, Error> => {
   return useQuery<Config>({
@@ -116,12 +86,9 @@ class CSQueryError extends Error {
   }
 }
 
-export const useCSQuery = (
-  gene: string | undefined,
-  filterTraits: { [key: string]: string[] } | undefined
-): UseQueryResult<CSDatum[], Error> => {
+export const useCSQuery = (gene: string | undefined): UseQueryResult<CSDatum[], Error> => {
   return useQuery<CSDatum[]>({
-    queryKey: ["cs-data", gene, filterTraits],
+    queryKey: ["cs-data", gene],
     queryFn: () =>
       axios
         .get<string>(`${config.api_url}/gene_cs/${gene}?padding=${config.gene_view.gene_padding}`)
@@ -150,13 +117,6 @@ export const useCSQuery = (
             const dataset = fields[headerIndex["dataset"]];
             const dataType = fields[headerIndex["data_type"]];
             const trait = fields[headerIndex["trait"]];
-            if (
-              filterTraits !== undefined &&
-              filterTraits[dataType] !== undefined &&
-              !filterTraits[dataType].includes(trait)
-            ) {
-              continue;
-            }
             const variant = `${fields[headerIndex["chr"]]}:${fields[headerIndex["pos"]]}:${
               fields[headerIndex["ref"]]
             }:${fields[headerIndex["alt"]]}`;
@@ -296,9 +256,9 @@ export const useCSTransQuery = (
           const chrNum = Number(chr.replace("X", "23").replace("Y", "24"));
           const pos = parseInt(fields[headerIndex["pos"]]);
           // filter out cis, TODO should this be on a CS level not variant level?
-          if (range !== undefined && chrNum === range[0] && pos >= range[1] && pos <= range[2]) {
-            continue;
-          }
+          // if (range !== undefined && chrNum === range[0] && pos >= range[1] && pos <= range[2]) {
+          //   continue;
+          // }
           const pip = fields[headerIndex["pip"]];
           const mlog10p = fields[headerIndex["mlog10p"]];
           const csId = fields[headerIndex["cs_id"]];
@@ -379,6 +339,7 @@ export const useCSTransQuery = (
           gene: traitCS2data[traitCSId].gene,
           rsid: traitCS2data[traitCSId].rsid,
         }));
+        console.log(data);
         return data;
       }),
     enabled: !!gene && !!range,

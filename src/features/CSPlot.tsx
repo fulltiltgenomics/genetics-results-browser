@@ -284,7 +284,7 @@ const CSPlot = ({
   const zoomBehavior = useMemo(
     () =>
       zoom<HTMLCanvasElement, unknown>()
-        .scaleExtent([1, 100])
+        .scaleExtent([1, 300])
         .wheelDelta((d) => -0.0025 * d.deltaY)
         .translateExtent([
           [0, 0],

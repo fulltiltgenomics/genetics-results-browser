@@ -17,7 +17,6 @@ import {
   useDatasetMetadataQuery,
   useGeneModelByGeneQuery,
   useTraitMetadataQuery,
-  useVariantAnnotationQuery,
 } from "@/store/serverQuery";
 import CSPlot from "./CSPlot";
 import { useEffect, useMemo, useState } from "react";
@@ -31,14 +30,10 @@ import DatasetOptions from "./DatasetOptions";
 import { useThemeStore } from "@/store/store.theme";
 import { useGeneViewStore } from "@/store/store.gene";
 import HelpOutlineIcon from "@mui/icons-material/HelpOutline";
-import TransGeneList from "./TransGeneList";
+import AffectedGeneList from "./AffectedGeneList";
 import { afRepr, cleanConsequence, pValRepr } from "./table/utils/tableutil";
-
-const CleanTableCell = styled(TableCell)({
-  padding: 0,
-  margin: 0,
-  border: "none",
-});
+import AffectingGeneList from "./AffectingGeneList";
+import CleanTableCell from "@/style";
 
 const CisView = ({ geneName }: { geneName: string }) => {
   const prefersDarkMode = useMediaQuery("(prefers-color-scheme: dark)");
@@ -57,14 +52,7 @@ const CisView = ({ geneName }: { geneName: string }) => {
     }
     return geneModels.find((gm) => gm.geneName === geneName);
   }, [geneModels, geneName]);
-  const geneNames = useMemo(() => {
-    return [geneName, geneModel?.ensg].filter((n) => n !== undefined);
-  }, [geneName, geneModel]);
-
-  const { data, isPending, isError, error } = useCSQuery(geneName, {
-    eQTL: geneNames,
-    pQTL: geneNames,
-  });
+  const { data, isPending, isError, error } = useCSQuery(geneName);
 
   const range = useMemo(() => {
     if (!geneModel || !data || data.length === 0) {
@@ -79,7 +67,7 @@ const CisView = ({ geneName }: { geneName: string }) => {
         return Math.max(acc, d);
       }, -Infinity) + config.gene_view.gene_padding;
     return [Number(geneModel.chr.replace("X", "23").replace("Y", "24")), minPos, maxPos];
-  }, [data, geneModel, geneName]);
+  }, [data, geneModel]);
 
   const {
     data: transData,
@@ -87,43 +75,6 @@ const CisView = ({ geneName }: { geneName: string }) => {
     isError: transIsError,
     error: transError,
   } = useCSTransQuery(geneName, range);
-
-  const {
-    data: transAnnoData,
-    isFetching: transAnnoIsFetching,
-    isError: transAnnoIsError,
-    error: transAnnoError,
-  } = useVariantAnnotationQuery(
-    useMemo(() => {
-      if (!transData) return [];
-      const highestPipVariants = transData.map((d) => {
-        const maxPipIndex = d.pip.reduce(
-          (maxIndex, currentPip, currentIndex, arr) =>
-            currentPip > arr[maxIndex] ? currentIndex : maxIndex,
-          0
-        );
-        return d.variant[maxPipIndex];
-      });
-      return [...new Set(highestPipVariants)];
-    }, [transData]),
-    false
-  );
-
-  const transGenes = useMemo(() => {
-    if (transAnnoIsFetching) {
-      return undefined;
-    }
-    if (!transAnnoData) {
-      return [];
-    }
-    return Array.from(
-      new Set(
-        Object.values(transAnnoData ?? {})
-          .filter((d) => d.gene !== undefined)
-          .map((d) => d.gene)
-      )
-    ) as string[];
-  }, [transAnnoData, transAnnoIsFetching]);
 
   const {
     data: metadata,
@@ -170,6 +121,7 @@ const CisView = ({ geneName }: { geneName: string }) => {
     console.time("filter data");
     const filteredData = data?.filter(
       (d) =>
+        ((d.dataType !== "eQTL" && d.dataType !== "pQTL") || d.trait === geneName) && // only QTLs that affect the input gene
         d.mlog10p.filter((mlog10p) => mlog10p >= minLeadMlog10p).length > 0 &&
         d.csSize <= maxCsSize &&
         d.variant.length > 0 &&
@@ -337,6 +289,64 @@ const CisView = ({ geneName }: { geneName: string }) => {
     });
   }, [filteredDataWithResourceToggles]);
 
+  const genesAffectedByInputGene2CS = useMemo(() => {
+    if (data === undefined) {
+      return undefined;
+    }
+    const seenGeneTraitCSIds = new Set<string>();
+    return data
+      .filter(
+        (d) =>
+          d.mlog10p.filter((mlog10p) => mlog10p >= minLeadMlog10p).length > 0 &&
+          d.csSize <= maxCsSize &&
+          d.variant.length > 0 &&
+          (!codingOnly || d.isCoding.some((c) => c))
+      )
+      .reduce((acc, d) => {
+        d.gene.forEach((gene) => {
+          if (d.dataType === "pQTL" && gene === geneName) {
+            const geneTraitCSId = `${d.trait}|${d.traitCSId}`;
+            if (!seenGeneTraitCSIds.has(geneTraitCSId)) {
+              seenGeneTraitCSIds.add(geneTraitCSId);
+              acc[d.trait] = acc[d.trait] || [];
+              acc[d.trait].push(d);
+            }
+          }
+        });
+        return acc;
+      }, {} as { [key: string]: CSDatum[] });
+  }, [data, maxCsSize, minLeadMlog10p, codingOnly]);
+
+  const genesAffectingInputGene2CS = useMemo(() => {
+    if (transData === undefined) {
+      return undefined;
+    }
+    const seenGeneTraitCSIds = new Set<string>();
+    return transData
+      .filter(
+        (d) =>
+          d.mlog10p.filter((mlog10p) => mlog10p >= minLeadMlog10p).length > 0 &&
+          d.csSize <= maxCsSize &&
+          d.variant.length > 0 &&
+          d.dataType === "pQTL"
+      )
+      .reduce((acc, d) => {
+        d.gene.forEach((gene, i) => {
+          const geneTraitCSId = `${gene}|${d.traitCSId}`;
+          if (
+            gene !== "NA" &&
+            (!codingOnly || d.isCoding[i]) &&
+            !seenGeneTraitCSIds.has(geneTraitCSId)
+          ) {
+            seenGeneTraitCSIds.add(geneTraitCSId);
+            acc[gene] = acc[gene] || [];
+            acc[gene].push(d);
+          }
+        });
+        return acc;
+      }, {} as { [key: string]: CSDatum[] });
+  }, [transData, maxCsSize, minLeadMlog10p, codingOnly]);
+
   const titleRows = useMemo(() => {
     const rows = sortedData?.map((d) => {
       let color = "white";
@@ -363,21 +373,27 @@ const CisView = ({ geneName }: { geneName: string }) => {
         }
         if (d.dataType === "pQTL") {
           if (d.resource === "FinnGen_pQTL") {
-            d.trait = d.dataset.match(/FinnGen_(.*?)_/)?.[1] || "NA";
+            traitName += ` ${d.dataset.match(/FinnGen_(.*?)_/)?.[1]}`;
           } else {
-            d.trait = "Olink"; // UKBB
+            traitName += " Olink"; // UKBB
           }
         }
         resourceShortName = resource.label;
         if (datasetMetadata !== undefined) {
           const metadata = datasetMetadata[d.dataset];
           if (metadata !== undefined) {
-            traitName = metadata.tissue_label;
+            traitName = `${metadata.tissue_label} ${metadata.condition_label
+              .replace("_", " ")
+              .replace("naive", "")}`.trim();
             resourceShortName = metadata.study_label;
           }
         }
-        if (d.dataType === "eQTL" && d.resource === "FinnGen_eQTL") {
-          d.trait = d.dataset.match(/FinnGen_(.*?)_/)?.[1] || "NA";
+        if (d.dataType === "eQTL") {
+          if (d.resource === "FinnGen_eQTL") {
+            traitName += ` ${d.dataset.match(/FinnGen_(.*?)_/)?.[1]}`;
+          } else {
+            traitName = `${d.trait} ${traitName}`;
+          }
         }
       }
 
@@ -545,13 +561,16 @@ const CisView = ({ geneName }: { geneName: string }) => {
           </IconButton>
           <Collapse in={showHelp}>
             <Typography>Each row represents a credible set.</Typography>
+            <Box mb={2} />
             <Typography>
-              The arrow before the trait name shows signal direction: up for risk/increasing (red)
-              and down for protective/decreasing (green).
+              The arrow before the trait name on the left shows signal direction: up for
+              risk/increasing (red) and down for protective/decreasing (green).
             </Typography>
             <Typography>
               The number before the trait name shows the number of variants in the credible set.
+              Hover over the trait name to see the top variant in that credible set.
             </Typography>
+            <Box mb={2} />
             <Typography>
               The height of each bar represents the posterior inclusion probability (PIP) of the
               variant in the credible set.
@@ -560,10 +579,13 @@ const CisView = ({ geneName }: { geneName: string }) => {
               Different data sources have different colors. pLoF variants are highlighted in red and
               other coding variants in orange.
             </Typography>
+            <Box mb={2} />
             <Typography>
               eQTL and pQTL variants that affect the input gene are shown. There can be other QTL
               variants affecting other genes in the region but they are not shown.
             </Typography>
+            <Typography>Shown allele frequencies are gnomAD global allele frequencies.</Typography>
+            <Box mb={2} />
             <Typography style={{ marginBottom: "10px" }}>
               Hover over trait names or variants to highlight traits with an overlapping credible
               set. Hold <code>ctrl</code> and scroll on the credible set area to zoom.
@@ -592,7 +614,26 @@ const CisView = ({ geneName }: { geneName: string }) => {
             geneModelHeight={geneModelHeight}
             setGeneModelHeight={setGeneModelHeight}
           />
-          <TransGeneList transGenes={transGenes} width={config.gene_view.transGeneWidth} />
+          <Box display="flex" flexDirection="column" gap={1}>
+            {/* TODO cis/trans indicator */}
+            {/* TODO indicator if gene is on Olink/SomaScan */}
+            <Typography style={{ fontWeight: "bold" }}>pQTLs</Typography>
+            <AffectedGeneList
+              geneName={geneName}
+              gene2cs={genesAffectedByInputGene2CS}
+              width={config.gene_view.transGeneWidth}
+              title={`Variants in ${geneName} affect these genes`}
+              noDataTitle={`No genes found to be affected by variants in ${geneName}`}
+              highlightedVariant={highlightedVariant}
+            />
+            <AffectingGeneList
+              geneName={geneName}
+              gene2cs={genesAffectingInputGene2CS}
+              width={config.gene_view.transGeneWidth}
+              title={`Variants in these genes affect ${geneName}`}
+              noDataTitle={`No genes found to affect ${geneName}`}
+            />
+          </Box>
         </Box>
       </Box>
       <VariantCSInfoBox
