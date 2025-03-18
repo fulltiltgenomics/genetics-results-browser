@@ -6,6 +6,7 @@ import { CSDatum, GeneModel } from "@/types/types.gene";
 import { useThemeStore } from "@/store/store.theme";
 import config from "@/config.json";
 import { useMediaQuery } from "@mui/material";
+import { useNavigate } from "react-router-dom";
 
 const CSPlot = ({
   geneName,
@@ -40,6 +41,7 @@ const CSPlot = ({
   geneModelHeight: number;
   setGeneModelHeight?: (height: number) => void;
 }) => {
+  const navigate = useNavigate();
   const prefersDarkMode = useMediaQuery("(prefers-color-scheme: dark)");
   const { isDarkMode } = useThemeStore();
   const isActualDarkMode = isDarkMode ?? prefersDarkMode;
@@ -49,6 +51,14 @@ const CSPlot = ({
   const [zoomTransform, setZoomTransform] = useState<ZoomTransform>(zoomIdentity);
   const [geneModelPositions, setGeneModelPositions] = useState<
     { geneModel: GeneModel; y: number }[]
+  >([]);
+  const geneTextPositions = useRef<
+    {
+      x: number;
+      y: number;
+      width: number;
+      gene: string;
+    }[]
   >([]);
   useEffect(() => {
     setGeneModelPositions([]);
@@ -121,6 +131,13 @@ const CSPlot = ({
 
       context.font = "12px Arial";
       context.textBaseline = "middle";
+      const textWidth = context.measureText(geneModel.geneName).width;
+      geneTextPositions.current.push({
+        x: geneNameX,
+        y: geneNameY - 10,
+        width: textWidth,
+        gene: geneModel.geneName,
+      });
       context.fillText(geneModel.geneName, geneNameX, geneNameY);
       context.fillStyle = color;
     },
@@ -141,6 +158,7 @@ const CSPlot = ({
         const rows: { end: number; y: number }[] = []; // track the end position and y position of each row
         const positions: { geneModel: GeneModel; y: number }[] = [];
 
+        geneTextPositions.current = [];
         geneModels.forEach((geneModel) => {
           const geneStart = Math.min(...geneModel.exonStarts);
           const geneEnd = Math.max(...geneModel.exonEnds);
@@ -296,6 +314,21 @@ const CSPlot = ({
     [width, csAreaHeight]
   );
 
+  const handleGeneModelCanvasClick = (event: React.MouseEvent<HTMLCanvasElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+    // check if click is on any gene name
+    const clickedGene = geneTextPositions.current.find(
+      ({ x: textX, y: textY, width }) =>
+        x >= textX && x <= textX + width && y >= textY && y <= textY + 12
+    );
+
+    if (clickedGene) {
+      navigate(`/gene/${clickedGene.gene}`);
+    }
+  };
+
   const handleMouseMove = useCallback(
     (event: MouseEvent) => {
       const rect = canvasRef.current?.getBoundingClientRect();
@@ -333,6 +366,22 @@ const CSPlot = ({
     [data, scales, setHighlightVariant]
   );
 
+  const handleGeneModelCanvasMouseMove = (event: MouseEvent) => {
+    const rect = geneModelCanvasRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const mouseX = event.clientX - rect.left;
+    const mouseY = event.clientY - rect.top;
+    const isOverText = geneTextPositions.current.some(
+      ({ x: textX, y: textY, width, gene }) =>
+        mouseX >= textX &&
+        mouseX <= textX + width &&
+        mouseY >= textY &&
+        mouseY <= textY + 14 &&
+        gene !== geneName
+    );
+    (event.currentTarget as HTMLElement).style.cursor = isOverText ? "pointer" : "default";
+  };
+
   const handleMouseLeave = (event: MouseEvent) => {
     setMousePos(undefined);
     event.offsetX > 0 && setHighlightTrait && setHighlightTrait(undefined); // if offsetX is negative, mouse went to the trait list, so we don't want to reset the highlight trait
@@ -369,12 +418,18 @@ const CSPlot = ({
     if (!canvas) return;
     canvas.addEventListener("mousemove", handleMouseMove);
     canvas.addEventListener("mouseleave", handleMouseLeave);
+    const geneModelCanvas = geneModelCanvasRef.current;
+    if (!geneModelCanvas) return;
+    geneModelCanvas.addEventListener("mousemove", handleGeneModelCanvasMouseMove);
+    geneModelCanvas.addEventListener("mouseleave", handleMouseLeave);
 
     return () => {
       canvas.removeEventListener("mousemove", handleMouseMove);
       canvas.removeEventListener("mouseleave", handleMouseLeave);
+      geneModelCanvas.removeEventListener("mousemove", handleGeneModelCanvasMouseMove);
+      geneModelCanvas.removeEventListener("mouseleave", handleMouseLeave);
     };
-  }, [handleMouseMove, handleMouseLeave]);
+  }, [handleMouseMove, handleMouseLeave, handleGeneModelCanvasMouseMove]);
 
   useLayoutEffect(() => {
     if (!zoomTransform) return;
@@ -393,6 +448,7 @@ const CSPlot = ({
     <div style={{ margin: 0, padding: 0 }}>
       <canvas
         ref={geneModelCanvasRef}
+        onClick={handleGeneModelCanvasClick}
         width={width}
         height={geneModelHeight}
         style={{ display: "block" }}></canvas>

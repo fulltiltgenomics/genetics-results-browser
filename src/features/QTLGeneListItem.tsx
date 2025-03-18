@@ -79,7 +79,7 @@ const QTLGeneListItem = ({
                 .map((cs) => {
                   const topPipIndex = cs.pip.indexOf(Math.max(...cs.pip));
                   return (
-                    <TableRow key={cs.variant[topPipIndex]}>
+                    <TableRow key={`${cs.traitCSId}-${cs.variant[topPipIndex]}`}>
                       <CleanTableCell style={{ paddingRight: 20, color: "white" }}>
                         {cs.dataset.split("_").slice(0, 2).join(" ")}
                       </CleanTableCell>
