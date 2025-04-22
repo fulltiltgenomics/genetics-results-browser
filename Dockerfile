@@ -1,27 +1,39 @@
-FROM nikolaik/python-nodejs:python3.11-nodejs20-slim
+FROM nikolaik/python-nodejs:python3.11-nodejs20-slim as builder
 LABEL maintainer="Juha Karjalainen <jkarjala@broadinstitute.org>"
 
 RUN apt-get update && apt-get install -y nginx libz-dev libbz2-dev liblzma-dev zlib1g-dev libpcre2-dev libpcre3-dev libssl-dev libcurl4-openssl-dev bzip2 gcc g++ make
 
-ARG CONFIG_FILE
-ARG HTSLIB_VER=1.21
+# dev or prod
+ARG DEPLOY_ENV 
+# finngen or public
+ARG DATA_SOURCE
+
 WORKDIR /var/www/genetics-results-browser
 
-RUN curl -LO https://github.com/samtools/htslib/releases/download/${HTSLIB_VER}/htslib-${HTSLIB_VER}.tar.bz2 && \
-    tar -xvjf htslib-${HTSLIB_VER}.tar.bz2 && cd htslib-${HTSLIB_VER} && \
-    ./configure && make && make install && cd .. && rm -rf htslib-${HTSLIB_VER}*
-
-COPY requirements.txt ./
-RUN pip3 install -r requirements.txt
-
-COPY ./ ./
-COPY ${CONFIG_FILE} ./src/config.json
-COPY ./nginx.conf /etc/nginx/sites-available/default
-
+COPY .env.${DEPLOY_ENV}.${DATA_SOURCE} .env
+COPY ./src/config.${DATA_SOURCE}.json ./src/config.json
+COPY package*.json ./
 RUN npm install
-RUN npx webpack --mode production
+COPY . .
+RUN npm run build
+COPY nginx.${DEPLOY_ENV}.conf /etc/nginx/conf.d/default.conf 
 
-EXPOSE 8080
+FROM nginx:alpine
 
-WORKDIR /mnt/disks/data
-CMD service nginx start && /var/www/genetics-results-browser/server/run.py --port 8081
+COPY --from=builder /var/www/genetics-results-browser/static /usr/share/nginx/html
+COPY --from=builder /etc/nginx/conf.d/default.conf /etc/nginx/conf.d/default.conf
+
+RUN mkdir -p /var/cache/nginx && \
+    chown -R nginx:nginx /var/cache/nginx && \
+    chmod -R 755 /var/cache/nginx && \
+    touch /opt/nginx.pid && chown nginx:nginx /opt/nginx.pid
+
+RUN echo "pid /opt/nginx.pid;" > /etc/nginx/nginx.conf && \
+    echo "worker_processes auto;" >> /etc/nginx/nginx.conf && \
+    echo "events { worker_connections 1024; }" >> /etc/nginx/nginx.conf && \
+    echo "http { include /etc/nginx/conf.d/*.conf; }" >> /etc/nginx/nginx.conf
+
+USER nginx
+EXPOSE 3000
+
+CMD ["nginx", "-g", "daemon off;"]

@@ -2,6 +2,21 @@
   "content": [
     {
       "type": "span",
+      "text": "Mar 20th 2024:",
+      "children": [
+        {
+          "type": "ul",
+          "children": [
+            {
+              "type": "li",
+              "text": "Added a beta version of gene view"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "span",
       "text": "Dec 17th 2024:",
       "children": [
         {

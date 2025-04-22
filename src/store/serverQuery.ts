@@ -1,16 +1,16 @@
 import { useQuery, UseQueryResult } from "@tanstack/react-query";
-import axios from "axios";
 import { Config, Dataset, DataType, Phenotype, TableData } from "../types/types";
 import { CSDatum, GeneModel } from "@/types/types.gene";
 import config from "@/config.json";
 import { mungeGeneModelResponse } from "./serverMunge";
 import { isCoding, isLoF } from "@/utils/coding";
+import api from "./api";
 
 export const useConfigQuery = (): UseQueryResult<Config, Error> => {
   return useQuery<Config>({
     queryKey: ["config"],
     queryFn: async (): Promise<Config> => {
-      const { data } = await axios.get<Config>("/api/v1/config");
+      const { data } = await api.get<Config>("/v1/config");
       return data;
     },
   });
@@ -22,7 +22,7 @@ export const useServerQuery = (
   return useQuery<TableData>({
     queryKey: ["table-data", variantInput],
     queryFn: async (): Promise<TableData> => {
-      let { data } = await axios.post<TableData>("${config.api_url}/results", {
+      let { data } = await api.post<TableData>(`/v1/results`, {
         variants: variantInput,
       });
       if (typeof data !== "object") {
@@ -52,8 +52,8 @@ export const useGeneModelByGeneQuery = (gene: string): UseQueryResult<GeneModel[
   return useQuery<GeneModel[]>({
     queryKey: ["gene-model-by-gene", gene],
     queryFn: async () => {
-      const response = await axios.get<string>(
-        `${config.api_url}/gene_model_by_gene/${gene}/${config.gene_view.gene_padding}`
+      const response = await api.get<string>(
+        `/v1/gene_model_by_gene/${gene}/${config.gene_view.gene_padding}`
       );
       return mungeGeneModelResponse(response.data);
     },
@@ -70,9 +70,7 @@ export const useGeneModelQuery = (
   return useQuery<GeneModel[]>({
     queryKey: ["gene-model", chr, start, end],
     queryFn: async () => {
-      const response = await axios.get<string>(
-        `${config.api_url}/gene_model/${chr}/${start}/${end}`
-      );
+      const response = await api.get<string>(`/v1/gene_model/${chr}/${start}/${end}`);
       return mungeGeneModelResponse(response.data);
     },
     enabled: !!chr && !!start && !!end,
@@ -90,8 +88,8 @@ export const useCSQuery = (gene: string | undefined): UseQueryResult<CSDatum[], 
   return useQuery<CSDatum[]>({
     queryKey: ["cs-data", gene],
     queryFn: () =>
-      axios
-        .get<string>(`${config.api_url}/gene_cs/${gene}?padding=${config.gene_view.gene_padding}`)
+      api
+        .get<string>(`/v1/gene_cs/${gene}?padding=${config.gene_view.gene_padding}`)
         .then((response) => {
           const rows = response.data.split("\n");
           const header = rows[0].split("\t");
@@ -217,7 +215,7 @@ export const useCSTransQuery = (
   return useQuery<CSDatum[]>({
     queryKey: ["cs-trans-data", gene, range, filterTraits],
     queryFn: () =>
-      axios.get<string>(`${config.api_url}/gene_cs_trans/${gene}`).then((response) => {
+      api.get<string>(`/v1/gene_cs_trans/${gene}`).then((response) => {
         const rows = response.data.split("\n");
         const header = rows[0].split("\t");
         if (header[0].startsWith("!")) {
@@ -353,37 +351,35 @@ export const useDatasetMetadataQuery = (
   return useQuery<{ [key: string]: Dataset }>({
     queryKey: ["dataset-metadata", datasets],
     queryFn: () => {
-      const response = axios
-        .post<string>(`${config.api_url}/dataset_metadata`, datasets)
-        .then((response) => {
-          const rows = response.data.split("\n");
-          const header = rows[0].split("\t");
-          const headerIndex = header.reduce((acc, field) => {
-            acc[field.replace("#", "")] = header.indexOf(field);
-            return acc;
-          }, {} as { [key: string]: number });
-          const datasetId2metadata = {} as { [key: string]: Dataset };
-          for (let i = 1; i < rows.length; i++) {
-            if (rows[i].length === 0) {
-              continue;
-            }
-            const fields = rows[i].split("\t");
-            datasetId2metadata[fields[headerIndex["dataset_id"]]] = {
-              resource: fields[headerIndex["resource"]],
-              data_type: fields[headerIndex["data_type"]] as DataType,
-              dataset_id: fields[headerIndex["dataset_id"]],
-              study_id: fields[headerIndex["study_id"]],
-              study_label: fields[headerIndex["study_label"]],
-              sample_group: fields[headerIndex["sample_group"]],
-              tissue_id: fields[headerIndex["tissue_id"]],
-              tissue_label: fields[headerIndex["tissue_label"]],
-              condition_label: fields[headerIndex["condition_label"]],
-              sample_size: parseInt(fields[headerIndex["sample_size"]]),
-              quant_method: fields[headerIndex["quant_method"]],
-            };
+      const response = api.post<string>(`/v1/dataset_metadata`, datasets).then((response) => {
+        const rows = response.data.split("\n");
+        const header = rows[0].split("\t");
+        const headerIndex = header.reduce((acc, field) => {
+          acc[field.replace("#", "")] = header.indexOf(field);
+          return acc;
+        }, {} as { [key: string]: number });
+        const datasetId2metadata = {} as { [key: string]: Dataset };
+        for (let i = 1; i < rows.length; i++) {
+          if (rows[i].length === 0) {
+            continue;
           }
-          return datasetId2metadata;
-        });
+          const fields = rows[i].split("\t");
+          datasetId2metadata[fields[headerIndex["dataset_id"]]] = {
+            resource: fields[headerIndex["resource"]],
+            data_type: fields[headerIndex["data_type"]] as DataType,
+            dataset_id: fields[headerIndex["dataset_id"]],
+            study_id: fields[headerIndex["study_id"]],
+            study_label: fields[headerIndex["study_label"]],
+            sample_group: fields[headerIndex["sample_group"]],
+            tissue_id: fields[headerIndex["tissue_id"]],
+            tissue_label: fields[headerIndex["tissue_label"]],
+            condition_label: fields[headerIndex["condition_label"]],
+            sample_size: parseInt(fields[headerIndex["sample_size"]]),
+            quant_method: fields[headerIndex["quant_method"]],
+          };
+        }
+        return datasetId2metadata;
+      });
       return response;
     },
     enabled: !!datasets && datasets.length > 0,
@@ -397,42 +393,40 @@ export const useTraitMetadataQuery = (
   return useQuery<{ [key: string]: Phenotype }>({
     queryKey: ["trait-metadata", traits],
     queryFn: () => {
-      const response = axios
-        .post<string>(`${config.api_url}/trait_metadata`, traits)
-        .then((response) => {
-          const rows = response.data.split("\n");
-          const header = rows[0].split("\t");
-          const headerIndex = header.reduce((acc, field) => {
-            acc[field.replace("#", "")] = header.indexOf(field);
-            return acc;
-          }, {} as { [key: string]: number });
-          const traitId2phenos = {} as { [key: string]: Phenotype };
-          for (let i = 1; i < rows.length; i++) {
-            if (rows[i].length === 0) {
-              continue;
-            }
-            const fields = rows[i].split("\t");
-            const resource = fields[headerIndex["resource"]];
-            const phenocode = fields[headerIndex["phenocode"]];
-            const traitId = `${resource}|${phenocode}`;
-            traitId2phenos[traitId] = {
-              resource: resource,
-              data_type: fields[headerIndex["data_type"]] as DataType,
-              phenocode: fields[headerIndex["phenocode"]],
-              phenostring: fields[headerIndex["phenostring"]],
-              chromosome: fields[headerIndex["chromosome"]],
-              gene_start: parseInt(fields[headerIndex["gene_start"]]),
-              gene_end: parseInt(fields[headerIndex["gene_end"]]),
-              strand: parseInt(fields[headerIndex["strand"]]),
-              num_cases: parseInt(fields[headerIndex["num_cases"]]),
-              num_samples: parseInt(fields[headerIndex["num_samples"]]),
-              trait_type: fields[headerIndex["trait_type"]],
-              pub_author: fields[headerIndex["pub_author"]],
-              pub_date: fields[headerIndex["pub_date"]],
-            };
+      const response = api.post<string>(`/v1/trait_metadata`, traits).then((response) => {
+        const rows = response.data.split("\n");
+        const header = rows[0].split("\t");
+        const headerIndex = header.reduce((acc, field) => {
+          acc[field.replace("#", "")] = header.indexOf(field);
+          return acc;
+        }, {} as { [key: string]: number });
+        const traitId2phenos = {} as { [key: string]: Phenotype };
+        for (let i = 1; i < rows.length; i++) {
+          if (rows[i].length === 0) {
+            continue;
           }
-          return traitId2phenos;
-        });
+          const fields = rows[i].split("\t");
+          const resource = fields[headerIndex["resource"]];
+          const phenocode = fields[headerIndex["phenocode"]];
+          const traitId = `${resource}|${phenocode}`;
+          traitId2phenos[traitId] = {
+            resource: resource,
+            data_type: fields[headerIndex["data_type"]] as DataType,
+            phenocode: fields[headerIndex["phenocode"]],
+            phenostring: fields[headerIndex["phenostring"]],
+            chromosome: fields[headerIndex["chromosome"]],
+            gene_start: parseInt(fields[headerIndex["gene_start"]]),
+            gene_end: parseInt(fields[headerIndex["gene_end"]]),
+            strand: parseInt(fields[headerIndex["strand"]]),
+            num_cases: parseInt(fields[headerIndex["num_cases"]]),
+            num_samples: parseInt(fields[headerIndex["num_samples"]]),
+            trait_type: fields[headerIndex["trait_type"]],
+            pub_author: fields[headerIndex["pub_author"]],
+            pub_date: fields[headerIndex["pub_date"]],
+          };
+        }
+        return traitId2phenos;
+      });
       return response;
     },
     enabled: !!traits && traits.length > 0,
@@ -463,9 +457,9 @@ export const useVariantAnnotationQuery = (
       const chr = sortedVariants[0].split(":")[0];
       const start = parseInt(sortedVariants[0].split(":")[1]);
       const end = parseInt(sortedVariants[sortedVariants.length - 1].split(":")[1]);
-      const response = axios
+      const response = api
         .post<string>(
-          `${config.api_url}/variant_annotation${withRange ? `_range/${chr}/${start}/${end}` : ""}`,
+          `/v1/variant_annotation${withRange ? `_range/${chr}/${start}/${end}` : ""}`,
           variants
         )
         .then((response) => {

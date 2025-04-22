@@ -1,12 +1,14 @@
-import { Typography, Box, Link, useMediaQuery, IconButton } from "@mui/material";
+import { Typography, Box, Link, useMediaQuery, IconButton, Button } from "@mui/material";
 import Brightness4Icon from "@mui/icons-material/Brightness4";
 import Brightness7Icon from "@mui/icons-material/Brightness7";
-import SettingsBrightnessIcon from "@mui/icons-material/SettingsBrightness";
 import { useHotkeys } from "react-hotkeys-hook";
 import config from "../../config.json";
 import { useThemeStore } from "@/store/store.theme";
+import { useAuth } from "@/store/useAuth";
+import { useLocation } from "react-router-dom";
 
 const Header = () => {
+  const location = useLocation();
   const sounds = [
     "https://sound.peal.io/ps/audios/000/029/713/original/youtube_29713.mp3?1553760622",
     "https://sound.peal.io/ps/audios/000/029/696/original/youtube_29696.mp3?1553758748",
@@ -26,6 +28,8 @@ const Header = () => {
   const { isDarkMode, setDarkMode: setTheme } = useThemeStore();
   const actualDarkMode = isDarkMode ?? prefersDarkMode;
 
+  const { isAuthenticated, user, login, logout } = useAuth();
+
   const handleThemeClick = () => {
     setTheme(!actualDarkMode);
   };
@@ -37,39 +41,42 @@ const Header = () => {
         sx={{
           display: "flex",
           flexDirection: "row",
-          width: "fit-content",
+          width: "100%",
           alignItems: "center",
           gap: 2,
         }}>
-        <IconButton
-          onClick={handleThemeClick}
-          color="inherit"
-          aria-label="toggle theme"
-          style={{
-            transform: "translateY(-5px)",
-          }}>
+        <IconButton onClick={handleThemeClick} color="inherit" aria-label="toggle theme">
           {actualDarkMode ? <Brightness7Icon /> : <Brightness4Icon />}
         </IconButton>
-        <Typography variant="h6" sx={{ marginBottom: "10px" }}>
+        <Typography variant="h6">
           <Link href="/" underline="hover">
             Home
           </Link>
         </Typography>
-        <Typography variant="h6" sx={{ paddingLeft: "20px", marginBottom: "10px" }}>
+        <Typography variant="h6" sx={{ paddingLeft: "20px" }}>
           <Link href="/about" underline="hover">
             About
           </Link>
         </Typography>
-        <Typography variant="h6" sx={{ paddingLeft: "20px", marginBottom: "10px" }}>
+        <Typography variant="h6" sx={{ paddingLeft: "20px" }}>
           <Link href="/changelog" underline="hover">
             Changelog
           </Link>
         </Typography>
-        <Typography sx={{ paddingLeft: "20px", marginBottom: "10px", alignSelf: "center" }}>
+        <Typography sx={{ paddingLeft: "20px", alignSelf: "center" }}>
           Last updated {config.last_updated}
         </Typography>
+        <Box flexGrow={1} />
+        {isAuthenticated ? (
+          <Box display="flex" flexDirection="row" alignItems="center" gap={1}>
+            <Typography>{user}</Typography>
+            <Button onClick={() => logout()}>Logout</Button>
+          </Box>
+        ) : (
+          <Button onClick={() => login()}>Login</Button>
+        )}
       </Box>
-      <Typography variant="h6" sx={{ marginBottom: "10px" }}>
+      <Typography variant="h6" style={{ marginBottom: "20px" }}>
         {config.title}
       </Typography>
     </>
