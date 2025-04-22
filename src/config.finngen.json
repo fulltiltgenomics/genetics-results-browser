@@ -1,5 +1,5 @@
 {
-  "target": "public",
+  "target": "finngen",
   "title": "anno.finngen.fi / variant annotation and interpretation based on global human genomics results",
   "last_updated": "Apr 22nd 2025",
   "gene_view": {

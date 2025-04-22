@@ -10,11 +10,11 @@ ARG DATA_SOURCE
 
 WORKDIR /var/www/genetics-results-browser
 
-COPY .env.${DEPLOY_ENV}.${DATA_SOURCE} .env
-COPY ./src/config.${DATA_SOURCE}.json ./src/config.json
 COPY package*.json ./
 RUN npm install
 COPY . .
+COPY .env.${DEPLOY_ENV}.${DATA_SOURCE} .env
+COPY ./src/config.${DATA_SOURCE}.json ./src/config.json
 RUN npm run build
 COPY nginx.${DEPLOY_ENV}.conf /etc/nginx/conf.d/default.conf 
 
