@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Box, Link, TextField, Typography } from "@mui/material";
-import LoadingButton from "@mui/lab/LoadingButton";
+import Button from "@mui/material/Button";
 import CreateIcon from "@mui/icons-material/Create";
 import { useDataStore } from "../../store/store";
 import config from "../../config.json";
@@ -344,16 +344,14 @@ const InputForm = () => {
             variant="outlined"
             onChange={handleInputChange}
           />
-          <LoadingButton
+          <Button
             sx={{ marginBottom: "10px", width: "260px" }}
             size="small"
             startIcon={<CreateIcon />}
-            loading={false}
-            loadingPosition="start"
             variant="contained"
             type="submit">
             <span>annotate</span>
-          </LoadingButton>
+          </Button>
           <Typography sx={{ marginBottom: "10px" }}>
             Or try <br />
             {config.target === "finngen" ? (

@@ -1,13 +1,14 @@
 import QueryVariantInfo from "../input/QueryVariantInfo";
 import InputForm from "../input/InputForm";
 import { useDataStore } from "../../store/store";
-import { Box, CircularProgress, Link, Tab, Tabs, Typography } from "@mui/material";
+import { Box, CircularProgress, Link, Tab, Tabs, Typography, useTheme } from "@mui/material";
 import TabPanel from "@mui/lab/TabPanel";
 import { TabContext } from "@mui/lab";
 import GlobalControlContainer from "../controls/GlobalControlContainer";
 import { useServerQuery } from "../../store/serverQuery";
 import { lazy, Suspense, useEffect } from "react";
 import { renderPThreshold } from "./utils/tableutil";
+import { useNavigate } from "react-router-dom";
 
 const VariantMainTable = lazy(() => import("./tables/VariantMainTable"));
 const PhenotypeSummaryTable = lazy(() => import("./tables/PhenotypeSummaryTable"));
@@ -22,7 +23,8 @@ const TableContainer = () => {
   const clientData = useDataStore((state) => state.clientData);
   const pThreshold = useDataStore((state) => state.pThreshold);
   const variantInput = useDataStore((state) => state.variantInput);
-
+  const navigate = useNavigate();
+  const theme = useTheme();
   // set data state when the result from the query or cache updates
   const { data } = useServerQuery(variantInput);
   useEffect(() => {
@@ -35,8 +37,61 @@ const TableContainer = () => {
     setActiveTab(newValue);
   };
 
+  const isGenePage = window.location.pathname.startsWith("/gene");
+  const isVariantPage =
+    window.location.pathname == "/" || window.location.pathname.startsWith("/q=");
+
   return (
     <>
+      <Box display="flex" flexDirection="row" gap={2} style={{ marginBottom: "20px" }}>
+        {isVariantPage && (
+          <>
+            <Typography variant="h6">Variants</Typography>
+            <Box
+              sx={{ display: "flex", alignItems: "center", cursor: "pointer" }}
+              onClick={() => navigate("/gene")}>
+              <Typography variant="h6" style={{ color: theme.palette.primary.main }}>
+                Gene
+              </Typography>
+              <Typography
+                component="span"
+                sx={{
+                  fontSize: "0.7em",
+                  backgroundColor: "primary.main",
+                  color: "white",
+                  padding: "2px 6px",
+                  borderRadius: "4px",
+                  marginLeft: "4px",
+                }}>
+                beta
+              </Typography>
+            </Box>
+          </>
+        )}
+        {isGenePage && (
+          <>
+            <Typography
+              variant="h6"
+              style={{ cursor: "pointer", color: theme.palette.primary.main }}
+              onClick={() => navigate("/")}>
+              Variants
+            </Typography>
+            <Typography variant="h6">Gene</Typography>
+            <Typography
+              component="span"
+              sx={{
+                fontSize: "0.7em",
+                backgroundColor: "primary.main",
+                color: "white",
+                padding: "2px 6px",
+                borderRadius: "4px",
+                marginLeft: "4px",
+              }}>
+              beta
+            </Typography>
+          </>
+        )}
+      </Box>
       <InputForm />
       {variantInput !== undefined ? (
         <>
