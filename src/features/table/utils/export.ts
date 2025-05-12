@@ -35,7 +35,8 @@ export const handlePhenoSummaryTableExport = (data: TableData) => {
         const beta =
           data.data
             .find((d) => d.variant === v)
-            ?.assoc.data.find((a) => a.phenocode === p.phenocode)?.beta || "NA";
+            ?.assoc.data.find((a) => a.resource === p.resource && a.phenocode === p.phenocode)
+            ?.beta || "NA";
         phenoData[v] = String(beta);
         if (beta !== "NA") {
           nonNACount++;
