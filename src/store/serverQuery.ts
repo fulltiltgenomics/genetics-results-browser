@@ -23,7 +23,7 @@ export const useServerQuery = (
     queryKey: ["table-data", variantInput],
     queryFn: async (): Promise<TableData> => {
       let { data } = await api.post<TableData>(`/v1/results`, {
-        variants: variantInput,
+        query: variantInput,
       });
       if (typeof data !== "object") {
         // JSON parsing failed
