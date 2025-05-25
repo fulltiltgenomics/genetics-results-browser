@@ -18,11 +18,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }
 
   if (!isAuthenticated) {
-    console.log("Not authenticated");
     login();
   } else {
-    console.log("Authenticated");
-    return <>{children}</>;
+    return children;
   }
 
   return <Typography>Not authenticated</Typography>;

@@ -1,15 +1,15 @@
 import { TableData } from "../../../types/types";
 
-export const pValRepr = (mlogp: number): string => {
-  if (mlogp <= 0) {
+export const pValRepr = (mlog10p: number): string => {
+  if (mlog10p <= 0) {
     return "1";
   }
-  const p = Math.pow(10, -mlogp);
+  const p = Math.pow(10, -mlog10p);
   let repr = p.toExponential(2);
   // in case of underflow put the string together
   if (p == 0) {
-    const digits = Math.round(1000 * Math.pow(10, -(mlogp - Math.floor(mlogp)))) / 100;
-    const exp = Math.ceil(mlogp);
+    const digits = Math.round(1000 * Math.pow(10, -(mlog10p - Math.floor(mlog10p)))) / 100;
+    const exp = Math.ceil(mlog10p);
     repr = `${digits}e-${exp}`;
   }
   return repr;

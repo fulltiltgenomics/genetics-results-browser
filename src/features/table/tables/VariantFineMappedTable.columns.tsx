@@ -35,7 +35,7 @@ export const getFineMappingTableColumns = (
     size: 150,
   },
   {
-    accessorFn: (row) => phenoMap[row.resource + ":" + row.phenocode].phenostring,
+    accessorFn: (row) => phenoMap[row.resource + ":" + row.phenocode]?.phenostring ?? "unknown",
     // TODO PhenoTooltip
     // accessorFn: (row) => {
     //   const phenos = row.assoc.groupedData[0].phenocode.map(

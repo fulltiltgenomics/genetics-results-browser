@@ -205,13 +205,13 @@ export const getVariantMainTableColumns = (
     },
     {
       accessorFn: (row) => (
-        <span style={row.assoc.groupedData[0].mlogp[0] <= 0 ? { color: "gray" } : {}}>
-          {pValRepr(row.assoc.groupedData[0].mlogp[0])}
+        <span style={row.assoc.groupedData[0].mlog10p[0] <= 0 ? { color: "gray" } : {}}>
+          {pValRepr(row.assoc.groupedData[0].mlog10p[0])}
         </span>
       ),
       header: "p-value",
       // need dot notation for naInfSort
-      id: "assoc.groupedData.0.mlogp.0",
+      id: "assoc.groupedData.0.mlog10p.0",
       filterFn: filterLessThanHTML,
       muiFilterTextFieldProps: { placeholder: "filter" },
       sortingFn: "naInfSort",
@@ -224,7 +224,7 @@ export const getVariantMainTableColumns = (
         return (
           <div>
             <UpOrDownIcon value={assoc.beta[0]} />
-            <span style={assoc.mlogp[0] <= 0 ? { color: "gray" } : {}}>
+            <span style={assoc.mlog10p[0] <= 0 ? { color: "gray" } : {}}>
               {(assoc.beta[0] && assoc.beta[0].toFixed(2)) || ""}
             </span>
           </div>

@@ -298,7 +298,7 @@ export const handleAssocTableExport = (
             //p[hdr] = fm.phenocode;
             p[hdr] = phenoMap[assoc.resource + ":" + assoc.phenocode].phenostring;
           } else if (hdr == "p-value") {
-            p[hdr] = pValRepr(assoc.mlogp);
+            p[hdr] = pValRepr(assoc.mlog10p);
           } else {
             const colId = c.id ? (c.id as keyof AssocRecord) : (c.accessorKey as keyof AssocRecord);
             p[hdr] = String(assoc[colId]) || "NA";

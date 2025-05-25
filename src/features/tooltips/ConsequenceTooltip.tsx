@@ -1,7 +1,7 @@
 import { HtmlTooltip } from "./HtmlTooltip";
 import { VariantRecord } from "../../types/types";
 
-export const ConsequenceTooltip = (props: { row: VariantRecord; content: JSX.Element }) => {
+export const ConsequenceTooltip = (props: { row: VariantRecord; content: React.ReactElement }) => {
   if (props.row.gnomad[props.row.gnomad.preferred]!.consequences.length === 0) {
     // no tooltip
     return props.content;

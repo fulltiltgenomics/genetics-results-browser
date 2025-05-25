@@ -75,14 +75,14 @@ export const getAssociationTableColumns = (
           resource={resource}
           row={row}
           content={
-            <span style={{ textDecoration: "underline dotted" }}>{pValRepr(row.mlogp[0])}</span>
+            <span style={{ textDecoration: "underline dotted" }}>{pValRepr(row.mlog10p[0])}</span>
           }
         />
       ) : (
-        <span>{pValRepr(row.mlogp[0])}</span>
+        <span>{pValRepr(row.mlog10p[0])}</span>
       );
     },
-    id: "mlogp",
+    id: "mlog10p",
     header: "p-value",
     sortingFn: "naInfSort",
     sortDescFirst: true,

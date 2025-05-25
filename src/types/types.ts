@@ -171,7 +171,7 @@ export type AssocRecord = {
   dataset: string;
   data_type: DataType;
   phenocode: string;
-  mlogp: number;
+  mlog10p: number;
   beta: number;
   sebeta: number;
   ld: boolean; // if the result is from open targets v2d ld data
@@ -191,7 +191,7 @@ export type GroupedAssocRecord = {
   data_type: DataType;
   phenostring: string;
   phenocode: string[];
-  mlogp: number[];
+  mlog10p: number[];
   beta: number[];
   sebeta: number[];
   ld: boolean[];

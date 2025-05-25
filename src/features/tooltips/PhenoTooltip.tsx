@@ -6,7 +6,7 @@ import { HtmlTooltip } from "./HtmlTooltip";
 export const PhenoTooltip = (props: {
   phenos: Phenotype[];
   resource: AssocResource | null;
-  content: JSX.Element;
+  content: React.ReactElement;
   row?: GroupedAssocRecord;
 }) => {
   const seenPhenocodes = new Set<string>();
@@ -23,7 +23,7 @@ export const PhenoTooltip = (props: {
       const stats =
         props.phenos.length > 1 ? (
           <>
-            <div>p-value {pValRepr(props.row!.mlogp[idx])}</div>
+            <div>p-value {pValRepr(props.row!.mlog10p[idx])}</div>
             <div>beta {props.row!.beta[idx].toPrecision(3)}</div>
           </>
         ) : null;

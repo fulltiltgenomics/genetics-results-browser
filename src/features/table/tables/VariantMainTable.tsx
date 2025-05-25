@@ -42,7 +42,7 @@ const VariantMainTable = (props: {
   const [sorting, setSorting] = useState<MRT_SortingState>([]);
   useEffect(() => {
     if (clientData?.query_type === "gene") {
-      setSorting([{ id: "assoc.groupedData.0.mlogp.0", desc: true }]);
+      setSorting([{ id: "assoc.groupedData.0.mlog10p.0", desc: true }]);
     } else {
       setSorting([]);
     }
@@ -94,7 +94,7 @@ const VariantMainTable = (props: {
         columnVisibility: { af_hidden: false },
         // sorting:
         //   clientData?.query_type === "gene"
-        //     ? [{ id: "assoc.groupedData.0.mlogp.0", desc: true }]
+        //     ? [{ id: "assoc.groupedData.0.mlog10p.0", desc: true }]
         //     : [],
       }}
       state={{

@@ -35,7 +35,7 @@ const groupAssocPhenos = (d: AssocRecord[], phenos: PhenoMap) => {
           data_type: c.data_type,
           phenostring: pheno.phenostring,
           phenocode: [pheno.phenocode],
-          mlogp: [c.mlogp],
+          mlog10p: [c.mlog10p],
           beta: [c.beta],
           sebeta: [c.sebeta],
           ld: [c.ld],
@@ -49,7 +49,7 @@ const groupAssocPhenos = (d: AssocRecord[], phenos: PhenoMap) => {
         };
       } else {
         p[groupId]["phenocode"].push(pheno.phenocode);
-        p[groupId]["mlogp"].push(c.mlogp);
+        p[groupId]["mlog10p"].push(c.mlog10p);
         p[groupId]["beta"].push(c.beta);
         p[groupId]["sebeta"].push(c.sebeta);
         p[groupId]["ld"].push(c.ld);
@@ -399,7 +399,7 @@ export const filterRows = (
             (assocPheno.data_type !== "GWAS" || gwasTypes[assocPheno.trait_type]) &&
             (!isQTLInCis(d.variant, assocPheno, cisWindow) || qtlTypes["CIS"]) &&
             (!isQTLInTrans(d.variant, assocPheno, cisWindow) || qtlTypes["TRANS"]) &&
-            a.mlogp > -Math.log10(p)) ||
+            a.mlog10p > -Math.log10(p)) ||
           (keepPlaceholders && assocPheno.is_na)
         );
       });
@@ -413,7 +413,7 @@ export const filterRows = (
             (assocPheno.data_type !== "GWAS" || gwasTypes[assocPheno.trait_type]) &&
             (!isQTLInCis(d.variant, assocPheno, cisWindow) || qtlTypes["CIS"]) &&
             (!isQTLInTrans(d.variant, assocPheno, cisWindow) || qtlTypes["TRANS"]) &&
-            a.mlogp > -Math.log10(p) &&
+            a.mlog10p > -Math.log10(p) &&
             a.resource == pheno.resource &&
             a.phenocode == pheno.phenocode) ||
           (keepPlaceholders && assocPheno.is_na && assocPheno.resource === assocPheno.resource)

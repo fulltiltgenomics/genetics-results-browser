@@ -39,7 +39,6 @@ export function useAuth() {
     const checkAuth = async () => {
       try {
         const response = await api.get<AuthResponse>("/v1/auth");
-        console.log(response.data.session.user_email);
         if (isMounted) {
           setIsAuthenticated(response.data.session.user_email !== undefined);
           setUser(response.data.session.user_email ?? null);

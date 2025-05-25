@@ -6,7 +6,7 @@ export const AssocPValLDTooltip = (props: {
   variant: string;
   phenos: Phenotype[];
   resource: AssocResource | null;
-  content: JSX.Element;
+  content: React.ReactElement;
   row: GroupedAssocRecord;
 }) => {
   const n_ld_vars = props.row.ld.filter((x) => x).length;
@@ -75,7 +75,7 @@ export const AssocPValLDTooltip = (props: {
         </tr>
         <tr>
           <td>p-value</td>
-          <td>{pValRepr(props.row.mlogp[idx])}</td>
+          <td>{pValRepr(props.row.mlog10p[idx])}</td>
         </tr>
         <tr>
           <td>beta</td>

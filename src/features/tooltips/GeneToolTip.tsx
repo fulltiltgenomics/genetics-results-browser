@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { GeneInfo } from "../../types/types";
 import { HtmlTooltip } from "./HtmlTooltip";
 
-const GeneTooltip = (props: { geneName: string; content: JSX.Element }) => {
+const GeneTooltip = (props: { geneName: string; content: React.ReactElement }) => {
   const [geneInfo, setGeneInfo] = useState<GeneInfo | undefined>(undefined);
   const [isHovered, setIsHovered] = useState(false);
 
