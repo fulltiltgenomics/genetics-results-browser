@@ -527,7 +527,7 @@ const CisView = ({ geneName }: { geneName: string }) => {
   }, [sortedData, metaisPending, metadata, mouseOverTrait, highlightCSs]);
 
   if (!geneName) {
-    return <Typography>Enter a gene name</Typography>;
+    return null;
   }
   if (isError || metaIsError || geneModelsIsError || datasetMetadataIsError) {
     return (

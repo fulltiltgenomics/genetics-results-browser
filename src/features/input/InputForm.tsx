@@ -75,10 +75,10 @@ const InputForm = () => {
       <form onSubmit={handleFormSubmit}>
         <Box sx={{ display: "flex", flexDirection: "column", width: "260px" }}>
           <TextField
-            sx={{ marginBottom: "10px", width: "260px" }}
+            sx={{ marginBottom: "10px", width: "360px" }}
             id="filled-multiline-flexible"
             name="variantInput"
-            label="Paste GRCh38 variant ids or rsids, or enter a gene"
+            label="Paste GRCh38 variant ids or rsids, or enter a gene name"
             value={formValues.variantInput}
             multiline
             rows={10}
@@ -86,7 +86,7 @@ const InputForm = () => {
             onChange={handleInputChange}
           />
           <Button
-            sx={{ marginBottom: "10px", width: "260px" }}
+            sx={{ marginBottom: "10px", width: "360px" }}
             size="small"
             startIcon={<CreateIcon />}
             variant="contained"

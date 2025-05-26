@@ -30,80 +30,42 @@ const GeneContainer = () => {
   };
 
   const isGenePage = window.location.pathname.startsWith("/gene");
-  const isVariantPage =
-    window.location.pathname == "/" || window.location.pathname.startsWith("/q=");
 
   return (
     <Box display="flex" flexDirection="column">
-      <Box display="flex" flexDirection="row" gap={2} style={{ marginBottom: "20px" }}>
-        {isVariantPage && (
-          <>
-            <Typography variant="h6">Variants</Typography>
-            <Box
-              sx={{ display: "flex", alignItems: "center", cursor: "pointer" }}
-              onClick={() => navigate("/gene")}>
-              <Typography variant="h6" style={{ color: theme.palette.primary.main }}>
-                Gene
-              </Typography>
-              <Typography
-                component="span"
-                sx={{
-                  fontSize: "0.7em",
-                  backgroundColor: "primary.main",
-                  color: "white",
-                  padding: "2px 6px",
-                  borderRadius: "4px",
-                  marginLeft: "4px",
-                }}>
-                beta
-              </Typography>
-            </Box>
-          </>
-        )}
+      <Box display="flex" flexDirection="row" gap={2} style={{ marginBottom: "5px" }}>
         {isGenePage && (
           <>
             <Typography
               variant="h6"
               style={{ cursor: "pointer", color: theme.palette.primary.main }}
               onClick={() => navigate("/")}>
-              Variants
+              Variant table
             </Typography>
             <Box sx={{ display: "flex", alignItems: "center" }}>
-              <Typography variant="h6">Gene</Typography>
-              <Typography
-                component="span"
-                sx={{
-                  fontSize: "0.7em",
-                  backgroundColor: "primary.main",
-                  color: "white",
-                  padding: "2px 6px",
-                  borderRadius: "4px",
-                  marginLeft: "4px",
-                }}>
-                beta
-              </Typography>
+              <Typography variant="h6">Gene view</Typography>
             </Box>
           </>
         )}
       </Box>
-      <Box display="flex" flexDirection="row" alignItems="baseline">
+      <Box display="flex" flexDirection="column">
         <TextField
-          label="Enter a gene"
+          label="Enter a gene name"
           value={inputGeneName}
           onChange={handleInputGeneNameChange}
           onKeyDown={handleKeyPress}
           variant="outlined"
           margin="normal"
           size="small"
-          style={{ paddingRight: "10px" }}
+          style={{ width: "160px" }}
         />
         <Button
-          variant="contained"
+          sx={{ marginBottom: "10px", width: "160px" }}
+          size="small"
           color="primary"
-          onClick={handleSetGeneName}
-          size="large"
-          style={{ height: "34px" }}>
-          GO
+          variant="contained"
+          onClick={handleSetGeneName}>
+          <span>show region</span>
         </Button>
       </Box>
       <CisView geneName={geneName} />
