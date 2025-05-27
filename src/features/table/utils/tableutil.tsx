@@ -1,6 +1,10 @@
 import { TableData } from "../../../types/types";
 
 export const pValRepr = (mlog10p: number): string => {
+  // @ts-expect-error typed number
+  if (mlog10p == "NA") {
+    return "";
+  }
   if (mlog10p <= 0) {
     return "1";
   }

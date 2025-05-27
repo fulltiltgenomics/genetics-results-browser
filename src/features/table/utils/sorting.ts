@@ -36,13 +36,13 @@ export const naInfSort = (rowA: any, rowB: any, id: string) => {
   }
   if (isNaN(a)) {
     // NA to bottom
-    a = Number.POSITIVE_INFINITY;
+    a = Number.NEGATIVE_INFINITY;
   }
   if (typeof valB == "string" && valB.toLowerCase().startsWith("inf")) {
     b = Number.POSITIVE_INFINITY;
   }
   if (Number.isNaN(b)) {
-    b = Number.POSITIVE_INFINITY;
+    b = Number.NEGATIVE_INFINITY;
   }
   return a - b;
 };
