@@ -105,9 +105,12 @@ const About = () => {
       </Typography>
       <Typography>
         <br />
-        source code in{" "}
-        <Link target="_blank" href="https://github.com/juhis/genetics-results-browser">
-          GitHub
+        source code in GitHub:{" "}
+        <Link target="_blank" href="https://github.com/fulltiltgenomics/genetics-results-api">
+          backend API
+        </Link>{" "}
+        <Link target="_blank" href="https://github.com/fulltiltgenomics/genetics-results-browser">
+          frontend browser
         </Link>
       </Typography>
       <Typography variant="h6" sx={{ marginTop: "20px" }}>
@@ -144,8 +147,10 @@ const About = () => {
       />
       <Typography>
         <br />
-        FinnGen results from Open Targets are not shown in this tool - more recent FinnGen results
-        are shown instead.
+        Open Targets association results are from their October 2022 release (last release with
+        non-finemapped association results). Open Targets credible sets are from their March 2025
+        release. Open Targets results are only shown for GWAS traits. FinnGen results from Open
+        Targets are not shown in this tool as we show those directly from FinnGen.
       </Typography>
       <Typography>
         <br />
