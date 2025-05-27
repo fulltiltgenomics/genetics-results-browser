@@ -2,6 +2,41 @@
   "content": [
     {
       "type": "span",
+      "text": "May 27th 2025:",
+      "children": [
+        {
+          "type": "ul",
+          "children": [
+            {
+              "type": "li",
+              "text": "Added Open Targets version 25.03 SuSiE fine-mapping results of 14,350 non-FinnGen GWAS traits"
+            },
+            {
+              "type": "li",
+              "text": "Updated FinnGen Olink pQTL results to meta-analysis of 4 batches"
+            },
+            {
+              "type": "li",
+              "text": "Improved query loading performance - now up to 1,000 variants can be queried at once"
+            },
+            {
+              "type": "li",
+              "text": "Tissue/cell type table is now downloadable"
+            },
+            {
+              "type": "li",
+              "text": "Fixed a bug in phenotype summary table download where statistics of the same phenotype code in different resources were mixed with each other"
+            },
+            {
+              "type": "li",
+              "text": "Fixed a bug in gene view pQTL tooltip where variants were counted incorrectly"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "span",
       "text": "Mar 20th 2025:",
       "children": [
         {

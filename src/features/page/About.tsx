@@ -148,9 +148,10 @@ const About = () => {
       <Typography>
         <br />
         Open Targets association results are from their October 2022 release (last release with
-        non-finemapped association results). Open Targets credible sets are from their March 2025
-        release. Open Targets results are only shown for GWAS traits. FinnGen results from Open
-        Targets are not shown in this tool as we show those directly from FinnGen.
+        non-fine-mapped association results). Open Targets credible sets are from their March 2025
+        release. Open Targets results are only shown for GWAS traits that have been fine-mapped with
+        SuSiE-inf. FinnGen results from Open Targets are not shown in this tool as we show those
+        directly from FinnGen.
       </Typography>
       <Typography>
         <br />
