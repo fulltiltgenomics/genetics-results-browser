@@ -92,7 +92,7 @@ const VariantCSInfoBox = ({
               <Typography>{selectedVariantStats.beta.toPrecision(3)}</Typography>
               <Typography>pip</Typography>
               <Typography>{selectedVariantStats.pip.toPrecision(3)}</Typography>
-              <Typography>af</Typography>
+              <Typography>global af</Typography>
               <Typography>{selectedVariantStats.af}</Typography>
             </Box>
           </Box>

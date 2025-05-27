@@ -541,6 +541,7 @@ const CisView = ({ geneName }: { geneName: string }) => {
   return (
     <>
       <Box display="flex" flexDirection="column">
+        <Typography>Open Targets credible sets are not yet included in this view.</Typography>
         <Box display="flex" flexDirection="row" mt={2} mb={2}>
           <DatasetOptions data={filteredData} />
           <CisViewOptions
