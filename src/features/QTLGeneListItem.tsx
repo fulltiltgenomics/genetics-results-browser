@@ -5,11 +5,13 @@ import { CSDatum } from "@/types/types.gene";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 
 const QTLGeneListItem = ({
+  affectingOrAffected,
   sourceGeneName,
   qtlGeneName,
   credibleSets,
   color,
 }: {
+  affectingOrAffected: "affecting" | "affected";
   sourceGeneName: string;
   qtlGeneName: string;
   credibleSets: CSDatum[];
@@ -54,7 +56,7 @@ const QTLGeneListItem = ({
                   CS size
                 </CleanTableCell>
                 <CleanTableCell style={{ fontWeight: "bold", paddingRight: 20, color: "white" }}>
-                  # {sourceGeneName} coding
+                  # {affectingOrAffected === "affecting" ? qtlGeneName : sourceGeneName} coding
                 </CleanTableCell>
                 <CleanTableCell style={{ fontWeight: "bold", paddingRight: 20, color: "white" }}>
                   top PIP variant
@@ -87,7 +89,9 @@ const QTLGeneListItem = ({
                         {cs.csSize}
                       </CleanTableCell>
                       <CleanTableCell style={{ paddingRight: 20, color: "white" }}>
-                        {cs.isCoding.filter((c, i) => c && cs.gene[i] === qtlGeneName).length}
+                        {affectingOrAffected === "affecting"
+                          ? cs.isCoding.filter((c, i) => c && cs.gene[i] === qtlGeneName).length
+                          : cs.isCoding.filter((c, i) => c && cs.gene[i] === sourceGeneName).length}
                       </CleanTableCell>
                       <CleanTableCell style={{ paddingRight: 20, color: "white" }}>
                         <Box display="flex" gap={1}>

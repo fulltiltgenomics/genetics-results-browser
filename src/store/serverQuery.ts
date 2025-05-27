@@ -103,6 +103,7 @@ export const useCSQuery = (gene: string | undefined): UseQueryResult<CSDatum[], 
           const traitCS2data: { [traitCSId: string]: CSDatum } = {};
           const trait2uniqCS: { [trait: string]: Set<string> } = {};
           const csRegex = /_L?(\d+)$/;
+          const seenVariantCSIds = new Set<string>();
           for (let i = 1; i < rows.length; i++) {
             if (rows[i].length === 0) {
               continue;
@@ -129,6 +130,11 @@ export const useCSQuery = (gene: string | undefined): UseQueryResult<CSDatum[], 
             const consequence = fields[headerIndex["most_severe"]];
             const af = fields[headerIndex["AF"]];
             const gene = fields[headerIndex["gene_most_severe"]];
+            // TODO server shouldn't send data like this
+            if (seenVariantCSIds.has(variant + traitCSId)) {
+              continue;
+            }
+            seenVariantCSIds.add(variant + traitCSId);
             if (!traitCS2data[traitCSId]) {
               traitCS2data[traitCSId] = {
                 resource: resource,
@@ -200,6 +206,7 @@ export const useCSQuery = (gene: string | undefined): UseQueryResult<CSDatum[], 
             gene: traitCS2data[traitCSId].gene,
             rsid: traitCS2data[traitCSId].rsid,
           }));
+          console.log(data.filter((d) => d.dataType === "pQTL"));
           return data;
         }),
     enabled: !!gene,
@@ -228,6 +235,7 @@ export const useCSTransQuery = (
         const traitCS2data: { [traitCSId: string]: CSDatum } = {};
         const trait2uniqCS: { [trait: string]: Set<string> } = {};
         const csRegex = /_L?(\d+)$/;
+        const seenVariantCSIds = new Set<string>();
         for (let i = 1; i < rows.length; i++) {
           if (rows[i].length === 0) {
             continue;
@@ -266,6 +274,11 @@ export const useCSTransQuery = (
           const af = fields[headerIndex["AF"]];
           const gene = fields[headerIndex["gene_most_severe"]];
           const rsid = fields[headerIndex["rsids"]];
+          // TODO server shouldn't send data like this
+          if (seenVariantCSIds.has(variant + traitCSId)) {
+            continue;
+          }
+          seenVariantCSIds.add(variant + traitCSId);
           if (!traitCS2data[traitCSId]) {
             traitCS2data[traitCSId] = {
               resource: resource,
@@ -337,7 +350,6 @@ export const useCSTransQuery = (
           gene: traitCS2data[traitCSId].gene,
           rsid: traitCS2data[traitCSId].rsid,
         }));
-        console.log(data);
         return data;
       }),
     enabled: !!gene && !!range,

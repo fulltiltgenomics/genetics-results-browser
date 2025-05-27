@@ -51,6 +51,7 @@ const AffectingGeneList = ({
               }
               return (
                 <QTLGeneListItem
+                  affectingOrAffected={"affecting"}
                   key={qtlGene}
                   sourceGeneName={geneName}
                   qtlGeneName={qtlGene}

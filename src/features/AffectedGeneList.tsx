@@ -67,6 +67,7 @@ const AffectedGeneList = ({
                     : config.gene_view.colors.dim;
                 return (
                   <QTLGeneListItem
+                    affectingOrAffected={"affected"}
                     key={qtlGene}
                     sourceGeneName={geneName}
                     qtlGeneName={qtlGene}
