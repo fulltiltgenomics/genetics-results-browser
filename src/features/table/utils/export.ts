@@ -9,10 +9,80 @@ import {
   VariantRecord,
   TableData,
   DatasetMap,
+  TissueSummaryTableData,
 } from "../../../types/types";
 import { download, generateCsv, mkConfig } from "export-to-csv";
 import { getAssociationTableColumns } from "../tables/VariantAssocTable.columns";
 import { pValRepr } from "./tableutil";
+
+export const handleTissueSummaryTableExport = (summaryData: TissueSummaryTableData) => {
+  const dataExport = summaryData.map((row) => {
+    return {
+      tissue: row.tissue,
+      variants: row.total,
+    };
+  });
+  const csvConfig = mkConfig({
+    fieldSeparator: "\t",
+    filename: `tissue_summary_${summaryData.length}_tissues_${SHA256(
+      summaryData.map((p) => p.tissue).join("")
+    )
+      .toString()
+      .substring(0, 7)}`,
+    quoteStrings: false,
+    decimalSeparator: ".",
+    useBom: false,
+    useKeysAsHeaders: true,
+    useTextFile: true,
+  });
+  const csv = generateCsv(csvConfig)(dataExport);
+  download(csvConfig)(csv);
+};
+
+export const handleTissueTableExport = (
+  summaryData: TissueSummaryTableData,
+  selectedPopulation: string | undefined
+) => {
+  const dataExport: any[] = []; // TODO type
+  summaryData.forEach((row) => {
+    row.qtlAssocs.forEach((qtl) => {
+      const assoc = qtl.assoc.data[0];
+      dataExport.push({
+        tissue: row.tissue,
+        variant: assoc.variant,
+        rsid: qtl.gnomad[qtl.gnomad.preferred]!.rsids,
+        global_af: qtl.gnomad[qtl.gnomad.preferred]!.AF || "NA",
+        af:
+          // @ts-expect-error string key
+          qtl.gnomad[qtl.gnomad.preferred]![
+            selectedPopulation !== undefined ? `AF_${selectedPopulation}` : "AF"
+          ] || "NA",
+        most_severe: qtl.gnomad[qtl.gnomad.preferred]!.most_severe,
+        most_severe_gene: qtl.gnomad[qtl.gnomad.preferred]!.gene_most_severe,
+        type: assoc.data_type,
+        dataset: assoc.dataset,
+        top_association: assoc.phenocode,
+        "p-value": pValRepr(assoc.mlog10p),
+        beta: assoc.beta,
+      });
+    });
+  });
+  const csvConfig = mkConfig({
+    fieldSeparator: "\t",
+    filename: `tissue_full_${summaryData.length}_tissues_${SHA256(
+      summaryData.map((p) => p.tissue).join("")
+    )
+      .toString()
+      .substring(0, 7)}`,
+    quoteStrings: false,
+    decimalSeparator: ".",
+    useBom: false,
+    useKeysAsHeaders: true,
+    useTextFile: true,
+  });
+  const csv = generateCsv(csvConfig)(dataExport);
+  download(csvConfig)(csv);
+};
 
 export const handlePhenoSummaryTableExport = (data: TableData) => {
   const phenos = Object.keys(data.phenos).map((k) => data.phenos[k]);

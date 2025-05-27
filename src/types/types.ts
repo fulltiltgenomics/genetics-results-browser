@@ -170,6 +170,7 @@ export type AssocRecord = {
   resource: string;
   dataset: string;
   data_type: DataType;
+  variant: string;
   phenocode: string;
   mlog10p: number;
   beta: number;

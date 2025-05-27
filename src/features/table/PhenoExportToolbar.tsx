@@ -5,7 +5,7 @@ import { TableData } from "../../types/types";
 import { useDataStore } from "../../store/store";
 import { useServerQuery } from "../../store/serverQuery";
 
-const PhenoExportButtons = () => {
+const PhenoExportToolbar = () => {
   const variantInput: string = useDataStore((state) => state.variantInput)!;
   const clientData: TableData = useDataStore((state) => state.clientData)!;
   const { isError, isFetching, isLoading } = useServerQuery(variantInput);
@@ -43,4 +43,4 @@ const PhenoExportButtons = () => {
   );
 };
 
-export default PhenoExportButtons;
+export default PhenoExportToolbar;

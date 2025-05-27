@@ -8,6 +8,7 @@ import { useDataStore } from "../../../store/store";
 import { useServerQuery } from "../../../store/serverQuery";
 import { summarizeTissues } from "../../../store/munge";
 import VariantMainTable from "./VariantMainTable";
+import TissueExportToolbar from "../TissueExportToolbar";
 
 const TissueSummaryTable = (props: {}) => {
   const [pagination, setPagination] = useState({
@@ -16,6 +17,7 @@ const TissueSummaryTable = (props: {}) => {
   });
 
   const clientData: TableData = useDataStore((state) => state.clientData)!;
+  const selectedPopulation: string | undefined = useDataStore((state) => state.selectedPopulation);
 
   const { isError, isFetching, isLoading } = useServerQuery(
     useDataStore((state) => state.variantInput)!
@@ -30,13 +32,19 @@ const TissueSummaryTable = (props: {}) => {
     <MaterialReactTable
       data={summaryData}
       columns={columns}
-      //renderTopToolbarCustomActions={({ table }) => <ExportButtons table={table} />}
-      enableTopToolbar={false}
+      renderTopToolbarCustomActions={({ table }) => (
+        <TissueExportToolbar summaryData={summaryData} selectedPopulation={selectedPopulation} />
+      )}
+      enableTopToolbar={true}
       enableColumnFilters={true}
       initialState={{
         showColumnFilters: true,
         density: "compact",
         sorting: [{ id: "total", desc: true }],
+      }}
+      localization={{
+        noRecordsToDisplay:
+          "No records to display, make sure you have QTL associations toggled above",
       }}
       renderDetailPanel={({ row }) => (
         <VariantMainTable
