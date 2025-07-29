@@ -2,6 +2,21 @@
   "content": [
     {
       "type": "span",
+      "text": "Jul 29th 2025:",
+      "children": [
+        {
+          "type": "ul",
+          "children": [
+            {
+              "type": "li",
+              "text": "Fixed a bug where some input variants would not work"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "span",
       "text": "May 27th 2025:",
       "children": [
         {
