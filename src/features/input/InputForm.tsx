@@ -146,19 +146,15 @@ const InputForm = () => {
           </Button>
           <Typography sx={{ marginBottom: "10px", width: "1000px" }}>
             Or try <br />
-            {config.target === "finngen" ? (
-              <>
-                <Link
-                  sx={{ cursor: "pointer" }}
-                  onClick={() => {
-                    setExampleData("FinnGen_priority");
-                  }}>
-                  Finnish-enriched variants (genome-wide significant in FinnGen R12 core analysis,
-                  LD-pruned, &gt; 5x enriched, &lt; 1 % AF in non-Finnish Europeans)
-                </Link>
-                <br />
-              </>
-            ) : null}
+            <Link
+              sx={{ cursor: "pointer" }}
+              onClick={() => {
+                setExampleData("FinnGen_priority");
+              }}>
+              Finnish-enriched variants (genome-wide significant in FinnGen R12 core analysis,
+              LD-pruned, &gt; 5x enriched, &lt; 1 % AF in non-Finnish Europeans)
+            </Link>
+            <br />
             <Link
               sx={{ cursor: "pointer" }}
               onClick={() => {
