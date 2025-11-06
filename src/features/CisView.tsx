@@ -48,7 +48,7 @@ const CisView = ({ geneName }: { geneName: string }) => {
     if (!geneModels) {
       return undefined;
     }
-    return geneModels.find((gm) => gm.geneName === geneName);
+    return geneModels.find((gm) => gm.geneName.toLowerCase() === geneName.toLowerCase());
   }, [geneModels, geneName]);
   const { data, isPending, isError, error } = useCSQuery(geneName);
 
@@ -89,7 +89,7 @@ const CisView = ({ geneName }: { geneName: string }) => {
   } = useDatasetMetadataQuery(
     // TODO harmonize dataset metadata across resources
     data
-      ?.filter((d) => d.resource.startsWith("eQTL_Catalogue") && d.trait === geneName)
+      ?.filter((d) => d.resource.startsWith("eQTL_Catalogue") && d.trait.toLowerCase() === geneName.toLowerCase())
       .map((d) => d.dataset)
   );
 
@@ -119,7 +119,7 @@ const CisView = ({ geneName }: { geneName: string }) => {
     console.time("filter data");
     const filteredData = data?.filter(
       (d) =>
-        ((d.dataType !== "eQTL" && d.dataType !== "pQTL") || d.trait === geneName) && // only QTLs that affect the input gene
+        ((d.dataType !== "eQTL" && d.dataType !== "pQTL") || d.trait.toLowerCase() === geneName.toLowerCase()) && // only QTLs that affect the input gene
         d.mlog10p.filter((mlog10p) => mlog10p >= minLeadMlog10p).length > 0 &&
         d.csSize <= maxCsSize &&
         d.variant.length > 0 &&
@@ -302,7 +302,7 @@ const CisView = ({ geneName }: { geneName: string }) => {
       )
       .reduce((acc, d) => {
         d.gene.forEach((gene) => {
-          if (d.dataType === "pQTL" && gene === geneName) {
+          if (d.dataType === "pQTL" && gene.toLowerCase() === geneName.toLowerCase()) {
             const geneTraitCSId = `${d.trait}|${d.traitCSId}`;
             if (!seenGeneTraitCSIds.has(geneTraitCSId)) {
               seenGeneTraitCSIds.add(geneTraitCSId);
