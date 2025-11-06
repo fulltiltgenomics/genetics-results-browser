@@ -65,7 +65,7 @@ export const useDataStore = create<DataState>()(
     },
     toggledDataTypes: {
       ...config.data_types.reduce((acc, dataType) => {
-        acc[dataType] = false;
+        acc[dataType] = dataType === "GWAS";
         return acc;
       }, {} as Record<string, boolean>),
     },
