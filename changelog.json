@@ -2,6 +2,45 @@
   "content": [
     {
       "type": "span",
+      "text": "Nov 6th 2025:",
+      "children": [
+        {
+          "type": "ul",
+          "children": [
+            {
+              "type": "li",
+              "text": "Added a gene view that shows credible sets in and around genes, as well as genes that affect or are affected by the input gene by pQTLs"
+            },
+            {
+              "type": "li",
+              "text": "Added datasets: FinnGen/MVP/UKBB meta-analysis, FinnGen Kanta lab values, FinnGen pQTLs"
+            },
+            {
+              "type": "li",
+              "text": "Updated datasets: Open Targets, eQTL Catalogue, FinnGen, FinnGen/UKBB meta-analysis"
+            },
+            {
+              "type": "li",
+              "text": "Added a QTL tissue and cell type summary table in the variant view"
+            },
+            {
+              "type": "li",
+              "text": "Added a download option to the phenotype summary table in the variant view"
+            },
+            {
+              "type": "li",
+              "text": "Added a gene-based search in the variant view that returns results for coding variants in the gene"
+            },
+            {
+              "type": "li",
+              "text": "Bug fixes and performance improvements"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "span",
       "text": "Apr 17th 2024:",
       "children": [
         {
@@ -9,7 +48,7 @@
           "children": [
             {
               "type": "li",
-              "text": "public version available"
+              "text": "Public version available"
             }
           ]
         }
