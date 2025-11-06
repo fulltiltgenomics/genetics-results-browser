@@ -2,6 +2,13 @@
   "target": "finngen",
   "title": "anno.finngen.fi / variant annotation and interpretation based on global human genomics results",
   "last_updated": "Jul 29th 2025",
+  "data_types": [
+    "GWAS",
+    "eQTL",
+    "pQTL",
+    "sQTL",
+    "edQTL"
+  ],
   "gene_view": {
     "gene_padding": 500000,
     "rowHeight": 20,

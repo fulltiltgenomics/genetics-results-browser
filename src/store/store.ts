@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
 import { Phenotype, TableData, DataType, QTLType } from "../types/types";
 import { filterRows } from "./munge";
+import config from "@/config.json";
 
 interface DataState {
   message: string | undefined;
@@ -57,20 +58,16 @@ export const useDataStore = create<DataState>()(
       })),
     clientData: undefined,
     toggledDataTypesTurnedOn: {
-      GWAS: true,
-      eQTL: true,
-      pQTL: true,
-      sQTL: true,
-      edQTL: true,
-      metaboQTL: true,
+      ...config.data_types.reduce((acc, dataType) => {
+        acc[dataType] = true;
+        return acc;
+      }, {} as Record<string, boolean>),
     },
     toggledDataTypes: {
-      GWAS: true,
-      eQTL: false,
-      pQTL: false,
-      sQTL: false,
-      edQTL: false,
-      metaboQTL: false,
+      ...config.data_types.reduce((acc, dataType) => {
+        acc[dataType] = false;
+        return acc;
+      }, {} as Record<string, boolean>),
     },
     toggleDataType: (dataType: string) => {
       set((state) => {

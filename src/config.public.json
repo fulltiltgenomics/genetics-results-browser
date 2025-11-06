@@ -1,10 +1,89 @@
 {
   "target": "public",
   "title": "annopublic.finngen.fi / variant annotation and interpretation based on global human genomics results",
-  "last_updated": "Oct 2024",
-  "gene_view": {
+  "last_updated": "Nov 6th 2025",
+  "data_types": [
+    "GWAS",
+    "eQTL",
+    "pQTL",
+    "sQTL",
+    "edQTL"
+  ],
+"gene_view": {
     "gene_padding": 500000,
     "rowHeight": 20,
-    "titleWidth": 250
+    "titleWidth": 400,
+    "transGeneWidth": 150,
+    "colors": {
+      "coding": "orange",
+      "plof": "red",
+      "dim": "#aaaaaa",
+      "dimDark": "#666666"
+    },
+    "resources": [
+      {
+        "dataName": "FinnGen",
+        "label": "FG Core",
+        "resource": "FinnGen",
+        "dataType": "GWAS",
+        "color": "#1f77b4"
+      },
+      {
+        "dataName": "FinnGen_kanta",
+        "label": "FG Kanta",
+        "resource": "FinnGen",
+        "dataType": "GWAS",
+        "color": "#1f77b4"
+      },
+      {
+        "dataName": "FinnGen_drugs",
+        "label": "FG Drugs",
+        "resource": "FinnGen",
+        "dataType": "GWAS",
+        "color": "#1f77b4"
+      },
+      {
+        "dataName": "UKBB_119",
+        "label": "UKB",
+        "resource": "UKB",
+        "dataType": "GWAS",
+        "color": "#2ca02c"
+      },
+      {
+        "dataName": "BBJ_79",
+        "label": "BBJ",
+        "resource": "BBJ",
+        "dataType": "GWAS",
+        "color": "#9467bd"
+      },
+      {
+        "dataName": "FinnGen_pQTL",
+        "label": "FinnGen",
+        "resource": "FinnGen",
+        "dataType": "pQTL",
+        "color": "#1f77b4"
+      },
+      {
+        "dataName": "UKBB_pQTL",
+        "label": "UKB-PPP",
+        "resource": "UKB",
+        "dataType": "pQTL",
+        "color": "#2ca02c"
+      },
+      {
+        "dataName": "FinnGen_eQTL",
+        "label": "FinnGen",
+        "resource": "FinnGen",
+        "dataType": "eQTL",
+        "color": "#1f77b4"
+      },
+      {
+        "dataName": "eQTL_Catalogue_R7",
+        "label": "eQTL Cat",
+        "resource": "eQTL Catalogue R7",
+        "dataType": "eQTL",
+        "color": "#17becf"
+      }
+    ]
   }
 }
