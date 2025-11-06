@@ -1,12 +1,17 @@
 import { ReactNode } from "react";
 import { useAuth } from "../../store/useAuth";
 import { Typography } from "@mui/material";
+import config from "../../config.json";
 
 interface AuthProviderProps {
   children: ReactNode;
 }
 
 export function AuthProvider({ children }: AuthProviderProps) {
+  if (config.target === "public") {
+    return children;
+  }
+
   const { isAuthenticated, isLoading, login, hasError } = useAuth();
 
   if (isLoading) {
@@ -19,9 +24,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   if (!isAuthenticated) {
     login();
-  } else {
-    return children;
+    return null;
   }
 
-  return <Typography>Not authenticated</Typography>;
+  return children;
 }

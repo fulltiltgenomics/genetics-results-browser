@@ -72,7 +72,7 @@ const Header = () => {
             <Typography>{user}</Typography>
             <Button onClick={() => logout()}>Logout</Button>
           </Box>
-        ) : (
+        ) : config.target === "public" ? null : (
           <Button onClick={() => login()}>Login</Button>
         )}
       </Box>

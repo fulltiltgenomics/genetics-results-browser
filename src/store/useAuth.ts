@@ -26,10 +26,17 @@ export function useAuth() {
   };
 
   const logout = () => {
-    api.get("/v1/logout").then(() => {
-      setIsAuthenticated(false);
-      setUser(null);
-    });
+    api
+      .get("/v1/logout")
+      .then(() => {
+        setIsAuthenticated(false);
+        setUser(null);
+      })
+      .catch((error) => {
+        console.error("Logout failed:", error);
+        setIsAuthenticated(false);
+        setUser(null);
+      });
   };
 
   useEffect(() => {
