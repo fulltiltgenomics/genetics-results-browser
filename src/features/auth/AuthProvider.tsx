@@ -19,7 +19,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }
 
   if (hasError) {
-    return <Typography>Error loading authentication</Typography>;
+    return <Typography>Not able to connect to server</Typography>;
   }
 
   if (!isAuthenticated) {
