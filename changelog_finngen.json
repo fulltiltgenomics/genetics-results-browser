@@ -2,6 +2,25 @@
   "content": [
     {
       "type": "span",
+      "text": "Nov 13th 2025:",
+      "children": [
+        {
+          "type": "ul",
+          "children": [
+            {
+              "type": "li",
+              "text": "Updated FinnGen GWAS results to R13 and Open Targets to 25.09"
+            },
+            {
+              "type": "li",
+              "text": "Fixed upper/lowercase mismatch in gene view"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "span",
       "text": "Jul 29th 2025:",
       "children": [
         {

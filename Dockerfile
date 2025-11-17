@@ -1,4 +1,4 @@
-FROM nikolaik/python-nodejs:python3.11-nodejs20-slim as builder
+FROM nikolaik/python-nodejs:python3.11-nodejs20-slim AS builder
 LABEL maintainer="Juha Karjalainen <jkarjala@broadinstitute.org>"
 
 RUN apt-get update && apt-get install -y nginx libz-dev libbz2-dev liblzma-dev zlib1g-dev libpcre2-dev libpcre3-dev libssl-dev libcurl4-openssl-dev bzip2 gcc g++ make
