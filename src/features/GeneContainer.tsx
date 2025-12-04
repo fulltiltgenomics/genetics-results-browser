@@ -45,6 +45,12 @@ const GeneContainer = () => {
             <Box sx={{ display: "flex", alignItems: "center" }}>
               <Typography variant="h6">Gene view</Typography>
             </Box>
+            <Typography
+              variant="h6"
+              style={{ cursor: "pointer", color: theme.palette.primary.main }}
+              onClick={() => navigate("/ld")}>
+              LD lookup
+            </Typography>
           </>
         )}
       </Box>

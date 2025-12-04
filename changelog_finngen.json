@@ -2,6 +2,21 @@
   "content": [
     {
       "type": "span",
+      "text": "Dec 4th 2025:",
+      "children": [
+        {
+          "type": "ul",
+          "children": [
+            {
+              "type": "li",
+              "text": "Added an LD lookup tool"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "span",
       "text": "Nov 13th 2025:",
       "children": [
         {

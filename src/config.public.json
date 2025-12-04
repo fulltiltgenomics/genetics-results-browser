@@ -1,7 +1,7 @@
 {
   "target": "public",
   "title": "annopublic.finngen.fi / variant annotation and interpretation based on global human genomics results",
-  "last_updated": "Nov 6th 2025",
+  "last_updated": "Dec 4th 2025",
   "data_types": [
     "GWAS",
     "eQTL",

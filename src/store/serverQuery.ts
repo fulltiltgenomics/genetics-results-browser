@@ -170,8 +170,8 @@ export const useCSQuery = (gene: string | undefined): UseQueryResult<CSDatum[], 
             traitCS2data[traitCSId].beta.push(parseFloat(fields[headerIndex["beta"]]));
             traitCS2data[traitCSId].se.push(parseFloat(fields[headerIndex["se"]]));
             traitCS2data[traitCSId].consequence.push(consequence);
-            traitCS2data[traitCSId].isCoding.push(isCoding(consequence));
-            traitCS2data[traitCSId].isLoF.push(isLoF(consequence));
+            traitCS2data[traitCSId].isCoding.push(isCoding(consequence.replace("_variant", "")));
+            traitCS2data[traitCSId].isLoF.push(isLoF(consequence.replace("_variant", "")));
             traitCS2data[traitCSId].af.push(af);
             traitCS2data[traitCSId].gene.push(gene);
             traitCS2data[traitCSId].rsid.push(rsid);
@@ -503,8 +503,8 @@ export const useVariantAnnotationQuery = (
             var2anno[variant] = {
               rsid: fields[headerIndex["rsids"]],
               consequence: consequence,
-              isCoding: isCoding(consequence),
-              isLoF: isLoF(consequence),
+              isCoding: isCoding(consequence.replace("_variant", "")),
+              isLoF: isLoF(consequence.replace("_variant", "")),
               af: fields[headerIndex["AF"]],
               gene: gene,
             };

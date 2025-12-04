@@ -34,10 +34,10 @@ const AffectingGeneList = ({
               let lof = false;
               credibleSets.forEach((c) => {
                 for (let i = 0; i < c.gene.length; i++) {
-                  if (c.gene[i] === qtlGene && isCoding(c.consequence[i])) {
+                  if (c.gene[i] === qtlGene && isCoding(c.consequence[i].replace("_variant", ""))) {
                     coding = true;
                   }
-                  if (c.gene[i] === qtlGene && isLoF(c.consequence[i])) {
+                  if (c.gene[i] === qtlGene && isLoF(c.consequence[i].replace("_variant", ""))) {
                     lof = true;
                   }
                 }

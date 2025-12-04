@@ -53,6 +53,13 @@ const TableContainer = () => {
                 Gene view
               </Typography>
             </Box>
+            <Box
+              sx={{ display: "flex", alignItems: "center", cursor: "pointer" }}
+              onClick={() => navigate("/ld")}>
+              <Typography variant="h6" style={{ color: theme.palette.primary.main }}>
+                LD lookup
+              </Typography>
+            </Box>
           </>
         )}
       </Box>

@@ -41,10 +41,16 @@ const AffectedGeneList = ({
                 let highlighted = false;
                 credibleSets.forEach((cs) => {
                   for (let i = 0; i < cs.gene.length; i++) {
-                    if (cs.gene[i] === geneName && isCoding(cs.consequence[i])) {
+                    if (
+                      cs.gene[i] === geneName &&
+                      isCoding(cs.consequence[i].replace("_variant", ""))
+                    ) {
                       coding = true;
                     }
-                    if (cs.gene[i] === geneName && isLoF(cs.consequence[i])) {
+                    if (
+                      cs.gene[i] === geneName &&
+                      isLoF(cs.consequence[i].replace("_variant", ""))
+                    ) {
                       lof = true;
                     }
                     if (cs.gene[i] === geneName && cs.variant[i] === highlightedVariant) {

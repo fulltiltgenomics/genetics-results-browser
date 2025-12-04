@@ -1,7 +1,7 @@
 // TODO hash
 export const isCoding = (mostSevere: string): boolean => {
   return (
-    mostSevere === "missense_variant" ||
+    mostSevere === "missense" ||
     mostSevere === "frameshift" ||
     mostSevere === "inframe_insertion" ||
     mostSevere === "inframe_deletion" ||

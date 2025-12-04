@@ -13,6 +13,7 @@ import { QueryProvider } from "./features/auth/QueryClientProvider";
 const TableContainer = lazy(() => import("./features/table/TableContainer"));
 const About = lazy(() => import("./features/page/About"));
 const ChangeLog = lazy(() => import("./features/page/ChangeLog"));
+const LDContainer = lazy(() => import("./features/LDContainer"));
 
 export const App = () => {
   const prefersDarkMode = useMediaQuery("(prefers-color-scheme: dark)");
@@ -50,6 +51,7 @@ export const App = () => {
                   <Route path="/" element={<TableContainer />} />
                   <Route path="/gene" element={<GeneContainer />} />
                   <Route path="/gene/:geneName" element={<GeneContainer />} />
+                  <Route path="/ld" element={<LDContainer />} />
                   <Route path="/about" element={<About />} />
                   <Route path="/changelog" element={<ChangeLog />} />
                 </Routes>
