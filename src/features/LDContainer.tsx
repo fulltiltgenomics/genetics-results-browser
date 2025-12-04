@@ -254,7 +254,8 @@ const LDContainer = () => {
           return;
         }
 
-        const window = Math.max(distance + 1, 100000);
+        // there is some bug in the LD API / Tomahawk with the window size, so we need to use a larger window
+        const window = Math.max(distance * 2, 1000000);
 
         const response = await fetch(
           `https://api.finngen.fi/api/ld?variant=${encodeURIComponent(
