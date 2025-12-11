@@ -15,6 +15,7 @@ const About = lazy(() => import("./features/page/About"));
 const ChangeLog = lazy(() => import("./features/page/ChangeLog"));
 const LDContainer = lazy(() => import("./features/LDContainer"));
 const PhenotypeContainer = lazy(() => import("./features/phenotype/PhenotypeContainer"));
+const ChatPage = lazy(() => import("./features/chat/ChatPage"));
 
 export const App = () => {
   const prefersDarkMode = useMediaQuery("(prefers-color-scheme: dark)");
@@ -49,10 +50,11 @@ export const App = () => {
               <Header />
               <Suspense fallback={<CircularProgress />}>
                 <Routes>
-                  <Route path="/" element={<TableContainer />} />
+                  <Route path="/" element={<ChatPage />} />
                   <Route path="/gene" element={<GeneContainer />} />
                   <Route path="/gene/:geneName" element={<GeneContainer />} />
                   <Route path="/ld" element={<LDContainer />} />
+                  <Route path="/finngenie" element={<ChatPage />} />
                   <Route path="/phenotype" element={<PhenotypeContainer />} />
                   <Route path="/phenotype/:phenocode" element={<PhenotypeContainer />} />
                   <Route path="/about" element={<About />} />

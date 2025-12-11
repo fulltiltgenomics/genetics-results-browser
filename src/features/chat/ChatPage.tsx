@@ -1,0 +1,388 @@
+import { useState, useEffect, useCallback, useRef } from "react";
+import { Box, Typography, CircularProgress } from "@mui/material";
+import { LLMChat } from "./LLMChat";
+import { LLMConfigEditor } from "./LLMConfigEditor";
+import { ChatHistorySidebar } from "./ChatHistorySidebar";
+import { SessionRating } from "./SessionRating";
+import {
+  listSessions,
+  createSession,
+  getSession,
+  deleteSession,
+  updateSession,
+  saveMessage,
+  rateMessage,
+  generateTitle,
+  type ChatSession,
+  type SessionDetail,
+  type ChatMessageRecord,
+} from "./chatHistoryApi";
+import type { ChatMessage } from "./chat.types";
+
+/**
+ * Standalone chat page with history sidebar and config editor.
+ * Three-column layout: [Sidebar 280px] [Chat flex:1] [Config 600px]
+ */
+const ChatPage = () => {
+  const [sessions, setSessions] = useState<ChatSession[]>([]);
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [activeSession, setActiveSession] = useState<SessionDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [sessionLoading, setSessionLoading] = useState(false);
+  const [currentMessageCount, setCurrentMessageCount] = useState(0);
+
+  // track current messages for saving
+  const currentMessagesRef = useRef<ChatMessage[]>([]);
+  const savedMessageIds = useRef<Set<string>>(new Set());
+  // track if we just created a new session (to skip loading)
+  const isNewSession = useRef(false);
+  // track session created inline (during first exchange) to avoid remounting LLMChat
+  const inlineSessionIdRef = useRef<string | null>(null);
+  // stable key for LLMChat - only changes when user explicitly switches sessions
+  const [chatKey, setChatKey] = useState<string>("new");
+
+  // load sessions on mount
+  useEffect(() => {
+    loadSessions();
+  }, []);
+
+  const loadSessions = async () => {
+    try {
+      const data = await listSessions();
+      setSessions(data);
+    } catch (err) {
+      console.error("Failed to load sessions:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // load session detail when active session changes
+  useEffect(() => {
+    if (activeSessionId) {
+      // skip loading if we just created this session (it's empty)
+      if (isNewSession.current) {
+        isNewSession.current = false;
+        setActiveSession({
+          id: activeSessionId,
+          title: null,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          rating: undefined,
+          comment: undefined,
+          phenotypeCode: undefined,
+          messages: [],
+        });
+      } else if (inlineSessionIdRef.current === activeSessionId) {
+        // inline creation during first exchange - session already set, don't reload
+        // ref is cleared in handleNewChat/handleSelectSession when user explicitly switches
+      } else if (activeSession?.id === activeSessionId) {
+        // session already loaded, skip
+      } else {
+        loadSessionDetail(activeSessionId);
+      }
+    } else {
+      setActiveSession(null);
+      currentMessagesRef.current = [];
+      savedMessageIds.current = new Set();
+    }
+  }, [activeSessionId, activeSession?.id]);
+
+  const loadSessionDetail = async (sessionId: string) => {
+    setSessionLoading(true);
+    try {
+      const data = await getSession(sessionId);
+      setActiveSession(data);
+      savedMessageIds.current = new Set(data.messages.map((m) => m.id));
+    } catch (err) {
+      console.error("Failed to load session:", err);
+      // session may have been deleted
+      setActiveSessionId(null);
+    } finally {
+      setSessionLoading(false);
+    }
+  };
+
+  const handleNewChat = async () => {
+    try {
+      const session = await createSession();
+      setSessions((prev) => [{ ...session, preview: undefined, rating: undefined }, ...prev]);
+      isNewSession.current = true;
+      inlineSessionIdRef.current = null;
+      setActiveSessionId(session.id);
+      setChatKey(session.id);
+      savedMessageIds.current = new Set();
+    } catch (err) {
+      console.error("Failed to create session:", err);
+    }
+  };
+
+  const handleSelectSession = (sessionId: string) => {
+    inlineSessionIdRef.current = null;
+    setActiveSessionId(sessionId);
+    setChatKey(sessionId);
+  };
+
+  const handleDeleteSession = async (sessionId: string) => {
+    try {
+      await deleteSession(sessionId);
+      setSessions((prev) => prev.filter((s) => s.id !== sessionId));
+      if (activeSessionId === sessionId) {
+        setActiveSessionId(null);
+      }
+    } catch (err) {
+      console.error("Failed to delete session:", err);
+    }
+  };
+
+  // save a single message to backend
+  const saveMessageToBackend = useCallback(async (sessionId: string, msg: ChatMessage) => {
+    if (!msg.content.trim()) return;
+    try {
+      await saveMessage(sessionId, msg.id, msg.role, msg.content, msg.contentJson);
+    } catch (err) {
+      console.error("Failed to save message:", err);
+    }
+  }, []);
+
+  const handleMessagesChange = useCallback(
+    (messages: ChatMessage[]) => {
+      currentMessagesRef.current = messages;
+      setCurrentMessageCount(messages.length);
+      // messages are saved via onStreamingComplete callback, not here
+    },
+    []
+  );
+
+  // called when streaming completes for a message exchange
+  const handleStreamingComplete = useCallback(
+    async (
+      userMessage: ChatMessage,
+      assistantMessage: ChatMessage,
+      messageContent?: any[] | null
+    ) => {
+      if (!activeSessionId) return;
+
+      // save user message (no content_json needed)
+      if (!savedMessageIds.current.has(userMessage.id) && userMessage.content.trim()) {
+        await saveMessageToBackend(activeSessionId, userMessage);
+        savedMessageIds.current.add(userMessage.id);
+      }
+
+      // save assistant message with full content_json (includes tool calls)
+      if (!savedMessageIds.current.has(assistantMessage.id) && assistantMessage.content.trim()) {
+        const contentJson = messageContent ? JSON.stringify(messageContent) : null;
+        await saveMessageToBackend(activeSessionId, {
+          ...assistantMessage,
+          contentJson,
+        });
+        savedMessageIds.current.add(assistantMessage.id);
+      }
+    },
+    [activeSessionId, saveMessageToBackend]
+  );
+
+  // called after first exchange completes - creates session and saves initial messages
+  const handleFirstExchange = useCallback(async () => {
+    let sessionIdToUse = activeSessionId;
+
+    // if no session exists, create one first
+    if (!sessionIdToUse) {
+      try {
+        const session = await createSession();
+        sessionIdToUse = session.id;
+
+        // set active session WITHOUT triggering a key change on LLMChat
+        inlineSessionIdRef.current = session.id;
+
+        setActiveSession({
+          id: session.id,
+          title: null,
+          createdAt: session.createdAt,
+          updatedAt: session.updatedAt,
+          rating: undefined,
+          comment: undefined,
+          phenotypeCode: undefined,
+          messages: [],
+        });
+
+        setSessions((prev) => [{ ...session, preview: undefined, rating: undefined }, ...prev]);
+        setActiveSessionId(session.id);
+      } catch (err) {
+        console.error("Failed to create session:", err);
+        return;
+      }
+    }
+
+    // save all current messages to the newly created session
+    const messages = currentMessagesRef.current;
+    for (const msg of messages) {
+      if (msg.content.trim() && !savedMessageIds.current.has(msg.id)) {
+        await saveMessageToBackend(sessionIdToUse, msg);
+        savedMessageIds.current.add(msg.id);
+      }
+    }
+
+    // update session preview
+    const firstUserMsg = messages.find((m) => m.role === "user");
+    if (firstUserMsg) {
+      setSessions((prev) =>
+        prev.map((s) =>
+          s.id === sessionIdToUse
+            ? {
+                ...s,
+                updatedAt: new Date().toISOString(),
+                preview: s.title ? undefined : firstUserMsg.content.slice(0, 80),
+              }
+            : s
+        )
+      );
+    }
+
+    // generate title
+    try {
+      const title = await generateTitle(sessionIdToUse);
+      setActiveSession((prev) => (prev ? { ...prev, title } : null));
+      setSessions((prev) =>
+        prev.map((s) => (s.id === sessionIdToUse ? { ...s, title, preview: undefined } : s))
+      );
+    } catch (err) {
+      console.error("Failed to generate title:", err);
+    }
+  }, [activeSessionId, saveMessageToBackend]);
+
+  const handleRateMessage = useCallback(async (messageId: string, thumbsUp: boolean | null) => {
+    try {
+      await rateMessage(messageId, thumbsUp);
+    } catch (err) {
+      console.error("Failed to rate message:", err);
+    }
+  }, []);
+
+  const handleSessionRatingSave = async (rating: number, comment?: string) => {
+    if (!activeSessionId) return;
+    try {
+      await updateSession(activeSessionId, { rating, comment });
+      setActiveSession((prev) => (prev ? { ...prev, rating, comment: comment ?? null } : null));
+      setSessions((prev) => prev.map((s) => (s.id === activeSessionId ? { ...s, rating } : s)));
+    } catch (err) {
+      console.error("Failed to save session rating:", err);
+    }
+  };
+
+  // convert backend messages to frontend format
+  const convertMessages = (messages: ChatMessageRecord[]): ChatMessage[] => {
+    return messages.map((m) => ({
+      id: m.id,
+      role: m.role as "user" | "assistant",
+      content: m.content,
+      createdAt: m.createdAt,
+      thumbsUp: m.thumbsUp,
+      contentJson: m.contentJson,
+    }));
+  };
+
+  return (
+    <Box sx={{ display: "flex", flexDirection: "column", height: "calc(100vh - 64px)" }}>
+      {/* header row */}
+      <Box sx={{ display: "flex" }}>
+        <Box sx={{ width: 280, flexShrink: 0, borderColor: "divider" }} />
+        <Box sx={{ flex: 1, p: 2, pb: 0 }}>
+          <Box sx={{ mb: 2 }}>
+            <Typography variant="h5">{activeSession?.title || "FinnGenie"}</Typography>
+            <Typography variant="body2" color="text.secondary">
+              I can help you explore and interpret human genetics results. Ask me about phenotypes,
+              genes, variants, gene expression, biology, and more.
+            </Typography>{" "}
+            <Typography variant="body2" color="text.secondary">
+              I am Claude Sonnet 4.5 but I also have direct access to a lot of great genetics
+              results data.
+            </Typography>
+          </Box>
+        </Box>
+        <Box sx={{ width: 480, flexShrink: 0, borderColor: "divider" }} />
+      </Box>
+
+      {/* content row */}
+      <Box sx={{ display: "flex", flex: 1, minHeight: 0 }}>
+        {/* sidebar */}
+        <Box
+          sx={{
+            width: 280,
+            flexShrink: 0,
+            borderRight: 1,
+            borderColor: "divider",
+            overflow: "hidden",
+          }}>
+          <ChatHistorySidebar
+            sessions={sessions}
+            activeSessionId={activeSessionId}
+            onSelectSession={handleSelectSession}
+            onNewChat={handleNewChat}
+            onDeleteSession={handleDeleteSession}
+            loading={loading}
+          />
+        </Box>
+
+        {/* main chat area */}
+        <Box
+          sx={{
+            flex: 1,
+            minWidth: 0,
+            display: "flex",
+            flexDirection: "column",
+            p: 2,
+            pt: 0,
+          }}>
+          {sessionLoading ? (
+            <Box sx={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <CircularProgress />
+            </Box>
+          ) : (
+            <Box sx={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
+              <LLMChat
+                key={chatKey}
+                sessionId={activeSessionId}
+                initialMessages={
+                  activeSession ? convertMessages(activeSession.messages) : undefined
+                }
+                onMessagesChange={handleMessagesChange}
+                onFirstExchange={handleFirstExchange}
+                onStreamingComplete={handleStreamingComplete}
+                onRateMessage={handleRateMessage}
+                placeholder="Ask about phenotypes, genes, variants..."
+                emptyStateTitle="Welcome to FinnGenie"
+                emptyStateDescription=""
+                height="100%"
+              />
+            </Box>
+          )}
+
+          {/* session rating at bottom */}
+          {activeSessionId && currentMessageCount > 0 && (
+            <SessionRating
+              sessionId={activeSessionId}
+              rating={activeSession?.rating ?? null}
+              comment={activeSession?.comment ?? null}
+              onSave={handleSessionRatingSave}
+            />
+          )}
+        </Box>
+
+        {/* config editor */}
+        <Box
+          sx={{
+            width: 480,
+            flexShrink: 0,
+            borderLeft: 1,
+            borderColor: "divider",
+            overflow: "auto",
+          }}>
+          <LLMConfigEditor />
+        </Box>
+      </Box>
+    </Box>
+  );
+};
+
+export default ChatPage;

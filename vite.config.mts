@@ -15,5 +15,6 @@ export default defineConfig({
   },
   server: {
     open: false,
+    allowedHosts: ["anno.finngen.fi", "annopublic.finngen.fi", "dev.finngen.fi"],
   },
 });

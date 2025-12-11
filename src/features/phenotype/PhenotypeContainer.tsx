@@ -1,14 +1,14 @@
-import { Box, TextField, Typography, Paper, Alert, Button, InputAdornment } from "@mui/material";
+import { Box, TextField, Typography, Paper, Alert, Button } from "@mui/material";
 import { Search as SearchIcon } from "@mui/icons-material";
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { PhenotypeChat } from "./PhenotypeChat";
+import { LLMChat } from "../chat";
 import api from "../../store/api";
 import type { PhenotypeMarkdown } from "./phenotype.types";
 
 /**
  * Container component for phenotype chat view.
- * Handles phenotype code input and displays chat interface.
+ * Handles phenotype code input and displays chat interface with phenotype context.
  */
 const PhenotypeContainer = () => {
   const navigate = useNavigate();
@@ -19,7 +19,6 @@ const PhenotypeContainer = () => {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  // load phenotype markdown on initial mount or when URL phenocode changes
   useEffect(() => {
     if (phenocode && phenocode !== activePhenocode) {
       setPhenocodeInput(phenocode);
@@ -63,7 +62,7 @@ const PhenotypeContainer = () => {
   return (
     <Box sx={{ p: 3, maxWidth: 1400, margin: "0 auto" }}>
       <Typography variant="h4" gutterBottom>
-        Phenotype LLM Thing
+        Phenotype Chat
       </Typography>
 
       <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
@@ -97,7 +96,17 @@ const PhenotypeContainer = () => {
       )}
 
       {activePhenocode && (
-        <PhenotypeChat phenocode={activePhenocode} markdownContent={markdownContent} />
+        <LLMChat
+          phenotypeCode={activePhenocode}
+          contextContent={
+            markdownContent
+              ? { title: `Phenotype Report: ${activePhenocode}`, markdown: markdownContent }
+              : undefined
+          }
+          placeholder={`Ask about ${activePhenocode}...`}
+          emptyStateTitle={`Start a conversation about ${activePhenocode}`}
+          emptyStateDescription="Ask questions about the phenotype, request genetic insights, or query specific data."
+        />
       )}
     </Box>
   );

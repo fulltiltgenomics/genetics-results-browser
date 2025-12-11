@@ -48,7 +48,7 @@ const Header = () => {
         <IconButton onClick={handleThemeClick} color="inherit" aria-label="toggle theme">
           {actualDarkMode ? <Brightness7Icon /> : <Brightness4Icon />}
         </IconButton>
-        <Typography variant="h6">
+        {/* <Typography variant="h6">
           <Link href="/" underline="hover">
             Home
           </Link>
@@ -62,7 +62,7 @@ const Header = () => {
           <Link href="/changelog" underline="hover">
             Changelog
           </Link>
-        </Typography>
+        </Typography> */}
         <Typography sx={{ paddingLeft: "20px", alignSelf: "center" }}>
           Last updated {config.last_updated}
         </Typography>
@@ -76,9 +76,9 @@ const Header = () => {
           <Button onClick={() => login()}>Login</Button>
         )}
       </Box>
-      <Typography variant="h6" style={{ marginBottom: "20px" }}>
+      {/* <Typography variant="h6" style={{ marginBottom: "20px" }}>
         {config.title}
-      </Typography>
+      </Typography> */}
     </>
   );
 };
