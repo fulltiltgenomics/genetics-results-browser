@@ -7,7 +7,8 @@
     "eQTL",
     "pQTL",
     "sQTL",
-    "edQTL"
+    "edQTL",
+    "metaboQTL"
   ],
   "gene_view": {
     "gene_padding": 500000,
