@@ -64,7 +64,7 @@ const Header = () => {
           </Link>
         </Typography> */}
         <Typography sx={{ paddingLeft: "20px", alignSelf: "center" }}>
-          Last updated {config.last_updated}
+          Last updated {__BUILD_DATE__}
         </Typography>
         <Box flexGrow={1} />
         {isAuthenticated ? (
