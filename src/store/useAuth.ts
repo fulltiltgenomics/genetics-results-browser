@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import api from "./api";
+import axios from "axios";
 
 interface AuthResponse {
   base_url: string;
@@ -12,8 +13,13 @@ interface AuthResponse {
   };
 }
 
+interface MeResponse {
+  email: string;
+}
+
 export function useAuth() {
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [hasError, setHasError] = useState<boolean>(false);
   const [user, setUser] = useState<string | null>(null);
@@ -30,27 +36,56 @@ export function useAuth() {
       .get("/v1/logout")
       .then(() => {
         setIsAuthenticated(false);
+        setIsAuthorized(null);
         setUser(null);
       })
       .catch((error) => {
         console.error("Logout failed:", error);
         setIsAuthenticated(false);
+        setIsAuthorized(null);
         setUser(null);
       });
   };
 
   useEffect(() => {
     let isMounted = true;
-    let retryTimeout: NodeJS.Timeout | undefined = undefined;
 
     const checkAuth = async () => {
       try {
         const response = await api.get<AuthResponse>("/v1/auth");
+        const isAuth = response.data.session.user_email !== undefined;
+
         if (isMounted) {
-          setIsAuthenticated(response.data.session.user_email !== undefined);
+          setIsAuthenticated(isAuth);
           setUser(response.data.session.user_email ?? null);
-          setIsLoading(false);
           setHasError(false);
+
+          if (isAuth) {
+            // check authorization via /v1/me
+            try {
+              const meResponse = await api.get<MeResponse>("/v1/me");
+              if (isMounted) {
+                setIsAuthorized(true);
+                setUser(meResponse.data.email);
+                setIsLoading(false);
+              }
+            } catch (meError) {
+              console.error("Authorization check failed:", meError);
+              if (isMounted) {
+                if (axios.isAxiosError(meError) && meError.response?.status === 403) {
+                  // authenticated but not authorized (email not allowed)
+                  setIsAuthorized(false);
+                } else {
+                  // other error - treat as server error
+                  console.error("Unexpected error during authorization check:", meError);
+                  setHasError(true);
+                }
+                setIsLoading(false);
+              }
+            }
+          } else {
+            setIsLoading(false);
+          }
         }
       } catch (error) {
         console.error(error);
@@ -58,7 +93,6 @@ export function useAuth() {
           setIsAuthenticated(false);
           setIsLoading(false);
           setHasError(true);
-          // retryTimeout = setTimeout(checkAuth, 5000);
         }
       }
     };
@@ -67,12 +101,12 @@ export function useAuth() {
 
     return () => {
       isMounted = false;
-      if (retryTimeout) clearTimeout(retryTimeout);
     };
   }, []);
 
   return {
     isAuthenticated: isAuthenticated ?? false,
+    isAuthorized: isAuthorized ?? false,
     isLoading: isLoading || isAuthenticated === null,
     user,
     login,
