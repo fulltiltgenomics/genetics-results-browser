@@ -1,5 +1,5 @@
-import { ReactNode } from "react";
-import { useAuth } from "../../store/useAuth";
+import { ReactNode, useEffect } from "react";
+import { useAuth, useAuthStore } from "../../store/useAuth";
 import { Box, Button, Typography } from "@mui/material";
 import config from "../../config.json";
 
@@ -8,6 +8,14 @@ interface AuthProviderProps {
 }
 
 export function AuthProvider({ children }: AuthProviderProps) {
+  const checkAuth = useAuthStore((s) => s.checkAuth);
+
+  useEffect(() => {
+    if (config.target !== "public") {
+      checkAuth();
+    }
+  }, [checkAuth]);
+
   if (config.target === "public") {
     return children;
   }

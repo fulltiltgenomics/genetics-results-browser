@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Box, Typography, CircularProgress } from "@mui/material";
+import finnGenieLogo from "../../assets/finngenie-leonardo-gemini-2.5-flash-recraft-vectorized-claude-cropped.svg";
 import { LLMChat } from "./LLMChat";
 import { LLMConfigEditor } from "./LLMConfigEditor";
 import { ChatHistorySidebar } from "./ChatHistorySidebar";
@@ -109,6 +110,17 @@ const ChatPage = () => {
       setSessions((prev) => [{ ...session, preview: undefined, rating: undefined }, ...prev]);
       isNewSession.current = true;
       inlineSessionIdRef.current = null;
+      // set activeSession directly so it's batched with the other state updates
+      setActiveSession({
+        id: session.id,
+        title: null,
+        createdAt: session.createdAt,
+        updatedAt: session.updatedAt,
+        rating: undefined,
+        comment: undefined,
+        phenotypeCode: undefined,
+        messages: [],
+      });
       setActiveSessionId(session.id);
       setChatKey(session.id);
       savedMessageIds.current = new Set();
@@ -145,14 +157,11 @@ const ChatPage = () => {
     }
   }, []);
 
-  const handleMessagesChange = useCallback(
-    (messages: ChatMessage[]) => {
-      currentMessagesRef.current = messages;
-      setCurrentMessageCount(messages.length);
-      // messages are saved via onStreamingComplete callback, not here
-    },
-    []
-  );
+  const handleMessagesChange = useCallback((messages: ChatMessage[]) => {
+    currentMessagesRef.current = messages;
+    setCurrentMessageCount(messages.length);
+    // messages are saved via onStreamingComplete callback, not here
+  }, []);
 
   // called when streaming completes for a message exchange
   const handleStreamingComplete = useCallback(
@@ -288,16 +297,24 @@ const ChatPage = () => {
       <Box sx={{ display: "flex" }}>
         <Box sx={{ width: 280, flexShrink: 0, borderColor: "divider" }} />
         <Box sx={{ flex: 1, p: 2, pb: 0 }}>
-          <Box sx={{ mb: 2 }}>
-            <Typography variant="h5">{activeSession?.title || "FinnGenie"}</Typography>
-            <Typography variant="body2" color="text.secondary">
-              I can help you explore and interpret human genetics results. Ask me about phenotypes,
-              genes, variants, gene expression, biology, and more.
-            </Typography>{" "}
-            <Typography variant="body2" color="text.secondary">
-              I am Claude Sonnet 4.5 but I also have direct access to a lot of great genetics
-              results data.
-            </Typography>
+          <Box sx={{ mb: 2, display: "flex", alignItems: "flex-start", gap: 2 }}>
+            <Box
+              component="img"
+              src={finnGenieLogo}
+              alt="FinnGenie"
+              sx={{ height: 60, flexShrink: 0 }}
+            />
+            <Box>
+              <Typography variant="h5">{activeSession?.title || "FinnGenie"}</Typography>
+              <Typography variant="body2" color="text.secondary">
+                I can help you explore and interpret human genetics results. Ask me about
+                phenotypes, genes, variants, biological interpretations, and more.
+              </Typography>{" "}
+              <Typography variant="body2" color="text.secondary">
+                I am Claude Sonnet 4.5 but I also have direct access to a lot of great genetics
+                results data.
+              </Typography>
+            </Box>
           </Box>
         </Box>
         <Box sx={{ width: 480, flexShrink: 0, borderColor: "divider" }} />

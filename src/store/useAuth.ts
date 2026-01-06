@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { create } from "zustand";
+import { useShallow } from "zustand/react/shallow";
 import api from "./api";
 import axios from "axios";
 
@@ -14,95 +15,100 @@ interface AuthResponse {
 }
 
 interface MeResponse {
-  email: string;
+  user: string;
+  auth_enabled: boolean;
 }
 
-export function useAuth() {
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
-  const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
-  const [isLoading, setIsLoading] = useState<boolean>(true);
-  const [hasError, setHasError] = useState<boolean>(false);
-  const [user, setUser] = useState<string | null>(null);
+interface AuthState {
+  isAuthenticated: boolean | null;
+  isAuthorized: boolean | null;
+  isLoading: boolean;
+  hasError: boolean;
+  user: string | null;
+  login: () => void;
+  logout: () => void;
+  checkAuth: () => Promise<void>;
+}
 
-  const login = () => {
+export const useAuthStore = create<AuthState>((set, get) => ({
+  isAuthenticated: null,
+  isAuthorized: null,
+  isLoading: true,
+  hasError: false,
+  user: null,
+
+  login: () => {
     const currentUrl = window.location.href;
     window.location.href = `${api.defaults.baseURL}/v1/login?frontend_url=${encodeURIComponent(
       currentUrl
     )}`;
-  };
+  },
 
-  const logout = () => {
+  logout: () => {
     api
       .get("/v1/logout")
       .then(() => {
-        setIsAuthenticated(false);
-        setIsAuthorized(null);
-        setUser(null);
+        set({ isAuthenticated: false, isAuthorized: null, user: null });
       })
       .catch((error) => {
         console.error("Logout failed:", error);
-        setIsAuthenticated(false);
-        setIsAuthorized(null);
-        setUser(null);
+        set({ isAuthenticated: false, isAuthorized: null, user: null });
       });
-  };
+  },
 
-  useEffect(() => {
-    let isMounted = true;
+  checkAuth: async () => {
+    if (get().isAuthenticated !== null) return;
 
-    const checkAuth = async () => {
-      try {
-        const response = await api.get<AuthResponse>("/v1/auth");
-        const isAuth = response.data.session.user_email !== undefined;
+    try {
+      const response = await api.get<AuthResponse>("/v1/auth");
+      const userEmail = response.data.session.user_email;
+      const isAuth = userEmail !== undefined;
 
-        if (isMounted) {
-          setIsAuthenticated(isAuth);
-          setUser(response.data.session.user_email ?? null);
-          setHasError(false);
+      set({
+        isAuthenticated: isAuth,
+        user: userEmail ?? null,
+        hasError: false,
+      });
 
-          if (isAuth) {
-            // check authorization via /v1/me
-            try {
-              const meResponse = await api.get<MeResponse>("/v1/me");
-              if (isMounted) {
-                setIsAuthorized(true);
-                setUser(meResponse.data.email);
-                setIsLoading(false);
-              }
-            } catch (meError) {
-              console.error("Authorization check failed:", meError);
-              if (isMounted) {
-                if (axios.isAxiosError(meError) && meError.response?.status === 403) {
-                  // authenticated but not authorized (email not allowed)
-                  setIsAuthorized(false);
-                } else {
-                  // other error - treat as server error
-                  console.error("Unexpected error during authorization check:", meError);
-                  setHasError(true);
-                }
-                setIsLoading(false);
-              }
-            }
+      if (isAuth) {
+        try {
+          const meResponse = await api.get<MeResponse>("/v1/me");
+          set({
+            isAuthorized: true,
+            user: meResponse.data.user,
+            isLoading: false,
+          });
+        } catch (meError) {
+          console.error("Authorization check failed:", meError);
+          if (axios.isAxiosError(meError) && meError.response?.status === 403) {
+            set({ isAuthorized: false, isLoading: false });
           } else {
-            setIsLoading(false);
+            console.error("Unexpected error during authorization check:", meError);
+            set({ hasError: true, isLoading: false });
           }
         }
-      } catch (error) {
-        console.error(error);
-        if (isMounted) {
-          setIsAuthenticated(false);
-          setIsLoading(false);
-          setHasError(true);
-        }
+      } else {
+        set({ isLoading: false });
       }
-    };
+    } catch (error) {
+      console.error(error);
+      set({ isAuthenticated: false, isLoading: false, hasError: true });
+    }
+  },
+}));
 
-    checkAuth();
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
+export function useAuth() {
+  const { isAuthenticated, isAuthorized, isLoading, hasError, user, login, logout } = useAuthStore(
+    useShallow((s) => ({
+      isAuthenticated: s.isAuthenticated,
+      isAuthorized: s.isAuthorized,
+      isLoading: s.isLoading,
+      hasError: s.hasError,
+      user: s.user,
+      login: s.login,
+      logout: s.logout,
+    }))
+  );
 
   return {
     isAuthenticated: isAuthenticated ?? false,

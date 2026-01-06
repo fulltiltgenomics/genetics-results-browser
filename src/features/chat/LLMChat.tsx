@@ -122,7 +122,7 @@ export const LLMChat = ({
     async (userMessage: string) => {
       if (!userMessage.trim() || isLoading) return;
 
-      const userMsgId = `user-${Date.now()}`;
+      const userMsgId = crypto.randomUUID();
       const userMsg: ChatMessage = {
         id: userMsgId,
         role: "user",
@@ -132,7 +132,7 @@ export const LLMChat = ({
       setIsLoading(true);
       setError(null);
 
-      const assistantMsgId = `assistant-${Date.now()}`;
+      const assistantMsgId = crypto.randomUUID();
       setMessages((prev) => [...prev, { id: assistantMsgId, role: "assistant", content: "" }]);
 
       abortControllerRef.current?.abort();
@@ -325,6 +325,7 @@ export const LLMChat = ({
         onChange={(e) => setInput(e.target.value)}
         placeholder={placeholder}
         disabled={isLoading}
+        autoFocus
         onKeyDown={(e) => {
           if (e.key === "Enter" && !e.shiftKey) {
             e.preventDefault();
