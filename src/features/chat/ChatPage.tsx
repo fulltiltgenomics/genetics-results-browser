@@ -312,7 +312,7 @@ const ChatPage = () => {
               </Typography>{" "}
               <Typography variant="body2" color="text.secondary">
                 I am Claude Sonnet 4.5 but I also have direct access to a lot of great genetics
-                results data.
+                results data. For now, your chats are stored so we can improve me.
               </Typography>
             </Box>
           </Box>
