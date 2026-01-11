@@ -10,6 +10,7 @@ import {
   useTheme,
   Collapse,
   Fab,
+  Chip,
 } from "@mui/material";
 import {
   Send as SendIcon,
@@ -44,6 +45,7 @@ export const LLMChat = ({
   onFirstExchange,
   onStreamingComplete,
   onRateMessage,
+  exampleQuestions,
 }: LLMChatProps) => {
   const theme = useTheme();
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -376,6 +378,39 @@ export const LLMChat = ({
           </Paper>
         )}
         {inputForm}
+
+        {/* example questions */}
+        {exampleQuestions && exampleQuestions.length > 0 && (
+          <Box sx={{ mt: 3, maxWidth: 800, width: "100%" }}>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+              Try asking:
+            </Typography>
+            <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+              {exampleQuestions.map((question, index) => (
+                <Chip
+                  key={index}
+                  label={question}
+                  onClick={() => sendMessage(question)}
+                  disabled={isLoading}
+                  sx={{
+                    height: "auto",
+                    py: 1,
+                    px: 0.5,
+                    "& .MuiChip-label": {
+                      whiteSpace: "normal",
+                      textAlign: "left",
+                    },
+                    cursor: "pointer",
+                    "&:hover": {
+                      bgcolor: theme.palette.action.hover,
+                    },
+                  }}
+                  variant="outlined"
+                />
+              ))}
+            </Box>
+          </Box>
+        )}
       </Box>
     );
   }

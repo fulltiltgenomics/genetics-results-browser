@@ -53,4 +53,7 @@ export interface LLMChatProps {
 
   /** callback to rate a message */
   onRateMessage?: (messageId: string, thumbsUp: boolean | null) => void;
+
+  /** example questions shown in empty state that users can click to send */
+  exampleQuestions?: string[];
 }

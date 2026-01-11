@@ -371,6 +371,10 @@ const ChatPage = () => {
                 emptyStateTitle="Welcome to FinnGenie"
                 emptyStateDescription=""
                 height="100%"
+                exampleQuestions={[
+                  "Are there any associations in our IBD studies implicating chloride transport or potential functions of CFTR in the gut?",
+                  "We've found that the variant chr2:9521321:A:G (ADAM17) confers risk to IBD. Does this variant colocalize with any molecular QTLs (eQTL, pQTL) that might indicate the function of this variant and what process might be implicated?",
+                ]}
               />
             </Box>
           )}
