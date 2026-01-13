@@ -18,6 +18,7 @@ export interface ChatMessageRecord {
   createdAt: string;
   thumbsUp: boolean | null;
   contentJson: string | null;
+  literatureBackend: string | null;
 }
 
 export interface SessionDetail extends ChatSession {
@@ -104,13 +105,22 @@ export async function saveMessage(
   messageId: string,
   role: string,
   content: string,
-  contentJson?: string | null
+  contentJson?: string | null,
+  literatureBackend?: string | null
 ): Promise<ChatMessageRecord> {
+  const payload = {
+    id: messageId,
+    role,
+    content,
+    content_json: contentJson,
+    literature_backend: literatureBackend,
+  };
+  console.log("[saveMessage] Saving with payload:", payload);
   const response = await fetch(`${apiUrl}/v1/chat/sessions/${sessionId}/messages`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
-    body: JSON.stringify({ id: messageId, role, content, content_json: contentJson }),
+    body: JSON.stringify(payload),
   });
   if (!response.ok) {
     throw new Error(`HTTP ${response.status}`);
@@ -164,5 +174,6 @@ function mapMessage(data: any): ChatMessageRecord {
     createdAt: data.created_at,
     thumbsUp: data.thumbs_up,
     contentJson: data.content_json,
+    literatureBackend: data.literature_backend,
   };
 }

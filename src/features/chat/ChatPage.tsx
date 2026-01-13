@@ -148,10 +148,14 @@ const ChatPage = () => {
   };
 
   // save a single message to backend
-  const saveMessageToBackend = useCallback(async (sessionId: string, msg: ChatMessage) => {
+  const saveMessageToBackend = useCallback(async (
+    sessionId: string,
+    msg: ChatMessage,
+    literatureBackend?: string | null
+  ) => {
     if (!msg.content.trim()) return;
     try {
-      await saveMessage(sessionId, msg.id, msg.role, msg.content, msg.contentJson);
+      await saveMessage(sessionId, msg.id, msg.role, msg.content, msg.contentJson, literatureBackend);
     } catch (err) {
       console.error("Failed to save message:", err);
     }
@@ -168,23 +172,25 @@ const ChatPage = () => {
     async (
       userMessage: ChatMessage,
       assistantMessage: ChatMessage,
-      messageContent?: any[] | null
+      messageContent?: any[] | null,
+      literatureBackend?: string | null
     ) => {
+      console.log("[handleStreamingComplete] literatureBackend:", literatureBackend);
       if (!activeSessionId) return;
 
-      // save user message (no content_json needed)
+      // save user message with literature backend choice
       if (!savedMessageIds.current.has(userMessage.id) && userMessage.content.trim()) {
-        await saveMessageToBackend(activeSessionId, userMessage);
+        await saveMessageToBackend(activeSessionId, userMessage, literatureBackend);
         savedMessageIds.current.add(userMessage.id);
       }
 
-      // save assistant message with full content_json (includes tool calls)
+      // save assistant message with full content_json (includes tool calls) and literature backend
       if (!savedMessageIds.current.has(assistantMessage.id) && assistantMessage.content.trim()) {
         const contentJson = messageContent ? JSON.stringify(messageContent) : null;
         await saveMessageToBackend(activeSessionId, {
           ...assistantMessage,
           contentJson,
-        });
+        }, literatureBackend);
         savedMessageIds.current.add(assistantMessage.id);
       }
     },
@@ -192,7 +198,8 @@ const ChatPage = () => {
   );
 
   // called after first exchange completes - creates session and saves initial messages
-  const handleFirstExchange = useCallback(async () => {
+  const handleFirstExchange = useCallback(async (literatureBackend?: string | null) => {
+    console.log("[handleFirstExchange] literatureBackend:", literatureBackend);
     let sessionIdToUse = activeSessionId;
 
     // if no session exists, create one first
@@ -227,7 +234,7 @@ const ChatPage = () => {
     const messages = currentMessagesRef.current;
     for (const msg of messages) {
       if (msg.content.trim() && !savedMessageIds.current.has(msg.id)) {
-        await saveMessageToBackend(sessionIdToUse, msg);
+        await saveMessageToBackend(sessionIdToUse, msg, literatureBackend);
         savedMessageIds.current.add(msg.id);
       }
     }
@@ -372,8 +379,8 @@ const ChatPage = () => {
                 emptyStateDescription=""
                 height="100%"
                 exampleQuestions={[
-                  "Are there any associations in our IBD studies implicating chloride transport or potential functions of CFTR in the gut?",
                   "We've found that the variant chr2:9521321:A:G (ADAM17) confers risk to IBD. Does this variant colocalize with any molecular QTLs (eQTL, pQTL) that might indicate the function of this variant and what process might be implicated?",
+                  "Are there any associations in our IBD studies implicating chloride transport or potential functions of CFTR in the gut?",
                 ]}
               />
             </Box>

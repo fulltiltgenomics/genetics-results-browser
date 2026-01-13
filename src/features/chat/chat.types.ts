@@ -1,3 +1,5 @@
+export type LiteratureBackend = "europepmc" | "perplexity";
+
 export interface ChatMessage {
   id: string;
   role: "user" | "assistant";
@@ -5,6 +7,7 @@ export interface ChatMessage {
   createdAt?: string;
   thumbsUp?: boolean | null;
   contentJson?: string | null; // JSON string of full message content blocks (for tool calls)
+  literatureBackend?: string | null; // literature search backend used
 }
 
 export interface LLMChatProps {
@@ -42,13 +45,14 @@ export interface LLMChatProps {
   onMessagesChange?: (messages: ChatMessage[]) => void;
 
   /** callback when the first message exchange completes (for title generation) */
-  onFirstExchange?: () => void;
+  onFirstExchange?: (literatureBackend?: string | null) => void;
 
   /** callback when streaming completes for a message (for persistence) */
   onStreamingComplete?: (
     userMessage: ChatMessage,
     assistantMessage: ChatMessage,
-    messageContent?: any[] | null
+    messageContent?: any[] | null,
+    literatureBackend?: string | null
   ) => void;
 
   /** callback to rate a message */

@@ -11,6 +11,9 @@ import {
   Collapse,
   Fab,
   Chip,
+  RadioGroup,
+  Radio,
+  FormControlLabel,
 } from "@mui/material";
 import {
   Send as SendIcon,
@@ -23,7 +26,7 @@ import { useRef, useEffect, useState, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { fetchEventSource } from "@microsoft/fetch-event-source";
-import type { ChatMessage, LLMChatProps } from "./chat.types";
+import type { ChatMessage, LLMChatProps, LiteratureBackend } from "./chat.types";
 import { MessageRating } from "./MessageRating";
 
 /**
@@ -58,6 +61,7 @@ export const LLMChat = ({
   const [contextExpanded, setContextExpanded] = useState(true);
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
   const [hoveredMessageId, setHoveredMessageId] = useState<string | null>(null);
+  const [literatureBackend, setLiteratureBackend] = useState<LiteratureBackend>("perplexity");
   const hasTriggeredFirstExchange = useRef(false);
 
   const apiUrl = import.meta.env.VITE_API_URL;
@@ -174,6 +178,7 @@ export const LLMChat = ({
             phenotype_code: phenotypeCode || null,
             provider: "anthropic",
             enable_mcp: true,
+            literature_backend: literatureBackend,
           }),
           signal: abortControllerRef.current.signal,
           async onopen(response) {
@@ -224,12 +229,12 @@ export const LLMChat = ({
             role: "assistant",
             content: accumulatedContent,
           };
-          onStreamingComplete?.(userMsg, completedAssistantMsg, messageContent);
+          onStreamingComplete?.(userMsg, completedAssistantMsg, messageContent, literatureBackend);
 
           // check if this is the first exchange
           if (!hasTriggeredFirstExchange.current) {
             hasTriggeredFirstExchange.current = true;
-            onFirstExchange?.();
+            onFirstExchange?.(literatureBackend);
           }
         }
       } catch (err: any) {
@@ -243,7 +248,15 @@ export const LLMChat = ({
         setIsLoading(false);
       }
     },
-    [messages, phenotypeCode, apiUrl, isLoading, onFirstExchange, onStreamingComplete]
+    [
+      messages,
+      phenotypeCode,
+      apiUrl,
+      isLoading,
+      onFirstExchange,
+      onStreamingComplete,
+      literatureBackend,
+    ]
   );
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -314,34 +327,58 @@ export const LLMChat = ({
       sx={{
         p: 2,
         display: "flex",
+        flexDirection: "column",
         gap: 1,
-        // maxWidth: hasMessages ? "100%" : 600,
         maxWidth: "100%",
         width: "100%",
       }}>
-      <TextField
-        fullWidth
-        multiline
-        maxRows={4}
-        value={input}
-        onChange={(e) => setInput(e.target.value)}
-        placeholder={placeholder}
-        disabled={isLoading}
-        autoFocus
-        onKeyDown={(e) => {
-          if (e.key === "Enter" && !e.shiftKey) {
-            e.preventDefault();
-            handleSubmit(e);
-          }
-        }}
-      />
-      <Button
-        type="submit"
-        variant="contained"
-        disabled={isLoading || !input.trim()}
-        sx={{ minWidth: 100 }}>
-        {isLoading ? <CircularProgress size={24} /> : <SendIcon />}
-      </Button>
+      <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+        <Typography variant="body2" color="text.secondary">
+          Literature search
+        </Typography>
+        <RadioGroup
+          row
+          value={literatureBackend}
+          onChange={(e) => setLiteratureBackend(e.target.value as LiteratureBackend)}>
+          <FormControlLabel
+            value="perplexity"
+            control={<Radio size="small" />}
+            label="Perplexity"
+            sx={{ "& .MuiFormControlLabel-label": { fontSize: "0.75rem" } }}
+          />
+          <FormControlLabel
+            value="europepmc"
+            control={<Radio size="small" />}
+            label="Europe PMC"
+            sx={{ "& .MuiFormControlLabel-label": { fontSize: "0.75rem" } }}
+          />
+        </RadioGroup>
+      </Box>
+      <Box sx={{ display: "flex", gap: 1 }}>
+        <TextField
+          fullWidth
+          multiline
+          maxRows={4}
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          placeholder={placeholder}
+          disabled={isLoading}
+          autoFocus
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              handleSubmit(e);
+            }
+          }}
+        />
+        <Button
+          type="submit"
+          variant="contained"
+          disabled={isLoading || !input.trim()}
+          sx={{ minWidth: 100 }}>
+          {isLoading ? <CircularProgress size={24} /> : <SendIcon />}
+        </Button>
+      </Box>
     </Paper>
   );
 
