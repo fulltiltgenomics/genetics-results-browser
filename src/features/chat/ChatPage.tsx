@@ -148,18 +148,24 @@ const ChatPage = () => {
   };
 
   // save a single message to backend
-  const saveMessageToBackend = useCallback(async (
-    sessionId: string,
-    msg: ChatMessage,
-    literatureBackend?: string | null
-  ) => {
-    if (!msg.content.trim()) return;
-    try {
-      await saveMessage(sessionId, msg.id, msg.role, msg.content, msg.contentJson, literatureBackend);
-    } catch (err) {
-      console.error("Failed to save message:", err);
-    }
-  }, []);
+  const saveMessageToBackend = useCallback(
+    async (sessionId: string, msg: ChatMessage, literatureBackend?: string | null) => {
+      if (!msg.content.trim()) return;
+      try {
+        await saveMessage(
+          sessionId,
+          msg.id,
+          msg.role,
+          msg.content,
+          msg.contentJson,
+          literatureBackend
+        );
+      } catch (err) {
+        console.error("Failed to save message:", err);
+      }
+    },
+    []
+  );
 
   const handleMessagesChange = useCallback((messages: ChatMessage[]) => {
     currentMessagesRef.current = messages;
@@ -187,10 +193,14 @@ const ChatPage = () => {
       // save assistant message with full content_json (includes tool calls) and literature backend
       if (!savedMessageIds.current.has(assistantMessage.id) && assistantMessage.content.trim()) {
         const contentJson = messageContent ? JSON.stringify(messageContent) : null;
-        await saveMessageToBackend(activeSessionId, {
-          ...assistantMessage,
-          contentJson,
-        }, literatureBackend);
+        await saveMessageToBackend(
+          activeSessionId,
+          {
+            ...assistantMessage,
+            contentJson,
+          },
+          literatureBackend
+        );
         savedMessageIds.current.add(assistantMessage.id);
       }
     },
@@ -198,74 +208,77 @@ const ChatPage = () => {
   );
 
   // called after first exchange completes - creates session and saves initial messages
-  const handleFirstExchange = useCallback(async (literatureBackend?: string | null) => {
-    console.log("[handleFirstExchange] literatureBackend:", literatureBackend);
-    let sessionIdToUse = activeSessionId;
+  const handleFirstExchange = useCallback(
+    async (literatureBackend?: string | null) => {
+      console.log("[handleFirstExchange] literatureBackend:", literatureBackend);
+      let sessionIdToUse = activeSessionId;
 
-    // if no session exists, create one first
-    if (!sessionIdToUse) {
+      // if no session exists, create one first
+      if (!sessionIdToUse) {
+        try {
+          const session = await createSession();
+          sessionIdToUse = session.id;
+
+          // set active session WITHOUT triggering a key change on LLMChat
+          inlineSessionIdRef.current = session.id;
+
+          setActiveSession({
+            id: session.id,
+            title: null,
+            createdAt: session.createdAt,
+            updatedAt: session.updatedAt,
+            rating: undefined,
+            comment: undefined,
+            phenotypeCode: undefined,
+            messages: [],
+          });
+
+          setSessions((prev) => [{ ...session, preview: undefined, rating: undefined }, ...prev]);
+          setActiveSessionId(session.id);
+        } catch (err) {
+          console.error("Failed to create session:", err);
+          return;
+        }
+      }
+
+      // save all current messages to the newly created session
+      const messages = currentMessagesRef.current;
+      for (const msg of messages) {
+        if (msg.content.trim() && !savedMessageIds.current.has(msg.id)) {
+          await saveMessageToBackend(sessionIdToUse, msg, literatureBackend);
+          savedMessageIds.current.add(msg.id);
+        }
+      }
+
+      // update session preview
+      const firstUserMsg = messages.find((m) => m.role === "user");
+      if (firstUserMsg) {
+        setSessions((prev) =>
+          prev.map((s) =>
+            s.id === sessionIdToUse
+              ? {
+                  ...s,
+                  updatedAt: new Date().toISOString(),
+                  preview: s.title ? undefined : firstUserMsg.content.slice(0, 80),
+                }
+              : s
+          )
+        );
+      }
+
+      // generate title
       try {
-        const session = await createSession();
-        sessionIdToUse = session.id;
-
-        // set active session WITHOUT triggering a key change on LLMChat
-        inlineSessionIdRef.current = session.id;
-
-        setActiveSession({
-          id: session.id,
-          title: null,
-          createdAt: session.createdAt,
-          updatedAt: session.updatedAt,
-          rating: undefined,
-          comment: undefined,
-          phenotypeCode: undefined,
-          messages: [],
-        });
-
-        setSessions((prev) => [{ ...session, preview: undefined, rating: undefined }, ...prev]);
-        setActiveSessionId(session.id);
+        const title = await generateTitle(sessionIdToUse);
+        setActiveSession((prev) => (prev ? { ...prev, title } : null));
+        setSessions((prev) =>
+          prev.map((s) => (s.id === sessionIdToUse ? { ...s, title, preview: undefined } : s))
+        );
       } catch (err) {
-        console.error("Failed to create session:", err);
-        return;
+        console.error("Failed to generate title:", err);
       }
-    }
-
-    // save all current messages to the newly created session
-    const messages = currentMessagesRef.current;
-    for (const msg of messages) {
-      if (msg.content.trim() && !savedMessageIds.current.has(msg.id)) {
-        await saveMessageToBackend(sessionIdToUse, msg, literatureBackend);
-        savedMessageIds.current.add(msg.id);
-      }
-    }
-
-    // update session preview
-    const firstUserMsg = messages.find((m) => m.role === "user");
-    if (firstUserMsg) {
-      setSessions((prev) =>
-        prev.map((s) =>
-          s.id === sessionIdToUse
-            ? {
-                ...s,
-                updatedAt: new Date().toISOString(),
-                preview: s.title ? undefined : firstUserMsg.content.slice(0, 80),
-              }
-            : s
-        )
-      );
-    }
-
-    // generate title
-    try {
-      const title = await generateTitle(sessionIdToUse);
-      setActiveSession((prev) => (prev ? { ...prev, title } : null));
-      setSessions((prev) =>
-        prev.map((s) => (s.id === sessionIdToUse ? { ...s, title, preview: undefined } : s))
-      );
-    } catch (err) {
-      console.error("Failed to generate title:", err);
-    }
-  }, [activeSessionId, saveMessageToBackend]);
+    },
+    [activeSessionId, saveMessageToBackend]
+  );
 
   const handleRateMessage = useCallback(async (messageId: string, thumbsUp: boolean | null) => {
     try {
@@ -313,13 +326,31 @@ const ChatPage = () => {
             />
             <Box>
               <Typography variant="h5">{activeSession?.title || "FinnGenie"}</Typography>
-              <Typography variant="body2" color="text.secondary">
+
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
                 I can help you explore and interpret human genetics results. Ask me about
                 phenotypes, genes, variants, biological interpretations, and more.
-              </Typography>{" "}
-              <Typography variant="body2" color="text.secondary">
+              </Typography>
+
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
                 I am Claude Sonnet 4.5 but I also have direct access to a lot of great genetics
-                results data. For now, your chats are stored so we can improve me.
+                results data (ask me about it!). Typically, when you ask me a question, I will first
+                check our data resources for relevant information. Then I'll do a literature search,
+                and finally synthesize the information from the two sources. Do ask follow-up
+                questions!
+              </Typography>
+
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+                I'm better at answering questions about genetics results than my sister Claude
+                because I have direct access to many of the best and latest data. I can mostly
+                answer specific questions that require a limited data scope. I won't know how many
+                frameshift variants exist that are associated to a phenotype with genome-wide
+                significance. I have not been trained on that. But for a specific phenotype, I can
+                answer that question.
+              </Typography>
+
+              <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+                For now, your chats are stored so we can improve me.
               </Typography>
             </Box>
           </Box>
@@ -380,7 +411,7 @@ const ChatPage = () => {
                 height="100%"
                 exampleQuestions={[
                   "We've found that the variant chr2:9521321:A:G (ADAM17) confers risk to IBD. Does this variant colocalize with any molecular QTLs (eQTL, pQTL) that might indicate the function of this variant and what process might be implicated?",
-                  "Are there any associations in our IBD studies implicating chloride transport or potential functions of CFTR in the gut?",
+                  "How many protective associations are there in FinnGen core GWAS with a coding variant with PIP > 0.05?",
                 ]}
               />
             </Box>
