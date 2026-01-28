@@ -25,5 +25,12 @@ export default defineConfig({
   server: {
     open: false,
     allowedHosts: ["anno.finngen.fi", "annopublic.finngen.fi", "dev.finngen.fi"],
+    proxy: {
+      "/api": {
+        target: "https://dev.finngen.fi",
+        changeOrigin: true,
+        secure: true,
+      },
+    },
   },
 });
