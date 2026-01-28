@@ -469,15 +469,6 @@ const ChatPage = () => {
               </Typography>
 
               <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-                I'm better at answering questions about genetics results than my sister Claude
-                because I have direct access to many of the best and latest data. I can mostly
-                answer specific questions that require a limited data scope. I won't know how many
-                frameshift variants exist that are associated to a phenotype with genome-wide
-                significance. I have not been trained on that. But for a specific phenotype, I can
-                answer that question.
-              </Typography>
-
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
                 For now, your chats are stored so we can improve me.
               </Typography>
             </Box>
