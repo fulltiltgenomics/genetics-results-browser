@@ -1,5 +1,27 @@
 export type LiteratureBackend = "europepmc" | "perplexity";
 
+export type AttachmentType = "image" | "tsv" | "excel";
+
+export interface FileAttachment {
+  id: string;
+  name: string;
+  size: number;
+  type: AttachmentType;
+  mimeType: string;
+  // for images: base64 data URL for preview; for data files: parsed preview text
+  previewUrl?: string;
+  // upload status
+  status: "pending" | "uploading" | "uploaded" | "error";
+  // server-side ID after upload
+  serverId?: string;
+  // error message if upload failed
+  error?: string;
+}
+
+export interface PendingAttachment extends FileAttachment {
+  file: File;
+}
+
 export interface ChatMessage {
   id: string;
   role: "user" | "assistant";
@@ -8,6 +30,7 @@ export interface ChatMessage {
   thumbsUp?: boolean | null;
   contentJson?: string | null; // JSON string of full message content blocks (for tool calls)
   literatureBackend?: string | null; // literature search backend used
+  attachments?: FileAttachment[]; // file attachments (images, TSV, Excel)
 }
 
 export interface LLMChatProps {

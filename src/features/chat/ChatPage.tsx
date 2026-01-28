@@ -14,11 +14,13 @@ import {
   saveMessage,
   rateMessage,
   generateTitle,
+  getAttachment,
+  uploadAttachment,
   type ChatSession,
   type SessionDetail,
   type ChatMessageRecord,
 } from "./chatHistoryApi";
-import type { ChatMessage } from "./chat.types";
+import type { ChatMessage, FileAttachment } from "./chat.types";
 
 /**
  * Standalone chat page with history sidebar and config editor.
@@ -31,6 +33,8 @@ const ChatPage = () => {
   const [loading, setLoading] = useState(true);
   const [sessionLoading, setSessionLoading] = useState(false);
   const [currentMessageCount, setCurrentMessageCount] = useState(0);
+  // messages with attachment previews loaded
+  const [loadedMessages, setLoadedMessages] = useState<ChatMessage[] | undefined>(undefined);
 
   // track current messages for saving
   const currentMessagesRef = useRef<ChatMessage[]>([]);
@@ -147,17 +151,64 @@ const ChatPage = () => {
     }
   };
 
+  // convert data URL to File for upload
+  const dataUrlToFile = (dataUrl: string, fileName: string, mimeType: string): File => {
+    const arr = dataUrl.split(",");
+    const bstr = atob(arr[1]);
+    let n = bstr.length;
+    const u8arr = new Uint8Array(n);
+    while (n--) {
+      u8arr[n] = bstr.charCodeAt(n);
+    }
+    return new File([u8arr], fileName, { type: mimeType });
+  };
+
   // save a single message to backend
   const saveMessageToBackend = useCallback(
     async (sessionId: string, msg: ChatMessage, literatureBackend?: string | null) => {
-      if (!msg.content.trim()) return;
+      const hasContent = msg.content.trim();
+      const hasAttachments = msg.attachments && msg.attachments.length > 0;
+      if (!hasContent && !hasAttachments) return;
+
+      // for user messages with attachments, upload files and store metadata in contentJson
+      let contentJson = msg.contentJson;
+      if (msg.role === "user" && hasAttachments) {
+        // upload attachments that have previewUrl but no serverId
+        const uploadedAttachments = await Promise.all(
+          msg.attachments!.map(async (a) => {
+            if (a.type === "image" && a.previewUrl && !a.serverId) {
+              try {
+                const file = dataUrlToFile(a.previewUrl, a.name, a.mimeType);
+                const uploaded = await uploadAttachment(sessionId, file);
+                return { ...a, serverId: uploaded.id, status: "uploaded" as const };
+              } catch (err) {
+                console.error("Failed to upload attachment:", err);
+                return a;
+              }
+            }
+            return a;
+          })
+        );
+
+        const attachmentMeta = uploadedAttachments.map((a) => ({
+          id: a.id,
+          name: a.name,
+          size: a.size,
+          type: a.type,
+          mimeType: a.mimeType,
+          serverId: a.serverId,
+          status: a.status,
+        }));
+        contentJson = JSON.stringify({ attachments: attachmentMeta });
+      }
+
       try {
         await saveMessage(
           sessionId,
           msg.id,
           msg.role,
           msg.content,
-          msg.contentJson,
+          contentJson,
           literatureBackend
         );
       } catch (err) {
@@ -185,7 +236,9 @@ const ChatPage = () => {
       if (!activeSessionId) return;
 
       // save user message with literature backend choice
-      if (!savedMessageIds.current.has(userMessage.id) && userMessage.content.trim()) {
+      const hasUserContent = userMessage.content.trim();
+      const hasUserAttachments = userMessage.attachments && userMessage.attachments.length > 0;
+      if (!savedMessageIds.current.has(userMessage.id) && (hasUserContent || hasUserAttachments)) {
         await saveMessageToBackend(activeSessionId, userMessage, literatureBackend);
         savedMessageIds.current.add(userMessage.id);
       }
@@ -244,7 +297,9 @@ const ChatPage = () => {
       // save all current messages to the newly created session
       const messages = currentMessagesRef.current;
       for (const msg of messages) {
-        if (msg.content.trim() && !savedMessageIds.current.has(msg.id)) {
+        const hasContent = msg.content.trim();
+        const hasAttachments = msg.attachments && msg.attachments.length > 0;
+        if ((hasContent || hasAttachments) && !savedMessageIds.current.has(msg.id)) {
           await saveMessageToBackend(sessionIdToUse, msg, literatureBackend);
           savedMessageIds.current.add(msg.id);
         }
@@ -299,17 +354,90 @@ const ChatPage = () => {
     }
   };
 
-  // convert backend messages to frontend format
+  // convert backend messages to frontend format, restoring attachments from contentJson
   const convertMessages = (messages: ChatMessageRecord[]): ChatMessage[] => {
-    return messages.map((m) => ({
-      id: m.id,
-      role: m.role as "user" | "assistant",
-      content: m.content,
-      createdAt: m.createdAt,
-      thumbsUp: m.thumbsUp,
-      contentJson: m.contentJson,
-    }));
+    return messages.map((m) => {
+      let attachments: FileAttachment[] | undefined;
+
+      // for user messages, check if contentJson contains attachment metadata
+      if (m.role === "user" && m.contentJson) {
+        try {
+          const parsed = JSON.parse(m.contentJson);
+          if (parsed.attachments && Array.isArray(parsed.attachments)) {
+            attachments = parsed.attachments;
+          }
+        } catch {
+          // contentJson is not our attachment format, ignore
+        }
+      }
+
+      return {
+        id: m.id,
+        role: m.role as "user" | "assistant",
+        content: m.content,
+        createdAt: m.createdAt,
+        thumbsUp: m.thumbsUp,
+        contentJson: m.contentJson,
+        attachments,
+      };
+    });
   };
+
+  // fetch image preview data for attachments that have serverId but no previewUrl
+  const loadAttachmentPreviews = useCallback(
+    async (sessionId: string, messages: ChatMessage[]): Promise<ChatMessage[]> => {
+      const updatedMessages = await Promise.all(
+        messages.map(async (msg) => {
+          if (!msg.attachments || msg.attachments.length === 0) return msg;
+
+          const updatedAttachments = await Promise.all(
+            msg.attachments.map(async (att) => {
+              // only fetch if it's an image with serverId but no previewUrl
+              if (att.type === "image" && att.serverId && !att.previewUrl) {
+                try {
+                  const blob = await getAttachment(sessionId, att.serverId);
+                  const previewUrl = await new Promise<string>((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onloadend = () => resolve(reader.result as string);
+                    reader.onerror = reject;
+                    reader.readAsDataURL(blob);
+                  });
+                  return { ...att, previewUrl };
+                } catch (err) {
+                  console.error("Failed to load attachment preview:", err);
+                  return att;
+                }
+              }
+              return att;
+            })
+          );
+
+          return { ...msg, attachments: updatedAttachments };
+        })
+      );
+      return updatedMessages;
+    },
+    []
+  );
+
+  // load attachment previews when session changes
+  useEffect(() => {
+    if (!activeSession) {
+      setLoadedMessages(undefined);
+      return;
+    }
+
+    const messages = convertMessages(activeSession.messages);
+    const hasAttachments = messages.some((m) => m.attachments && m.attachments.length > 0);
+
+    if (!hasAttachments) {
+      setLoadedMessages(messages);
+      return;
+    }
+
+    // load attachment previews asynchronously
+    loadAttachmentPreviews(activeSession.id, messages).then(setLoadedMessages);
+  }, [activeSession, loadAttachmentPreviews]);
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", height: "calc(100vh - 64px)" }}>
@@ -398,9 +526,7 @@ const ChatPage = () => {
               <LLMChat
                 key={chatKey}
                 sessionId={activeSessionId}
-                initialMessages={
-                  activeSession ? convertMessages(activeSession.messages) : undefined
-                }
+                initialMessages={loadedMessages}
                 onMessagesChange={handleMessagesChange}
                 onFirstExchange={handleFirstExchange}
                 onStreamingComplete={handleStreamingComplete}

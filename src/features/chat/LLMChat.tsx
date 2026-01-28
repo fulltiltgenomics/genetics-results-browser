@@ -21,13 +21,16 @@ import {
   ExpandMore as ExpandMoreIcon,
   ExpandLess as ExpandLessIcon,
   KeyboardArrowDown as ArrowDownIcon,
+  AttachFile as AttachFileIcon,
 } from "@mui/icons-material";
 import { useRef, useEffect, useState, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { fetchEventSource } from "@microsoft/fetch-event-source";
-import type { ChatMessage, LLMChatProps, LiteratureBackend } from "./chat.types";
+import type { ChatMessage, LLMChatProps, LiteratureBackend, PendingAttachment, FileAttachment } from "./chat.types";
 import { MessageRating } from "./MessageRating";
+import { PendingAttachments, MessageAttachments } from "./FileAttachments";
+import { getAttachmentType, isValidAttachmentType } from "./chatHistoryApi";
 
 /**
  * Reusable LLM chat component with SSE streaming.
@@ -63,6 +66,10 @@ export const LLMChat = ({
   const [hoveredMessageId, setHoveredMessageId] = useState<string | null>(null);
   const [literatureBackend, setLiteratureBackend] = useState<LiteratureBackend>("perplexity");
   const hasTriggeredFirstExchange = useRef(false);
+  const [pendingAttachments, setPendingAttachments] = useState<PendingAttachment[]>([]);
+  const [isDragging, setIsDragging] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const dragCounterRef = useRef(0);
 
   const apiUrl = import.meta.env.VITE_API_URL;
 
@@ -124,19 +131,127 @@ export const LLMChat = ({
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
 
+  const createImagePreview = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const processFiles = useCallback(async (files: FileList | File[]) => {
+    const validFiles: PendingAttachment[] = [];
+
+    for (const file of Array.from(files)) {
+      if (!isValidAttachmentType(file.type, file.name)) {
+        setError(`Unsupported file type: ${file.name}. Supported: images, TSV, CSV, Excel`);
+        continue;
+      }
+
+      const attachmentType = getAttachmentType(file.type, file.name);
+      let previewUrl: string | undefined;
+
+      if (attachmentType === "image") {
+        try {
+          previewUrl = await createImagePreview(file);
+        } catch {
+          // preview failed, continue without it
+        }
+      }
+
+      validFiles.push({
+        id: crypto.randomUUID(),
+        name: file.name,
+        size: file.size,
+        type: attachmentType,
+        mimeType: file.type,
+        previewUrl,
+        status: "pending",
+        file,
+      });
+    }
+
+    if (validFiles.length > 0) {
+      setPendingAttachments((prev) => [...prev, ...validFiles]);
+    }
+  }, []);
+
+  const handleDragEnter = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current++;
+    if (e.dataTransfer.types.includes("Files")) {
+      setIsDragging(true);
+    }
+  }, []);
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    dragCounterRef.current--;
+    if (dragCounterRef.current === 0) {
+      setIsDragging(false);
+    }
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+  }, []);
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      dragCounterRef.current = 0;
+      setIsDragging(false);
+
+      const files = e.dataTransfer.files;
+      if (files.length > 0) {
+        processFiles(files);
+      }
+    },
+    [processFiles]
+  );
+
+  const handleFileSelect = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const files = e.target.files;
+      if (files && files.length > 0) {
+        processFiles(files);
+      }
+      // reset input so same file can be selected again
+      e.target.value = "";
+    },
+    [processFiles]
+  );
+
+  const removeAttachment = useCallback((id: string) => {
+    setPendingAttachments((prev) => prev.filter((a) => a.id !== id));
+  }, []);
+
   const sendMessage = useCallback(
-    async (userMessage: string) => {
-      if (!userMessage.trim() || isLoading) return;
+    async (userMessage: string, attachments?: PendingAttachment[]) => {
+      if ((!userMessage.trim() && (!attachments || attachments.length === 0)) || isLoading) return;
+
+      // convert pending attachments to file attachments for the message
+      const messageAttachments: FileAttachment[] | undefined =
+        attachments && attachments.length > 0
+          ? attachments.map(({ file, ...rest }) => rest)
+          : undefined;
 
       const userMsgId = crypto.randomUUID();
       const userMsg: ChatMessage = {
         id: userMsgId,
         role: "user",
         content: userMessage,
+        attachments: messageAttachments,
       };
       setMessages((prev) => [...prev, userMsg]);
       setIsLoading(true);
       setError(null);
+      setPendingAttachments([]);
 
       const assistantMsgId = crypto.randomUUID();
       setMessages((prev) => [...prev, { id: assistantMsgId, role: "assistant", content: "" }]);
@@ -147,10 +262,10 @@ export const LLMChat = ({
       // build message history, using contentJson when available for full tool context
       const messageHistory = [
         ...messages
-          .filter((m) => m.content.trim() !== "")
+          .filter((m) => m.content.trim() !== "" || (m.attachments && m.attachments.length > 0))
           .map((m) => {
-            // if contentJson is available, use it for the full message structure
-            if (m.contentJson) {
+            // for assistant messages, use contentJson for full message structure (tool calls etc)
+            if (m.role === "assistant" && m.contentJson) {
               try {
                 const parsed = JSON.parse(m.contentJson);
                 return { role: m.role, content: parsed };
@@ -158,10 +273,79 @@ export const LLMChat = ({
                 // fall back to text content if parsing fails
               }
             }
+            // for user messages with attachments, rebuild content with images
+            if (m.role === "user" && m.attachments && m.attachments.length > 0) {
+              const content: any[] = [];
+              for (const att of m.attachments) {
+                if (att.type === "image" && att.previewUrl) {
+                  const base64Data = att.previewUrl.split(",")[1];
+                  content.push({
+                    type: "image",
+                    source: {
+                      type: "base64",
+                      media_type: att.mimeType || "image/png",
+                      data: base64Data,
+                    },
+                  });
+                }
+              }
+              if (m.content.trim()) {
+                content.push({ type: "text", text: m.content });
+              }
+              return { role: m.role, content };
+            }
             return { role: m.role, content: m.content };
           }),
-        { role: "user" as const, content: userMessage },
       ];
+
+      // build current user message content with attachments
+      const userContent: any[] = [];
+
+      // add attachments first (images as base64, data files as references)
+      if (attachments && attachments.length > 0) {
+        for (const attachment of attachments) {
+          if (attachment.type === "image" && attachment.previewUrl) {
+            // for images, send as base64 image content
+            const base64Data = attachment.previewUrl.split(",")[1];
+            const mediaType = attachment.mimeType || "image/png";
+            userContent.push({
+              type: "image",
+              source: {
+                type: "base64",
+                media_type: mediaType,
+                data: base64Data,
+              },
+            });
+          } else {
+            // for TSV/Excel, read file content and include as text
+            try {
+              const text = await attachment.file.text();
+              userContent.push({
+                type: "text",
+                text: `[File: ${attachment.name}]\n${text}`,
+              });
+            } catch {
+              userContent.push({
+                type: "text",
+                text: `[File: ${attachment.name}] (failed to read)`,
+              });
+            }
+          }
+        }
+      }
+
+      // add text content
+      if (userMessage.trim()) {
+        userContent.push({ type: "text", text: userMessage });
+      }
+
+      // add current message to history
+      messageHistory.push({
+        role: "user" as const,
+        content: userContent.length === 1 && userContent[0].type === "text"
+          ? userContent[0].text
+          : userContent,
+      });
 
       let accumulatedContent = "";
       let messageContent: any[] | null = null;
@@ -261,8 +445,8 @@ export const LLMChat = ({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim()) return;
-    sendMessage(input);
+    if (!input.trim() && pendingAttachments.length === 0) return;
+    sendMessage(input, pendingAttachments.length > 0 ? pendingAttachments : undefined);
     setInput("");
   };
 
@@ -354,14 +538,34 @@ export const LLMChat = ({
           />
         </RadioGroup>
       </Box>
-      <Box sx={{ display: "flex", gap: 1 }}>
+      <PendingAttachments
+        attachments={pendingAttachments}
+        onRemove={removeAttachment}
+        disabled={isLoading}
+      />
+      <Box sx={{ display: "flex", gap: 1, alignItems: "flex-end" }}>
+        <input
+          type="file"
+          ref={fileInputRef}
+          onChange={handleFileSelect}
+          accept="image/*,.tsv,.csv,.xlsx,.xls"
+          multiple
+          style={{ display: "none" }}
+        />
+        <IconButton
+          onClick={() => fileInputRef.current?.click()}
+          disabled={isLoading}
+          sx={{ mb: 0.5 }}
+          title="Attach files (images, TSV, Excel)">
+          <AttachFileIcon />
+        </IconButton>
         <TextField
           fullWidth
           multiline
           maxRows={4}
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder={placeholder}
+          placeholder={pendingAttachments.length > 0 ? "Add a message (optional)..." : placeholder}
           disabled={isLoading}
           autoFocus
           onKeyDown={(e) => {
@@ -374,7 +578,7 @@ export const LLMChat = ({
         <Button
           type="submit"
           variant="contained"
-          disabled={isLoading || !input.trim()}
+          disabled={isLoading || (!input.trim() && pendingAttachments.length === 0)}
           sx={{ minWidth: 100 }}>
           {isLoading ? <CircularProgress size={24} /> : <SendIcon />}
         </Button>
@@ -382,10 +586,37 @@ export const LLMChat = ({
     </Paper>
   );
 
+  const dropZoneOverlay = isDragging && (
+    <Box
+      sx={{
+        position: "absolute",
+        inset: 0,
+        bgcolor: "rgba(25, 118, 210, 0.1)",
+        border: "2px dashed",
+        borderColor: "primary.main",
+        borderRadius: 2,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 1000,
+        pointerEvents: "none",
+      }}>
+      <Typography variant="h6" color="primary">
+        Drop files here
+      </Typography>
+    </Box>
+  );
+
   // empty state: input at top center
   if (!hasMessages) {
     return (
-      <Box sx={{ display: "flex", flexDirection: "column", height, alignItems: "center" }}>
+      <Box
+        sx={{ display: "flex", flexDirection: "column", height, alignItems: "center", position: "relative" }}
+        onDragEnter={handleDragEnter}
+        onDragLeave={handleDragLeave}
+        onDragOver={handleDragOver}
+        onDrop={handleDrop}>
+        {dropZoneOverlay}
         {/* optional context content (e.g., phenotype markdown) */}
         {contextContent && (
           <Paper sx={{ mb: 2, width: "100%" }}>
@@ -454,7 +685,13 @@ export const LLMChat = ({
 
   // with messages: messages area with fixed input at bottom
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", height, position: "relative" }}>
+    <Box
+      sx={{ display: "flex", flexDirection: "column", height, position: "relative" }}
+      onDragEnter={handleDragEnter}
+      onDragLeave={handleDragLeave}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}>
+      {dropZoneOverlay}
       {/* optional context content (e.g., phenotype markdown) */}
       {contextContent && (
         <Paper sx={{ mb: 2 }}>
@@ -529,10 +766,16 @@ export const LLMChat = ({
                   }}>
                   {message.role === "user" ? "You" : "FinnGenie"}
                 </Typography>
+                {message.attachments && message.attachments.length > 0 && (
+                  <MessageAttachments
+                    attachments={message.attachments}
+                    isUserMessage={message.role === "user"}
+                  />
+                )}
                 <Box sx={markdownStyles}>
                   {message.content ? (
                     <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
-                  ) : (
+                  ) : message.attachments && message.attachments.length > 0 ? null : (
                     <Typography variant="body2" color="text.secondary" fontStyle="italic">
                       ...
                     </Typography>

@@ -1,4 +1,15 @@
+import type { AttachmentType } from "./chat.types";
+
 const apiUrl = import.meta.env.VITE_API_URL;
+
+export interface UploadedAttachment {
+  id: string;
+  name: string;
+  size: number;
+  type: AttachmentType;
+  mimeType: string;
+  createdAt: string;
+}
 
 export interface ChatSession {
   id: string;
@@ -176,4 +187,100 @@ function mapMessage(data: any): ChatMessageRecord {
     contentJson: data.content_json,
     literatureBackend: data.literature_backend,
   };
+}
+
+export async function uploadAttachment(
+  sessionId: string,
+  file: File
+): Promise<UploadedAttachment> {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const response = await fetch(`${apiUrl}/v1/chat/sessions/${sessionId}/attachments`, {
+    method: "POST",
+    credentials: "include",
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.detail || `HTTP ${response.status}`);
+  }
+
+  const data = await response.json();
+  return {
+    id: data.id,
+    name: data.name,
+    size: data.size,
+    type: data.type,
+    mimeType: data.mime_type,
+    createdAt: data.created_at,
+  };
+}
+
+export async function deleteAttachment(
+  sessionId: string,
+  attachmentId: string
+): Promise<void> {
+  const response = await fetch(
+    `${apiUrl}/v1/chat/sessions/${sessionId}/attachments/${attachmentId}`,
+    {
+      method: "DELETE",
+      credentials: "include",
+    }
+  );
+
+  if (!response.ok && response.status !== 404) {
+    throw new Error(`HTTP ${response.status}`);
+  }
+}
+
+export async function getAttachment(
+  sessionId: string,
+  attachmentId: string
+): Promise<Blob> {
+  const response = await fetch(
+    `${apiUrl}/v1/chat/sessions/${sessionId}/attachments/${attachmentId}`,
+    {
+      credentials: "include",
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}`);
+  }
+
+  return response.blob();
+}
+
+export function getAttachmentType(mimeType: string, fileName: string): AttachmentType {
+  if (mimeType.startsWith("image/")) {
+    return "image";
+  }
+  if (
+    mimeType === "text/tab-separated-values" ||
+    mimeType === "text/csv" ||
+    fileName.endsWith(".tsv") ||
+    fileName.endsWith(".csv")
+  ) {
+    return "tsv";
+  }
+  if (
+    mimeType === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" ||
+    mimeType === "application/vnd.ms-excel" ||
+    fileName.endsWith(".xlsx") ||
+    fileName.endsWith(".xls")
+  ) {
+    return "excel";
+  }
+  throw new Error(`Unsupported file type: ${mimeType}`);
+}
+
+export function isValidAttachmentType(mimeType: string, fileName: string): boolean {
+  try {
+    getAttachmentType(mimeType, fileName);
+    return true;
+  } catch {
+    return false;
+  }
 }
