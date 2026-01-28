@@ -97,8 +97,15 @@ const ChatPage = () => {
     setSessionLoading(true);
     try {
       const data = await getSession(sessionId);
-      setActiveSession(data);
       savedMessageIds.current = new Set(data.messages.map((m) => m.id));
+
+      // prepare loaded messages before showing LLMChat so it mounts with correct data
+      const converted = convertMessages(data.messages);
+      const hasAttachments = converted.some((m) => m.attachments && m.attachments.length > 0);
+      const ready = hasAttachments ? await loadAttachmentPreviews(sessionId, converted) : converted;
+
+      setActiveSession(data);
+      setLoadedMessages(ready);
     } catch (err) {
       console.error("Failed to load session:", err);
       // session may have been deleted
@@ -187,7 +194,7 @@ const ChatPage = () => {
               }
             }
             return a;
-          })
+          }),
         );
 
         const attachmentMeta = uploadedAttachments.map((a) => ({
@@ -203,19 +210,12 @@ const ChatPage = () => {
       }
 
       try {
-        await saveMessage(
-          sessionId,
-          msg.id,
-          msg.role,
-          msg.content,
-          contentJson,
-          literatureBackend
-        );
+        await saveMessage(sessionId, msg.id, msg.role, msg.content, contentJson, literatureBackend);
       } catch (err) {
         console.error("Failed to save message:", err);
       }
     },
-    []
+    [],
   );
 
   const handleMessagesChange = useCallback((messages: ChatMessage[]) => {
@@ -230,7 +230,7 @@ const ChatPage = () => {
       userMessage: ChatMessage,
       assistantMessage: ChatMessage,
       messageContent?: any[] | null,
-      literatureBackend?: string | null
+      literatureBackend?: string | null,
     ) => {
       console.log("[handleStreamingComplete] literatureBackend:", literatureBackend);
       if (!activeSessionId) return;
@@ -252,12 +252,12 @@ const ChatPage = () => {
             ...assistantMessage,
             contentJson,
           },
-          literatureBackend
+          literatureBackend,
         );
         savedMessageIds.current.add(assistantMessage.id);
       }
     },
-    [activeSessionId, saveMessageToBackend]
+    [activeSessionId, saveMessageToBackend],
   );
 
   // called after first exchange completes - creates session and saves initial messages
@@ -316,8 +316,8 @@ const ChatPage = () => {
                   updatedAt: new Date().toISOString(),
                   preview: s.title ? undefined : firstUserMsg.content.slice(0, 80),
                 }
-              : s
-          )
+              : s,
+          ),
         );
       }
 
@@ -326,13 +326,13 @@ const ChatPage = () => {
         const title = await generateTitle(sessionIdToUse);
         setActiveSession((prev) => (prev ? { ...prev, title } : null));
         setSessions((prev) =>
-          prev.map((s) => (s.id === sessionIdToUse ? { ...s, title, preview: undefined } : s))
+          prev.map((s) => (s.id === sessionIdToUse ? { ...s, title, preview: undefined } : s)),
         );
       } catch (err) {
         console.error("Failed to generate title:", err);
       }
     },
-    [activeSessionId, saveMessageToBackend]
+    [activeSessionId, saveMessageToBackend],
   );
 
   const handleRateMessage = useCallback(async (messageId: string, thumbsUp: boolean | null) => {
@@ -409,15 +409,15 @@ const ChatPage = () => {
                 }
               }
               return att;
-            })
+            }),
           );
 
           return { ...msg, attachments: updatedAttachments };
-        })
+        }),
       );
       return updatedMessages;
     },
-    []
+    [],
   );
 
   // load attachment previews when session changes
