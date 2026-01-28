@@ -23,7 +23,7 @@ import {
   KeyboardArrowDown as ArrowDownIcon,
   AttachFile as AttachFileIcon,
 } from "@mui/icons-material";
-import { useRef, useEffect, useState, useCallback } from "react";
+import React, { useRef, useEffect, useState, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { fetchEventSource } from "@microsoft/fetch-event-source";
@@ -31,6 +31,79 @@ import type { ChatMessage, LLMChatProps, LiteratureBackend, PendingAttachment, F
 import { MessageRating } from "./MessageRating";
 import { PendingAttachments, MessageAttachments } from "./FileAttachments";
 import { getAttachmentType, isValidAttachmentType } from "./chatHistoryApi";
+
+// regex to match image markers: [IMAGE:format:alt:base64data]
+const IMAGE_MARKER_REGEX = /\[IMAGE:([^:]+):([^:]+):([^\]]+)\]/g;
+
+/**
+ * Renders message content, handling embedded images separately from markdown.
+ * Images are stored as [IMAGE:format:alt:base64data] markers.
+ */
+const MessageContent = ({ content }: { content: string }) => {
+  // check if content has any image markers
+  if (!content.includes("[IMAGE:")) {
+    return <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>;
+  }
+
+  // split content by image markers and render each part
+  const parts: React.ReactNode[] = [];
+  let lastIndex = 0;
+  let match;
+  let keyIndex = 0;
+
+  // reset regex state
+  IMAGE_MARKER_REGEX.lastIndex = 0;
+
+  while ((match = IMAGE_MARKER_REGEX.exec(content)) !== null) {
+    // add text before the image
+    if (match.index > lastIndex) {
+      const textPart = content.slice(lastIndex, match.index);
+      if (textPart.trim()) {
+        parts.push(
+          <ReactMarkdown key={`text-${keyIndex++}`} remarkPlugins={[remarkGfm]}>
+            {textPart}
+          </ReactMarkdown>
+        );
+      }
+    }
+
+    // add the image
+    const [, format, alt, base64Data] = match;
+    const src = `data:image/${format};base64,${base64Data}`;
+    parts.push(
+      <Box key={`img-${keyIndex++}`} sx={{ my: 2 }}>
+        <img
+          src={src}
+          alt={alt}
+          style={{
+            maxWidth: "100%",
+            cursor: "pointer",
+            borderRadius: 4,
+            border: "1px solid #ddd",
+          }}
+          onClick={() => window.open(src, "_blank")}
+          title="Click to open in new tab"
+        />
+      </Box>
+    );
+
+    lastIndex = match.index + match[0].length;
+  }
+
+  // add any remaining text after the last image
+  if (lastIndex < content.length) {
+    const remainingText = content.slice(lastIndex);
+    if (remainingText.trim()) {
+      parts.push(
+        <ReactMarkdown key={`text-${keyIndex++}`} remarkPlugins={[remarkGfm]}>
+          {remainingText}
+        </ReactMarkdown>
+      );
+    }
+  }
+
+  return <>{parts}</>;
+};
 
 /**
  * Reusable LLM chat component with SSE streaming.
@@ -389,6 +462,18 @@ export const LLMChat = ({
                 setMessages((prev) =>
                   prev.map((m) => (m.id === assistantMsgId ? { ...m, content: newContent } : m))
                 );
+              } else if (data.type === "image") {
+                // store image as a special marker that we'll render separately
+                const imageFormat = data.image_format || "png";
+                const imageAlt = data.image_alt || "Generated image";
+                const imageData = data.image_data || "";
+                // use a unique marker that won't appear in normal text
+                const imageMarker = `\n\n[IMAGE:${imageFormat}:${imageAlt}:${imageData}]\n\n`;
+                accumulatedContent += imageMarker;
+                const newContent = accumulatedContent;
+                setMessages((prev) =>
+                  prev.map((m) => (m.id === assistantMsgId ? { ...m, content: newContent } : m))
+                );
               } else if (data.type === "done") {
                 // capture message_content for persistence (includes tool calls)
                 messageContent = data.message_content || null;
@@ -498,6 +583,18 @@ export const LLMChat = ({
       },
       "& th": {
         bgcolor: theme.palette.mode === "dark" ? "grey.800" : "grey.100",
+      },
+    },
+    "& img": {
+      maxWidth: "100%",
+      height: "auto",
+      borderRadius: 1,
+      my: 2,
+      display: "block",
+      cursor: "pointer",
+      border: `1px solid ${theme.palette.divider}`,
+      "&:hover": {
+        boxShadow: theme.shadows[4],
       },
     },
   };
@@ -774,7 +871,7 @@ export const LLMChat = ({
                 )}
                 <Box sx={markdownStyles}>
                   {message.content ? (
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
+                    <MessageContent content={message.content} />
                   ) : message.attachments && message.attachments.length > 0 ? null : (
                     <Typography variant="body2" color="text.secondary" fontStyle="italic">
                       ...
