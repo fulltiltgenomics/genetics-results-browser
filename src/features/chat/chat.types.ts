@@ -1,5 +1,7 @@
 export type LiteratureBackend = "europepmc" | "perplexity";
 
+export type ToolProfile = "api" | "bigquery" | "rag";
+
 export type AttachmentType = "image" | "tsv" | "excel";
 
 export interface FileAttachment {
@@ -68,14 +70,15 @@ export interface LLMChatProps {
   onMessagesChange?: (messages: ChatMessage[]) => void;
 
   /** callback when the first message exchange completes (for title generation) */
-  onFirstExchange?: (literatureBackend?: string | null) => void;
+  onFirstExchange?: (literatureBackend?: string | null, toolProfile?: string | null) => void;
 
   /** callback when streaming completes for a message (for persistence) */
   onStreamingComplete?: (
     userMessage: ChatMessage,
     assistantMessage: ChatMessage,
     messageContent?: any[] | null,
-    literatureBackend?: string | null
+    literatureBackend?: string | null,
+    toolProfile?: string | null,
   ) => void;
 
   /** callback to rate a message */

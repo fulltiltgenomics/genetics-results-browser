@@ -27,7 +27,7 @@ import React, { useRef, useEffect, useState, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { fetchEventSource } from "@microsoft/fetch-event-source";
-import type { ChatMessage, LLMChatProps, LiteratureBackend, PendingAttachment, FileAttachment } from "./chat.types";
+import type { ChatMessage, LLMChatProps, LiteratureBackend, ToolProfile, PendingAttachment, FileAttachment } from "./chat.types";
 import { MessageRating } from "./MessageRating";
 import { PendingAttachments, MessageAttachments } from "./FileAttachments";
 import { getAttachmentType, isValidAttachmentType } from "./chatHistoryApi";
@@ -138,6 +138,7 @@ export const LLMChat = ({
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
   const [hoveredMessageId, setHoveredMessageId] = useState<string | null>(null);
   const [literatureBackend, setLiteratureBackend] = useState<LiteratureBackend>("perplexity");
+  const [toolProfile, setToolProfile] = useState<ToolProfile | null>(null);
   const hasTriggeredFirstExchange = useRef(false);
   const [pendingAttachments, setPendingAttachments] = useState<PendingAttachment[]>([]);
   const [isDragging, setIsDragging] = useState(false);
@@ -436,6 +437,7 @@ export const LLMChat = ({
             provider: "anthropic",
             enable_mcp: true,
             literature_backend: literatureBackend,
+            tool_profile: toolProfile,
           }),
           signal: abortControllerRef.current.signal,
           async onopen(response) {
@@ -498,12 +500,12 @@ export const LLMChat = ({
             role: "assistant",
             content: accumulatedContent,
           };
-          onStreamingComplete?.(userMsg, completedAssistantMsg, messageContent, literatureBackend);
+          onStreamingComplete?.(userMsg, completedAssistantMsg, messageContent, literatureBackend, toolProfile);
 
           // check if this is the first exchange
           if (!hasTriggeredFirstExchange.current) {
             hasTriggeredFirstExchange.current = true;
-            onFirstExchange?.(literatureBackend);
+            onFirstExchange?.(literatureBackend, toolProfile);
           }
         }
       } catch (err: any) {
@@ -525,6 +527,7 @@ export const LLMChat = ({
       onFirstExchange,
       onStreamingComplete,
       literatureBackend,
+      toolProfile,
     ]
   );
 
@@ -613,7 +616,7 @@ export const LLMChat = ({
         maxWidth: "100%",
         width: "100%",
       }}>
-      <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+      <Box sx={{ display: "flex", alignItems: "center", gap: 2, flexWrap: "wrap" }}>
         <Typography variant="body2" color="text.secondary">
           Literature search
         </Typography>
@@ -634,6 +637,43 @@ export const LLMChat = ({
             sx={{ "& .MuiFormControlLabel-label": { fontSize: "0.75rem" } }}
           />
         </RadioGroup>
+        <Box sx={{ borderLeft: 1, borderColor: "divider", pl: 2, display: "flex", alignItems: "center", gap: 2 }}>
+          <Typography variant="body2" color="text.secondary">
+            Tools
+          </Typography>
+          <RadioGroup
+            row
+            value={toolProfile ?? "all"}
+            onChange={(e) => {
+              const val = e.target.value;
+              setToolProfile(val === "all" ? null : (val as ToolProfile));
+            }}>
+            <FormControlLabel
+              value="all"
+              control={<Radio size="small" />}
+              label="All"
+              sx={{ "& .MuiFormControlLabel-label": { fontSize: "0.75rem" } }}
+            />
+            <FormControlLabel
+              value="api"
+              control={<Radio size="small" />}
+              label="API"
+              sx={{ "& .MuiFormControlLabel-label": { fontSize: "0.75rem" } }}
+            />
+            <FormControlLabel
+              value="bigquery"
+              control={<Radio size="small" />}
+              label="BigQuery"
+              sx={{ "& .MuiFormControlLabel-label": { fontSize: "0.75rem" } }}
+            />
+            <FormControlLabel
+              value="rag"
+              control={<Radio size="small" />}
+              label="RAG"
+              sx={{ "& .MuiFormControlLabel-label": { fontSize: "0.75rem" } }}
+            />
+          </RadioGroup>
+        </Box>
       </Box>
       <PendingAttachments
         attachments={pendingAttachments}

@@ -172,7 +172,7 @@ const ChatPage = () => {
 
   // save a single message to backend
   const saveMessageToBackend = useCallback(
-    async (sessionId: string, msg: ChatMessage, literatureBackend?: string | null) => {
+    async (sessionId: string, msg: ChatMessage, literatureBackend?: string | null, toolProfile?: string | null) => {
       const hasContent = msg.content.trim();
       const hasAttachments = msg.attachments && msg.attachments.length > 0;
       if (!hasContent && !hasAttachments) return;
@@ -210,7 +210,7 @@ const ChatPage = () => {
       }
 
       try {
-        await saveMessage(sessionId, msg.id, msg.role, msg.content, contentJson, literatureBackend);
+        await saveMessage(sessionId, msg.id, msg.role, msg.content, contentJson, literatureBackend, toolProfile);
       } catch (err) {
         console.error("Failed to save message:", err);
       }
@@ -231,19 +231,20 @@ const ChatPage = () => {
       assistantMessage: ChatMessage,
       messageContent?: any[] | null,
       literatureBackend?: string | null,
+      toolProfile?: string | null,
     ) => {
-      console.log("[handleStreamingComplete] literatureBackend:", literatureBackend);
+      console.log("[handleStreamingComplete] literatureBackend:", literatureBackend, "toolProfile:", toolProfile);
       if (!activeSessionId) return;
 
-      // save user message with literature backend choice
+      // save user message with literature backend and tool profile
       const hasUserContent = userMessage.content.trim();
       const hasUserAttachments = userMessage.attachments && userMessage.attachments.length > 0;
       if (!savedMessageIds.current.has(userMessage.id) && (hasUserContent || hasUserAttachments)) {
-        await saveMessageToBackend(activeSessionId, userMessage, literatureBackend);
+        await saveMessageToBackend(activeSessionId, userMessage, literatureBackend, toolProfile);
         savedMessageIds.current.add(userMessage.id);
       }
 
-      // save assistant message with full content_json (includes tool calls) and literature backend
+      // save assistant message with full content_json (includes tool calls), literature backend, and tool profile
       if (!savedMessageIds.current.has(assistantMessage.id) && assistantMessage.content.trim()) {
         const contentJson = messageContent ? JSON.stringify(messageContent) : null;
         await saveMessageToBackend(
@@ -253,6 +254,7 @@ const ChatPage = () => {
             contentJson,
           },
           literatureBackend,
+          toolProfile,
         );
         savedMessageIds.current.add(assistantMessage.id);
       }
@@ -262,8 +264,8 @@ const ChatPage = () => {
 
   // called after first exchange completes - creates session and saves initial messages
   const handleFirstExchange = useCallback(
-    async (literatureBackend?: string | null) => {
-      console.log("[handleFirstExchange] literatureBackend:", literatureBackend);
+    async (literatureBackend?: string | null, toolProfile?: string | null) => {
+      console.log("[handleFirstExchange] literatureBackend:", literatureBackend, "toolProfile:", toolProfile);
       let sessionIdToUse = activeSessionId;
 
       // if no session exists, create one first
@@ -300,7 +302,7 @@ const ChatPage = () => {
         const hasContent = msg.content.trim();
         const hasAttachments = msg.attachments && msg.attachments.length > 0;
         if ((hasContent || hasAttachments) && !savedMessageIds.current.has(msg.id)) {
-          await saveMessageToBackend(sessionIdToUse, msg, literatureBackend);
+          await saveMessageToBackend(sessionIdToUse, msg, literatureBackend, toolProfile);
           savedMessageIds.current.add(msg.id);
         }
       }
