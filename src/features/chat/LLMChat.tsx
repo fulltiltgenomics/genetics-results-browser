@@ -14,6 +14,7 @@ import {
   RadioGroup,
   Radio,
   FormControlLabel,
+  Tooltip,
 } from "@mui/material";
 import {
   Send as SendIcon,
@@ -22,6 +23,7 @@ import {
   ExpandLess as ExpandLessIcon,
   KeyboardArrowDown as ArrowDownIcon,
   AttachFile as AttachFileIcon,
+  InfoOutlined as InfoIcon,
 } from "@mui/icons-material";
 import React, { useRef, useEffect, useState, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
@@ -638,9 +640,25 @@ export const LLMChat = ({
           />
         </RadioGroup>
         <Box sx={{ borderLeft: 1, borderColor: "divider", pl: 2, display: "flex", alignItems: "center", gap: 2 }}>
-          <Typography variant="body2" color="text.secondary">
-            Tools
-          </Typography>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+            <Typography variant="body2" color="text.secondary">
+              Tools
+            </Typography>
+            <Tooltip
+              title={
+                <span style={{ whiteSpace: "pre-line" }}>
+                  Which MCP tools to use?{"\n"}
+                  All - includes all tools and automatically determines the ones to use (most times this is the best choice){"\n"}
+                  RAG - includes Retrieval Augmented Generation search (can currently be used when asking about interpretation on phenotypes){"\n"}
+                  API - includes tools tied to the genetics results API (can be used when strictly getting data for variants/genes/phenotypes){"\n"}
+                  BigQuery - includes access to a BigQuery database that contains credible set and colocalization data (good when computations across all data is needed instead of a specific variant, gene or phenotype)
+                </span>
+              }
+              arrow
+              placement="top">
+              <InfoIcon sx={{ fontSize: 16, color: "text.secondary", cursor: "help" }} />
+            </Tooltip>
+          </Box>
           <RadioGroup
             row
             value={toolProfile ?? "all"}
@@ -655,6 +673,12 @@ export const LLMChat = ({
               sx={{ "& .MuiFormControlLabel-label": { fontSize: "0.75rem" } }}
             />
             <FormControlLabel
+              value="rag"
+              control={<Radio size="small" />}
+              label="RAG"
+              sx={{ "& .MuiFormControlLabel-label": { fontSize: "0.75rem" } }}
+            />
+            <FormControlLabel
               value="api"
               control={<Radio size="small" />}
               label="API"
@@ -664,12 +688,6 @@ export const LLMChat = ({
               value="bigquery"
               control={<Radio size="small" />}
               label="BigQuery"
-              sx={{ "& .MuiFormControlLabel-label": { fontSize: "0.75rem" } }}
-            />
-            <FormControlLabel
-              value="rag"
-              control={<Radio size="small" />}
-              label="RAG"
               sx={{ "& .MuiFormControlLabel-label": { fontSize: "0.75rem" } }}
             />
           </RadioGroup>
