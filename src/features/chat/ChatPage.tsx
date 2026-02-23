@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Box, Typography, CircularProgress, IconButton, Link } from "@mui/material";
-import { ChevronLeft, ChevronRight } from "@mui/icons-material";
+import { Box, Typography, CircularProgress, IconButton, Link, Chip } from "@mui/material";
+import { ChevronLeft, ChevronRight, VisibilityOff } from "@mui/icons-material";
 import finnGenieLogo from "../../assets/finngenie-leonardo-gemini-2.5-flash-recraft-vectorized-claude-cropped.svg";
 import { LLMChat } from "./LLMChat";
 import { LLMConfigEditor } from "./LLMConfigEditor";
@@ -39,6 +39,7 @@ const ChatPage = () => {
 
   const [configOpen, setConfigOpen] = useState(false);
   const [infoExpanded, setInfoExpanded] = useState(false);
+  const [isSecretChat, setIsSecretChat] = useState(false);
 
   // track current messages for saving
   const currentMessagesRef = useRef<ChatMessage[]>([]);
@@ -120,6 +121,7 @@ const ChatPage = () => {
   };
 
   const handleNewChat = async () => {
+    setIsSecretChat(false);
     try {
       const session = await createSession();
       setSessions((prev) => [{ ...session, preview: undefined, rating: undefined }, ...prev]);
@@ -144,7 +146,17 @@ const ChatPage = () => {
     }
   };
 
+  const handleNewSecretChat = () => {
+    setIsSecretChat(true);
+    setActiveSessionId(null);
+    setActiveSession(null);
+    setChatKey(`secret-${Date.now()}`);
+    savedMessageIds.current = new Set();
+    currentMessagesRef.current = [];
+  };
+
   const handleSelectSession = (sessionId: string) => {
+    setIsSecretChat(false);
     inlineSessionIdRef.current = null;
     setActiveSessionId(sessionId);
     setChatKey(sessionId);
@@ -237,6 +249,7 @@ const ChatPage = () => {
       literatureBackend?: string | null,
       toolProfile?: string | null,
     ) => {
+      if (isSecretChat) return;
       console.log("[handleStreamingComplete] literatureBackend:", literatureBackend, "toolProfile:", toolProfile);
       if (!activeSessionId) return;
 
@@ -263,12 +276,13 @@ const ChatPage = () => {
         savedMessageIds.current.add(assistantMessage.id);
       }
     },
-    [activeSessionId, saveMessageToBackend],
+    [activeSessionId, saveMessageToBackend, isSecretChat],
   );
 
   // called after first exchange completes - creates session and saves initial messages
   const handleFirstExchange = useCallback(
     async (literatureBackend?: string | null, toolProfile?: string | null) => {
+      if (isSecretChat) return;
       console.log("[handleFirstExchange] literatureBackend:", literatureBackend, "toolProfile:", toolProfile);
       let sessionIdToUse = activeSessionId;
 
@@ -338,7 +352,7 @@ const ChatPage = () => {
         console.error("Failed to generate title:", err);
       }
     },
-    [activeSessionId, saveMessageToBackend],
+    [activeSessionId, saveMessageToBackend, isSecretChat],
   );
 
   const handleRateMessage = useCallback(async (messageId: string, thumbsUp: boolean | null) => {
@@ -459,7 +473,19 @@ const ChatPage = () => {
               sx={{ height: 60, flexShrink: 0 }}
             />
             <Box>
-              <Typography variant="h5">{activeSession?.title || "FinnGenie"}</Typography>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+                <Typography variant="h5">
+                  {isSecretChat ? "Secret Chat" : activeSession?.title || "FinnGenie"}
+                </Typography>
+                {isSecretChat && (
+                  <Chip
+                    icon={<VisibilityOff sx={{ fontSize: 16 }} />}
+                    label="Not Saved"
+                    color="warning"
+                    size="small"
+                  />
+                )}
+              </Box>
 
               <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
                 I can help you explore and interpret human genetics results. Ask me about
@@ -520,6 +546,7 @@ const ChatPage = () => {
             activeSessionId={activeSessionId}
             onSelectSession={handleSelectSession}
             onNewChat={handleNewChat}
+            onNewSecretChat={handleNewSecretChat}
             onDeleteSession={handleDeleteSession}
             loading={loading}
           />
@@ -544,11 +571,11 @@ const ChatPage = () => {
               <LLMChat
                 key={chatKey}
                 sessionId={activeSessionId}
-                initialMessages={loadedMessages}
+                initialMessages={isSecretChat ? undefined : loadedMessages}
                 onMessagesChange={handleMessagesChange}
                 onFirstExchange={handleFirstExchange}
                 onStreamingComplete={handleStreamingComplete}
-                onRateMessage={handleRateMessage}
+                onRateMessage={isSecretChat ? undefined : handleRateMessage}
                 placeholder="Ask about phenotypes, genes, variants..."
                 emptyStateTitle="Welcome to FinnGenie"
                 emptyStateDescription=""
@@ -557,12 +584,13 @@ const ChatPage = () => {
                   "We've found that the variant chr2:9521321:A:G (ADAM17) confers risk to IBD. Does this variant colocalize with any molecular QTLs (eQTL, pQTL) that might indicate the function of this variant and what process might be implicated?",
                   "How many protective associations are there in FinnGen core GWAS with a coding variant with PIP > 0.05?",
                 ]}
+                isSecretChat={isSecretChat}
               />
             </Box>
           )}
 
           {/* session rating at bottom */}
-          {activeSessionId && currentMessageCount > 0 && (
+          {!isSecretChat && activeSessionId && currentMessageCount > 0 && (
             <SessionRating
               sessionId={activeSessionId}
               rating={activeSession?.rating ?? null}

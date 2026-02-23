@@ -86,4 +86,7 @@ export interface LLMChatProps {
 
   /** example questions shown in empty state that users can click to send */
   exampleQuestions?: string[];
+
+  /** secret chat mode - messages not logged or persisted */
+  isSecretChat?: boolean;
 }

@@ -127,6 +127,7 @@ export const LLMChat = ({
   onStreamingComplete,
   onRateMessage,
   exampleQuestions,
+  isSecretChat,
 }: LLMChatProps) => {
   const theme = useTheme();
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -440,6 +441,7 @@ export const LLMChat = ({
             enable_mcp: true,
             literature_backend: literatureBackend,
             tool_profile: toolProfile,
+            secret: isSecretChat || false,
           }),
           signal: abortControllerRef.current.signal,
           async onopen(response) {

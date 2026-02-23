@@ -16,7 +16,7 @@ import {
   DialogActions,
   useTheme,
 } from "@mui/material";
-import { Add as AddIcon, Delete as DeleteIcon } from "@mui/icons-material";
+import { Add as AddIcon, Delete as DeleteIcon, VisibilityOff as VisibilityOffIcon } from "@mui/icons-material";
 import type { ChatSession } from "./chatHistoryApi";
 
 interface ChatHistorySidebarProps {
@@ -24,6 +24,7 @@ interface ChatHistorySidebarProps {
   activeSessionId: string | null;
   onSelectSession: (sessionId: string) => void;
   onNewChat: () => void;
+  onNewSecretChat: () => void;
   onDeleteSession: (sessionId: string) => void;
   loading: boolean;
 }
@@ -79,6 +80,7 @@ export const ChatHistorySidebar = ({
   activeSessionId,
   onSelectSession,
   onNewChat,
+  onNewSecretChat,
   onDeleteSession,
   loading,
 }: ChatHistorySidebarProps) => {
@@ -111,8 +113,8 @@ export const ChatHistorySidebar = ({
         flexDirection: "column",
         bgcolor: theme.palette.mode === "dark" ? "grey.900" : "grey.50",
       }}>
-      {/* header with new chat button */}
-      <Box sx={{ p: 1.5, borderBottom: 1, borderColor: "divider" }}>
+      {/* header with new chat buttons */}
+      <Box sx={{ p: 1.5, borderBottom: 1, borderColor: "divider", display: "flex", flexDirection: "column", gap: 1 }}>
         <Button
           variant="outlined"
           startIcon={<AddIcon />}
@@ -120,6 +122,14 @@ export const ChatHistorySidebar = ({
           fullWidth
           sx={{ justifyContent: "flex-start" }}>
           New Chat
+        </Button>
+        <Button
+          variant="outlined"
+          startIcon={<VisibilityOffIcon />}
+          onClick={onNewSecretChat}
+          fullWidth
+          sx={{ justifyContent: "flex-start" }}>
+          Secret Chat
         </Button>
       </Box>
 
