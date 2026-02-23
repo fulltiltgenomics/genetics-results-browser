@@ -127,7 +127,8 @@ const ChatPage = () => {
       setSessions((prev) => [{ ...session, preview: undefined, rating: undefined }, ...prev]);
       isNewSession.current = true;
       inlineSessionIdRef.current = null;
-      // set activeSession directly so it's batched with the other state updates
+      // clear stale messages before chatKey change triggers LLMChat remount
+      setLoadedMessages(undefined);
       setActiveSession({
         id: session.id,
         title: null,
@@ -158,6 +159,7 @@ const ChatPage = () => {
   const handleSelectSession = (sessionId: string) => {
     setIsSecretChat(false);
     inlineSessionIdRef.current = null;
+    setLoadedMessages(undefined);
     setActiveSessionId(sessionId);
     setChatKey(sessionId);
   };
@@ -504,7 +506,7 @@ const ChatPage = () => {
               {infoExpanded && (
                 <>
                   <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-                    I am Claude Sonnet 4.5 but I also have direct access to a lot of great genetics
+                    I am Claude Sonnet 4.6 but I also have direct access to a lot of great genetics
                     results data (ask me about it!). Typically, when you ask me a question, I will
                     first check our data resources for relevant information. Then I'll do a literature
                     search, and finally synthesize the information from the two sources. Do ask
