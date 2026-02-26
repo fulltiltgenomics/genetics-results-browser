@@ -137,6 +137,7 @@ export const LLMChat = ({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const isTimeoutAbortRef = useRef(false);
   const [contextExpanded, setContextExpanded] = useState(true);
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
   const [hoveredMessageId, setHoveredMessageId] = useState<string | null>(null);
@@ -426,6 +427,18 @@ export const LLMChat = ({
 
       let accumulatedContent = "";
       let messageContent: any[] | null = null;
+      let receivedDone = false;
+      let streamError: string | null = null;
+      let inactivityTimer: ReturnType<typeof setTimeout> | null = null;
+      isTimeoutAbortRef.current = false;
+
+      const resetInactivityTimer = () => {
+        if (inactivityTimer) clearTimeout(inactivityTimer);
+        inactivityTimer = setTimeout(() => {
+          isTimeoutAbortRef.current = true;
+          abortControllerRef.current?.abort();
+        }, 90_000);
+      };
 
       try {
         await fetchEventSource(`${apiUrl}/v1/chat`, {
@@ -449,6 +462,7 @@ export const LLMChat = ({
               response.ok &&
               response.headers.get("content-type")?.includes("text/event-stream")
             ) {
+              resetInactivityTimer();
               return;
             }
             const contentType = response.headers.get("content-type");
@@ -459,35 +473,36 @@ export const LLMChat = ({
             throw new Error(`HTTP ${response.status}: ${response.statusText}`);
           },
           onmessage(event) {
+            resetInactivityTimer();
             if (!event.data || event.data.trim() === "") return;
+            let data: any;
             try {
-              const data = JSON.parse(event.data);
-              if (data.type === "content" && data.content) {
-                accumulatedContent += data.content;
-                const newContent = accumulatedContent;
-                setMessages((prev) =>
-                  prev.map((m) => (m.id === assistantMsgId ? { ...m, content: newContent } : m))
-                );
-              } else if (data.type === "image") {
-                // store image as a special marker that we'll render separately
-                const imageFormat = data.image_format || "png";
-                const imageAlt = data.image_alt || "Generated image";
-                const imageData = data.image_data || "";
-                // use a unique marker that won't appear in normal text
-                const imageMarker = `\n\n[IMAGE:${imageFormat}:${imageAlt}:${imageData}]\n\n`;
-                accumulatedContent += imageMarker;
-                const newContent = accumulatedContent;
-                setMessages((prev) =>
-                  prev.map((m) => (m.id === assistantMsgId ? { ...m, content: newContent } : m))
-                );
-              } else if (data.type === "done") {
-                // capture message_content for persistence (includes tool calls)
-                messageContent = data.message_content || null;
-              } else if (data.type === "error") {
-                throw new Error(data.error);
-              }
+              data = JSON.parse(event.data);
             } catch {
-              // ignore malformed SSE chunks
+              return; // ignore unparseable SSE chunks
+            }
+            if (data.type === "content" && data.content) {
+              accumulatedContent += data.content;
+              const newContent = accumulatedContent;
+              setMessages((prev) =>
+                prev.map((m) => (m.id === assistantMsgId ? { ...m, content: newContent } : m))
+              );
+            } else if (data.type === "image") {
+              // store image as a special marker that we'll render separately
+              const imageFormat = data.image_format || "png";
+              const imageAlt = data.image_alt || "Generated image";
+              const imageData = data.image_data || "";
+              const imageMarker = `\n\n[IMAGE:${imageFormat}:${imageAlt}:${imageData}]\n\n`;
+              accumulatedContent += imageMarker;
+              const newContent = accumulatedContent;
+              setMessages((prev) =>
+                prev.map((m) => (m.id === assistantMsgId ? { ...m, content: newContent } : m))
+              );
+            } else if (data.type === "done") {
+              receivedDone = true;
+              messageContent = data.message_content || null;
+            } else if (data.type === "error") {
+              streamError = data.error || "A server error occurred";
             }
           },
           onerror(err) {
@@ -496,6 +511,19 @@ export const LLMChat = ({
           },
           openWhenHidden: true,
         });
+
+        // check for errors reported by the backend during streaming
+        if (streamError) {
+          throw new Error(streamError);
+        }
+
+        // detect premature stream end (connection dropped without "done" event)
+        if (accumulatedContent && !receivedDone) {
+          accumulatedContent += "\n\n---\n*Response may be incomplete — the connection was interrupted.*";
+          setMessages((prev) =>
+            prev.map((m) => (m.id === assistantMsgId ? { ...m, content: accumulatedContent } : m))
+          );
+        }
 
         // streaming completed - notify parent with the completed messages
         if (accumulatedContent) {
@@ -514,12 +542,17 @@ export const LLMChat = ({
         }
       } catch (err: any) {
         if (err.name === "AbortError") {
+          if (isTimeoutAbortRef.current) {
+            setError("Server stopped responding. Please try again.");
+            setMessages((prev) => prev.filter((m) => m.id !== assistantMsgId || m.content));
+          }
           return;
         }
         console.error("Chat error:", err);
         setError(err.message || "Failed to send message");
         setMessages((prev) => prev.filter((m) => m.id !== assistantMsgId || m.content));
       } finally {
+        if (inactivityTimer) clearTimeout(inactivityTimer);
         setIsLoading(false);
       }
     },
