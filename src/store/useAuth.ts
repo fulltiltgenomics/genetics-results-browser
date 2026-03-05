@@ -1,22 +1,21 @@
 import { create } from "zustand";
 import { useShallow } from "zustand/react/shallow";
-import api from "./api";
 import axios from "axios";
 
+const chatUrl = import.meta.env.VITE_CHAT_URL || import.meta.env.VITE_API_URL;
+const chatApi = axios.create({
+  baseURL: chatUrl,
+  headers: { "Content-Type": "application/json" },
+  withCredentials: true,
+});
+
 interface AuthResponse {
-  base_url: string;
-  origin: string;
-  referer: string;
-  session: {
-    frontend_url?: string;
-    next?: string;
-    user_email?: string;
-  };
+  authenticated: boolean;
+  user: string | null;
 }
 
 interface MeResponse {
   user: string;
-  auth_enabled: boolean;
 }
 
 interface AuthState {
@@ -38,41 +37,31 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   user: null,
 
   login: () => {
-    const currentUrl = window.location.href;
-    window.location.href = `${api.defaults.baseURL}/v1/login?frontend_url=${encodeURIComponent(
-      currentUrl
-    )}`;
+    // auth is handled by IAP/oauth2-proxy — redirect to sign-in
+    window.location.href = `/oauth2/sign_in?rd=${encodeURIComponent(window.location.pathname)}`;
   },
 
   logout: () => {
-    api
-      .get("/v1/logout")
-      .then(() => {
-        set({ isAuthenticated: false, isAuthorized: null, user: null });
-      })
-      .catch((error) => {
-        console.error("Logout failed:", error);
-        set({ isAuthenticated: false, isAuthorized: null, user: null });
-      });
+    window.location.href = `/oauth2/sign_out?rd=${encodeURIComponent(window.location.origin)}`;
   },
 
   checkAuth: async () => {
     if (get().isAuthenticated !== null) return;
 
     try {
-      const response = await api.get<AuthResponse>("/v1/auth");
-      const userEmail = response.data.session.user_email;
-      const isAuth = userEmail !== undefined;
+      const response = await chatApi.get<AuthResponse>("/v1/auth");
+      const isAuth = response.data.authenticated;
+      const user = response.data.user;
 
       set({
         isAuthenticated: isAuth,
-        user: userEmail ?? null,
+        user: user ?? null,
         hasError: false,
       });
 
       if (isAuth) {
         try {
-          const meResponse = await api.get<MeResponse>("/v1/me");
+          const meResponse = await chatApi.get<MeResponse>("/v1/me");
           set({
             isAuthorized: true,
             user: meResponse.data.user,

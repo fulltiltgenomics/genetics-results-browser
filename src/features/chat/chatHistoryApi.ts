@@ -1,6 +1,6 @@
 import type { AttachmentType } from "./chat.types";
 
-const apiUrl = import.meta.env.VITE_API_URL;
+const chatUrl = import.meta.env.VITE_CHAT_URL || import.meta.env.VITE_API_URL;
 
 export interface UploadedAttachment {
   id: string;
@@ -38,7 +38,7 @@ export interface SessionDetail extends ChatSession {
 }
 
 export async function listSessions(): Promise<ChatSession[]> {
-  const response = await fetch(`${apiUrl}/v1/chat/sessions`, {
+  const response = await fetch(`${chatUrl}/v1/chat/sessions`, {
     credentials: "include",
   });
   if (!response.ok) {
@@ -49,7 +49,7 @@ export async function listSessions(): Promise<ChatSession[]> {
 }
 
 export async function createSession(phenotypeCode?: string): Promise<ChatSession> {
-  const response = await fetch(`${apiUrl}/v1/chat/sessions`, {
+  const response = await fetch(`${chatUrl}/v1/chat/sessions`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
@@ -68,7 +68,7 @@ export async function createSession(phenotypeCode?: string): Promise<ChatSession
 }
 
 export async function getSession(sessionId: string): Promise<SessionDetail> {
-  const response = await fetch(`${apiUrl}/v1/chat/sessions/${sessionId}`, {
+  const response = await fetch(`${chatUrl}/v1/chat/sessions/${sessionId}`, {
     credentials: "include",
   });
   if (!response.ok) {
@@ -91,7 +91,7 @@ export async function updateSession(
   sessionId: string,
   updates: { title?: string; rating?: number; comment?: string }
 ): Promise<void> {
-  const response = await fetch(`${apiUrl}/v1/chat/sessions/${sessionId}`, {
+  const response = await fetch(`${chatUrl}/v1/chat/sessions/${sessionId}`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
@@ -103,7 +103,7 @@ export async function updateSession(
 }
 
 export async function deleteSession(sessionId: string): Promise<void> {
-  const response = await fetch(`${apiUrl}/v1/chat/sessions/${sessionId}`, {
+  const response = await fetch(`${chatUrl}/v1/chat/sessions/${sessionId}`, {
     method: "DELETE",
     credentials: "include",
   });
@@ -130,7 +130,7 @@ export async function saveMessage(
     tool_profile: toolProfile,
   };
   console.log("[saveMessage] Saving with payload:", payload);
-  const response = await fetch(`${apiUrl}/v1/chat/sessions/${sessionId}/messages`, {
+  const response = await fetch(`${chatUrl}/v1/chat/sessions/${sessionId}/messages`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
@@ -146,7 +146,7 @@ export async function rateMessage(
   messageId: string,
   thumbsUp: boolean | null
 ): Promise<void> {
-  const response = await fetch(`${apiUrl}/v1/chat/messages/${messageId}/rating`, {
+  const response = await fetch(`${chatUrl}/v1/chat/messages/${messageId}/rating`, {
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
@@ -158,7 +158,7 @@ export async function rateMessage(
 }
 
 export async function generateTitle(sessionId: string): Promise<string> {
-  const response = await fetch(`${apiUrl}/v1/chat/sessions/${sessionId}/generate-title`, {
+  const response = await fetch(`${chatUrl}/v1/chat/sessions/${sessionId}/generate-title`, {
     method: "POST",
     credentials: "include",
   });
@@ -200,7 +200,7 @@ export async function uploadAttachment(
   const formData = new FormData();
   formData.append("file", file);
 
-  const response = await fetch(`${apiUrl}/v1/chat/sessions/${sessionId}/attachments`, {
+  const response = await fetch(`${chatUrl}/v1/chat/sessions/${sessionId}/attachments`, {
     method: "POST",
     credentials: "include",
     body: formData,
@@ -227,7 +227,7 @@ export async function deleteAttachment(
   attachmentId: string
 ): Promise<void> {
   const response = await fetch(
-    `${apiUrl}/v1/chat/sessions/${sessionId}/attachments/${attachmentId}`,
+    `${chatUrl}/v1/chat/sessions/${sessionId}/attachments/${attachmentId}`,
     {
       method: "DELETE",
       credentials: "include",
@@ -244,7 +244,7 @@ export async function getAttachment(
   attachmentId: string
 ): Promise<Blob> {
   const response = await fetch(
-    `${apiUrl}/v1/chat/sessions/${sessionId}/attachments/${attachmentId}`,
+    `${chatUrl}/v1/chat/sessions/${sessionId}/attachments/${attachmentId}`,
     {
       credentials: "include",
     }

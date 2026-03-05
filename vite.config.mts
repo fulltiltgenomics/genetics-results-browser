@@ -31,6 +31,11 @@ export default defineConfig({
         changeOrigin: true,
         secure: true,
       },
+      "/chat": {
+        target: "https://dev.finngen.fi",
+        changeOrigin: true,
+        secure: true,
+      },
     },
   },
 });
