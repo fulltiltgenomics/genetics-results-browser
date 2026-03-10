@@ -1,0 +1,227 @@
+import { useState, useEffect, useCallback } from "react";
+import {
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  Button,
+  TextField,
+  Typography,
+  Box,
+  IconButton,
+  Alert,
+  Chip,
+  Tooltip,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemSecondaryAction,
+} from "@mui/material";
+import ContentCopyIcon from "@mui/icons-material/ContentCopy";
+import DeleteIcon from "@mui/icons-material/Delete";
+import { createToken, listTokens, revokeToken, type TokenInfo } from "../chat/tokenApi";
+
+interface McpTokenDialogProps {
+  open: boolean;
+  onClose: () => void;
+}
+
+const McpTokenDialog = ({ open, onClose }: McpTokenDialogProps) => {
+  const [tokens, setTokens] = useState<TokenInfo[]>([]);
+  const [newTokenValue, setNewTokenValue] = useState<string | null>(null);
+  const [tokenName, setTokenName] = useState("");
+  const [copied, setCopied] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadTokens = useCallback(async () => {
+    try {
+      setTokens(await listTokens());
+    } catch (e) {
+      setError("Failed to load tokens");
+    }
+  }, []);
+
+  useEffect(() => {
+    if (open) {
+      loadTokens();
+      setNewTokenValue(null);
+      setTokenName("");
+      setCopied(false);
+      setError(null);
+    }
+  }, [open, loadTokens]);
+
+  const handleCreate = async () => {
+    try {
+      setError(null);
+      const result = await createToken(tokenName || undefined);
+      setNewTokenValue(result.token);
+      setTokenName("");
+      setCopied(false);
+      await loadTokens();
+    } catch (e) {
+      setError("Failed to create token");
+    }
+  };
+
+  const handleCopy = async (text: string) => {
+    await navigator.clipboard.writeText(text);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleRevoke = async (tokenId: number) => {
+    try {
+      setError(null);
+      await revokeToken(tokenId);
+      await loadTokens();
+    } catch (e) {
+      setError("Failed to revoke token");
+    }
+  };
+
+  const formatDate = (iso: string) => new Date(iso).toLocaleDateString();
+
+  const activeTokens = tokens.filter((t) => t.isActive);
+  const revokedTokens = tokens.filter((t) => !t.isActive);
+
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
+      <DialogTitle>MCP and API Tokens</DialogTitle>
+      <DialogContent>
+        {error && (
+          <Alert severity="error" sx={{ mb: 2 }}>
+            {error}
+          </Alert>
+        )}
+
+        {newTokenValue && (
+          <Alert severity="success" sx={{ mb: 2, "& .MuiAlert-message": { overflow: "hidden", width: "100%" } }} icon={false}>
+            <Typography variant="subtitle2" gutterBottom>
+              Token created — copy it now, it won't be shown again
+            </Typography>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+              <TextField
+                value={newTokenValue}
+                size="small"
+                fullWidth
+                slotProps={{ input: { readOnly: true, sx: { fontFamily: "monospace", fontSize: "0.85rem" } } }}
+              />
+              <Tooltip title={copied ? "Copied!" : "Copy"}>
+                <IconButton onClick={() => handleCopy(newTokenValue)} size="small">
+                  <ContentCopyIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            </Box>
+          </Alert>
+        )}
+
+        <Box sx={{ display: "flex", gap: 1, mb: 2 }}>
+          <TextField
+            value={tokenName}
+            onChange={(e) => setTokenName(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") handleCreate(); }}
+            placeholder="Token name (optional)"
+            size="small"
+            fullWidth
+          />
+          <Button variant="contained" onClick={handleCreate} sx={{ whiteSpace: "nowrap" }}>
+            Create token
+          </Button>
+        </Box>
+
+        {activeTokens.length > 0 && (
+          <List dense disablePadding>
+            {activeTokens.map((t) => (
+              <ListItem key={t.id} divider>
+                <ListItemText
+                  primary={
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                      <Typography variant="body2" fontFamily="monospace">
+                        {t.prefix}...
+                      </Typography>
+                      {t.name && <Chip label={t.name} size="small" variant="outlined" />}
+                    </Box>
+                  }
+                  secondary={
+                    <>
+                      Created {formatDate(t.createdAt)}
+                      {t.lastUsedAt && ` · Last used ${formatDate(t.lastUsedAt)}`}
+                    </>
+                  }
+                />
+                <ListItemSecondaryAction>
+                  <Tooltip title="Revoke">
+                    <IconButton edge="end" onClick={() => handleRevoke(t.id)} size="small">
+                      <DeleteIcon fontSize="small" />
+                    </IconButton>
+                  </Tooltip>
+                </ListItemSecondaryAction>
+              </ListItem>
+            ))}
+          </List>
+        )}
+
+        {activeTokens.length === 0 && !newTokenValue && (
+          <Typography variant="body2" color="text.secondary" sx={{ py: 1 }}>
+            No active tokens. Create one to connect MCP clients.
+          </Typography>
+        )}
+
+        {revokedTokens.length > 0 && (
+          <Box sx={{ mt: 2 }}>
+            <Typography variant="caption" color="text.secondary">
+              Revoked tokens
+            </Typography>
+            <List dense disablePadding>
+              {revokedTokens.map((t) => (
+                <ListItem key={t.id} divider sx={{ opacity: 0.5 }}>
+                  <ListItemText
+                    primary={
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                        <Typography variant="body2" fontFamily="monospace">
+                          {t.prefix}...
+                        </Typography>
+                        {t.name && <Chip label={t.name} size="small" variant="outlined" />}
+                      </Box>
+                    }
+                    secondary={`Created ${formatDate(t.createdAt)}`}
+                  />
+                </ListItem>
+              ))}
+            </List>
+          </Box>
+        )}
+        <Box sx={{ mt: 3, p: 2, bgcolor: "action.hover", borderRadius: 1 }}>
+          <Typography variant="subtitle2" gutterBottom>
+            API access
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            For direct API access, use a Google Identity Token:
+          </Typography>
+          <Box
+            component="pre"
+            sx={{
+              mt: 1,
+              p: 1.5,
+              bgcolor: "background.paper",
+              borderRadius: 1,
+              fontSize: "0.8rem",
+              fontFamily: "monospace",
+              overflow: "auto",
+              whiteSpace: "pre-wrap",
+            }}
+          >
+{`curl -H "Authorization: Bearer $(gcloud auth print-identity-token)" \\
+  https://finngenie.fi/api/v1/...`}
+          </Box>
+        </Box>
+      </DialogContent>
+      <DialogActions>
+        <Button onClick={onClose}>Close</Button>
+      </DialogActions>
+    </Dialog>
+  );
+};
+
+export default McpTokenDialog;

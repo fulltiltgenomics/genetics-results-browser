@@ -1,11 +1,15 @@
-import { Typography, Box, Link, useMediaQuery, IconButton, Button } from "@mui/material";
+import { useState } from "react";
+import { Typography, Box, Link, useMediaQuery, IconButton, Button, Menu, MenuItem } from "@mui/material";
 import Brightness4Icon from "@mui/icons-material/Brightness4";
 import Brightness7Icon from "@mui/icons-material/Brightness7";
+import KeyIcon from "@mui/icons-material/Key";
+import LogoutIcon from "@mui/icons-material/Logout";
 import { useHotkeys } from "react-hotkeys-hook";
 import config from "../../config.json";
 import { useThemeStore } from "@/store/store.theme";
 import { useAuth } from "@/store/useAuth";
 import { useLocation } from "react-router-dom";
+import McpTokenDialog from "./McpTokenDialog";
 
 const Header = () => {
   const location = useLocation();
@@ -29,6 +33,8 @@ const Header = () => {
   const actualDarkMode = isDarkMode ?? prefersDarkMode;
 
   const { isAuthenticated, user, login, logout } = useAuth();
+  const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
+  const [tokenDialogOpen, setTokenDialogOpen] = useState(false);
 
   const handleThemeClick = () => {
     setTheme(!actualDarkMode);
@@ -68,10 +74,40 @@ const Header = () => {
         </Typography>
         <Box flexGrow={1} />
         {isAuthenticated ? (
-          <Box display="flex" flexDirection="row" alignItems="center" gap={1}>
-            <Typography>{user}</Typography>
-            <Button onClick={() => logout()}>Logout</Button>
-          </Box>
+          <>
+            <Button
+              onClick={(e) => setMenuAnchor(e.currentTarget)}
+              color="inherit"
+              sx={{ textTransform: "none" }}
+            >
+              {user}
+            </Button>
+            <Menu
+              anchorEl={menuAnchor}
+              open={Boolean(menuAnchor)}
+              onClose={() => setMenuAnchor(null)}
+            >
+              <MenuItem
+                onClick={() => {
+                  setMenuAnchor(null);
+                  setTokenDialogOpen(true);
+                }}
+              >
+                <KeyIcon fontSize="small" sx={{ mr: 1 }} />
+                MCP and API tokens
+              </MenuItem>
+              <MenuItem
+                onClick={() => {
+                  setMenuAnchor(null);
+                  logout();
+                }}
+              >
+                <LogoutIcon fontSize="small" sx={{ mr: 1 }} />
+                Logout
+              </MenuItem>
+            </Menu>
+            <McpTokenDialog open={tokenDialogOpen} onClose={() => setTokenDialogOpen(false)} />
+          </>
         ) : config.target === "public" ? null : (
           <Button onClick={() => login()}>Login</Button>
         )}
