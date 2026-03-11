@@ -83,7 +83,6 @@ const McpTokenDialog = ({ open, onClose }: McpTokenDialogProps) => {
   const formatDate = (iso: string) => new Date(iso).toLocaleDateString();
 
   const activeTokens = tokens.filter((t) => t.isActive);
-  const revokedTokens = tokens.filter((t) => !t.isActive);
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
@@ -168,36 +167,12 @@ const McpTokenDialog = ({ open, onClose }: McpTokenDialogProps) => {
           </Typography>
         )}
 
-        {revokedTokens.length > 0 && (
-          <Box sx={{ mt: 2 }}>
-            <Typography variant="caption" color="text.secondary">
-              Revoked tokens
-            </Typography>
-            <List dense disablePadding>
-              {revokedTokens.map((t) => (
-                <ListItem key={t.id} divider sx={{ opacity: 0.5 }}>
-                  <ListItemText
-                    primary={
-                      <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                        <Typography variant="body2" fontFamily="monospace">
-                          {t.prefix}...
-                        </Typography>
-                        {t.name && <Chip label={t.name} size="small" variant="outlined" />}
-                      </Box>
-                    }
-                    secondary={`Created ${formatDate(t.createdAt)}`}
-                  />
-                </ListItem>
-              ))}
-            </List>
-          </Box>
-        )}
         <Box sx={{ mt: 3, p: 2, bgcolor: "action.hover", borderRadius: 1 }}>
           <Typography variant="subtitle2" gutterBottom>
-            API access
+            MCP access
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            For direct API access, use a Google Identity Token:
+            Use this configuration to add FinnGenie MCP to Claude, Cursor, etc. Replace &lt;TOKEN&gt; with a created token:
           </Typography>
           <Box
             component="pre"
@@ -212,9 +187,45 @@ const McpTokenDialog = ({ open, onClose }: McpTokenDialogProps) => {
               whiteSpace: "pre-wrap",
             }}
           >
-{`curl -H "Authorization: Bearer $(gcloud auth print-identity-token)" \\
-  https://finngenie.fi/api/v1/...`}
+        {`{
+  "mcpServers": {
+    "genetics": {
+      "type": "streamable-http",
+      "url": "https://finngenie.fi/mcp",
+      "headers": {
+        "Authorization": "Bearer <TOKEN>"
+      }
+    }
+  }
+}`}
           </Box>
+        </Box>
+        <Box sx={{ mt: 3, p: 2, bgcolor: "action.hover", borderRadius: 1 }}>
+          <Typography variant="subtitle2" gutterBottom>
+            API access
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            For direct API access, you can use a token created here, or a Google ID token:
+          </Typography>
+          <Box
+            component="pre"
+            sx={{
+              mt: 1,
+              p: 1.5,
+              bgcolor: "background.paper",
+              borderRadius: 1,
+              fontSize: "0.8rem",
+              fontFamily: "monospace",
+              overflow: "auto",
+              whiteSpace: "pre-wrap",
+            }}
+          >
+{`GOOGLE_IDENTITY_TOKEN=$(gcloud auth print-identity-token)\n\ncurl -H "Authorization: Bearer $GOOGLE_IDENTITY_TOKEN" \\
+  https://finngenie.fi/api/v1/credible_sets_by_gene/PCSK9 | head`}
+          </Box>
+          <Typography variant="body2" color="text.secondary">
+            See <a href="https://finngenie.fi/api/v1/docs" target="_blank" rel="noreferrer">API docs</a> for available API endpoints.
+          </Typography>
         </Box>
       </DialogContent>
       <DialogActions>
