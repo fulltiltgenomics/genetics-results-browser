@@ -205,7 +205,7 @@ const McpTokenDialog = ({ open, onClose }: McpTokenDialogProps) => {
             API access
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            For direct API access, you can use a token created here, or a Google ID token:
+            For direct API access, replace &lt;TOKEN&gt; with a created token:
           </Typography>
           <Box
             component="pre"
@@ -220,13 +220,16 @@ const McpTokenDialog = ({ open, onClose }: McpTokenDialogProps) => {
               whiteSpace: "pre-wrap",
             }}
           >
-{`GOOGLE_IDENTITY_TOKEN=$(gcloud auth print-identity-token)\n\ncurl -H "Authorization: Bearer $GOOGLE_IDENTITY_TOKEN" \\
+{`curl -H "Authorization: Bearer <TOKEN>" \\
   https://finngenie.fi/api/v1/credible_sets_by_gene/PCSK9 | head`}
           </Box>
-          <Typography variant="body2" color="text.secondary">
+          <Typography variant="body2" color="text.secondary" paragraph>
+            You can also use a Google ID token (in terminal: <code>gcloud auth print-identity-token</code>) but it recycles once an hour.
+          </Typography>
+          <Typography variant="body2" color="text.secondary" paragraph>
             See <a href="https://finngenie.fi/api/v1/docs" target="_blank" rel="noreferrer">API docs</a> for available API endpoints.
           </Typography>
-        </Box>
+          </Box>
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose}>Close</Button>
