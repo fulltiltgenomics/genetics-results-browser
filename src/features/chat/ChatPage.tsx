@@ -1,11 +1,13 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Box, Typography, CircularProgress, IconButton, Link, Chip } from "@mui/material";
-import { ChevronLeft, ChevronRight, VisibilityOff } from "@mui/icons-material";
+import { Box, Typography, CircularProgress, IconButton, Chip } from "@mui/material";
+import { VisibilityOff, Feedback, Info, Key } from "@mui/icons-material";
 import finnGenieLogo from "../../assets/finngenie-leonardo-gemini-2.5-flash-recraft-vectorized-claude-cropped.svg";
 import { LLMChat } from "./LLMChat";
-import { LLMConfigEditor } from "./LLMConfigEditor";
 import { ChatHistorySidebar } from "./ChatHistorySidebar";
 import { SessionRating } from "./SessionRating";
+import { FeedbackDialog } from "./FeedbackDialog";
+import { AboutDialog } from "./AboutDialog";
+import McpTokenDialog from "../page/McpTokenDialog";
 import {
   listSessions,
   createSession,
@@ -37,8 +39,9 @@ const ChatPage = () => {
   // messages with attachment previews loaded
   const [loadedMessages, setLoadedMessages] = useState<ChatMessage[] | undefined>(undefined);
 
-  const [configOpen, setConfigOpen] = useState(false);
-  const [infoExpanded, setInfoExpanded] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [aboutOpen, setAboutOpen] = useState(false);
+  const [tokensOpen, setTokensOpen] = useState(false);
   const [isSecretChat, setIsSecretChat] = useState(false);
 
   // track current messages for saving
@@ -489,47 +492,20 @@ const ChatPage = () => {
                 )}
               </Box>
 
-              <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-                I can help you explore and interpret human genetics results. Ask me about
-                phenotypes, genes, variants, biological interpretations, and more.
-                {!infoExpanded && (
-                  <Link
-                    component="button"
-                    variant="body2"
-                    onClick={() => setInfoExpanded(true)}
-                    sx={{ ml: 1, verticalAlign: "baseline" }}>
-                    Show more...
-                  </Link>
-                )}
-              </Typography>
-
-              {infoExpanded && (
-                <>
-                  <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-                    I am Claude Sonnet 4.6 but I also have direct access to a lot of great genetics
-                    results data (ask me about it!). Typically, when you ask me a question, I will
-                    first check our data resources for relevant information. Then I'll do a literature
-                    search, and finally synthesize the information from the two sources. Do ask
-                    follow-up questions!
-                  </Typography>
-
-                  <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-                    For now, your chats are stored so we can improve me.
-                  </Typography>
-
-                  <Link
-                    component="button"
-                    variant="body2"
-                    onClick={() => setInfoExpanded(false)}
-                    sx={{ mt: 1 }}>
-                    Show less
-                  </Link>
-                </>
-              )}
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1, mt: 1 }}>
+                <IconButton size="small" title="Feedback" onClick={() => setFeedbackOpen(true)}>
+                  <Feedback fontSize="small" />
+                </IconButton>
+                <IconButton size="small" title="About" onClick={() => setAboutOpen(true)}>
+                  <Info fontSize="small" />
+                </IconButton>
+                <IconButton size="small" title="MCP/API Tokens" onClick={() => setTokensOpen(true)}>
+                  <Key fontSize="small" />
+                </IconButton>
+              </Box>
             </Box>
           </Box>
         </Box>
-        {configOpen && <Box sx={{ width: 480, flexShrink: 0, borderColor: "divider" }} />}
       </Box>
 
       {/* content row */}
@@ -602,34 +578,11 @@ const ChatPage = () => {
           )}
         </Box>
 
-        {/* config editor toggle + panel */}
-        <Box sx={{ display: "flex", flexShrink: 0 }}>
-          <Box
-            sx={{
-              display: "flex",
-              alignItems: "flex-start",
-              borderLeft: 1,
-              borderColor: "divider",
-            }}>
-            <IconButton
-              onClick={() => setConfigOpen((prev) => !prev)}
-              size="small"
-              title={configOpen ? "Hide config panel" : "Show config panel"}
-              sx={{ mt: 1, mx: 0.5 }}>
-              {configOpen ? <ChevronRight /> : <ChevronLeft />}
-            </IconButton>
-          </Box>
-          {configOpen && (
-            <Box
-              sx={{
-                width: 480,
-                overflow: "auto",
-              }}>
-              <LLMConfigEditor />
-            </Box>
-          )}
-        </Box>
       </Box>
+
+      <FeedbackDialog open={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
+      <AboutDialog open={aboutOpen} onClose={() => setAboutOpen(false)} />
+      <McpTokenDialog open={tokensOpen} onClose={() => setTokensOpen(false)} />
     </Box>
   );
 };

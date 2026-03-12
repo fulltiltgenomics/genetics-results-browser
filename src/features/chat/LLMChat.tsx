@@ -149,8 +149,7 @@ export const LLMChat = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dragCounterRef = useRef(0);
 
-  const apiUrl = import.meta.env.VITE_API_URL;
-  const chatUrl = import.meta.env.VITE_CHAT_URL || apiUrl;
+  const chatUrl = import.meta.env.VITE_CHAT_URL;
 
   // track the last session ID to detect actual session switches
   const lastSessionIdRef = useRef<string | null | undefined>(undefined);
@@ -560,7 +559,7 @@ export const LLMChat = ({
     [
       messages,
       phenotypeCode,
-      apiUrl,
+      chatUrl,
       isLoading,
       onFirstExchange,
       onStreamingComplete,

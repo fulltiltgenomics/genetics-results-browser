@@ -1,6 +1,6 @@
 import type { AttachmentType } from "./chat.types";
 
-const chatUrl = import.meta.env.VITE_CHAT_URL || import.meta.env.VITE_API_URL;
+const chatUrl = import.meta.env.VITE_CHAT_URL;
 
 export interface UploadedAttachment {
   id: string;

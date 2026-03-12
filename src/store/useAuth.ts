@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { useShallow } from "zustand/react/shallow";
 import axios from "axios";
 
-const chatUrl = import.meta.env.VITE_CHAT_URL || import.meta.env.VITE_API_URL;
+const chatUrl = import.meta.env.VITE_CHAT_URL;
 const chatApi = axios.create({
   baseURL: chatUrl,
   headers: { "Content-Type": "application/json" },
