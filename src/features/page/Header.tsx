@@ -6,6 +6,8 @@ import KeyIcon from "@mui/icons-material/Key";
 import LogoutIcon from "@mui/icons-material/Logout";
 import { useHotkeys } from "react-hotkeys-hook";
 import config from "../../config.json";
+import broadLogo from "../../assets/broad-logo.png";
+import finngenLogo from "../../assets/finngen-logo-400-1.png";
 import { useThemeStore } from "@/store/store.theme";
 import { useAuth } from "@/store/useAuth";
 import { useLocation } from "react-router-dom";
@@ -69,9 +71,8 @@ const Header = () => {
             Changelog
           </Link>
         </Typography> */}
-        <Typography sx={{ paddingLeft: "20px", alignSelf: "center" }}>
-          Last updated {__BUILD_DATE__}
-        </Typography>
+        <Box component="img" src={broadLogo} alt="Broad Institute" sx={{ height: 32, backgroundColor: "white", p: 0.5, borderRadius: 0.5 }} />
+        <Box component="img" src={finngenLogo} alt="FinnGen" sx={{ height: 40, backgroundColor: "white", p: 0.5, borderRadius: 0.5 }} />
         <Box flexGrow={1} />
         {isAuthenticated ? (
           <>
