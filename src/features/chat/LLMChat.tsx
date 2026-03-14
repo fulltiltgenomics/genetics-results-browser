@@ -18,6 +18,8 @@ import {
 } from "@mui/material";
 import {
   Send as SendIcon,
+  Stop as StopIcon,
+  PlayArrow as ContinueIcon,
   Refresh as RefreshIcon,
   ExpandMore as ExpandMoreIcon,
   ExpandLess as ExpandLessIcon,
@@ -145,6 +147,7 @@ export const LLMChat = ({
   const [toolProfile, setToolProfile] = useState<ToolProfile | null>(null);
   const hasTriggeredFirstExchange = useRef(false);
   const [pendingAttachments, setPendingAttachments] = useState<PendingAttachment[]>([]);
+  const [wasStopped, setWasStopped] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dragCounterRef = useRef(0);
@@ -312,6 +315,7 @@ export const LLMChat = ({
   const sendMessage = useCallback(
     async (userMessage: string, attachments?: PendingAttachment[]) => {
       if ((!userMessage.trim() && (!attachments || attachments.length === 0)) || isLoading) return;
+      setWasStopped(false);
 
       // convert pending attachments to file attachments for the message
       const messageAttachments: FileAttachment[] | undefined =
@@ -545,6 +549,18 @@ export const LLMChat = ({
           if (isTimeoutAbortRef.current) {
             setError("Server stopped responding. Please try again.");
             setMessages((prev) => prev.filter((m) => m.id !== assistantMsgId || m.content));
+          } else if (accumulatedContent) {
+            // user-initiated stop with partial content — keep it and save
+            const stoppedMsg: ChatMessage = {
+              id: assistantMsgId,
+              role: "assistant",
+              content: accumulatedContent,
+            };
+            onStreamingComplete?.(userMsg, stoppedMsg, messageContent, literatureBackend, toolProfile);
+            if (!hasTriggeredFirstExchange.current) {
+              hasTriggeredFirstExchange.current = true;
+              onFirstExchange?.(literatureBackend, toolProfile);
+            }
           }
           return;
         }
@@ -567,6 +583,16 @@ export const LLMChat = ({
       toolProfile,
     ]
   );
+
+  const handleStop = () => {
+    setWasStopped(true);
+    abortControllerRef.current?.abort();
+  };
+
+  const handleContinue = () => {
+    setWasStopped(false);
+    sendMessage("continue");
+  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -765,13 +791,30 @@ export const LLMChat = ({
             }
           }}
         />
-        <Button
-          type="submit"
-          variant="contained"
-          disabled={isLoading || (!input.trim() && pendingAttachments.length === 0)}
-          sx={{ minWidth: 100 }}>
-          {isLoading ? <CircularProgress size={24} /> : <SendIcon />}
-        </Button>
+        {isLoading ? (
+          <Button
+            variant="contained"
+            onClick={handleStop}
+            sx={{ minWidth: 100 }}>
+            <StopIcon />
+          </Button>
+        ) : wasStopped ? (
+          <Button
+            variant="contained"
+            color="success"
+            onClick={handleContinue}
+            sx={{ minWidth: 100 }}>
+            <ContinueIcon />
+          </Button>
+        ) : (
+          <Button
+            type="submit"
+            variant="contained"
+            disabled={!input.trim() && pendingAttachments.length === 0}
+            sx={{ minWidth: 100 }}>
+            <SendIcon />
+          </Button>
+        )}
       </Box>
     </Paper>
   );
