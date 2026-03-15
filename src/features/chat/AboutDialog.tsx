@@ -23,7 +23,7 @@ export const AboutDialog = ({ open, onClose }: AboutDialogProps) => {
         </Typography>
 
         <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-          For now, your chats are stored so we can improve me.
+          By default, your chats are stored so we can improve me. Chats are not stored by us when you use the Secret Chat feature. We use Anthropic and Perplexity APIs that have their own privacy and data retention policies: <a target="_blank" href="https://privacy.claude.com">Anthropic</a>  <a target="_blank" href="https://docs.perplexity.ai/docs/resources/privacy-security">Perplexity</a>
         </Typography>
       </DialogContent>
       <DialogActions>

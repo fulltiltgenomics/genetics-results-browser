@@ -145,6 +145,7 @@ export const LLMChat = ({
   const [hoveredMessageId, setHoveredMessageId] = useState<string | null>(null);
   const [literatureBackend, setLiteratureBackend] = useState<LiteratureBackend>("perplexity");
   const [toolProfile, setToolProfile] = useState<ToolProfile | null>(null);
+  const [optionsOpen, setOptionsOpen] = useState(false);
   const hasTriggeredFirstExchange = useRef(false);
   const [pendingAttachments, setPendingAttachments] = useState<PendingAttachment[]>([]);
   const [wasStopped, setWasStopped] = useState(false);
@@ -679,40 +680,30 @@ export const LLMChat = ({
         maxWidth: "100%",
         width: "100%",
       }}>
-      <Box sx={{ display: "flex", alignItems: "center", gap: 2, flexWrap: "wrap" }}>
+      <Box
+        sx={{ display: "flex", alignItems: "center", cursor: "pointer", userSelect: "none" }}
+        onClick={() => setOptionsOpen((v) => !v)}>
         <Typography variant="body2" color="text.secondary">
-          Literature search
+          Options
         </Typography>
-        <RadioGroup
-          row
-          value={literatureBackend}
-          onChange={(e) => setLiteratureBackend(e.target.value as LiteratureBackend)}>
-          <FormControlLabel
-            value="perplexity"
-            control={<Radio size="small" />}
-            label="Perplexity"
-            sx={{ "& .MuiFormControlLabel-label": { fontSize: "0.75rem" } }}
-          />
-          <FormControlLabel
-            value="europepmc"
-            control={<Radio size="small" />}
-            label="Europe PMC"
-            sx={{ "& .MuiFormControlLabel-label": { fontSize: "0.75rem" } }}
-          />
-        </RadioGroup>
-        <Box sx={{ borderLeft: 1, borderColor: "divider", pl: 2, display: "flex", alignItems: "center", gap: 2 }}>
+        {optionsOpen ? (
+          <ExpandLessIcon sx={{ fontSize: 18, color: "text.secondary" }} />
+        ) : (
+          <ExpandMoreIcon sx={{ fontSize: 18, color: "text.secondary" }} />
+        )}
+      </Box>
+      <Collapse in={optionsOpen}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 2, flexWrap: "wrap" }}>
           <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
             <Typography variant="body2" color="text.secondary">
-              Tools
+              Literature search
             </Typography>
             <Tooltip
               title={
                 <span style={{ whiteSpace: "pre-line" }}>
-                  Which MCP tools to use?{"\n"}
-                  All - includes all tools and automatically determines the ones to use (most times this is the best choice){"\n"}
-                  RAG - includes Retrieval Augmented Generation search (can currently be used when asking about interpretation on phenotypes){"\n"}
-                  API - includes tools tied to the genetics results API (can be used when strictly getting data for variants/genes/phenotypes){"\n"}
-                  BigQuery - includes access to a BigQuery database that contains credible set and colocalization data (good when computations across all data is needed instead of a specific variant, gene or phenotype)
+                  Choose where to search for scientific literature.{"\n"}
+                  Perplexity - AI-powered search across the web, good for broad questions and recent findings{"\n"}
+                  Europe PMC - searches the Europe PubMed Central database directly, best for precise biomedical literature queries
                 </span>
               }
               arrow
@@ -722,38 +713,76 @@ export const LLMChat = ({
           </Box>
           <RadioGroup
             row
-            value={toolProfile ?? "all"}
-            onChange={(e) => {
-              const val = e.target.value;
-              setToolProfile(val === "all" ? null : (val as ToolProfile));
-            }}>
+            value={literatureBackend}
+            onChange={(e) => setLiteratureBackend(e.target.value as LiteratureBackend)}>
             <FormControlLabel
-              value="all"
+              value="perplexity"
               control={<Radio size="small" />}
-              label="All"
+              label="Perplexity"
               sx={{ "& .MuiFormControlLabel-label": { fontSize: "0.75rem" } }}
             />
             <FormControlLabel
-              value="rag"
+              value="europepmc"
               control={<Radio size="small" />}
-              label="RAG"
-              sx={{ "& .MuiFormControlLabel-label": { fontSize: "0.75rem" } }}
-            />
-            <FormControlLabel
-              value="api"
-              control={<Radio size="small" />}
-              label="API"
-              sx={{ "& .MuiFormControlLabel-label": { fontSize: "0.75rem" } }}
-            />
-            <FormControlLabel
-              value="bigquery"
-              control={<Radio size="small" />}
-              label="BigQuery"
+              label="Europe PMC"
               sx={{ "& .MuiFormControlLabel-label": { fontSize: "0.75rem" } }}
             />
           </RadioGroup>
+          <Box sx={{ borderLeft: 1, borderColor: "divider", pl: 2, display: "flex", alignItems: "center", gap: 2 }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+              <Typography variant="body2" color="text.secondary">
+                Tools
+              </Typography>
+              <Tooltip
+                title={
+                  <span style={{ whiteSpace: "pre-line" }}>
+                    Which MCP tools to use?{"\n"}
+                    All - includes all tools and automatically determines the ones to use (most times this is the best choice){"\n"}
+                    RAG - includes Retrieval Augmented Generation search (can currently be used when asking about interpretation on phenotypes){"\n"}
+                    API - includes tools tied to the genetics results API (can be used when strictly getting data for variants/genes/phenotypes){"\n"}
+                    BigQuery - includes access to a BigQuery database that contains credible set and colocalization data (good when computations across all data is needed instead of a specific variant, gene or phenotype)
+                  </span>
+                }
+                arrow
+                placement="top">
+                <InfoIcon sx={{ fontSize: 16, color: "text.secondary", cursor: "help" }} />
+              </Tooltip>
+            </Box>
+            <RadioGroup
+              row
+              value={toolProfile ?? "all"}
+              onChange={(e) => {
+                const val = e.target.value;
+                setToolProfile(val === "all" ? null : (val as ToolProfile));
+              }}>
+              <FormControlLabel
+                value="all"
+                control={<Radio size="small" />}
+                label="All"
+                sx={{ "& .MuiFormControlLabel-label": { fontSize: "0.75rem" } }}
+              />
+              <FormControlLabel
+                value="rag"
+                control={<Radio size="small" />}
+                label="RAG"
+                sx={{ "& .MuiFormControlLabel-label": { fontSize: "0.75rem" } }}
+              />
+              <FormControlLabel
+                value="api"
+                control={<Radio size="small" />}
+                label="API"
+                sx={{ "& .MuiFormControlLabel-label": { fontSize: "0.75rem" } }}
+              />
+              <FormControlLabel
+                value="bigquery"
+                control={<Radio size="small" />}
+                label="BigQuery"
+                sx={{ "& .MuiFormControlLabel-label": { fontSize: "0.75rem" } }}
+              />
+            </RadioGroup>
+          </Box>
         </Box>
-      </Box>
+      </Collapse>
       <PendingAttachments
         attachments={pendingAttachments}
         onRemove={removeAttachment}

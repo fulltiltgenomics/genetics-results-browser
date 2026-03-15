@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Box, Typography, CircularProgress, IconButton, Chip } from "@mui/material";
-import { VisibilityOff, Feedback, Info, Key } from "@mui/icons-material";
+import { Box, Typography, CircularProgress, Button, Chip } from "@mui/material";
+import { VisibilityOff } from "@mui/icons-material";
 import finnGenieLogo from "../../assets/finngenie-leonardo-gemini-2.5-flash-recraft-vectorized-claude-cropped.svg";
 import { LLMChat } from "./LLMChat";
 import { ChatHistorySidebar } from "./ChatHistorySidebar";
@@ -493,15 +493,15 @@ const ChatPage = () => {
               </Box>
 
               <Box sx={{ display: "flex", alignItems: "center", gap: 1, mt: 1 }}>
-                <IconButton size="small" title="Feedback" onClick={() => setFeedbackOpen(true)}>
-                  <Feedback fontSize="small" />
-                </IconButton>
-                <IconButton size="small" title="About" onClick={() => setAboutOpen(true)}>
-                  <Info fontSize="small" />
-                </IconButton>
-                <IconButton size="small" title="MCP/API Tokens" onClick={() => setTokensOpen(true)}>
-                  <Key fontSize="small" />
-                </IconButton>
+                <Button size="small" onClick={() => setAboutOpen(true)}>
+                  About
+                </Button>
+                <Button size="small" onClick={() => setFeedbackOpen(true)}>
+                  Feedback
+                </Button>
+                <Button size="small" onClick={() => setTokensOpen(true)}>
+                  MCP/API Keys
+                </Button>
               </Box>
             </Box>
           </Box>

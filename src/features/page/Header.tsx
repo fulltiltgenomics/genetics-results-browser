@@ -72,7 +72,13 @@ const Header = () => {
           </Link>
         </Typography> */}
         <Box component="img" src={broadLogo} alt="Broad Institute" sx={{ height: 32, backgroundColor: "white", p: 0.5, borderRadius: 0.5 }} />
-        <Box component="img" src={finngenLogo} alt="FinnGen" sx={{ height: 40, backgroundColor: "white", p: 0.5, borderRadius: 0.5 }} />
+        <Box
+          component="img"
+          src={finngenLogo}
+          alt="FinnGen"
+          onDoubleClick={() => new Audio(sounds[Math.floor(Math.random() * sounds.length)]).play()}
+          sx={{ height: 40, backgroundColor: "white", p: 0.5, borderRadius: 0.5 }}
+        />
         <Box flexGrow={1} />
         {isAuthenticated ? (
           <>
@@ -95,7 +101,7 @@ const Header = () => {
                 }}
               >
                 <KeyIcon fontSize="small" sx={{ mr: 1 }} />
-                MCP and API tokens
+                MCP and API keys
               </MenuItem>
               <MenuItem
                 onClick={() => {

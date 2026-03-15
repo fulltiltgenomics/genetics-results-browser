@@ -37,7 +37,7 @@ const McpTokenDialog = ({ open, onClose }: McpTokenDialogProps) => {
     try {
       setTokens(await listTokens());
     } catch (e) {
-      setError("Failed to load tokens");
+      setError("Failed to load keys");
     }
   }, []);
 
@@ -60,7 +60,7 @@ const McpTokenDialog = ({ open, onClose }: McpTokenDialogProps) => {
       setCopied(false);
       await loadTokens();
     } catch (e) {
-      setError("Failed to create token");
+      setError("Failed to create key");
     }
   };
 
@@ -76,7 +76,7 @@ const McpTokenDialog = ({ open, onClose }: McpTokenDialogProps) => {
       await revokeToken(tokenId);
       await loadTokens();
     } catch (e) {
-      setError("Failed to revoke token");
+      setError("Failed to revoke key");
     }
   };
 
@@ -86,7 +86,7 @@ const McpTokenDialog = ({ open, onClose }: McpTokenDialogProps) => {
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
-      <DialogTitle>MCP and API Tokens</DialogTitle>
+      <DialogTitle>MCP and API Keys</DialogTitle>
       <DialogContent>
         {error && (
           <Alert severity="error" sx={{ mb: 2 }}>
@@ -97,7 +97,7 @@ const McpTokenDialog = ({ open, onClose }: McpTokenDialogProps) => {
         {newTokenValue && (
           <Alert severity="success" sx={{ mb: 2, "& .MuiAlert-message": { overflow: "hidden", width: "100%" } }} icon={false}>
             <Typography variant="subtitle2" gutterBottom>
-              Token created — copy it now, it won't be shown again
+              Key created — copy it now, it won't be shown again
             </Typography>
             <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
               <TextField
@@ -120,12 +120,12 @@ const McpTokenDialog = ({ open, onClose }: McpTokenDialogProps) => {
             value={tokenName}
             onChange={(e) => setTokenName(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") handleCreate(); }}
-            placeholder="Token name (optional)"
+            placeholder="Key name (optional)"
             size="small"
             fullWidth
           />
           <Button variant="contained" onClick={handleCreate} sx={{ whiteSpace: "nowrap" }}>
-            Create token
+            Create key
           </Button>
         </Box>
 
@@ -163,7 +163,7 @@ const McpTokenDialog = ({ open, onClose }: McpTokenDialogProps) => {
 
         {activeTokens.length === 0 && !newTokenValue && (
           <Typography variant="body2" color="text.secondary" sx={{ py: 1 }}>
-            No active tokens. Create one to connect MCP clients.
+            No active keys. Create one to connect MCP clients.
           </Typography>
         )}
 
@@ -172,7 +172,7 @@ const McpTokenDialog = ({ open, onClose }: McpTokenDialogProps) => {
             MCP access
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            Use this configuration to add FinnGenie MCP to Claude, Cursor, etc. Replace &lt;TOKEN&gt; with a created token:
+            Use this configuration to add FinnGenie MCP to Claude, Cursor, etc. Replace &lt;TOKEN&gt; with a created key:
           </Typography>
           <Box
             component="pre"
@@ -205,7 +205,7 @@ const McpTokenDialog = ({ open, onClose }: McpTokenDialogProps) => {
             API access
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            For direct API access, replace &lt;TOKEN&gt; with a created token:
+            For direct API access, replace &lt;TOKEN&gt; with a created key:
           </Typography>
           <Box
             component="pre"
