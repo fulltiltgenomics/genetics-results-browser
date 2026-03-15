@@ -926,6 +926,7 @@ export const LLMChat = ({
                     height: "auto",
                     py: 1,
                     px: 0.5,
+                    borderRadius: 1,
                     "& .MuiChip-label": {
                       whiteSpace: "normal",
                       textAlign: "left",
