@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import config from "../../config.json";
 import { ChangeLogItem } from "../../types/types";
 
 const renderContent = (content: Array<ChangeLogItem>) => {
@@ -36,7 +35,7 @@ const ChangeLog = () => {
     const loadChangeLog = async () => {
       try {
         const changeLog =
-          config.target === "public"
+          import.meta.env.VITE_TARGET === "public"
             ? await import("../../../changelog.json")
             : await import("../../../changelog_finngen.json");
         setChangeLogData(changeLog.default);

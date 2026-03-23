@@ -115,7 +115,7 @@ const Header = () => {
             </Menu>
             <McpTokenDialog open={tokenDialogOpen} onClose={() => setTokenDialogOpen(false)} />
           </>
-        ) : config.target === "public" ? null : (
+        ) : import.meta.env.VITE_TARGET === "public" ? null : (
           <Button onClick={() => login()}>Login</Button>
         )}
       </Box>

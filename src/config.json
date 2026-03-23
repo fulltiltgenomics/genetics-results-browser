@@ -1,5 +1,4 @@
 {
-  "target": "finngen",
   "title": "annopublic.finngen.fi / variant annotation and interpretation based on global human genomics results",
   "data_types": [
     "GWAS",
