@@ -167,6 +167,12 @@ const McpTokenDialog = ({ open, onClose }: McpTokenDialogProps) => {
           </Typography>
         )}
 
+        {activeTokens.length > 0 && (
+          <Typography variant="body2" color="text.secondary" sx={{ py: 1 }}>
+            Keys are personal and provide access to embargoed FinnGen data. Do not share your keys.
+          </Typography>
+        )}
+
         <Box sx={{ mt: 3, p: 2, bgcolor: "action.hover", borderRadius: 1 }}>
           <Typography variant="subtitle2" gutterBottom>
             MCP access

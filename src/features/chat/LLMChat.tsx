@@ -738,7 +738,6 @@ export const LLMChat = ({
                   <span style={{ whiteSpace: "pre-line" }}>
                     Which MCP tools to use?{"\n"}
                     All - includes all tools and automatically determines the ones to use (most times this is the best choice){"\n"}
-                    RAG - includes Retrieval Augmented Generation search (can currently be used when asking about interpretation on phenotypes){"\n"}
                     API - includes tools tied to the genetics results API (can be used when strictly getting data for variants/genes/phenotypes){"\n"}
                     BigQuery - includes access to a BigQuery database that contains credible set and colocalization data (good when computations across all data is needed instead of a specific variant, gene or phenotype)
                   </span>
@@ -761,12 +760,12 @@ export const LLMChat = ({
                 label="All"
                 sx={{ "& .MuiFormControlLabel-label": { fontSize: "0.75rem" } }}
               />
-              <FormControlLabel
+              {/* <FormControlLabel
                 value="rag"
                 control={<Radio size="small" />}
                 label="RAG"
                 sx={{ "& .MuiFormControlLabel-label": { fontSize: "0.75rem" } }}
-              />
+              /> */}
               <FormControlLabel
                 value="api"
                 control={<Radio size="small" />}
@@ -1042,6 +1041,25 @@ export const LLMChat = ({
                     <Typography variant="body2" color="text.secondary" fontStyle="italic">
                       ...
                     </Typography>
+                  )}
+                  {isLoading && message.role === "assistant" && index === messages.length - 1 && message.content && (
+                    <Box
+                      component="span"
+                      sx={{
+                        display: "inline-block",
+                        width: 8,
+                        height: 8,
+                        borderRadius: "50%",
+                        backgroundColor: "primary.main",
+                        ml: 0.5,
+                        verticalAlign: "middle",
+                        animation: "pulse 1.2s ease-in-out infinite",
+                        "@keyframes pulse": {
+                          "0%, 100%": { opacity: 0.3 },
+                          "50%": { opacity: 1 },
+                        },
+                      }}
+                    />
                   )}
                 </Box>
               </Paper>
