@@ -368,6 +368,43 @@ const ChatPage = () => {
     }
   }, []);
 
+  const handleExportChat = () => {
+    const messages = currentMessagesRef.current;
+    if (messages.length === 0) return;
+
+    const imageMarkerRegex = /\[IMAGE:([^:]+):([^:]+):([^\]]+)\]/g;
+
+    const parts = messages.map((msg) => {
+      const role = msg.role === "user" ? "## User" : "## FinnGenie";
+      // convert [IMAGE:format:alt:base64] markers to standard markdown images
+      let content = msg.content.replace(
+        imageMarkerRegex,
+        (_match, format, alt, base64Data) => `![${alt}](data:image/${format};base64,${base64Data})`,
+      );
+      // include user attachment images
+      if (msg.role === "user" && msg.attachments) {
+        for (const att of msg.attachments) {
+          if (att.type === "image" && att.previewUrl) {
+            content += `\n\n![${att.name}](${att.previewUrl})`;
+          }
+        }
+      }
+      return `${role}\n\n${content}`;
+    });
+
+    const markdown = parts.join("\n\n---\n\n");
+    const title = activeSession?.title || "chat";
+    const filename = title.replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-|-$/g, "").toLowerCase() + "-export.md";
+
+    const blob = new Blob([markdown], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const handleSessionRatingSave = async (rating: number, comment?: string) => {
     if (!activeSessionId) return;
     try {
@@ -502,6 +539,11 @@ const ChatPage = () => {
                 <Button size="small" onClick={() => setTokensOpen(true)}>
                   MCP/API Keys
                 </Button>
+                {currentMessageCount > 0 && (
+                  <Button size="small" onClick={handleExportChat}>
+                    Export this chat
+                  </Button>
+                )}
               </Box>
             </Box>
           </Box>
