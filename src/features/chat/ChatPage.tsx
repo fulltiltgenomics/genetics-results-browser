@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { Box, Typography, CircularProgress, Button, Chip } from "@mui/material";
+import { Box, Typography, CircularProgress, Button, Chip, Menu, MenuItem } from "@mui/material";
 import { VisibilityOff } from "@mui/icons-material";
 import finnGenieLogo from "../../assets/finngenie-leonardo-gemini-2.5-flash-recraft-vectorized-claude-cropped.svg";
 import { LLMChat } from "./LLMChat";
@@ -24,6 +24,7 @@ import {
   type ChatMessageRecord,
 } from "./chatHistoryApi";
 import type { ChatMessage, FileAttachment } from "./chat.types";
+import { exportChatAsHtml, exportChatAsMarkdown } from "./exportChat";
 
 /**
  * Standalone chat page with history sidebar and config editor.
@@ -43,6 +44,7 @@ const ChatPage = () => {
   const [aboutOpen, setAboutOpen] = useState(false);
   const [tokensOpen, setTokensOpen] = useState(false);
   const [isSecretChat, setIsSecretChat] = useState(false);
+  const [exportMenuAnchor, setExportMenuAnchor] = useState<HTMLElement | null>(null);
 
   // track current messages for saving
   const currentMessagesRef = useRef<ChatMessage[]>([]);
@@ -368,41 +370,16 @@ const ChatPage = () => {
     }
   }, []);
 
-  const handleExportChat = () => {
+  const handleExportChat = (format: "html" | "markdown") => {
+    setExportMenuAnchor(null);
     const messages = currentMessagesRef.current;
     if (messages.length === 0) return;
-
-    const imageMarkerRegex = /\[IMAGE:([^:]+):([^:]+):([^\]]+)\]/g;
-
-    const parts = messages.map((msg) => {
-      const role = msg.role === "user" ? "## User" : "## FinnGenie";
-      // convert [IMAGE:format:alt:base64] markers to standard markdown images
-      let content = msg.content.replace(
-        imageMarkerRegex,
-        (_match, format, alt, base64Data) => `![${alt}](data:image/${format};base64,${base64Data})`,
-      );
-      // include user attachment images
-      if (msg.role === "user" && msg.attachments) {
-        for (const att of msg.attachments) {
-          if (att.type === "image" && att.previewUrl) {
-            content += `\n\n![${att.name}](${att.previewUrl})`;
-          }
-        }
-      }
-      return `${role}\n\n${content}`;
-    });
-
-    const markdown = parts.join("\n\n---\n\n");
     const title = activeSession?.title || "chat";
-    const filename = title.replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-|-$/g, "").toLowerCase() + "-export.md";
-
-    const blob = new Blob([markdown], { type: "text/markdown" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
+    if (format === "html") {
+      exportChatAsHtml(messages, title);
+    } else {
+      exportChatAsMarkdown(messages, title);
+    }
   };
 
   const handleSessionRatingSave = async (rating: number, comment?: string) => {
@@ -540,9 +517,19 @@ const ChatPage = () => {
                   MCP/API Keys
                 </Button>
                 {currentMessageCount > 0 && (
-                  <Button size="small" onClick={handleExportChat}>
-                    Export this chat
-                  </Button>
+                  <>
+                    <Button size="small" onClick={(e) => setExportMenuAnchor(e.currentTarget)}>
+                      Export this chat
+                    </Button>
+                    <Menu
+                      anchorEl={exportMenuAnchor}
+                      open={Boolean(exportMenuAnchor)}
+                      onClose={() => setExportMenuAnchor(null)}
+                    >
+                      <MenuItem onClick={() => handleExportChat("html")}>As HTML</MenuItem>
+                      <MenuItem onClick={() => handleExportChat("markdown")}>As Markdown</MenuItem>
+                    </Menu>
+                  </>
                 )}
               </Box>
             </Box>
