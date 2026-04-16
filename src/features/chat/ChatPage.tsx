@@ -8,6 +8,7 @@ import { SessionRating } from "./SessionRating";
 import { FeedbackDialog } from "./FeedbackDialog";
 import { AboutDialog } from "./AboutDialog";
 import McpTokenDialog from "../page/McpTokenDialog";
+import { DatasetsDialog } from "./DatasetsDialog";
 import {
   listSessions,
   createSession,
@@ -45,6 +46,7 @@ const ChatPage = () => {
   const [tokensOpen, setTokensOpen] = useState(false);
   const [isSecretChat, setIsSecretChat] = useState(false);
   const [exportMenuAnchor, setExportMenuAnchor] = useState<HTMLElement | null>(null);
+  const [datasetsOpen, setDatasetsOpen] = useState(false);
 
   // track current messages for saving
   const currentMessagesRef = useRef<ChatMessage[]>([]);
@@ -516,6 +518,9 @@ const ChatPage = () => {
                 <Button size="small" onClick={() => setTokensOpen(true)}>
                   MCP/API Keys
                 </Button>
+                <Button size="small" onClick={() => setDatasetsOpen(true)}>
+                  Datasets
+                </Button>
                 {currentMessageCount > 0 && (
                   <>
                     <Button size="small" onClick={(e) => setExportMenuAnchor(e.currentTarget)}>
@@ -614,6 +619,7 @@ const ChatPage = () => {
       <FeedbackDialog open={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
       <AboutDialog open={aboutOpen} onClose={() => setAboutOpen(false)} />
       <McpTokenDialog open={tokensOpen} onClose={() => setTokensOpen(false)} />
+      <DatasetsDialog open={datasetsOpen} onClose={() => setDatasetsOpen(false)} />
     </Box>
   );
 };
