@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Typography, Box, Link, useMediaQuery, IconButton, Button, Menu, MenuItem } from "@mui/material";
 import Brightness4Icon from "@mui/icons-material/Brightness4";
 import Brightness7Icon from "@mui/icons-material/Brightness7";
+import AdminPanelSettingsIcon from "@mui/icons-material/AdminPanelSettings";
 import KeyIcon from "@mui/icons-material/Key";
 import LogoutIcon from "@mui/icons-material/Logout";
 import { useHotkeys } from "react-hotkeys-hook";
@@ -10,7 +11,7 @@ import broadLogo from "../../assets/broad-logo.png";
 import finngenLogo from "../../assets/finngen-logo-400-1.png";
 import { useThemeStore } from "@/store/store.theme";
 import { useAuth } from "@/store/useAuth";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import McpTokenDialog from "./McpTokenDialog";
 
 const Header = () => {
@@ -34,7 +35,8 @@ const Header = () => {
   const { isDarkMode, setDarkMode: setTheme } = useThemeStore();
   const actualDarkMode = isDarkMode ?? prefersDarkMode;
 
-  const { isAuthenticated, user, login, logout } = useAuth();
+  const navigate = useNavigate();
+  const { isAuthenticated, isAdmin, user, login, logout } = useAuth();
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
   const [tokenDialogOpen, setTokenDialogOpen] = useState(false);
 
@@ -80,6 +82,16 @@ const Header = () => {
           sx={{ height: 40, backgroundColor: "white", p: 0.5, borderRadius: 0.5 }}
         />
         <Box flexGrow={1} />
+        {isAdmin && (
+          <Button
+            onClick={() => navigate("/admin")}
+            color="inherit"
+            startIcon={<AdminPanelSettingsIcon />}
+            sx={{ textTransform: "none" }}
+          >
+            Admin
+          </Button>
+        )}
         {isAuthenticated ? (
           <>
             <Button

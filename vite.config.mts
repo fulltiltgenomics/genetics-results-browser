@@ -27,9 +27,8 @@ export default defineConfig({
     allowedHosts: ["anno.finngen.fi", "annopublic.finngen.fi", "dev.finngen.fi"],
     proxy: {
       "/api": {
-        target: "https://dev.finngen.fi",
+        target: "http://localhost:2000",
         changeOrigin: true,
-        secure: true,
       },
       "/chat": {
         target: "https://dev.finngen.fi",

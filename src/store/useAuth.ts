@@ -12,6 +12,7 @@ const chatApi = axios.create({
 interface AuthResponse {
   authenticated: boolean;
   user: string | null;
+  is_admin: boolean;
 }
 
 interface MeResponse {
@@ -21,6 +22,7 @@ interface MeResponse {
 interface AuthState {
   isAuthenticated: boolean | null;
   isAuthorized: boolean | null;
+  isAdmin: boolean;
   isLoading: boolean;
   hasError: boolean;
   user: string | null;
@@ -32,6 +34,7 @@ interface AuthState {
 export const useAuthStore = create<AuthState>((set, get) => ({
   isAuthenticated: null,
   isAuthorized: null,
+  isAdmin: false,
   isLoading: true,
   hasError: false,
   user: null,
@@ -55,6 +58,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
       set({
         isAuthenticated: isAuth,
+        isAdmin: response.data.is_admin ?? false,
         user: user ?? null,
         hasError: false,
       });
@@ -87,10 +91,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 }));
 
 export function useAuth() {
-  const { isAuthenticated, isAuthorized, isLoading, hasError, user, login, logout } = useAuthStore(
+  const { isAuthenticated, isAuthorized, isAdmin, isLoading, hasError, user, login, logout } = useAuthStore(
     useShallow((s) => ({
       isAuthenticated: s.isAuthenticated,
       isAuthorized: s.isAuthorized,
+      isAdmin: s.isAdmin,
       isLoading: s.isLoading,
       hasError: s.hasError,
       user: s.user,
@@ -102,6 +107,7 @@ export function useAuth() {
   return {
     isAuthenticated: isAuthenticated ?? false,
     isAuthorized: isAuthorized ?? false,
+    isAdmin,
     isLoading: isLoading || isAuthenticated === null,
     user,
     login,

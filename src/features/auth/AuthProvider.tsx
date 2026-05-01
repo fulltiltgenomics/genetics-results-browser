@@ -10,9 +10,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const checkAuth = useAuthStore((s) => s.checkAuth);
 
   useEffect(() => {
-    if (import.meta.env.VITE_TARGET !== "public") {
-      checkAuth();
-    }
+    checkAuth();
   }, [checkAuth]);
 
   if (import.meta.env.VITE_TARGET === "public") {

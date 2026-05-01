@@ -16,6 +16,7 @@ const ChangeLog = lazy(() => import("./features/page/ChangeLog"));
 const LDContainer = lazy(() => import("./features/LDContainer"));
 const PhenotypeContainer = lazy(() => import("./features/phenotype/PhenotypeContainer"));
 const ChatPage = lazy(() => import("./features/chat/ChatPage"));
+const AdminPage = lazy(() => import("./features/admin/AdminPage"));
 
 export const App = () => {
   const prefersDarkMode = useMediaQuery("(prefers-color-scheme: dark)");
@@ -59,6 +60,7 @@ export const App = () => {
                   <Route path="/phenotype/:phenocode" element={<PhenotypeContainer />} />
                   <Route path="/about" element={<About />} />
                   <Route path="/changelog" element={<ChangeLog />} />
+                  <Route path="/admin" element={<AdminPage />} />
                 </Routes>
               </Suspense>
             </Box>
