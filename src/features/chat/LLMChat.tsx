@@ -546,7 +546,10 @@ export const LLMChat = ({
               receivedDone = true;
               messageContent = data.message_content || null;
             } else if (data.type === "usage") {
-              setContextUsage(data as ContextUsage);
+              // only update if context grew (it should never shrink within a conversation)
+              setContextUsage((prev) =>
+                !prev || data.input_tokens >= prev.input_tokens ? (data as ContextUsage) : prev
+              );
             } else if (data.type === "error") {
               streamError = data.error || "A server error occurred";
             }
