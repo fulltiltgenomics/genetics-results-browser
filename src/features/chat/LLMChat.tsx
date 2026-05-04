@@ -1164,7 +1164,9 @@ export const LLMChat = ({
             sx={{ flexGrow: 1, height: 4, borderRadius: 2 }}
           />
           <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>
-            {Math.round(contextUsage.input_tokens / 1000)}K / {Math.round(contextUsage.context_window / 1000)}K
+            {contextUsage.input_tokens >= 1000
+              ? `${(contextUsage.input_tokens / 1000).toFixed(1)}K`
+              : contextUsage.input_tokens} / {Math.round(contextUsage.context_window / 1000)}K tokens
           </Typography>
         </Box>
       )}
