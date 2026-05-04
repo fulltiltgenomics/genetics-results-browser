@@ -1,3 +1,13 @@
+export interface ContextUsage {
+  iteration: number;
+  input_tokens: number;
+  output_tokens: number;
+  total_input_tokens: number;
+  total_output_tokens: number;
+  context_window: number;
+  context_percent: number;
+}
+
 export type LiteratureBackend = "europepmc" | "perplexity";
 
 export type ToolProfile = "api" | "bigquery" | "rag";

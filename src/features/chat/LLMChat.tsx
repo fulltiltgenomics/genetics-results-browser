@@ -5,6 +5,7 @@ import {
   Button,
   Typography,
   CircularProgress,
+  LinearProgress,
   Alert,
   IconButton,
   useTheme,
@@ -31,7 +32,7 @@ import React, { useRef, useEffect, useState, useCallback } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { fetchEventSource } from "@microsoft/fetch-event-source";
-import type { ChatMessage, LLMChatProps, LiteratureBackend, ToolProfile, PendingAttachment, FileAttachment } from "./chat.types";
+import type { ChatMessage, LLMChatProps, LiteratureBackend, ToolProfile, PendingAttachment, FileAttachment, ContextUsage } from "./chat.types";
 import { MessageRating } from "./MessageRating";
 import { PendingAttachments, MessageAttachments } from "./FileAttachments";
 import { getAttachmentType, isValidAttachmentType } from "./chatHistoryApi";
@@ -150,6 +151,7 @@ export const LLMChat = ({
   const [pendingAttachments, setPendingAttachments] = useState<PendingAttachment[]>([]);
   const [wasStopped, setWasStopped] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+  const [contextUsage, setContextUsage] = useState<ContextUsage | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dragCounterRef = useRef(0);
 
@@ -185,6 +187,7 @@ export const LLMChat = ({
         setMessages([]);
         hasTriggeredFirstExchange.current = false;
       }
+      setContextUsage(null);
     }
     // if isInlineCreation, do nothing - keep existing messages
   }, [initialMessages, sessionId]);
@@ -542,6 +545,8 @@ export const LLMChat = ({
             } else if (data.type === "done") {
               receivedDone = true;
               messageContent = data.message_content || null;
+            } else if (data.type === "usage") {
+              setContextUsage(data as ContextUsage);
             } else if (data.type === "error") {
               streamError = data.error || "A server error occurred";
             }
@@ -1149,6 +1154,19 @@ export const LLMChat = ({
             <RefreshIcon fontSize="small" />
           </IconButton>
         </Alert>
+      )}
+
+      {contextUsage && (
+        <Box sx={{ px: 2, pb: 0.5, display: 'flex', alignItems: 'center', gap: 1 }}>
+          <LinearProgress
+            variant="determinate"
+            value={Math.min(contextUsage.context_percent, 100)}
+            sx={{ flexGrow: 1, height: 4, borderRadius: 2 }}
+          />
+          <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>
+            {Math.round(contextUsage.input_tokens / 1000)}K / {Math.round(contextUsage.context_window / 1000)}K
+          </Typography>
+        </Box>
       )}
 
       {inputForm}
