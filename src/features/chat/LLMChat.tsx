@@ -309,6 +309,42 @@ export const LLMChat = ({
     [processFiles]
   );
 
+  const handlePaste = useCallback(
+    (e: React.ClipboardEvent) => {
+      if (isLoading) return;
+
+      const items = e.clipboardData?.items;
+      if (!items) return;
+
+      const imageFiles: File[] = [];
+      let hasText = false;
+
+      for (const item of Array.from(items)) {
+        if (item.kind === "file" && item.type.startsWith("image/")) {
+          const file = item.getAsFile();
+          if (file) {
+            const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+            const renamed = new File([file], `pasted-image-${timestamp}.png`, {
+              type: file.type,
+            });
+            imageFiles.push(renamed);
+          }
+        } else if (item.type === "text/plain") {
+          hasText = true;
+        }
+      }
+
+      if (imageFiles.length > 0) {
+        // only prevent default when paste is exclusively images
+        if (!hasText) {
+          e.preventDefault();
+        }
+        processFiles(imageFiles);
+      }
+    },
+    [isLoading, processFiles]
+  );
+
   const removeAttachment = useCallback((id: string) => {
     setPendingAttachments((prev) => prev.filter((a) => a.id !== id));
   }, []);
@@ -809,6 +845,7 @@ export const LLMChat = ({
           maxRows={4}
           value={input}
           onChange={(e) => setInput(e.target.value)}
+          onPaste={handlePaste}
           placeholder={pendingAttachments.length > 0 ? "Add a message (optional)..." : placeholder}
           disabled={isLoading}
           autoFocus
