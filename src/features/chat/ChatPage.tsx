@@ -616,6 +616,16 @@ const ChatPage = () => {
 
       </Box>
 
+      <Typography
+        variant="caption"
+        color="text.secondary"
+        sx={{ textAlign: "center", px: 2, py: 1, display: "block" }}
+      >
+        FinnGenie is an AI tool intended to assist exploration, not replace expert judgment. It may
+        generate incorrect or misleading information. Always validate findings against authoritative
+        sources before use in research.
+      </Typography>
+
       <FeedbackDialog open={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
       <AboutDialog open={aboutOpen} onClose={() => setAboutOpen(false)} />
       <McpTokenDialog open={tokensOpen} onClose={() => setTokensOpen(false)} />
