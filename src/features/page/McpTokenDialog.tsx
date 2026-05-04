@@ -83,6 +83,7 @@ const McpTokenDialog = ({ open, onClose }: McpTokenDialogProps) => {
   const formatDate = (iso: string) => new Date(iso).toLocaleDateString();
 
   const activeTokens = tokens.filter((t) => t.isActive);
+  const origin = window.location.origin;
 
   return (
     <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
@@ -197,13 +198,31 @@ const McpTokenDialog = ({ open, onClose }: McpTokenDialogProps) => {
   "mcpServers": {
     "genetics": {
       "type": "streamable-http",
-      "url": "https://finngenie.fi/mcp",
+      "url": "${origin}/mcp",
       "headers": {
         "Authorization": "Bearer <TOKEN>"
       }
     }
   }
 }`}
+          </Box>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>
+            If your MCP client doesn't support custom headers, you can pass the token in the URL instead:
+          </Typography>
+          <Box
+            component="pre"
+            sx={{
+              mt: 1,
+              p: 1.5,
+              bgcolor: "background.paper",
+              borderRadius: 1,
+              fontSize: "0.8rem",
+              fontFamily: "monospace",
+              overflow: "auto",
+              whiteSpace: "pre-wrap",
+            }}
+          >
+            {`${origin}/mcp?token=<TOKEN>`}
           </Box>
         </Box>
         <Box sx={{ mt: 3, p: 2, bgcolor: "action.hover", borderRadius: 1 }}>
@@ -227,13 +246,13 @@ const McpTokenDialog = ({ open, onClose }: McpTokenDialogProps) => {
             }}
           >
 {`curl -H "Authorization: Bearer <TOKEN>" \\
-  https://finngenie.fi/api/v1/credible_sets_by_gene/PCSK9 | head`}
+  ${origin}/api/v1/credible_sets_by_gene/PCSK9 | head`}
           </Box>
           <Typography variant="body2" color="text.secondary" paragraph>
             You can also use a Google ID token (in terminal: <code>gcloud auth print-identity-token</code>) but it recycles once an hour.
           </Typography>
           <Typography variant="body2" color="text.secondary" paragraph>
-            See <a href="https://finngenie.fi/api/v1/docs" target="_blank" rel="noreferrer">API docs</a> for available API endpoints.
+            See <a href={`${origin}/api/v1/docs`} target="_blank" rel="noreferrer">API docs</a> for available API endpoints.
           </Typography>
           </Box>
       </DialogContent>
