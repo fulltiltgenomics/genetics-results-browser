@@ -177,6 +177,11 @@ export default function AdminPage() {
     loadAnalytics();
   }, [loadAnalytics]);
 
+  // fetch feedback latest timestamp on mount for tab label
+  useEffect(() => {
+    fetchAdminFeedback({ limit: 0 }).then((r) => setFeedbackLatestAt(r.latestAt)).catch(() => {});
+  }, []);
+
   // lazy-load feedback when tab is first selected, refetch on page change
   useEffect(() => {
     if (activeTab === 1) {
@@ -276,11 +281,7 @@ export default function AdminPage() {
     },
   };
 
-  // tab labels with relative time
-  const conversationsLatest = sessions.length > 0 ? sessions[0].updatedAt : null;
-  const conversationsLabel = conversationsLatest
-    ? `Conversations (${formatRelativeTime(conversationsLatest)})`
-    : "Conversations";
+  // tab label with relative time for feedback
   const feedbackLabel = feedbackLatestAt
     ? `Feedback (${formatRelativeTime(feedbackLatestAt)})`
     : "Feedback";
@@ -306,7 +307,7 @@ export default function AdminPage() {
         onChange={(_, v) => setActiveTab(v)}
         sx={{ mb: 2, borderBottom: 1, borderColor: "divider" }}
       >
-        <Tab label={conversationsLabel} />
+        <Tab label="Conversations" />
         <Tab label={feedbackLabel} />
       </Tabs>
 

@@ -1,6 +1,5 @@
 /**
  * Returns a human-readable relative time string like "today", "yesterday", "3 days ago".
- * For dates older than 30 days, falls back to locale date string.
  */
 export function formatRelativeTime(isoString: string): string {
   const date = new Date(isoString);
@@ -11,6 +10,5 @@ export function formatRelativeTime(isoString: string): string {
 
   if (diffDays === 0) return "today";
   if (diffDays === 1) return "yesterday";
-  if (diffDays < 30) return `${diffDays} days ago`;
-  return date.toLocaleDateString();
+  return `${diffDays} days ago`;
 }
