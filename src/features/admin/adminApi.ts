@@ -51,6 +51,23 @@ export interface UsageAnalyticsResponse {
   data: UsageDataPoint[];
 }
 
+export interface FeedbackItem {
+  user: string;
+  comment: string;
+  preview: string;
+  createdAt: string;
+  source: "feedback_dialog" | "session_comment";
+  sessionId: string | null;
+}
+
+export interface FeedbackListResponse {
+  items: FeedbackItem[];
+  total: number;
+  latestAt: string | null;
+  limit: number;
+  offset: number;
+}
+
 export interface AdminSessionFilters {
   user?: string;
   dateFrom?: string;
@@ -119,6 +136,38 @@ export async function fetchUsageAnalytics(
   });
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   return response.json();
+}
+
+export async function fetchAdminFeedback(
+  params: { limit?: number; offset?: number } = {}
+): Promise<FeedbackListResponse> {
+  const searchParams = new URLSearchParams();
+  if (params.limit != null) searchParams.set("limit", String(params.limit));
+  if (params.offset != null) searchParams.set("offset", String(params.offset));
+
+  const response = await fetch(`${chatUrl}/v1/admin/feedback?${searchParams}`, {
+    credentials: "include",
+  });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  const data = await response.json();
+  return {
+    items: data.items.map(mapFeedbackItem),
+    total: data.total,
+    latestAt: data.latest_at,
+    limit: data.limit,
+    offset: data.offset,
+  };
+}
+
+function mapFeedbackItem(data: any): FeedbackItem {
+  return {
+    user: data.user,
+    comment: data.comment,
+    preview: data.preview,
+    createdAt: data.created_at,
+    source: data.source,
+    sessionId: data.session_id,
+  };
 }
 
 function mapSession(data: any): AdminSession {
