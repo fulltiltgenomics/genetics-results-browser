@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   Box,
   Typography,
@@ -17,6 +17,9 @@ import {
   Tooltip,
   Menu,
   MenuItem,
+  Tab,
+  Tabs,
+  Chip,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
@@ -40,14 +43,18 @@ import {
   fetchAdminSessions,
   fetchAdminSessionDetail,
   fetchUsageAnalytics,
+  fetchAdminFeedback,
   type AdminSession,
   type AdminSessionDetail,
   type UsageDataPoint,
+  type FeedbackItem,
 } from "./adminApi";
+import { formatRelativeTime } from "./utils";
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, ChartTooltip, Legend);
 
 const PAGE_SIZE = 25;
+const FEEDBACK_PAGE_SIZE = 25;
 
 function buildExportMarkdown(session: AdminSessionDetail): string {
   const parts = session.messages.map((m) => {
@@ -77,6 +84,9 @@ function escapeHtml(text: string): string {
 
 export default function AdminPage() {
   const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState(0);
+
+  // sessions state
   const [sessions, setSessions] = useState<AdminSession[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
@@ -99,6 +109,15 @@ export default function AdminPage() {
   const [analyticsPeriod, setAnalyticsPeriod] = useState<"week" | "month" | "year">("week");
   const [analyticsData, setAnalyticsData] = useState<UsageDataPoint[]>([]);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
+
+  // feedback state
+  const [feedbackItems, setFeedbackItems] = useState<FeedbackItem[]>([]);
+  const [feedbackTotal, setFeedbackTotal] = useState(0);
+  const [feedbackPage, setFeedbackPage] = useState(1);
+  const [feedbackLoading, setFeedbackLoading] = useState(false);
+  const [feedbackLatestAt, setFeedbackLatestAt] = useState<string | null>(null);
+  const [selectedFeedback, setSelectedFeedback] = useState<FeedbackItem | null>(null);
+  const feedbackLoaded = useRef(false);
 
   const loadSessions = useCallback(async () => {
     setLoading(true);
@@ -133,6 +152,23 @@ export default function AdminPage() {
     }
   }, [analyticsPeriod]);
 
+  const loadFeedback = useCallback(async () => {
+    setFeedbackLoading(true);
+    try {
+      const result = await fetchAdminFeedback({
+        limit: FEEDBACK_PAGE_SIZE,
+        offset: (feedbackPage - 1) * FEEDBACK_PAGE_SIZE,
+      });
+      setFeedbackItems(result.items);
+      setFeedbackTotal(result.total);
+      setFeedbackLatestAt(result.latestAt);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setFeedbackLoading(false);
+    }
+  }, [feedbackPage]);
+
   useEffect(() => {
     loadSessions();
   }, [loadSessions]);
@@ -140,6 +176,14 @@ export default function AdminPage() {
   useEffect(() => {
     loadAnalytics();
   }, [loadAnalytics]);
+
+  // lazy-load feedback when tab is first selected, refetch on page change
+  useEffect(() => {
+    if (activeTab === 1) {
+      feedbackLoaded.current = true;
+      loadFeedback();
+    }
+  }, [activeTab, loadFeedback]);
 
   const handleSearch = () => {
     setPage(1);
@@ -232,6 +276,18 @@ export default function AdminPage() {
     },
   };
 
+  // tab labels with relative time
+  const conversationsLatest = sessions.length > 0 ? sessions[0].updatedAt : null;
+  const conversationsLabel = conversationsLatest
+    ? `Conversations (${formatRelativeTime(conversationsLatest)})`
+    : "Conversations";
+  const feedbackLabel = feedbackLatestAt
+    ? `Feedback (${formatRelativeTime(feedbackLatestAt)})`
+    : "Feedback";
+
+  const sourceLabel = (source: FeedbackItem["source"]) =>
+    source === "feedback_dialog" ? "Feedback dialog" : "Session comment";
+
   return (
     <Box sx={{ maxWidth: 1200, mx: "auto", mt: 2 }}>
       <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}>
@@ -242,97 +298,216 @@ export default function AdminPage() {
         >
           Back to Chat
         </Button>
-        <Typography variant="h5">Admin - Conversations</Typography>
+        <Typography variant="h5">Admin</Typography>
       </Box>
 
-      {/* Analytics */}
-      <Paper sx={{ p: 2, mb: 3 }}>
-        <Box sx={{ display: "flex", justifyContent: "flex-end", mb: 1 }}>
-          <ToggleButtonGroup
-            size="small"
-            value={analyticsPeriod}
-            exclusive
-            onChange={(_, v) => v && setAnalyticsPeriod(v)}
-          >
-            <ToggleButton value="week">Week</ToggleButton>
-            <ToggleButton value="month">Month</ToggleButton>
-            <ToggleButton value="year">Year</ToggleButton>
-          </ToggleButtonGroup>
-        </Box>
-        <Box sx={{ height: 250 }}>
-          {analyticsLoading ? (
-            <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100%" }}>
-              <CircularProgress size={24} />
-            </Box>
-          ) : (
-            <Line data={chartData} options={chartOptions} />
-          )}
-        </Box>
-      </Paper>
-
-      {/* Filters */}
-      <Paper sx={{ p: 2, mb: 2 }}>
-        <Box sx={{ display: "flex", gap: 1.5, flexWrap: "wrap", alignItems: "center" }}>
-          <TextField
-            size="small"
-            label="User"
-            value={userFilter}
-            onChange={(e) => setUserFilter(e.target.value)}
-            sx={{ width: 200 }}
-          />
-          <TextField
-            size="small"
-            label="From"
-            type="date"
-            value={dateFrom}
-            onChange={(e) => setDateFrom(e.target.value)}
-            slotProps={{ inputLabel: { shrink: true } }}
-            sx={{ width: 160 }}
-          />
-          <TextField
-            size="small"
-            label="To"
-            type="date"
-            value={dateTo}
-            onChange={(e) => setDateTo(e.target.value)}
-            slotProps={{ inputLabel: { shrink: true } }}
-            sx={{ width: 160 }}
-          />
-          <TextField
-            size="small"
-            label="Session ID"
-            value={sessionIdFilter}
-            onChange={(e) => setSessionIdFilter(e.target.value)}
-            sx={{ width: 200 }}
-          />
-          <Button variant="contained" size="small" onClick={handleSearch}>
-            Search
-          </Button>
-          <Button variant="outlined" size="small" onClick={handleClearFilters}>
-            Clear
-          </Button>
-        </Box>
-      </Paper>
+      <Tabs
+        value={activeTab}
+        onChange={(_, v) => setActiveTab(v)}
+        sx={{ mb: 2, borderBottom: 1, borderColor: "divider" }}
+      >
+        <Tab label={conversationsLabel} />
+        <Tab label={feedbackLabel} />
+      </Tabs>
 
       {error && (
-        <Alert severity="error" sx={{ mb: 2 }}>
+        <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
           {error}
         </Alert>
       )}
 
-      {/* Sessions table */}
-      <Paper sx={{ overflow: "auto" }}>
-        {loading ? (
-          <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
-            <CircularProgress />
-          </Box>
-        ) : (
-          <>
-            <Box component="table" sx={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-              <thead>
-                <tr>
-                  {["User", "Title / Preview", "Messages", "Created", "Updated", "Rating"].map(
-                    (h) => (
+      {/* Tab 0: Conversations */}
+      {activeTab === 0 && (
+        <>
+          {/* Analytics */}
+          <Paper sx={{ p: 2, mb: 3 }}>
+            <Box sx={{ display: "flex", justifyContent: "flex-end", mb: 1 }}>
+              <ToggleButtonGroup
+                size="small"
+                value={analyticsPeriod}
+                exclusive
+                onChange={(_, v) => v && setAnalyticsPeriod(v)}
+              >
+                <ToggleButton value="week">Week</ToggleButton>
+                <ToggleButton value="month">Month</ToggleButton>
+                <ToggleButton value="year">Year</ToggleButton>
+              </ToggleButtonGroup>
+            </Box>
+            <Box sx={{ height: 250 }}>
+              {analyticsLoading ? (
+                <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100%" }}>
+                  <CircularProgress size={24} />
+                </Box>
+              ) : (
+                <Line data={chartData} options={chartOptions} />
+              )}
+            </Box>
+          </Paper>
+
+          {/* Filters */}
+          <Paper sx={{ p: 2, mb: 2 }}>
+            <Box sx={{ display: "flex", gap: 1.5, flexWrap: "wrap", alignItems: "center" }}>
+              <TextField
+                size="small"
+                label="User"
+                value={userFilter}
+                onChange={(e) => setUserFilter(e.target.value)}
+                sx={{ width: 200 }}
+              />
+              <TextField
+                size="small"
+                label="From"
+                type="date"
+                value={dateFrom}
+                onChange={(e) => setDateFrom(e.target.value)}
+                slotProps={{ inputLabel: { shrink: true } }}
+                sx={{ width: 160 }}
+              />
+              <TextField
+                size="small"
+                label="To"
+                type="date"
+                value={dateTo}
+                onChange={(e) => setDateTo(e.target.value)}
+                slotProps={{ inputLabel: { shrink: true } }}
+                sx={{ width: 160 }}
+              />
+              <TextField
+                size="small"
+                label="Session ID"
+                value={sessionIdFilter}
+                onChange={(e) => setSessionIdFilter(e.target.value)}
+                sx={{ width: 200 }}
+              />
+              <Button variant="contained" size="small" onClick={handleSearch}>
+                Search
+              </Button>
+              <Button variant="outlined" size="small" onClick={handleClearFilters}>
+                Clear
+              </Button>
+            </Box>
+          </Paper>
+
+          {/* Sessions table */}
+          <Paper sx={{ overflow: "auto" }}>
+            {loading ? (
+              <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
+                <CircularProgress />
+              </Box>
+            ) : (
+              <>
+                <Box component="table" sx={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                  <thead>
+                    <tr>
+                      {["User", "Title / Preview", "Messages", "Created", "Updated", "Rating"].map(
+                        (h) => (
+                          <Box
+                            component="th"
+                            key={h}
+                            sx={{
+                              textAlign: "left",
+                              p: 1,
+                              borderBottom: 1,
+                              borderColor: "divider",
+                              fontWeight: 600,
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {h}
+                          </Box>
+                        )
+                      )}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sessions.map((s) => (
+                      <Box
+                        component="tr"
+                        key={s.id}
+                        onClick={() => openSessionDetail(s.id)}
+                        sx={{
+                          cursor: "pointer",
+                          "&:hover": { bgcolor: "action.hover" },
+                        }}
+                      >
+                        <Box component="td" sx={{ p: 1, borderBottom: 1, borderColor: "divider" }}>
+                          {s.userId}
+                        </Box>
+                        <Box
+                          component="td"
+                          sx={{
+                            p: 1,
+                            borderBottom: 1,
+                            borderColor: "divider",
+                            maxWidth: 400,
+                            overflow: "hidden",
+                            textOverflow: "ellipsis",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {s.title || s.preview || <em>No content</em>}
+                        </Box>
+                        <Box
+                          component="td"
+                          sx={{ p: 1, borderBottom: 1, borderColor: "divider", textAlign: "center" }}
+                        >
+                          {s.messageCount}
+                        </Box>
+                        <Box component="td" sx={{ p: 1, borderBottom: 1, borderColor: "divider", whiteSpace: "nowrap" }}>
+                          {new Date(s.createdAt).toLocaleDateString()}
+                        </Box>
+                        <Box component="td" sx={{ p: 1, borderBottom: 1, borderColor: "divider", whiteSpace: "nowrap" }}>
+                          {new Date(s.updatedAt).toLocaleDateString()}
+                        </Box>
+                        <Box
+                          component="td"
+                          sx={{ p: 1, borderBottom: 1, borderColor: "divider", textAlign: "center" }}
+                        >
+                          {s.rating ?? "-"}
+                        </Box>
+                      </Box>
+                    ))}
+                    {sessions.length === 0 && (
+                      <tr>
+                        <Box component="td" colSpan={6} sx={{ p: 3, textAlign: "center" }}>
+                          No sessions found
+                        </Box>
+                      </tr>
+                    )}
+                  </tbody>
+                </Box>
+                {total > PAGE_SIZE && (
+                  <Box sx={{ display: "flex", justifyContent: "center", py: 1.5 }}>
+                    <Pagination
+                      count={Math.ceil(total / PAGE_SIZE)}
+                      page={page}
+                      onChange={(_, p) => setPage(p)}
+                      size="small"
+                    />
+                  </Box>
+                )}
+                <Typography variant="caption" sx={{ display: "block", textAlign: "right", p: 1, color: "text.secondary" }}>
+                  {total} conversation{total !== 1 ? "s" : ""} total
+                </Typography>
+              </>
+            )}
+          </Paper>
+        </>
+      )}
+
+      {/* Tab 1: Feedback */}
+      {activeTab === 1 && (
+        <Paper sx={{ overflow: "auto" }}>
+          {feedbackLoading ? (
+            <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
+              <CircularProgress />
+            </Box>
+          ) : (
+            <>
+              <Box component="table" sx={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                <thead>
+                  <tr>
+                    {["User", "Preview", "Source", "Created"].map((h) => (
                       <Box
                         component="th"
                         key={h}
@@ -347,83 +522,102 @@ export default function AdminPage() {
                       >
                         {h}
                       </Box>
-                    )
-                  )}
-                </tr>
-              </thead>
-              <tbody>
-                {sessions.map((s) => (
-                  <Box
-                    component="tr"
-                    key={s.id}
-                    onClick={() => openSessionDetail(s.id)}
-                    sx={{
-                      cursor: "pointer",
-                      "&:hover": { bgcolor: "action.hover" },
-                    }}
-                  >
-                    <Box component="td" sx={{ p: 1, borderBottom: 1, borderColor: "divider" }}>
-                      {s.userId}
-                    </Box>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {feedbackItems.map((item, idx) => (
                     <Box
-                      component="td"
+                      component="tr"
+                      key={idx}
+                      onClick={() => setSelectedFeedback(item)}
                       sx={{
-                        p: 1,
-                        borderBottom: 1,
-                        borderColor: "divider",
-                        maxWidth: 400,
-                        overflow: "hidden",
-                        textOverflow: "ellipsis",
-                        whiteSpace: "nowrap",
+                        cursor: "pointer",
+                        "&:hover": { bgcolor: "action.hover" },
                       }}
                     >
-                      {s.title || s.preview || <em>No content</em>}
+                      <Box component="td" sx={{ p: 1, borderBottom: 1, borderColor: "divider" }}>
+                        {item.user}
+                      </Box>
+                      <Box
+                        component="td"
+                        sx={{
+                          p: 1,
+                          borderBottom: 1,
+                          borderColor: "divider",
+                          maxWidth: 400,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {item.preview}
+                      </Box>
+                      <Box component="td" sx={{ p: 1, borderBottom: 1, borderColor: "divider" }}>
+                        <Chip label={sourceLabel(item.source)} size="small" variant="outlined" />
+                      </Box>
+                      <Box component="td" sx={{ p: 1, borderBottom: 1, borderColor: "divider", whiteSpace: "nowrap" }}>
+                        {new Date(item.createdAt).toLocaleDateString()}
+                      </Box>
                     </Box>
-                    <Box
-                      component="td"
-                      sx={{ p: 1, borderBottom: 1, borderColor: "divider", textAlign: "center" }}
-                    >
-                      {s.messageCount}
-                    </Box>
-                    <Box component="td" sx={{ p: 1, borderBottom: 1, borderColor: "divider", whiteSpace: "nowrap" }}>
-                      {new Date(s.createdAt).toLocaleDateString()}
-                    </Box>
-                    <Box component="td" sx={{ p: 1, borderBottom: 1, borderColor: "divider", whiteSpace: "nowrap" }}>
-                      {new Date(s.updatedAt).toLocaleDateString()}
-                    </Box>
-                    <Box
-                      component="td"
-                      sx={{ p: 1, borderBottom: 1, borderColor: "divider", textAlign: "center" }}
-                    >
-                      {s.rating ?? "-"}
-                    </Box>
-                  </Box>
-                ))}
-                {sessions.length === 0 && (
-                  <tr>
-                    <Box component="td" colSpan={6} sx={{ p: 3, textAlign: "center" }}>
-                      No sessions found
-                    </Box>
-                  </tr>
-                )}
-              </tbody>
-            </Box>
-            {total > PAGE_SIZE && (
-              <Box sx={{ display: "flex", justifyContent: "center", py: 1.5 }}>
-                <Pagination
-                  count={Math.ceil(total / PAGE_SIZE)}
-                  page={page}
-                  onChange={(_, p) => setPage(p)}
-                  size="small"
-                />
+                  ))}
+                  {feedbackItems.length === 0 && (
+                    <tr>
+                      <Box component="td" colSpan={4} sx={{ p: 3, textAlign: "center" }}>
+                        No feedback found
+                      </Box>
+                    </tr>
+                  )}
+                </tbody>
               </Box>
-            )}
-            <Typography variant="caption" sx={{ display: "block", textAlign: "right", p: 1, color: "text.secondary" }}>
-              {total} conversation{total !== 1 ? "s" : ""} total
-            </Typography>
+              {feedbackTotal > FEEDBACK_PAGE_SIZE && (
+                <Box sx={{ display: "flex", justifyContent: "center", py: 1.5 }}>
+                  <Pagination
+                    count={Math.ceil(feedbackTotal / FEEDBACK_PAGE_SIZE)}
+                    page={feedbackPage}
+                    onChange={(_, p) => setFeedbackPage(p)}
+                    size="small"
+                  />
+                </Box>
+              )}
+              <Typography variant="caption" sx={{ display: "block", textAlign: "right", p: 1, color: "text.secondary" }}>
+                {feedbackTotal} feedback item{feedbackTotal !== 1 ? "s" : ""} total
+              </Typography>
+            </>
+          )}
+        </Paper>
+      )}
+
+      {/* Feedback detail dialog */}
+      <Dialog
+        open={!!selectedFeedback}
+        onClose={() => setSelectedFeedback(null)}
+        maxWidth="sm"
+        fullWidth
+      >
+        {selectedFeedback && (
+          <>
+            <DialogTitle sx={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+              <Box>
+                <Typography variant="h6">Feedback</Typography>
+                <Typography variant="caption" color="text.secondary">
+                  {selectedFeedback.user} &middot;{" "}
+                  {new Date(selectedFeedback.createdAt).toLocaleString()} &middot;{" "}
+                  <Chip label={sourceLabel(selectedFeedback.source)} size="small" variant="outlined" sx={{ height: 18, fontSize: 11 }} />
+                </Typography>
+              </Box>
+              <IconButton size="small" onClick={() => setSelectedFeedback(null)}>
+                <CloseIcon />
+              </IconButton>
+            </DialogTitle>
+            <DialogContent dividers>
+              <Typography sx={{ whiteSpace: "pre-wrap" }}>
+                {selectedFeedback.comment}
+              </Typography>
+            </DialogContent>
           </>
         )}
-      </Paper>
+      </Dialog>
 
       {/* Session detail dialog */}
       <Dialog
