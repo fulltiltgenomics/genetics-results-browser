@@ -594,6 +594,7 @@ const ChatPage = () => {
                 height="100%"
                 exampleQuestions={[
                   "What do we know about the effects of rs200317762?",
+                  "What schizophrenia data do we have?",
                   "Summarize findings on antimycotics use in FinnGen.",
                   "How many unique fine-mapped protective loss-of-function variants do we have in FinnGen with PIP > 0.05, MAF < 0.05, p-value < 1e-10 and what phenotypes are they associated to?",
                   "We've found that the variant chr2:9521321:A:G (ADAM17) confers risk to IBD. Does this variant colocalize with any molecular QTLs (eQTL, pQTL) that might indicate the function of this variant and what process might be implicated?",
