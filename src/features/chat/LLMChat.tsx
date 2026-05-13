@@ -825,6 +825,25 @@ export const LLMChat = ({
             </RadioGroup>
           </Box>
         </Box>
+        {contextUsage && (
+          <Tooltip title="Context window usage for this conversation — when full, older messages may be summarized" arrow placement="top">
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
+              <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>
+                Conversation context
+              </Typography>
+              <LinearProgress
+                variant="determinate"
+                value={Math.min(contextUsage.context_percent, 100)}
+                sx={{ flexGrow: 1, height: 4, borderRadius: 2 }}
+              />
+              <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>
+                {contextUsage.input_tokens >= 1000
+                  ? `${(contextUsage.input_tokens / 1000).toFixed(1)}K`
+                  : contextUsage.input_tokens} / {Math.round(contextUsage.context_window / 1000)}K tokens
+              </Typography>
+            </Box>
+          </Tooltip>
+        )}
       </Collapse>
       <PendingAttachments
         attachments={pendingAttachments}
@@ -1159,20 +1178,6 @@ export const LLMChat = ({
         </Alert>
       )}
 
-      {contextUsage && (
-        <Box sx={{ px: 2, pb: 0.5, display: 'flex', alignItems: 'center', gap: 1 }}>
-          <LinearProgress
-            variant="determinate"
-            value={Math.min(contextUsage.context_percent, 100)}
-            sx={{ flexGrow: 1, height: 4, borderRadius: 2 }}
-          />
-          <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>
-            {contextUsage.input_tokens >= 1000
-              ? `${(contextUsage.input_tokens / 1000).toFixed(1)}K`
-              : contextUsage.input_tokens} / {Math.round(contextUsage.context_window / 1000)}K tokens
-          </Typography>
-        </Box>
-      )}
 
       {inputForm}
     </Box>
