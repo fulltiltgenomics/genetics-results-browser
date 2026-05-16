@@ -99,4 +99,7 @@ export interface LLMChatProps {
 
   /** secret chat mode - messages not logged or persisted */
   isSecretChat?: boolean;
+
+  /** read-only mode - hides input area (for shared sessions viewed by non-owners) */
+  readOnly?: boolean;
 }

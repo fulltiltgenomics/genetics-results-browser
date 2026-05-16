@@ -131,6 +131,7 @@ export const LLMChat = ({
   onRateMessage,
   exampleQuestions,
   isSecretChat,
+  readOnly,
 }: LLMChatProps) => {
   const theme = useTheme();
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -970,10 +971,10 @@ export const LLMChat = ({
             </Collapse>
           </Paper>
         )}
-        {inputForm}
+        {!readOnly && inputForm}
 
         {/* example questions */}
-        {exampleQuestions && exampleQuestions.length > 0 && (
+        {!readOnly && exampleQuestions && exampleQuestions.length > 0 && (
           <Box sx={{ mt: 3, maxWidth: 800, width: "100%" }}>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
               Try asking:
@@ -1179,7 +1180,7 @@ export const LLMChat = ({
       )}
 
 
-      {inputForm}
+      {!readOnly && inputForm}
     </Box>
   );
 };

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Box, Typography, CircularProgress, Button, Chip, Menu, MenuItem } from "@mui/material";
-import { VisibilityOff } from "@mui/icons-material";
+import { Box, Typography, CircularProgress, Button, Chip, Menu, MenuItem, Snackbar, Alert } from "@mui/material";
+import { VisibilityOff, Share as ShareIcon, LinkOff as LinkOffIcon, ForkRight as ForkRightIcon } from "@mui/icons-material";
 import finnGenieLogo from "../../assets/finngenie-leonardo-gemini-2.5-flash-recraft-vectorized-claude-cropped.svg";
 import { LLMChat } from "./LLMChat";
 import { ChatHistorySidebar } from "./ChatHistorySidebar";
@@ -21,6 +21,8 @@ import {
   generateTitle,
   getAttachment,
   uploadAttachment,
+  shareSession,
+  forkSession,
   type ChatSession,
   type SessionDetail,
   type ChatMessageRecord,
@@ -50,6 +52,8 @@ const ChatPage = () => {
   const [isSecretChat, setIsSecretChat] = useState(false);
   const [exportMenuAnchor, setExportMenuAnchor] = useState<HTMLElement | null>(null);
   const [datasetsOpen, setDatasetsOpen] = useState(false);
+  const [snackbarMessage, setSnackbarMessage] = useState<string | null>(null);
+  const [sessionError, setSessionError] = useState<string | null>(null);
 
   // track current messages for saving
   const currentMessagesRef = useRef<ChatMessage[]>([]);
@@ -121,6 +125,7 @@ const ChatPage = () => {
 
   const loadSessionDetail = async (sessionId: string) => {
     setSessionLoading(true);
+    setSessionError(null);
     try {
       const data = await getSession(sessionId);
       savedMessageIds.current = new Set(data.messages.map((m) => m.id));
@@ -134,7 +139,7 @@ const ChatPage = () => {
       setLoadedMessages(ready);
     } catch (err) {
       console.error("Failed to load session:", err);
-      // session may have been deleted
+      setSessionError("Chat not found or not shared with you");
       setActiveSessionId(null);
     } finally {
       setSessionLoading(false);
@@ -183,6 +188,7 @@ const ChatPage = () => {
 
   const handleSelectSession = (sessionId: string) => {
     setIsSecretChat(false);
+    setSessionError(null);
     inlineSessionIdRef.current = null;
     setLoadedMessages(undefined);
     setActiveSessionId(sessionId);
@@ -331,6 +337,8 @@ const ChatPage = () => {
             rating: undefined,
             comment: undefined,
             phenotypeCode: undefined,
+            isOwner: true,
+            shared: false,
             messages: [],
           });
 
@@ -404,11 +412,46 @@ const ChatPage = () => {
     }
   };
 
+  const handleShare = async () => {
+    if (!activeSessionId) return;
+    try {
+      await shareSession(activeSessionId, true);
+      setActiveSession((prev) => (prev ? { ...prev, shared: true } : null));
+      await navigator.clipboard.writeText(window.location.href);
+      setSnackbarMessage("Link copied to clipboard");
+    } catch (err) {
+      console.error("Failed to share session:", err);
+    }
+  };
+
+  const handleUnshare = async () => {
+    if (!activeSessionId) return;
+    try {
+      await shareSession(activeSessionId, false);
+      setActiveSession((prev) => (prev ? { ...prev, shared: false } : null));
+    } catch (err) {
+      console.error("Failed to unshare session:", err);
+    }
+  };
+
+  const handleFork = async () => {
+    if (!activeSessionId) return;
+    try {
+      const newSession = await forkSession(activeSessionId);
+      setSessions((prev) => [{ ...newSession, preview: undefined, rating: undefined }, ...prev]);
+      navigate(`/finngenie/chat/${newSession.id}`);
+      setActiveSessionId(newSession.id);
+      setChatKey(newSession.id);
+    } catch (err) {
+      console.error("Failed to fork session:", err);
+    }
+  };
+
   const handleSessionRatingSave = async (rating: number, comment?: string) => {
     if (!activeSessionId) return;
     try {
       await updateSession(activeSessionId, { rating, comment });
-      setActiveSession((prev) => (prev ? { ...prev, rating, comment: comment ?? null } : null));
+      setActiveSession((prev) => (prev ? { ...prev, rating, comment: comment ?? undefined } : null));
       setSessions((prev) => prev.map((s) => (s.id === activeSessionId ? { ...s, rating } : s)));
     } catch (err) {
       console.error("Failed to save session rating:", err);
@@ -526,6 +569,37 @@ const ChatPage = () => {
                     size="small"
                   />
                 )}
+                {activeSession?.isOwner && activeSessionId && !isSecretChat && (
+                  activeSession.shared ? (
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      startIcon={<LinkOffIcon />}
+                      onClick={handleUnshare}
+                    >
+                      Unshare
+                    </Button>
+                  ) : (
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      startIcon={<ShareIcon />}
+                      onClick={handleShare}
+                    >
+                      Share
+                    </Button>
+                  )
+                )}
+                {activeSession && !activeSession.isOwner && (
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    startIcon={<ForkRightIcon />}
+                    onClick={handleFork}
+                  >
+                    Fork to continue
+                  </Button>
+                )}
               </Box>
 
               <Box sx={{ display: "flex", alignItems: "center", gap: 1, mt: 1 }}>
@@ -594,12 +668,21 @@ const ChatPage = () => {
             p: 2,
             pt: 0,
           }}>
-          {sessionLoading ? (
+          {sessionError ? (
+            <Box sx={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Alert severity="warning">{sessionError}</Alert>
+            </Box>
+          ) : sessionLoading ? (
             <Box sx={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
               <CircularProgress />
             </Box>
           ) : (
             <Box sx={{ flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
+              {activeSession && !activeSession.isOwner && (
+                <Alert severity="info" sx={{ mb: 1 }}>
+                  This is a shared chat. You are viewing it in read-only mode.
+                </Alert>
+              )}
               <LLMChat
                 key={chatKey}
                 sessionId={activeSessionId}
@@ -620,6 +703,7 @@ const ChatPage = () => {
                   "We've found that the variant chr2:9521321:A:G (ADAM17) confers risk to IBD. Does this variant colocalize with any molecular QTLs (eQTL, pQTL) that might indicate the function of this variant and what process might be implicated?",
                 ]}
                 isSecretChat={isSecretChat}
+                readOnly={activeSession ? !activeSession.isOwner : false}
               />
             </Box>
           )}
@@ -651,6 +735,12 @@ const ChatPage = () => {
       <AboutDialog open={aboutOpen} onClose={() => setAboutOpen(false)} />
       <McpTokenDialog open={tokensOpen} onClose={() => setTokensOpen(false)} />
       <DatasetsDialog open={datasetsOpen} onClose={() => setDatasetsOpen(false)} />
+      <Snackbar
+        open={!!snackbarMessage}
+        autoHideDuration={3000}
+        onClose={() => setSnackbarMessage(null)}
+        message={snackbarMessage}
+      />
     </Box>
   );
 };
