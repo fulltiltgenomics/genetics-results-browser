@@ -166,3 +166,8 @@ node_modules
 config.py.bak
 static
 data
+
+# Beads / Dolt files (added by bd init)
+.dolt/
+*.db
+.beads-credential-key
