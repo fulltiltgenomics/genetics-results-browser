@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import { Box, Typography, CircularProgress, Button, Chip, Menu, MenuItem } from "@mui/material";
 import { VisibilityOff } from "@mui/icons-material";
 import finnGenieLogo from "../../assets/finngenie-leonardo-gemini-2.5-flash-recraft-vectorized-claude-cropped.svg";
@@ -32,6 +33,8 @@ import { exportChatAsHtml, exportChatAsMarkdown } from "./exportChat";
  * Three-column layout: [Sidebar 280px] [Chat flex:1] [Config 600px]
  */
 const ChatPage = () => {
+  const { sessionId: urlSessionId } = useParams<{ sessionId: string }>();
+  const navigate = useNavigate();
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [activeSession, setActiveSession] = useState<SessionDetail | null>(null);
@@ -62,6 +65,15 @@ const ChatPage = () => {
   useEffect(() => {
     loadSessions();
   }, []);
+
+  // load session from URL param on mount
+  const urlSessionLoadedRef = useRef(false);
+  useEffect(() => {
+    if (urlSessionId && !urlSessionLoadedRef.current) {
+      urlSessionLoadedRef.current = true;
+      handleSelectSession(urlSessionId);
+    }
+  }, [urlSessionId]);
 
   const loadSessions = async () => {
     try {
@@ -153,6 +165,7 @@ const ChatPage = () => {
       setActiveSessionId(session.id);
       setChatKey(session.id);
       savedMessageIds.current = new Set();
+      navigate(`/finngenie/chat/${session.id}`, { replace: true });
     } catch (err) {
       console.error("Failed to create session:", err);
     }
@@ -165,6 +178,7 @@ const ChatPage = () => {
     setChatKey(`secret-${Date.now()}`);
     savedMessageIds.current = new Set();
     currentMessagesRef.current = [];
+    navigate("/finngenie", { replace: true });
   };
 
   const handleSelectSession = (sessionId: string) => {
@@ -173,6 +187,7 @@ const ChatPage = () => {
     setLoadedMessages(undefined);
     setActiveSessionId(sessionId);
     setChatKey(sessionId);
+    navigate(`/finngenie/chat/${sessionId}`, { replace: true });
   };
 
   const handleDeleteSession = async (sessionId: string) => {
@@ -321,6 +336,7 @@ const ChatPage = () => {
 
           setSessions((prev) => [{ ...session, preview: undefined, rating: undefined }, ...prev]);
           setActiveSessionId(session.id);
+          navigate(`/finngenie/chat/${session.id}`, { replace: true });
         } catch (err) {
           console.error("Failed to create session:", err);
           return;

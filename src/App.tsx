@@ -56,6 +56,7 @@ export const App = () => {
                   <Route path="/gene/:geneName" element={<GeneContainer />} />
                   <Route path="/ld" element={<LDContainer />} />
                   <Route path="/finngenie" element={<ChatPage />} />
+                  <Route path="/finngenie/chat/:sessionId" element={<ChatPage />} />
                   <Route path="/phenotype" element={<PhenotypeContainer />} />
                   <Route path="/phenotype/:phenocode" element={<PhenotypeContainer />} />
                   <Route path="/about" element={<About />} />
