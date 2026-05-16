@@ -35,6 +35,8 @@ export interface ChatMessageRecord {
 
 export interface SessionDetail extends ChatSession {
   messages: ChatMessageRecord[];
+  isOwner: boolean;
+  shared: boolean;
 }
 
 export async function listSessions(): Promise<ChatSession[]> {
@@ -83,6 +85,8 @@ export async function getSession(sessionId: string): Promise<SessionDetail> {
     rating: data.rating,
     comment: data.comment,
     phenotypeCode: data.phenotype_code,
+    isOwner: data.is_owner,
+    shared: data.shared,
     messages: data.messages.map(mapMessage),
   };
 }
@@ -110,6 +114,33 @@ export async function deleteSession(sessionId: string): Promise<void> {
   if (!response.ok && response.status !== 404) {
     throw new Error(`HTTP ${response.status}`);
   }
+}
+
+export async function shareSession(
+  sessionId: string,
+  shared: boolean
+): Promise<void> {
+  const response = await fetch(`${chatUrl}/v1/chat/sessions/${sessionId}/share`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ shared }),
+  });
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}`);
+  }
+}
+
+export async function forkSession(sessionId: string): Promise<ChatSession> {
+  const response = await fetch(`${chatUrl}/v1/chat/sessions/${sessionId}/fork`, {
+    method: "POST",
+    credentials: "include",
+  });
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}`);
+  }
+  const data = await response.json();
+  return mapSession(data);
 }
 
 export async function saveMessage(

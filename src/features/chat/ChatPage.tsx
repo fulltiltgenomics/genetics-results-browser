@@ -88,6 +88,8 @@ const ChatPage = () => {
           rating: undefined,
           comment: undefined,
           phenotypeCode: undefined,
+          isOwner: true,
+          shared: false,
           messages: [],
         });
       } else if (inlineSessionIdRef.current === activeSessionId) {
@@ -144,6 +146,8 @@ const ChatPage = () => {
         rating: undefined,
         comment: undefined,
         phenotypeCode: undefined,
+        isOwner: true,
+        shared: false,
         messages: [],
       });
       setActiveSessionId(session.id);
