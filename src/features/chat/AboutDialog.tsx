@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Dialog, DialogTitle, DialogContent, DialogActions, Button, Typography } from "@mui/material";
 
 interface AboutDialogProps {
@@ -5,7 +6,27 @@ interface AboutDialogProps {
   onClose: () => void;
 }
 
+const formatModelName = (modelId: string): string => {
+  // "claude-sonnet-4-6" -> "Claude Sonnet 4.6", "claude-opus-4-7" -> "Claude Opus 4.7"
+  const match = modelId.match(/^claude-(\w+)-(\d+)-(\d+)/);
+  if (!match) return modelId;
+  const [, variant, major, minor] = match;
+  return `Claude ${variant.charAt(0).toUpperCase() + variant.slice(1)} ${major}.${minor}`;
+};
+
 export const AboutDialog = ({ open, onClose }: AboutDialogProps) => {
+  const [modelName, setModelName] = useState<string>("");
+
+  useEffect(() => {
+    if (!open) return;
+    const chatUrl = import.meta.env.VITE_CHAT_URL;
+    if (!chatUrl) return;
+    fetch(`${chatUrl.replace(/\/chat\/?$/, "")}/status`, { credentials: "include" })
+      .then((r) => r.json())
+      .then((data) => setModelName(formatModelName(data.default_model)))
+      .catch(() => {});
+  }, [open]);
+
   return (
     <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle>About FinnGenie</DialogTitle>
@@ -16,7 +37,7 @@ export const AboutDialog = ({ open, onClose }: AboutDialogProps) => {
         </Typography>
 
         <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-          I am Claude Sonnet 4.6 but I also have direct access to a lot of great genetics results
+          I am {modelName || "an AI assistant"} but I also have direct access to a lot of great genetics results
           data (ask me about it!). Typically, when you ask me a question, I will first check our data
           resources for relevant information. Then I'll do a literature search, and finally synthesize
           the information from the two sources. Do ask follow-up questions!
