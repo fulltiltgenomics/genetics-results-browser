@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Box, Typography, CircularProgress, Button, Chip, Menu, MenuItem, Snackbar, Alert } from "@mui/material";
+import { Box, Typography, CircularProgress, Button, Chip, Menu, MenuItem, Popover, Alert } from "@mui/material";
 import { VisibilityOff, Share as ShareIcon, LinkOff as LinkOffIcon, ForkRight as ForkRightIcon } from "@mui/icons-material";
 import finnGenieLogo from "../../assets/finngenie-leonardo-gemini-2.5-flash-recraft-vectorized-claude-cropped.svg";
 import { LLMChat } from "./LLMChat";
@@ -52,7 +52,8 @@ const ChatPage = () => {
   const [isSecretChat, setIsSecretChat] = useState(false);
   const [exportMenuAnchor, setExportMenuAnchor] = useState<HTMLElement | null>(null);
   const [datasetsOpen, setDatasetsOpen] = useState(false);
-  const [snackbarMessage, setSnackbarMessage] = useState<string | null>(null);
+  const [sharePopoverOpen, setSharePopoverOpen] = useState(false);
+  const shareButtonRef = useRef<HTMLSpanElement>(null);
   const [sessionError, setSessionError] = useState<string | null>(null);
 
   // track current messages for saving
@@ -418,7 +419,8 @@ const ChatPage = () => {
       await shareSession(activeSessionId, true);
       setActiveSession((prev) => (prev ? { ...prev, shared: true } : null));
       await navigator.clipboard.writeText(window.location.href);
-      setSnackbarMessage("Link copied to clipboard");
+      setSharePopoverOpen(true);
+      setTimeout(() => setSharePopoverOpen(false), 3000);
     } catch (err) {
       console.error("Failed to share session:", err);
     }
@@ -570,25 +572,27 @@ const ChatPage = () => {
                   />
                 )}
                 {activeSession?.isOwner && activeSessionId && !isSecretChat && (
-                  activeSession.shared ? (
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      startIcon={<LinkOffIcon />}
-                      onClick={handleUnshare}
-                    >
-                      Unshare
-                    </Button>
-                  ) : (
-                    <Button
-                      size="small"
-                      variant="outlined"
-                      startIcon={<ShareIcon />}
-                      onClick={handleShare}
-                    >
-                      Share
-                    </Button>
-                  )
+                  <span ref={shareButtonRef}>
+                    {activeSession.shared ? (
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        startIcon={<LinkOffIcon />}
+                        onClick={handleUnshare}
+                      >
+                        Unshare
+                      </Button>
+                    ) : (
+                      <Button
+                        size="small"
+                        variant="outlined"
+                        startIcon={<ShareIcon />}
+                        onClick={handleShare}
+                      >
+                        Share
+                      </Button>
+                    )}
+                  </span>
                 )}
                 {activeSession && !activeSession.isOwner && (
                   <Button
@@ -735,12 +739,19 @@ const ChatPage = () => {
       <AboutDialog open={aboutOpen} onClose={() => setAboutOpen(false)} />
       <McpTokenDialog open={tokensOpen} onClose={() => setTokensOpen(false)} />
       <DatasetsDialog open={datasetsOpen} onClose={() => setDatasetsOpen(false)} />
-      <Snackbar
-        open={!!snackbarMessage}
-        autoHideDuration={3000}
-        onClose={() => setSnackbarMessage(null)}
-        message={snackbarMessage}
-      />
+      <Popover
+        open={sharePopoverOpen}
+        anchorEl={shareButtonRef.current}
+        onClose={() => setSharePopoverOpen(false)}
+        anchorOrigin={{ vertical: "bottom", horizontal: "left" }}
+        transformOrigin={{ vertical: "top", horizontal: "left" }}
+        disableAutoFocus
+        disableEnforceFocus
+      >
+        <Alert severity="success" sx={{ py: 0.5 }}>
+          Chat URL copied to clipboard — share it with others!
+        </Alert>
+      </Popover>
     </Box>
   );
 };
