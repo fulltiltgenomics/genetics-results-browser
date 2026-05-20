@@ -345,6 +345,8 @@ const ChatPage = () => {
 
           setSessions((prev) => [{ ...session, preview: undefined, rating: undefined }, ...prev]);
           setActiveSessionId(session.id);
+          // prevent the URL useEffect from treating this as a fresh navigation
+          urlSessionLoadedRef.current = true;
           navigate(`/chat/${session.id}`, { replace: true });
         } catch (err) {
           console.error("Failed to create session:", err);
