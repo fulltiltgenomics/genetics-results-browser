@@ -171,7 +171,7 @@ const ChatPage = () => {
       setActiveSessionId(session.id);
       setChatKey(session.id);
       savedMessageIds.current = new Set();
-      navigate(`/finngenie/chat/${session.id}`, { replace: true });
+      navigate(`/chat/${session.id}`, { replace: true });
     } catch (err) {
       console.error("Failed to create session:", err);
     }
@@ -184,7 +184,7 @@ const ChatPage = () => {
     setChatKey(`secret-${Date.now()}`);
     savedMessageIds.current = new Set();
     currentMessagesRef.current = [];
-    navigate("/finngenie", { replace: true });
+    navigate("/chat", { replace: true });
   };
 
   const handleSelectSession = (sessionId: string) => {
@@ -194,7 +194,7 @@ const ChatPage = () => {
     setLoadedMessages(undefined);
     setActiveSessionId(sessionId);
     setChatKey(sessionId);
-    navigate(`/finngenie/chat/${sessionId}`, { replace: true });
+    navigate(`/chat/${sessionId}`, { replace: true });
   };
 
   const handleDeleteSession = async (sessionId: string) => {
@@ -345,7 +345,7 @@ const ChatPage = () => {
 
           setSessions((prev) => [{ ...session, preview: undefined, rating: undefined }, ...prev]);
           setActiveSessionId(session.id);
-          navigate(`/finngenie/chat/${session.id}`, { replace: true });
+          navigate(`/chat/${session.id}`, { replace: true });
         } catch (err) {
           console.error("Failed to create session:", err);
           return;
@@ -441,7 +441,7 @@ const ChatPage = () => {
     try {
       const newSession = await forkSession(activeSessionId);
       setSessions((prev) => [{ ...newSession, preview: undefined, rating: undefined }, ...prev]);
-      navigate(`/finngenie/chat/${newSession.id}`);
+      navigate(`/chat/${newSession.id}`);
       setActiveSessionId(newSession.id);
       setChatKey(newSession.id);
     } catch (err) {
