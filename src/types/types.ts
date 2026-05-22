@@ -88,6 +88,7 @@ export type VariantRecord = {
       pqtl: { up: number; down: number; total: number };
       sqtl: { up: number; down: number; total: number };
       edqtl: { up: number; down: number; total: number };
+      asmqtl: { up: number; down: number; total: number };
       qtl: { up: number; down: number; total: number };
       gwas: { up: number; down: number; total: number };
     };
@@ -102,6 +103,7 @@ export type VariantRecord = {
       pqtl: { up: number; down: number; total: number };
       sqtl: { up: number; down: number; total: number };
       edqtl: { up: number; down: number; total: number };
+      asmqtl: { up: number; down: number; total: number };
       qtl: { up: number; down: number; total: number };
       gwas: { up: number; down: number; total: number };
       total: { up: number; down: number; total: number };
@@ -248,6 +250,7 @@ export enum DataType {
   SQTL = "sQTL",
   EDQTL = "edQTL",
   METABOQTL = "metaboQTL",
+  ASMQTL = "asmQTL",
   NA = "NA",
 }
 

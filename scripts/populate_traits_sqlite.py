@@ -12,7 +12,7 @@ import argparse
 CREATE_STMT = """
 CREATE TABLE IF NOT EXISTS trait (
     resource TEXT NOT NULL,
-    data_type TEXT NOT NULL CHECK( data_type IN ('GWAS','eQTL','pQTL','sQTL','edQTL','metaboQTL') ),
+    data_type TEXT NOT NULL CHECK( data_type IN ('GWAS','eQTL','pQTL','sQTL','edQTL','metaboQTL','asmQTL') ),
     trait_type TEXT NOT NULL CHECK( trait_type IN ('continuous','case-control')),
     phenocode TEXT NOT NULL,
     phenostring TEXT NOT NULL,

@@ -69,9 +69,9 @@ const categories: Category[] = [
     filter: (d) => ["exome", "gene_based"].includes(d.data_type),
   },
   {
-    label: "QTL (eQTL / pQTL / caQTL / sQTL)",
+    label: "QTL (eQTL / pQTL / caQTL / sQTL / asmQTL)",
     filter: (d) =>
-      ["eqtl", "pqtl", "caqtl", "sqtl", "metaboqtl", "mixed"].includes(d.data_type) &&
+      ["eqtl", "pqtl", "caqtl", "sqtl", "asmqtl", "metaboqtl", "mixed"].includes(d.data_type) &&
       d.products?.credible_sets !== undefined,
   },
   {
@@ -175,10 +175,10 @@ const DatasetTable = ({ datasets, category }: { datasets: Dataset[]; category: s
   const showCredibleSets = category === "GWAS";
   const showQtlTypes =
     category !== "Colocalization-only" && datasets.some((d) => d.qtl_types);
-  const showSumstats = ["GWAS", "QTL (eQTL / pQTL / caQTL / sQTL)"].includes(category);
+  const showSumstats = ["GWAS", "QTL (eQTL / pQTL / caQTL / sQTL / asmQTL)"].includes(category);
   const showColoc = datasets.some((d) => (d.products as Record<string, unknown>)?.colocalization);
   const showStats =
-    category !== "QTL (eQTL / pQTL / caQTL / sQTL)" &&
+    category !== "QTL (eQTL / pQTL / caQTL / sQTL / asmQTL)" &&
     datasets.some(
       (d) => d.stats?.n_phenotypes || d.stats?.n_subdatasets || d.n_phenotypes != null
     );

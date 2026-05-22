@@ -156,13 +156,19 @@ const countAssocPhenos = (d: GroupedAssocRecord[], resources: Array<AssocResourc
     down: dmetaboqtl.filter((d) => d.beta[0] < 0).length,
     total: dmetaboqtl.length,
   };
+  const dasmqtl = dqtl.filter((d) => d.data_type === DataType.ASMQTL);
+  const asmqtl = {
+    up: dasmqtl.filter((d) => d.beta[0] > 0).length,
+    down: dasmqtl.filter((d) => d.beta[0] < 0).length,
+    total: dasmqtl.length,
+  };
   const dgwas = d.filter((d) => d.data_type === DataType.GWAS);
   const gwas = {
     up: dgwas.filter((d) => d.beta[0] > 0).length,
     down: dgwas.filter((d) => d.beta[0] < 0).length,
     total: dgwas.length,
   };
-  return { total, resource, eqtl, pqtl, sqtl, edqtl, metaboqtl, qtl, gwas };
+  return { total, resource, eqtl, pqtl, sqtl, edqtl, metaboqtl, asmqtl, qtl, gwas };
 };
 
 // convert array to a deduped array:
@@ -303,13 +309,19 @@ const countFineMappedTraits = (
     down: dmetaboqtl.filter((d) => d.beta[0] < 0).length,
     total: dmetaboqtl.length,
   };
+  const dasmqtl = dqtl.filter((d) => d.data_type === DataType.ASMQTL);
+  const asmqtl = {
+    up: dasmqtl.filter((d) => d.beta[0] > 0).length,
+    down: dasmqtl.filter((d) => d.beta[0] < 0).length,
+    total: dasmqtl.length,
+  };
   const dgwas = d.filter((d) => d.data_type === DataType.GWAS);
   const gwas = {
     up: dgwas.filter((d) => d.beta[0] > 0).length,
     down: dgwas.filter((d) => d.beta[0] < 0).length,
     total: dgwas.length,
   };
-  return { total, resource, eqtl, pqtl, sqtl, edqtl, metaboqtl, qtl, gwas };
+  return { total, resource, eqtl, pqtl, sqtl, edqtl, metaboqtl, asmqtl, qtl, gwas };
 };
 
 // change placeholder text according to p-value threshold
