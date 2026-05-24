@@ -23,12 +23,11 @@ FROM nginx:alpine
 COPY --from=builder /var/www/genetics-results-browser/static /usr/share/nginx/html
 COPY --from=builder /etc/nginx/conf.d/default.conf /etc/nginx/conf.d/default.conf
 
-RUN mkdir -p /var/cache/nginx && \
-    chown -R nginx:nginx /var/cache/nginx && \
-    chmod -R 755 /var/cache/nginx && \
-    touch /opt/nginx.pid && chown nginx:nginx /opt/nginx.pid
+RUN mkdir -p /var/cache/nginx /tmp/nginx && \
+    chown -R nginx:nginx /var/cache/nginx /tmp/nginx && \
+    chmod -R 755 /var/cache/nginx /tmp/nginx
 
-RUN echo "pid /opt/nginx.pid;" > /etc/nginx/nginx.conf && \
+RUN echo "pid /tmp/nginx/nginx.pid;" > /etc/nginx/nginx.conf && \
     echo "worker_processes auto;" >> /etc/nginx/nginx.conf && \
     echo "events { worker_connections 1024; }" >> /etc/nginx/nginx.conf && \
     echo "http { include /etc/nginx/conf.d/*.conf; }" >> /etc/nginx/nginx.conf
