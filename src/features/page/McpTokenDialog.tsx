@@ -224,6 +224,9 @@ const McpTokenDialog = ({ open, onClose }: McpTokenDialogProps) => {
           >
             {`${origin}/mcp?token=<TOKEN>`}
           </Box>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>
+            You can also use a Google ID token (in terminal: <code>gcloud auth print-identity-token</code>) but it recycles once an hour.
+          </Typography>
         </Box>
         <Box sx={{ mt: 3, p: 2, bgcolor: "action.hover", borderRadius: 1 }}>
           <Typography variant="subtitle2" gutterBottom>
