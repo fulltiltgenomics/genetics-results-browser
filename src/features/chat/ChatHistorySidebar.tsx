@@ -14,9 +14,15 @@ import {
   DialogContent,
   DialogContentText,
   DialogActions,
+  Tooltip,
   useTheme,
 } from "@mui/material";
-import { Add as AddIcon, Delete as DeleteIcon, VisibilityOff as VisibilityOffIcon } from "@mui/icons-material";
+import {
+  Add as AddIcon,
+  Delete as DeleteIcon,
+  VisibilityOff as VisibilityOffIcon,
+  InfoOutlined as InfoOutlinedIcon,
+} from "@mui/icons-material";
 import type { ChatSession } from "./chatHistoryApi";
 
 interface ChatHistorySidebarProps {
@@ -115,22 +121,53 @@ export const ChatHistorySidebar = ({
       }}>
       {/* header with new chat buttons */}
       <Box sx={{ p: 1.5, borderBottom: 1, borderColor: "divider", display: "flex", flexDirection: "column", gap: 1 }}>
-        <Button
-          variant="outlined"
-          startIcon={<AddIcon />}
-          onClick={onNewChat}
-          fullWidth
-          sx={{ justifyContent: "flex-start" }}>
-          New Chat
-        </Button>
-        <Button
-          variant="outlined"
-          startIcon={<VisibilityOffIcon />}
-          onClick={onNewSecretChat}
-          fullWidth
-          sx={{ justifyContent: "flex-start" }}>
-          Secret Chat
-        </Button>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+          <Button
+            variant="outlined"
+            startIcon={<AddIcon />}
+            onClick={onNewChat}
+            fullWidth
+            sx={{ justifyContent: "flex-start" }}>
+            New Chat
+          </Button>
+          {/* spacer to match Secret Chat row's info icon width */}
+          <InfoOutlinedIcon fontSize="small" sx={{ visibility: "hidden" }} />
+        </Box>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+          <Button
+            variant="outlined"
+            startIcon={<VisibilityOffIcon />}
+            onClick={onNewSecretChat}
+            fullWidth
+            sx={{ justifyContent: "flex-start" }}>
+            Secret Chat
+          </Button>
+          <Tooltip
+            title={
+              <>
+                Secret Chat means we do not log the conversation, but prompts are still sent to Anthropic, and we may use Perplexity for literature search. See the privacy policies of{" "}
+                <a
+                  href="https://privacy.claude.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ color: "inherit", textDecoration: "underline" }}>
+                  Anthropic
+                </a>{" "}
+                and{" "}
+                <a
+                  href="https://docs.perplexity.ai/docs/resources/privacy-security"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ color: "inherit", textDecoration: "underline" }}>
+                  Perplexity
+                </a>
+                .
+              </>
+            }
+            componentsProps={{ tooltip: { sx: { fontSize: "0.875rem", "& a": { pointerEvents: "auto" } } } }}>
+            <InfoOutlinedIcon fontSize="small" sx={{ color: "text.secondary", cursor: "help" }} />
+          </Tooltip>
+        </Box>
       </Box>
 
       {/* session list */}
