@@ -15,6 +15,7 @@ import {
   DialogContentText,
   DialogActions,
   Tooltip,
+  useMediaQuery,
   useTheme,
 } from "@mui/material";
 import {
@@ -95,6 +96,8 @@ export const ChatHistorySidebar = ({
   onAfterSelect,
 }: ChatHistorySidebarProps) => {
   const theme = useTheme();
+  // on touch/mobile the delete icon is always visible (no hover); desktop keeps hover-reveal
+  const isMobile = useMediaQuery(theme.breakpoints.down("md"));
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [sessionToDelete, setSessionToDelete] = useState<string | null>(null);
@@ -207,12 +210,14 @@ export const ChatHistorySidebar = ({
                   {group}
                 </Typography>
                 <List dense disablePadding>
-                  {groupSessions.map((session) => (
+                  {groupSessions.map((session) => {
+                    const showDelete = isMobile || hoveredId === session.id;
+                    return (
                     <ListItem
                       key={session.id}
                       disablePadding
                       secondaryAction={
-                        hoveredId === session.id && (
+                        showDelete && (
                           <IconButton
                             edge="end"
                             size="small"
@@ -232,7 +237,7 @@ export const ChatHistorySidebar = ({
                         }}
                         sx={{
                           py: 1,
-                          pr: hoveredId === session.id ? 5 : 2,
+                          pr: showDelete ? 5 : 2,
                         }}>
                         <ListItemText
                           primary={
@@ -253,7 +258,8 @@ export const ChatHistorySidebar = ({
                         />
                       </ListItemButton>
                     </ListItem>
-                  ))}
+                    );
+                  })}
                 </List>
               </Box>
             ) : null
