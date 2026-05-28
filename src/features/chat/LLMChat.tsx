@@ -28,14 +28,26 @@ import {
   AttachFile as AttachFileIcon,
   InfoOutlined as InfoIcon,
 } from "@mui/icons-material";
-import React, { useRef, useEffect, useState, useCallback } from "react";
+import React, { useRef, useEffect, useState, useCallback, useMemo } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import type { PluggableList } from "unified";
 import { fetchEventSource } from "@microsoft/fetch-event-source";
 import type { ChatMessage, LLMChatProps, LiteratureBackend, ToolProfile, PendingAttachment, FileAttachment, ContextUsage } from "./chat.types";
 import { MessageRating } from "./MessageRating";
 import { PendingAttachments, MessageAttachments } from "./FileAttachments";
 import { getAttachmentType, isValidAttachmentType } from "./chatHistoryApi";
+import { useSchema } from "./schemaApi";
+import { linkifyViewsPlugin } from "./linkifyViews";
+
+// hardcoded fallback used until useSchema() resolves; mirrors known views in genetics-results-db
+const FALLBACK_VIEW_NAMES = [
+  "credible_sets_v",
+  "colocalization_v",
+  "coloc_credsets_v",
+  "exome_variant_results_v",
+  "gene_burden_results_v",
+];
 
 // regex to match image markers: [IMAGE:format:alt:base64data]
 const IMAGE_MARKER_REGEX = /\[IMAGE:([^:]+):([^:]+):([^\]]+)\]/g;
@@ -44,10 +56,20 @@ const IMAGE_MARKER_REGEX = /\[IMAGE:([^:]+):([^:]+):([^\]]+)\]/g;
  * Renders message content, handling embedded images separately from markdown.
  * Images are stored as [IMAGE:format:alt:base64data] markers.
  */
-const MessageContent = ({ content }: { content: string }) => {
+const MessageContent = ({
+  content,
+  rehypePlugins,
+}: {
+  content: string;
+  rehypePlugins?: PluggableList;
+}) => {
   // check if content has any image markers
   if (!content.includes("[IMAGE:")) {
-    return <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>;
+    return (
+      <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={rehypePlugins}>
+        {content}
+      </ReactMarkdown>
+    );
   }
 
   // split content by image markers and render each part
@@ -65,7 +87,10 @@ const MessageContent = ({ content }: { content: string }) => {
       const textPart = content.slice(lastIndex, match.index);
       if (textPart.trim()) {
         parts.push(
-          <ReactMarkdown key={`text-${keyIndex++}`} remarkPlugins={[remarkGfm]}>
+          <ReactMarkdown
+            key={`text-${keyIndex++}`}
+            remarkPlugins={[remarkGfm]}
+            rehypePlugins={rehypePlugins}>
             {textPart}
           </ReactMarkdown>
         );
@@ -100,7 +125,10 @@ const MessageContent = ({ content }: { content: string }) => {
     const remainingText = content.slice(lastIndex);
     if (remainingText.trim()) {
       parts.push(
-        <ReactMarkdown key={`text-${keyIndex++}`} remarkPlugins={[remarkGfm]}>
+        <ReactMarkdown
+          key={`text-${keyIndex++}`}
+          remarkPlugins={[remarkGfm]}
+          rehypePlugins={rehypePlugins}>
           {remainingText}
         </ReactMarkdown>
       );
@@ -157,6 +185,14 @@ export const LLMChat = ({
   const dragCounterRef = useRef(0);
 
   const chatUrl = import.meta.env.VITE_CHAT_URL;
+
+  // build the rehype plugin list for assistant markdown so view names become clickable links
+  // that open the SchemaDrawer via the existing #schema/<view> hash route
+  const { data: schemaData } = useSchema();
+  const messageRehypePlugins = useMemo<PluggableList>(() => {
+    const names = schemaData?.tables.map((t) => t.name) ?? FALLBACK_VIEW_NAMES;
+    return [linkifyViewsPlugin(names)];
+  }, [schemaData]);
 
   // track the last session ID to detect actual session switches
   const lastSessionIdRef = useRef<string | null | undefined>(undefined);
@@ -684,6 +720,15 @@ export const LLMChat = ({
       px: 0.5,
       borderRadius: 0.5,
     },
+    "& a.schema-link": {
+      color: theme.palette.primary.main,
+      textDecoration: "underline",
+      textDecorationStyle: "dotted",
+      cursor: "pointer",
+      "&:hover": {
+        textDecorationStyle: "solid",
+      },
+    },
     "& ul, & ol": { pl: 2 },
     "& table": {
       borderCollapse: "collapse",
@@ -1101,7 +1146,10 @@ export const LLMChat = ({
                 )}
                 <Box sx={markdownStyles}>
                   {message.content ? (
-                    <MessageContent content={message.content} />
+                    <MessageContent
+                      content={message.content}
+                      rehypePlugins={message.role === "assistant" ? messageRehypePlugins : undefined}
+                    />
                   ) : message.attachments && message.attachments.length > 0 ? null : (
                     <Typography variant="body2" color="text.secondary" fontStyle="italic">
                       ...
