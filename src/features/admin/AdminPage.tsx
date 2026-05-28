@@ -338,7 +338,7 @@ export default function AdminPage() {
                 <ToggleButton value="year">Year</ToggleButton>
               </ToggleButtonGroup>
             </Box>
-            <Box sx={{ height: 250 }}>
+            <Box sx={{ height: { xs: 200, md: 250 } }}>
               {analyticsLoading ? (
                 <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100%" }}>
                   <CircularProgress size={24} />
@@ -357,7 +357,7 @@ export default function AdminPage() {
                 label="User"
                 value={userFilter}
                 onChange={(e) => setUserFilter(e.target.value)}
-                sx={{ width: 200 }}
+                sx={{ width: { xs: "100%", sm: 200 } }}
               />
               <TextField
                 size="small"
@@ -366,7 +366,7 @@ export default function AdminPage() {
                 value={dateFrom}
                 onChange={(e) => setDateFrom(e.target.value)}
                 slotProps={{ inputLabel: { shrink: true } }}
-                sx={{ width: 160 }}
+                sx={{ width: { xs: "100%", sm: 160 } }}
               />
               <TextField
                 size="small"
@@ -375,19 +375,19 @@ export default function AdminPage() {
                 value={dateTo}
                 onChange={(e) => setDateTo(e.target.value)}
                 slotProps={{ inputLabel: { shrink: true } }}
-                sx={{ width: 160 }}
+                sx={{ width: { xs: "100%", sm: 160 } }}
               />
               <TextField
                 size="small"
                 label="Session ID"
                 value={sessionIdFilter}
                 onChange={(e) => setSessionIdFilter(e.target.value)}
-                sx={{ width: 200 }}
+                sx={{ width: { xs: "100%", sm: 200 } }}
               />
-              <Button variant="contained" size="small" onClick={handleSearch}>
+              <Button variant="contained" size="small" onClick={handleSearch} fullWidth={isXs}>
                 Search
               </Button>
-              <Button variant="outlined" size="small" onClick={handleClearFilters}>
+              <Button variant="outlined" size="small" onClick={handleClearFilters} fullWidth={isXs}>
                 Clear
               </Button>
             </Box>
