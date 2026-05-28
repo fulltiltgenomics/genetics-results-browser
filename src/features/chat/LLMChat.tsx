@@ -149,7 +149,7 @@ export const LLMChat = ({
   placeholder = "Ask a question...",
   emptyStateTitle = "Start a conversation",
   emptyStateDescription = "Ask questions about human genetics results, phenotypes, genes, or variants.",
-  height = "calc(100vh - 300px)",
+  height = "calc(100dvh - 300px)",
   sessionId,
   initialMessages,
   onSessionCreated,

@@ -564,7 +564,7 @@ const ChatPage = () => {
   }, [activeSession, loadAttachmentPreviews]);
 
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", height: "calc(100vh - 64px)" }}>
+    <Box sx={{ display: "flex", flexDirection: "column", height: "calc(100dvh - 64px)" }}>
       {/* header row */}
       <Box sx={{ display: "flex" }}>
         <Box sx={{ width: 280, flexShrink: 0, borderColor: "divider", display: { xs: "none", md: "block" } }} />
