@@ -1,8 +1,9 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo, type MouseEvent as ReactMouseEvent, type ReactNode } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Box, Typography, CircularProgress, Button, Chip, Drawer, IconButton, Menu, MenuItem, Popover, Alert, Tooltip, useMediaQuery, useTheme } from "@mui/material";
+import { Box, Typography, CircularProgress, Button, Chip, Drawer, IconButton, ListItemIcon, ListItemText, Menu, MenuItem, Popover, Alert, Tooltip, useMediaQuery, useTheme } from "@mui/material";
 import { VisibilityOff, Share as ShareIcon, LinkOff as LinkOffIcon, ForkRight as ForkRightIcon, TableView as TableViewIcon } from "@mui/icons-material";
 import MenuIcon from "@mui/icons-material/Menu";
+import MoreVertIcon from "@mui/icons-material/MoreVert";
 import finnGenieLogo from "../../assets/finngenie-leonardo-gemini-2.5-flash-recraft-vectorized-claude-cropped.svg";
 import { LLMChat } from "./LLMChat";
 import { ChatHistorySidebar } from "./ChatHistorySidebar";
@@ -57,6 +58,7 @@ const ChatPage = () => {
   const [tokensOpen, setTokensOpen] = useState(false);
   const [isSecretChat, setIsSecretChat] = useState(false);
   const [exportMenuAnchor, setExportMenuAnchor] = useState<HTMLElement | null>(null);
+  const [actionMenuAnchorEl, setActionMenuAnchorEl] = useState<HTMLElement | null>(null);
   const [datasetsOpen, setDatasetsOpen] = useState(false);
   // hash-based deep linking for SchemaDrawer; known view names come from the cached schema
   const { data: schemaData } = useSchema();
@@ -641,44 +643,107 @@ const ChatPage = () => {
                 )}
               </Box>
 
-              <Box sx={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: { xs: 0.5, md: 1 }, mt: 1 }}>
-                <Button size="small" onClick={() => setAboutOpen(true)}>
-                  About
-                </Button>
-                <Button size="small" onClick={() => setFeedbackOpen(true)}>
-                  Feedback
-                </Button>
-                <Button size="small" onClick={() => setTokensOpen(true)}>
-                  MCP/API Keys
-                </Button>
-                <Button size="small" onClick={() => setDatasetsOpen(true)}>
-                  Datasets
-                </Button>
-                <Tooltip title="Tables & columns">
-                  <Button
-                    size="small"
-                    startIcon={<TableViewIcon />}
-                    onClick={schemaRoute.openEmpty}
-                  >
-                    Tables
-                  </Button>
-                </Tooltip>
-                {currentMessageCount > 0 && (
-                  <>
-                    <Button size="small" onClick={(e) => setExportMenuAnchor(e.currentTarget)}>
-                      Export this chat
-                    </Button>
+              {(() => {
+                const actions: Array<{
+                  key: string;
+                  label: string;
+                  icon?: ReactNode;
+                  tooltip?: string;
+                  onClick: (e: ReactMouseEvent<HTMLElement>) => void;
+                  hidden?: boolean;
+                }> = [
+                  { key: "about", label: "About", onClick: () => setAboutOpen(true) },
+                  { key: "feedback", label: "Feedback", onClick: () => setFeedbackOpen(true) },
+                  { key: "tokens", label: "MCP/API Keys", onClick: () => setTokensOpen(true) },
+                  { key: "datasets", label: "Datasets", onClick: () => setDatasetsOpen(true) },
+                  {
+                    key: "tables",
+                    label: "Tables",
+                    icon: <TableViewIcon />,
+                    tooltip: "Tables & columns",
+                    onClick: () => schemaRoute.openEmpty(),
+                  },
+                  {
+                    key: "export",
+                    label: "Export this chat",
+                    onClick: (e) => setExportMenuAnchor(e.currentTarget),
+                    hidden: currentMessageCount === 0,
+                  },
+                ];
+                const visibleActions = actions.filter((a) => !a.hidden);
+
+                return (
+                  <Box sx={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: { xs: 0.5, md: 1 }, mt: 1 }}>
+                    {isMobile ? (
+                      <>
+                        <IconButton
+                          aria-label="More actions"
+                          size="small"
+                          onClick={(e) => setActionMenuAnchorEl(e.currentTarget)}
+                        >
+                          <MoreVertIcon />
+                        </IconButton>
+                        <Menu
+                          anchorEl={actionMenuAnchorEl}
+                          open={Boolean(actionMenuAnchorEl)}
+                          onClose={() => setActionMenuAnchorEl(null)}
+                        >
+                          {visibleActions.map((a) => (
+                            <MenuItem
+                              key={a.key}
+                              onClick={(e) => {
+                                if (a.key === "export") {
+                                  // anchor the export submenu to the trigger IconButton so only one menu is visible at a time
+                                  const triggerEl = actionMenuAnchorEl;
+                                  setActionMenuAnchorEl(null);
+                                  setExportMenuAnchor(triggerEl);
+                                } else {
+                                  a.onClick(e);
+                                  setActionMenuAnchorEl(null);
+                                }
+                              }}
+                            >
+                              {a.icon && <ListItemIcon>{a.icon}</ListItemIcon>}
+                              <ListItemText>{a.label}</ListItemText>
+                            </MenuItem>
+                          ))}
+                        </Menu>
+                      </>
+                    ) : (
+                      visibleActions.map((a) => {
+                        const btn = (
+                          <Button
+                            key={a.key}
+                            size="small"
+                            startIcon={a.icon}
+                            onClick={a.onClick}
+                          >
+                            {a.label}
+                          </Button>
+                        );
+                        return a.tooltip ? (
+                          <Tooltip key={a.key} title={a.tooltip}>
+                            {btn}
+                          </Tooltip>
+                        ) : (
+                          btn
+                        );
+                      })
+                    )}
                     <Menu
                       anchorEl={exportMenuAnchor}
                       open={Boolean(exportMenuAnchor)}
-                      onClose={() => setExportMenuAnchor(null)}
+                      onClose={() => {
+                        setExportMenuAnchor(null);
+                        setActionMenuAnchorEl(null);
+                      }}
                     >
-                      <MenuItem onClick={() => handleExportChat("html")}>As HTML</MenuItem>
-                      <MenuItem onClick={() => handleExportChat("markdown")}>As Markdown</MenuItem>
+                      <MenuItem onClick={() => { handleExportChat("html"); setActionMenuAnchorEl(null); }}>As HTML</MenuItem>
+                      <MenuItem onClick={() => { handleExportChat("markdown"); setActionMenuAnchorEl(null); }}>As Markdown</MenuItem>
                     </Menu>
-                  </>
-                )}
-              </Box>
+                  </Box>
+                );
+              })()}
             </Box>
           </Box>
         </Box>
