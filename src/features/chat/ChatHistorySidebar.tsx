@@ -33,6 +33,9 @@ interface ChatHistorySidebarProps {
   onNewSecretChat: () => void;
   onDeleteSession: (sessionId: string) => void;
   loading: boolean;
+  // called after a session, new chat, or new secret chat is picked
+  // used by the parent to close the mobile drawer
+  onAfterSelect?: () => void;
 }
 
 // group sessions by date
@@ -89,6 +92,7 @@ export const ChatHistorySidebar = ({
   onNewSecretChat,
   onDeleteSession,
   loading,
+  onAfterSelect,
 }: ChatHistorySidebarProps) => {
   const theme = useTheme();
   const [hoveredId, setHoveredId] = useState<string | null>(null);
@@ -125,7 +129,10 @@ export const ChatHistorySidebar = ({
           <Button
             variant="outlined"
             startIcon={<AddIcon />}
-            onClick={onNewChat}
+            onClick={() => {
+              onNewChat();
+              onAfterSelect?.();
+            }}
             fullWidth
             sx={{ justifyContent: "flex-start" }}>
             New Chat
@@ -137,7 +144,10 @@ export const ChatHistorySidebar = ({
           <Button
             variant="outlined"
             startIcon={<VisibilityOffIcon />}
-            onClick={onNewSecretChat}
+            onClick={() => {
+              onNewSecretChat();
+              onAfterSelect?.();
+            }}
             fullWidth
             sx={{ justifyContent: "flex-start" }}>
             Secret Chat
@@ -216,7 +226,10 @@ export const ChatHistorySidebar = ({
                       onMouseLeave={() => setHoveredId(null)}>
                       <ListItemButton
                         selected={session.id === activeSessionId}
-                        onClick={() => onSelectSession(session.id)}
+                        onClick={() => {
+                          onSelectSession(session.id);
+                          onAfterSelect?.();
+                        }}
                         sx={{
                           py: 1,
                           pr: hoveredId === session.id ? 5 : 2,

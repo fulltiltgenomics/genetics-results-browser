@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Box, Typography, CircularProgress, Button, Chip, Menu, MenuItem, Popover, Alert, Tooltip, useMediaQuery, useTheme } from "@mui/material";
+import { Box, Typography, CircularProgress, Button, Chip, Drawer, IconButton, Menu, MenuItem, Popover, Alert, Tooltip, useMediaQuery, useTheme } from "@mui/material";
 import { VisibilityOff, Share as ShareIcon, LinkOff as LinkOffIcon, ForkRight as ForkRightIcon, TableView as TableViewIcon } from "@mui/icons-material";
+import MenuIcon from "@mui/icons-material/Menu";
 import finnGenieLogo from "../../assets/finngenie-leonardo-gemini-2.5-flash-recraft-vectorized-claude-cropped.svg";
 import { LLMChat } from "./LLMChat";
 import { ChatHistorySidebar } from "./ChatHistorySidebar";
@@ -67,6 +68,7 @@ const ChatPage = () => {
   const [sharePopoverOpen, setSharePopoverOpen] = useState(false);
   const shareButtonRef = useRef<HTMLSpanElement>(null);
   const [sessionError, setSessionError] = useState<string | null>(null);
+  const [mobileDrawerOpen, setMobileDrawerOpen] = useState<boolean>(false);
 
   // track current messages for saving
   const currentMessagesRef = useRef<ChatMessage[]>([]);
@@ -563,7 +565,7 @@ const ChatPage = () => {
     <Box sx={{ display: "flex", flexDirection: "column", height: "calc(100vh - 64px)" }}>
       {/* header row */}
       <Box sx={{ display: "flex" }}>
-        <Box sx={{ width: 280, flexShrink: 0, borderColor: "divider" }} />
+        <Box sx={{ width: 280, flexShrink: 0, borderColor: "divider", display: { xs: "none", md: "block" } }} />
         <Box sx={{ flex: 1, p: { xs: 1, md: 2 }, pb: 0 }}>
           <Box
             sx={{
@@ -574,6 +576,17 @@ const ChatPage = () => {
               gap: { xs: 1, md: 2 },
             }}
           >
+            <Box sx={{ display: { xs: "flex", md: "none" }, alignItems: "center", width: "100%" }}>
+              <IconButton
+                aria-label="Open chat history"
+                onClick={() => setMobileDrawerOpen(true)}
+                edge="start"
+                size="small"
+                sx={{ display: { xs: "inline-flex", md: "none" } }}
+              >
+                <MenuIcon />
+              </IconButton>
+            </Box>
             <Box
               component="img"
               src={finnGenieLogo}
@@ -673,7 +686,7 @@ const ChatPage = () => {
 
       {/* content row */}
       <Box sx={{ display: "flex", flex: 1, minHeight: 0 }}>
-        {/* sidebar */}
+        {/* sidebar: permanent on >= md */}
         <Box
           sx={{
             width: 280,
@@ -681,6 +694,7 @@ const ChatPage = () => {
             borderRight: 1,
             borderColor: "divider",
             overflow: "hidden",
+            display: { xs: "none", md: "block" },
           }}>
           <ChatHistorySidebar
             sessions={sessions}
@@ -692,6 +706,28 @@ const ChatPage = () => {
             loading={loading}
           />
         </Box>
+        {/* sidebar: temporary drawer on < md */}
+        {isMobile && (
+          <Drawer
+            anchor="left"
+            variant="temporary"
+            open={mobileDrawerOpen}
+            onClose={() => setMobileDrawerOpen(false)}
+            ModalProps={{ keepMounted: true }}
+            PaperProps={{ sx: { width: 280 } }}
+          >
+            <ChatHistorySidebar
+              sessions={sessions}
+              activeSessionId={activeSessionId}
+              onSelectSession={handleSelectSession}
+              onNewChat={handleNewChat}
+              onNewSecretChat={handleNewSecretChat}
+              onDeleteSession={handleDeleteSession}
+              loading={loading}
+              onAfterSelect={() => setMobileDrawerOpen(false)}
+            />
+          </Drawer>
+        )}
 
         {/* main chat area */}
         <Box
