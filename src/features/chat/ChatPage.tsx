@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Box, Typography, CircularProgress, Button, Chip, Menu, MenuItem, Popover, Alert } from "@mui/material";
-import { VisibilityOff, Share as ShareIcon, LinkOff as LinkOffIcon, ForkRight as ForkRightIcon } from "@mui/icons-material";
+import { Box, Typography, CircularProgress, Button, Chip, Menu, MenuItem, Popover, Alert, Tooltip } from "@mui/material";
+import { VisibilityOff, Share as ShareIcon, LinkOff as LinkOffIcon, ForkRight as ForkRightIcon, TableView as TableViewIcon } from "@mui/icons-material";
 import finnGenieLogo from "../../assets/finngenie-leonardo-gemini-2.5-flash-recraft-vectorized-claude-cropped.svg";
 import { LLMChat } from "./LLMChat";
 import { ChatHistorySidebar } from "./ChatHistorySidebar";
@@ -10,6 +10,7 @@ import { FeedbackDialog } from "./FeedbackDialog";
 import { AboutDialog } from "./AboutDialog";
 import McpTokenDialog from "../page/McpTokenDialog";
 import { DatasetsDialog } from "./DatasetsDialog";
+import { SchemaDrawer } from "./SchemaDrawer";
 import {
   listSessions,
   createSession,
@@ -52,6 +53,8 @@ const ChatPage = () => {
   const [isSecretChat, setIsSecretChat] = useState(false);
   const [exportMenuAnchor, setExportMenuAnchor] = useState<HTMLElement | null>(null);
   const [datasetsOpen, setDatasetsOpen] = useState(false);
+  const [schemaDrawerOpen, setSchemaDrawerOpen] = useState(false);
+  const [selectedSchemaView, setSelectedSchemaView] = useState<string | null>(null);
   const [sharePopoverOpen, setSharePopoverOpen] = useState(false);
   const shareButtonRef = useRef<HTMLSpanElement>(null);
   const [sessionError, setSessionError] = useState<string | null>(null);
@@ -621,6 +624,15 @@ const ChatPage = () => {
                 <Button size="small" onClick={() => setDatasetsOpen(true)}>
                   Datasets
                 </Button>
+                <Tooltip title="Tables & columns">
+                  <Button
+                    size="small"
+                    startIcon={<TableViewIcon />}
+                    onClick={() => setSchemaDrawerOpen(true)}
+                  >
+                    Tables
+                  </Button>
+                </Tooltip>
                 {currentMessageCount > 0 && (
                   <>
                     <Button size="small" onClick={(e) => setExportMenuAnchor(e.currentTarget)}>
@@ -741,6 +753,12 @@ const ChatPage = () => {
       <AboutDialog open={aboutOpen} onClose={() => setAboutOpen(false)} />
       <McpTokenDialog open={tokensOpen} onClose={() => setTokensOpen(false)} />
       <DatasetsDialog open={datasetsOpen} onClose={() => setDatasetsOpen(false)} />
+      <SchemaDrawer
+        open={schemaDrawerOpen}
+        onClose={() => setSchemaDrawerOpen(false)}
+        selectedView={selectedSchemaView}
+        onSelectView={setSelectedSchemaView}
+      />
       <Popover
         open={sharePopoverOpen}
         anchorEl={shareButtonRef.current}
