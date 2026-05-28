@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, Fragment } from "react";
 import {
   Box,
   Typography,
@@ -20,6 +20,10 @@ import {
   Tab,
   Tabs,
   Chip,
+  List,
+  ListItem,
+  ListItemButton,
+  Divider,
   useMediaQuery,
   useTheme,
 } from "@mui/material";
@@ -401,6 +405,34 @@ export default function AdminPage() {
               </Box>
             ) : (
               <>
+                {isXs ? (
+                  <List disablePadding>
+                    {sessions.map((s, idx) => (
+                      <Fragment key={s.id}>
+                        {idx > 0 && <Divider component="li" />}
+                        <ListItem disablePadding>
+                          <ListItemButton onClick={() => openSessionDetail(s.id)} sx={{ flexDirection: "column", alignItems: "stretch", py: 1.25 }}>
+                            <Typography variant="body2" sx={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                              {s.title || s.preview || <em>No content</em>}
+                            </Typography>
+                            <Typography variant="caption" color="text.secondary" sx={{ mt: 0.25 }}>
+                              {s.userId} &middot; {s.messageCount} msg{s.messageCount !== 1 ? "s" : ""} &middot;{" "}
+                              {new Date(s.updatedAt).toLocaleDateString()}
+                              {s.rating != null && ` · rating ${s.rating}`}
+                            </Typography>
+                          </ListItemButton>
+                        </ListItem>
+                      </Fragment>
+                    ))}
+                    {sessions.length === 0 && (
+                      <ListItem>
+                        <Typography variant="body2" color="text.secondary" sx={{ textAlign: "center", width: "100%", py: 2 }}>
+                          No sessions found
+                        </Typography>
+                      </ListItem>
+                    )}
+                  </List>
+                ) : (
                 <Box component="table" sx={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
                   <thead>
                     <tr>
@@ -481,6 +513,7 @@ export default function AdminPage() {
                     )}
                   </tbody>
                 </Box>
+                )}
                 {total > PAGE_SIZE && (
                   <Box sx={{ display: "flex", justifyContent: "center", py: 1.5 }}>
                     <Pagination
@@ -509,6 +542,35 @@ export default function AdminPage() {
             </Box>
           ) : (
             <>
+              {isXs ? (
+                <List disablePadding>
+                  {feedbackItems.map((item, idx) => (
+                    <Fragment key={idx}>
+                      {idx > 0 && <Divider component="li" />}
+                      <ListItem disablePadding>
+                        <ListItemButton onClick={() => setSelectedFeedback(item)} sx={{ flexDirection: "column", alignItems: "stretch", py: 1.25 }}>
+                          <Typography variant="body2" sx={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                            {item.preview}
+                          </Typography>
+                          <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, mt: 0.5, flexWrap: "wrap" }}>
+                            <Chip label={sourceLabel(item.source)} size="small" variant="outlined" sx={{ height: 18, fontSize: 11 }} />
+                            <Typography variant="caption" color="text.secondary">
+                              {item.user} &middot; {new Date(item.createdAt).toLocaleDateString()}
+                            </Typography>
+                          </Box>
+                        </ListItemButton>
+                      </ListItem>
+                    </Fragment>
+                  ))}
+                  {feedbackItems.length === 0 && (
+                    <ListItem>
+                      <Typography variant="body2" color="text.secondary" sx={{ textAlign: "center", width: "100%", py: 2 }}>
+                        No feedback found
+                      </Typography>
+                    </ListItem>
+                  )}
+                </List>
+              ) : (
               <Box component="table" sx={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
                 <thead>
                   <tr>
@@ -575,6 +637,7 @@ export default function AdminPage() {
                   )}
                 </tbody>
               </Box>
+              )}
               {feedbackTotal > FEEDBACK_PAGE_SIZE && (
                 <Box sx={{ display: "flex", justifyContent: "center", py: 1.5 }}>
                   <Pagination
