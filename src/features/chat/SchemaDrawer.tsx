@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Drawer,
   Box,
@@ -24,11 +24,14 @@ import {
   AccordionDetails,
   Tooltip,
   Stack,
+  useMediaQuery,
+  useTheme,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import CheckIcon from "@mui/icons-material/Check";
+import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import { useSchema, type TableMeta, type ColumnMeta, type CollectionResourceSummary } from "./schemaApi";
 
 interface SchemaDrawerProps {
@@ -43,8 +46,33 @@ const RAIL_WIDTH = 220;
 
 export const SchemaDrawer = ({ open, onClose, selectedView, onSelectView }: SchemaDrawerProps) => {
   const { data, isPending, isError, error, refetch } = useSchema();
+  const theme = useTheme();
+  const isXs = useMediaQuery(theme.breakpoints.down("sm"));
 
   const selectedTable = data?.tables.find((t) => t.name === selectedView) ?? null;
+
+  // xs uses single-pane master/detail; this tracks whether the detail pane is showing.
+  // separate from selectedView so "back" can return to the rail without clearing the parent's
+  // selection (and without touching the URL hash).
+  const [xsShowDetail, setXsShowDetail] = useState(false);
+
+  // sync xs view to external selection changes (deep link, list click, drawer reopen)
+  useEffect(() => {
+    if (!open) {
+      setXsShowDetail(false);
+      return;
+    }
+    if (selectedView) setXsShowDetail(true);
+  }, [open, selectedView]);
+
+  const xsDetailVisible = isXs && xsShowDetail && !!selectedTable;
+  const railVisible = !isXs || !xsDetailVisible;
+  const detailVisible = !isXs || xsDetailVisible;
+
+  const handleSelect = (name: string) => {
+    onSelectView(name);
+    if (isXs) setXsShowDetail(true);
+  };
 
   return (
     <Drawer
@@ -55,7 +83,20 @@ export const SchemaDrawer = ({ open, onClose, selectedView, onSelectView }: Sche
       PaperProps={{ sx: { width: { xs: "100%", sm: DRAWER_WIDTH }, maxWidth: "100vw" } }}
     >
       <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", px: 2, py: 1.5 }}>
-        <Typography variant="h6">Tables & columns</Typography>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0 }}>
+          {xsDetailVisible && (
+            <IconButton
+              onClick={() => setXsShowDetail(false)}
+              size="small"
+              aria-label="back to list"
+            >
+              <ArrowBackIcon />
+            </IconButton>
+          )}
+          <Typography variant="h6" noWrap>
+            {xsDetailVisible && selectedTable ? selectedTable.name : "Tables & columns"}
+          </Typography>
+        </Box>
         <IconButton onClick={onClose} size="small" aria-label="close">
           <CloseIcon />
         </IconButton>
@@ -83,11 +124,12 @@ export const SchemaDrawer = ({ open, onClose, selectedView, onSelectView }: Sche
         <Box sx={{ display: "flex", flex: 1, minHeight: 0 }}>
           <Box
             sx={{
-              width: RAIL_WIDTH,
+              width: { xs: "100%", sm: RAIL_WIDTH },
               flexShrink: 0,
-              borderRight: 1,
+              borderRight: { xs: 0, sm: 1 },
               borderColor: "divider",
               overflowY: "auto",
+              display: railVisible ? "block" : "none",
             }}
           >
             <List dense disablePadding>
@@ -95,7 +137,7 @@ export const SchemaDrawer = ({ open, onClose, selectedView, onSelectView }: Sche
                 <ListItem key={table.name} disablePadding>
                   <ListItemButton
                     selected={selectedView === table.name}
-                    onClick={() => onSelectView(table.name)}
+                    onClick={() => handleSelect(table.name)}
                   >
                     <ListItemText
                       primary={table.name}
@@ -111,7 +153,15 @@ export const SchemaDrawer = ({ open, onClose, selectedView, onSelectView }: Sche
             </List>
           </Box>
 
-          <Box sx={{ flex: 1, minWidth: 0, overflowY: "auto", p: 2 }}>
+          <Box
+            sx={{
+              flex: 1,
+              minWidth: 0,
+              overflowY: "auto",
+              p: 2,
+              display: detailVisible ? "block" : "none",
+            }}
+          >
             {selectedTable ? (
               <TableDetail table={selectedTable} />
             ) : (
