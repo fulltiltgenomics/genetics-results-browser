@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { Box, Typography, CircularProgress, Button, Chip, Menu, MenuItem, Popover, Alert, Tooltip } from "@mui/material";
+import { Box, Typography, CircularProgress, Button, Chip, Menu, MenuItem, Popover, Alert, Tooltip, useMediaQuery, useTheme } from "@mui/material";
 import { VisibilityOff, Share as ShareIcon, LinkOff as LinkOffIcon, ForkRight as ForkRightIcon, TableView as TableViewIcon } from "@mui/icons-material";
 import finnGenieLogo from "../../assets/finngenie-leonardo-gemini-2.5-flash-recraft-vectorized-claude-cropped.svg";
 import { LLMChat } from "./LLMChat";
@@ -40,6 +40,8 @@ import { exportChatAsHtml, exportChatAsMarkdown } from "./exportChat";
 const ChatPage = () => {
   const { sessionId: urlSessionId } = useParams<{ sessionId: string }>();
   const navigate = useNavigate();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("md"));
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [activeSession, setActiveSession] = useState<SessionDetail | null>(null);
@@ -562,17 +564,25 @@ const ChatPage = () => {
       {/* header row */}
       <Box sx={{ display: "flex" }}>
         <Box sx={{ width: 280, flexShrink: 0, borderColor: "divider" }} />
-        <Box sx={{ flex: 1, p: 2, pb: 0 }}>
-          <Box sx={{ mb: 2, display: "flex", alignItems: "flex-start", gap: 2 }}>
+        <Box sx={{ flex: 1, p: { xs: 1, md: 2 }, pb: 0 }}>
+          <Box
+            sx={{
+              mb: { xs: 1, md: 2 },
+              display: "flex",
+              flexDirection: { xs: "column", md: "row" },
+              alignItems: "flex-start",
+              gap: { xs: 1, md: 2 },
+            }}
+          >
             <Box
               component="img"
               src={finnGenieLogo}
               alt="FinnGenie"
-              sx={{ height: 60, flexShrink: 0 }}
+              sx={{ height: { xs: 36, md: 60 }, flexShrink: 0 }}
             />
-            <Box>
-              <Box sx={{ display: "flex", alignItems: "center", gap: 2 }}>
-                <Typography variant="h5">
+            <Box sx={{ minWidth: 0, flex: { xs: 1, md: "0 1 auto" } }}>
+              <Box sx={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: { xs: 1, md: 2 } }}>
+                <Typography variant={isMobile ? "h6" : "h5"}>
                   {isSecretChat ? "Secret Chat" : activeSession?.title || "FinnGenie"}
                 </Typography>
                 {isSecretChat && (
@@ -618,7 +628,7 @@ const ChatPage = () => {
                 )}
               </Box>
 
-              <Box sx={{ display: "flex", alignItems: "center", gap: 1, mt: 1 }}>
+              <Box sx={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: { xs: 0.5, md: 1 }, mt: 1 }}>
                 <Button size="small" onClick={() => setAboutOpen(true)}>
                   About
                 </Button>
