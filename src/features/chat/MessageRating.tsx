@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Box, IconButton, Tooltip } from "@mui/material";
+import { Box, IconButton, Tooltip, useMediaQuery, useTheme } from "@mui/material";
 import {
   ThumbUp as ThumbUpIcon,
   ThumbUpOutlined as ThumbUpOutlinedIcon,
@@ -21,6 +21,9 @@ export const MessageRating = ({
   visible = false,
 }: MessageRatingProps) => {
   const [saving, setSaving] = useState(false);
+  const theme = useTheme();
+  // touch devices have no hover, so always show icons on mobile
+  const isMobile = useMediaQuery(theme.breakpoints.down("md"));
 
   const handleRate = async (newValue: boolean | null) => {
     // toggle off if clicking same rating
@@ -38,7 +41,7 @@ export const MessageRating = ({
       sx={{
         display: "flex",
         gap: 0.5,
-        opacity: visible || thumbsUp !== null ? 1 : 0,
+        opacity: visible || thumbsUp !== null || isMobile ? 1 : 0,
         transition: "opacity 0.2s",
       }}
     >
