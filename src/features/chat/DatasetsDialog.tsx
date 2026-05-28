@@ -16,6 +16,8 @@ import {
   Box,
   CircularProgress,
   Tooltip,
+  useMediaQuery,
+  useTheme,
 } from "@mui/material";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import axios from "axios";
@@ -111,6 +113,8 @@ const formatRange = (range?: number[]) => {
 const CheckMark = () => <CheckCircleIcon sx={{ fontSize: 16, color: "success.main" }} />;
 
 export const DatasetsDialog = ({ open, onClose }: DatasetsDialogProps) => {
+  const theme = useTheme();
+  const isXs = useMediaQuery(theme.breakpoints.down("sm"));
   const [datasets, setDatasets] = useState<Dataset[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -147,7 +151,7 @@ export const DatasetsDialog = ({ open, onClose }: DatasetsDialogProps) => {
   }
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="lg" fullWidth>
+    <Dialog open={open} onClose={onClose} maxWidth="lg" fullWidth fullScreen={isXs}>
       <DialogTitle>Currently available datasets</DialogTitle>
       <DialogContent dividers>
         {loading && (

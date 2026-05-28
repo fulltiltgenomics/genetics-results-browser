@@ -14,6 +14,7 @@ import {
   ListItem,
   ListItemText,
   ListItemSecondaryAction,
+  useMediaQuery,
   useTheme,
 } from "@mui/material";
 import { Delete as DeleteIcon } from "@mui/icons-material";
@@ -26,6 +27,7 @@ interface FeedbackDialogProps {
 
 export const FeedbackDialog = ({ open, onClose }: FeedbackDialogProps) => {
   const theme = useTheme();
+  const isXs = useMediaQuery(theme.breakpoints.down("sm"));
   const [comments, setComments] = useState<UserComment[]>([]);
   const [newComment, setNewComment] = useState("");
   const [saving, setSaving] = useState(false);
@@ -84,7 +86,7 @@ export const FeedbackDialog = ({ open, onClose }: FeedbackDialogProps) => {
   };
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth fullScreen={isXs}>
       <DialogTitle>Feedback</DialogTitle>
       <DialogContent>
         {error && (

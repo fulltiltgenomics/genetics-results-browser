@@ -20,6 +20,8 @@ import {
   Tab,
   Tabs,
   Chip,
+  useMediaQuery,
+  useTheme,
 } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
@@ -84,6 +86,8 @@ function escapeHtml(text: string): string {
 
 export default function AdminPage() {
   const navigate = useNavigate();
+  const theme = useTheme();
+  const isXs = useMediaQuery(theme.breakpoints.down("sm"));
   const [activeTab, setActiveTab] = useState(0);
 
   // sessions state
@@ -595,6 +599,7 @@ export default function AdminPage() {
         onClose={() => setSelectedFeedback(null)}
         maxWidth="sm"
         fullWidth
+        fullScreen={isXs}
       >
         {selectedFeedback && (
           <>
@@ -626,6 +631,7 @@ export default function AdminPage() {
         onClose={() => setSelectedSession(null)}
         maxWidth="md"
         fullWidth
+        fullScreen={isXs}
       >
         {selectedSession && (
           <>

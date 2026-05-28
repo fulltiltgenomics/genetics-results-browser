@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Dialog, DialogTitle, DialogContent, DialogActions, Button, Typography } from "@mui/material";
+import { Dialog, DialogTitle, DialogContent, DialogActions, Button, Typography, useMediaQuery, useTheme } from "@mui/material";
 
 interface AboutDialogProps {
   open: boolean;
@@ -15,6 +15,8 @@ const formatModelName = (modelId: string): string => {
 };
 
 export const AboutDialog = ({ open, onClose }: AboutDialogProps) => {
+  const theme = useTheme();
+  const isXs = useMediaQuery(theme.breakpoints.down("sm"));
   const [modelName, setModelName] = useState<string>("");
 
   useEffect(() => {
@@ -28,7 +30,7 @@ export const AboutDialog = ({ open, onClose }: AboutDialogProps) => {
   }, [open]);
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth>
+    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth fullScreen={isXs}>
       <DialogTitle>About FinnGenie</DialogTitle>
       <DialogContent>
         <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
