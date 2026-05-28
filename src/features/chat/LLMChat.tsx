@@ -763,7 +763,7 @@ export const LLMChat = ({
       component="form"
       onSubmit={handleSubmit}
       sx={{
-        p: 2,
+        p: { xs: 1, md: 2 },
         display: "flex",
         flexDirection: "column",
         gap: 1,
@@ -783,7 +783,14 @@ export const LLMChat = ({
         )}
       </Box>
       <Collapse in={optionsOpen}>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 2, flexWrap: "wrap" }}>
+        <Box
+          sx={{
+            display: "flex",
+            flexDirection: { xs: "column", sm: "row" },
+            alignItems: { xs: "flex-start", sm: "center" },
+            gap: { xs: 1, sm: 2 },
+            flexWrap: "wrap",
+          }}>
           <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
             <Typography variant="body2" color="text.secondary">
               Literature search
@@ -818,7 +825,17 @@ export const LLMChat = ({
               sx={{ "& .MuiFormControlLabel-label": { fontSize: "0.75rem" } }}
             />
           </RadioGroup>
-          <Box sx={{ borderLeft: 1, borderColor: "divider", pl: 2, display: "flex", alignItems: "center", gap: 2 }}>
+          <Box
+            sx={{
+              borderLeft: { xs: 0, sm: 1 },
+              borderTop: { xs: 1, sm: 0 },
+              borderColor: "divider",
+              pl: { xs: 0, sm: 2 },
+              pt: { xs: 1, sm: 0 },
+              display: "flex",
+              alignItems: "center",
+              gap: 2,
+            }}>
             <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
               <Typography variant="body2" color="text.secondary">
                 Tools
