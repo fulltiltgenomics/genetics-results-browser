@@ -2,6 +2,7 @@ import {
   Box,
   Paper,
   TextField,
+  useMediaQuery,
   Button,
   Typography,
   CircularProgress,
@@ -162,6 +163,7 @@ export const LLMChat = ({
   readOnly,
 }: LLMChatProps) => {
   const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("md"));
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const [input, setInput] = useState("");
@@ -932,7 +934,8 @@ export const LLMChat = ({
         <TextField
           fullWidth
           multiline
-          maxRows={4}
+          minRows={isMobile && !hasMessages ? 5 : 1}
+          maxRows={isMobile && !hasMessages ? 8 : 4}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onPaste={handlePaste}

@@ -571,29 +571,27 @@ const ChatPage = () => {
         <Box sx={{ flex: 1, p: { xs: 1, md: 2 }, pb: 0 }}>
           <Box
             sx={{
-              mb: { xs: 1, md: 2 },
+              mb: { xs: 0.5, md: 2 },
               display: "flex",
-              flexDirection: { xs: "column", md: "row" },
-              alignItems: "flex-start",
+              flexDirection: "row",
+              alignItems: { xs: "center", md: "flex-start" },
               gap: { xs: 1, md: 2 },
             }}
           >
-            <Box sx={{ display: { xs: "flex", md: "none" }, alignItems: "center", width: "100%" }}>
-              <IconButton
-                aria-label="Open chat history"
-                onClick={() => setMobileDrawerOpen(true)}
-                edge="start"
-                size="small"
-                sx={{ display: { xs: "inline-flex", md: "none" } }}
-              >
-                <MenuIcon />
-              </IconButton>
-            </Box>
+            <IconButton
+              aria-label="Open chat history"
+              onClick={() => setMobileDrawerOpen(true)}
+              edge="start"
+              size="small"
+              sx={{ display: { xs: "inline-flex", md: "none" } }}
+            >
+              <MenuIcon />
+            </IconButton>
             <Box
               component="img"
               src={finnGenieLogo}
               alt="FinnGenie"
-              sx={{ height: { xs: 36, md: 60 }, flexShrink: 0 }}
+              sx={{ height: { xs: 28, md: 60 }, flexShrink: 0 }}
             />
             <Box sx={{ minWidth: 0, flex: { xs: 1, md: "0 1 auto" } }}>
               <Box sx={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: { xs: 1, md: 2 } }}>
