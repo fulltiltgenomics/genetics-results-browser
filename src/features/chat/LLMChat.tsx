@@ -934,8 +934,8 @@ export const LLMChat = ({
         <TextField
           fullWidth
           multiline
-          minRows={isMobile && !hasMessages ? 5 : 1}
-          maxRows={isMobile && !hasMessages ? 8 : 4}
+          minRows={isMobile && !hasMessages ? 6 : 1}
+          maxRows={isMobile && !hasMessages ? 10 : 4}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onPaste={handlePaste}
@@ -949,7 +949,7 @@ export const LLMChat = ({
             }
           }}
         />
-        {isLoading ? (
+        {!isMobile && (isLoading ? (
           <Button
             variant="contained"
             onClick={handleStop}
@@ -972,8 +972,36 @@ export const LLMChat = ({
             sx={{ minWidth: 100 }}>
             <SendIcon />
           </Button>
-        )}
+        ))}
       </Box>
+      {isMobile && (
+        <Box sx={{ mt: 1 }}>
+          {isLoading ? (
+            <Button
+              variant="contained"
+              onClick={handleStop}
+              fullWidth>
+              <StopIcon />
+            </Button>
+          ) : wasStopped ? (
+            <Button
+              variant="contained"
+              color="success"
+              onClick={handleContinue}
+              fullWidth>
+              <ContinueIcon />
+            </Button>
+          ) : (
+            <Button
+              type="submit"
+              variant="contained"
+              disabled={!input.trim() && pendingAttachments.length === 0}
+              fullWidth>
+              <SendIcon />
+            </Button>
+          )}
+        </Box>
+      )}
     </Paper>
   );
 

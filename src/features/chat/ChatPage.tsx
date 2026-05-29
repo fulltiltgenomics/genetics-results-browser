@@ -593,9 +593,30 @@ const ChatPage = () => {
               alt="FinnGenie"
               sx={{ height: { xs: 28, md: 60 }, flexShrink: 0 }}
             />
-            <Box sx={{ minWidth: 0, flex: { xs: 1, md: "0 1 auto" } }}>
-              <Box sx={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: { xs: 1, md: 2 } }}>
-                <Typography variant={isMobile ? "h6" : "h5"}>
+            <Box
+              sx={{
+                minWidth: 0,
+                flex: 1,
+                display: { xs: "flex", md: "block" },
+                alignItems: { xs: "center", md: "stretch" },
+                gap: { xs: 1, md: 0 },
+              }}
+            >
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  flexWrap: "wrap",
+                  gap: { xs: 1, md: 2 },
+                  minWidth: 0,
+                  flex: { xs: 1, md: "0 1 auto" },
+                }}
+              >
+                <Typography
+                  variant={isMobile ? "h6" : "h5"}
+                  noWrap={isMobile}
+                  sx={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}
+                >
                   {isSecretChat ? "Secret Chat" : activeSession?.title || "FinnGenie"}
                 </Typography>
                 {isSecretChat && (
@@ -671,7 +692,7 @@ const ChatPage = () => {
                 const visibleActions = actions.filter((a) => !a.hidden);
 
                 return (
-                  <Box sx={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: { xs: 0.5, md: 1 }, mt: 1 }}>
+                  <Box sx={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: { xs: 0.5, md: 1 }, mt: { xs: 0, md: 1 }, flexShrink: 0 }}>
                     {isMobile ? (
                       <>
                         <IconButton
