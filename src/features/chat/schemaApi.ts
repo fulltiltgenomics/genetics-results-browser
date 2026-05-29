@@ -55,9 +55,16 @@ export interface TableMeta {
   collection_resources?: Record<string, CollectionResourceSummary>;
 }
 
+// per-view error reported by the API when bq_client.get_table fails for that view
+export interface SchemaWarning {
+  view: string;
+  error: string;
+}
+
 export interface SchemaResponse {
   resources: Record<string, ResourceMeta>;
   tables: TableMeta[];
+  warnings?: SchemaWarning[];
 }
 
 export async function fetchSchema(): Promise<SchemaResponse> {
@@ -65,7 +72,9 @@ export async function fetchSchema(): Promise<SchemaResponse> {
     credentials: "include",
   });
   if (!response.ok) {
-    throw new Error(`HTTP ${response.status}`);
+    // include the response body so upstream warnings (e.g. BQ auth errors) are visible
+    const body = await response.text().catch(() => "");
+    throw new Error(`HTTP ${response.status}${body ? `: ${body.slice(0, 500)}` : ""}`);
   }
   return (await response.json()) as SchemaResponse;
 }

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Drawer,
   Box,
@@ -32,7 +32,13 @@ import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import CheckIcon from "@mui/icons-material/Check";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import { useSchema, type TableMeta, type ColumnMeta, type CollectionResourceSummary } from "./schemaApi";
+import {
+  useSchema,
+  type TableMeta,
+  type ColumnMeta,
+  type CollectionResourceSummary,
+  type SchemaWarning,
+} from "./schemaApi";
 
 interface SchemaDrawerProps {
   open: boolean;
@@ -120,7 +126,27 @@ export const SchemaDrawer = ({ open, onClose, selectedView, onSelectView }: Sche
         </Box>
       )}
 
-      {!isPending && !isError && data && (
+      {!isPending && !isError && data && data.tables.length === 0 && (
+        <Box sx={{ p: 3 }}>
+          <Alert
+            severity="error"
+            action={
+              <Button color="inherit" size="small" onClick={() => refetch()}>
+                Retry
+              </Button>
+            }
+          >
+            No tables could be loaded from BigQuery. The database service is reachable but
+            its schema queries are failing — check credentials and PROJECT_ID/DATASET_ID on
+            the genetics-results-db service.
+          </Alert>
+          {data.warnings && data.warnings.length > 0 && (
+            <SchemaWarnings warnings={data.warnings} sx={{ mt: 2 }} />
+          )}
+        </Box>
+      )}
+
+      {!isPending && !isError && data && data.tables.length > 0 && (
         <Box sx={{ display: "flex", flex: 1, minHeight: 0 }}>
           <Box
             sx={{
@@ -132,6 +158,9 @@ export const SchemaDrawer = ({ open, onClose, selectedView, onSelectView }: Sche
               display: railVisible ? "block" : "none",
             }}
           >
+            {data.warnings && data.warnings.length > 0 && (
+              <SchemaWarnings warnings={data.warnings} sx={{ m: 1 }} />
+            )}
             <List dense disablePadding>
               {data.tables.map((table) => (
                 <ListItem key={table.name} disablePadding>
@@ -175,6 +204,29 @@ export const SchemaDrawer = ({ open, onClose, selectedView, onSelectView }: Sche
     </Drawer>
   );
 };
+
+const SchemaWarnings = ({
+  warnings,
+  sx,
+}: {
+  warnings: SchemaWarning[];
+  sx?: React.ComponentProps<typeof Alert>["sx"];
+}) => (
+  <Alert severity="warning" sx={sx}>
+    <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>
+      {warnings.length === 1 ? "1 view failed to load:" : `${warnings.length} views failed to load:`}
+    </Typography>
+    {warnings.map((w) => (
+      <Typography
+        key={w.view}
+        variant="caption"
+        sx={{ display: "block", fontFamily: "monospace", whiteSpace: "pre-wrap" }}
+      >
+        {w.view}: {w.error}
+      </Typography>
+    ))}
+  </Alert>
+);
 
 const LoadingState = () => (
   <Box sx={{ p: 2 }}>
