@@ -161,12 +161,26 @@ export const LLMChat = ({
   exampleQuestions,
   isSecretChat,
   readOnly,
+  initialInput,
 }: LLMChatProps) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
-  const [input, setInput] = useState("");
+  // seed the draft from initialInput (annotation-side hand-off) without auto-sending. the parent
+  // (ChatPage) resolves the seed asynchronously after mount, so cover both cases: the useState
+  // initializer handles a seed already present at mount, and the effect below handles a seed that
+  // arrives a tick later. seededInputRef makes seeding strictly one-shot so a re-render with the same
+  // initialInput won't overwrite the draft again (it does not protect against typing that races the
+  // initial async seed within the first tick).
+  const [input, setInput] = useState(initialInput ?? "");
+  const seededInputRef = useRef(false);
+  useEffect(() => {
+    if (!seededInputRef.current && initialInput) {
+      seededInputRef.current = true;
+      setInput(initialInput);
+    }
+  }, [initialInput]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

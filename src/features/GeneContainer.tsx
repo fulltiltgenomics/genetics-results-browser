@@ -1,8 +1,10 @@
 import { Box, Button, Tab, Tabs, TextField, Typography, useTheme } from "@mui/material";
+import ChatIcon from "@mui/icons-material/ChatBubbleOutline";
 import CisView from "./CisView";
 import GeneEvidenceTab from "./gene/GeneEvidenceTab";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
+import { useChatSeedStore } from "../store/store.chatSeed";
 
 const GeneContainer = () => {
   const params = useParams();
@@ -17,6 +19,13 @@ const GeneContainer = () => {
   const [inputGeneName, setInputGeneName] = useState("");
   // 0 = credible sets (CS visualization), 1 = gene evidence (burden/expression/gene-disease)
   const [activeTab, setActiveTab] = useState(0);
+  const setChatSeed = useChatSeedStore((state) => state.setChatSeed);
+
+  // gene-view -> chat hand-off: seed a gene-context prompt and route to /chat for review (no auto-send)
+  const askAssistant = () => {
+    setChatSeed(`Summarize the credible-set and functional evidence for ${geneName}.`);
+    navigate("/chat");
+  };
 
   const handleInputGeneNameChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setInputGeneName(event.target.value);
@@ -54,6 +63,15 @@ const GeneContainer = () => {
               onClick={() => navigate("/ld")}>
               LD lookup
             </Typography>
+            {geneName && (
+              <Button
+                size="small"
+                variant="outlined"
+                startIcon={<ChatIcon fontSize="small" />}
+                onClick={askAssistant}>
+                Ask the assistant
+              </Button>
+            )}
           </>
         )}
       </Box>

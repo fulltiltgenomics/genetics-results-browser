@@ -102,4 +102,8 @@ export interface LLMChatProps {
 
   /** read-only mode - hides input area (for shared sessions viewed by non-owners) */
   readOnly?: boolean;
+
+  /** prefilled draft for the input textarea on mount (e.g. an annotation-side "ask the assistant"
+   *  seed). does NOT auto-send — the user reviews and submits. */
+  initialInput?: string;
 }

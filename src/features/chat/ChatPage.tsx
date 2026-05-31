@@ -34,6 +34,7 @@ import {
 } from "./chatHistoryApi";
 import type { ChatMessage, FileAttachment } from "./chat.types";
 import { exportChatAsHtml, exportChatAsMarkdown } from "./exportChat";
+import { useChatSeedStore } from "../../store/store.chatSeed";
 
 /**
  * Standalone chat page with history sidebar and config editor.
@@ -81,6 +82,19 @@ const ChatPage = () => {
   const inlineSessionIdRef = useRef<string | null>(null);
   // stable key for LLMChat - only changes when user explicitly switches sessions
   const [chatKey, setChatKey] = useState<string>("new");
+
+  // consume a pending chat seed once on committed mount (annotation -> chat hand-off). consuming in
+  // a useEffect rather than a useState initializer is deliberate: React may speculatively render/
+  // discard a tree (lazy routes, concurrent rendering), and a render-phase consume would clear the
+  // store on a discarded mount, losing the seed. the effect runs only on the committed mount; the
+  // store clear inside consumeChatSeed keeps it one-shot so it can't reappear on later navigation.
+  // the seed is meant for the very first chat after the hand-off only; ChatPage (and this state)
+  // survives intra-page navigation since /chat and /chat/:id share one instance, so every handler
+  // that bumps chatKey (remounting LLMChat) clears seedInput to avoid re-prefilling unrelated chats.
+  const [seedInput, setSeedInput] = useState<string | undefined>(undefined);
+  useEffect(() => {
+    setSeedInput(useChatSeedStore.getState().consumeChatSeed());
+  }, []);
 
   // load sessions on mount
   useEffect(() => {
@@ -165,6 +179,7 @@ const ChatPage = () => {
 
   const handleNewChat = async () => {
     setIsSecretChat(false);
+    setSeedInput(undefined);
     try {
       const session = await createSession();
       setSessions((prev) => [{ ...session, preview: undefined, rating: undefined }, ...prev]);
@@ -195,6 +210,7 @@ const ChatPage = () => {
 
   const handleNewSecretChat = () => {
     setIsSecretChat(true);
+    setSeedInput(undefined);
     setActiveSessionId(null);
     setActiveSession(null);
     setChatKey(`secret-${Date.now()}`);
@@ -205,6 +221,7 @@ const ChatPage = () => {
 
   const handleSelectSession = (sessionId: string) => {
     setIsSecretChat(false);
+    setSeedInput(undefined);
     setSessionError(null);
     inlineSessionIdRef.current = null;
     setLoadedMessages(undefined);
@@ -456,6 +473,7 @@ const ChatPage = () => {
 
   const handleFork = async () => {
     if (!activeSessionId) return;
+    setSeedInput(undefined);
     try {
       const newSession = await forkSession(activeSessionId);
       setSessions((prev) => [{ ...newSession, preview: undefined, rating: undefined }, ...prev]);
@@ -858,6 +876,7 @@ const ChatPage = () => {
                 ]}
                 isSecretChat={isSecretChat}
                 readOnly={activeSession ? !activeSession.isOwner : false}
+                initialInput={seedInput}
               />
             </Box>
           )}

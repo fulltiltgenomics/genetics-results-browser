@@ -1,11 +1,13 @@
-import { Box, Button, Tooltip } from "@mui/material";
+import { Box, Button, IconButton, Tooltip } from "@mui/material";
 import SearchIcon from "@mui/icons-material/Search";
+import ChatIcon from "@mui/icons-material/ChatBubbleOutline";
 import { MaterialReactTable, MRT_ColumnDef } from "material-react-table";
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { PhenoSummaryRow } from "../../../types/types.normalized";
 import { summarizePhenotypes } from "../../../store/munge.normalized";
 import { useDataStore } from "../../../store/store";
+import { useChatSeedStore } from "../../../store/store.chatSeed";
 import { naInfSort } from "../utils/sorting";
 import VariantMainTable from "./VariantMainTable";
 
@@ -27,6 +29,7 @@ const PhenotypeSummaryTable = () => {
   const phenotypes = useDataStore((state) => state.normalizedData?.phenotypes ?? {});
   const hasBetas = useDataStore((state) => state.normalizedData?.hasBetas ?? false);
   const setSelectedPhenotype = useDataStore((state) => state.setSelectedPhenotype);
+  const setChatSeed = useChatSeedStore((state) => state.setChatSeed);
   const navigate = useNavigate();
 
   const data = useMemo(
@@ -42,6 +45,16 @@ const PhenotypeSummaryTable = () => {
     navigate(
       `/annotate/phenotype-search?resource=${encodeURIComponent(row.resource)}&trait=${encodeURIComponent(row.trait)}`
     );
+  };
+
+  // ask-the-assistant hand-off: seed a trait-context prompt scoped to the current input variants,
+  // then route to /chat for review (no auto-send).
+  const askAssistant = (row: PhenoSummaryRow) => {
+    const trait = row.phenostring || row.trait;
+    setChatSeed(
+      `Summarize the credible-set evidence linking the input variants to ${trait} (${row.resource}, ${row.variantCount} variant${row.variantCount === 1 ? "" : "s"}).`
+    );
+    navigate("/chat");
   };
 
   const columns = useMemo<MRT_ColumnDef<PhenoSummaryRow>[]>(() => {
@@ -109,20 +122,27 @@ const PhenotypeSummaryTable = () => {
     cols.push({
       accessorFn: () => "",
       id: "handoff",
-      header: "search",
+      header: "actions",
       enableSorting: false,
       enableColumnFilter: false,
-      size: 90,
+      size: 130,
       Cell: ({ row }) => (
-        <Tooltip title="See full summary-stat results for all input variants for this trait">
-          <Button
-            size="small"
-            variant="outlined"
-            startIcon={<SearchIcon fontSize="small" />}
-            onClick={() => handoff(row.original)}>
-            search
-          </Button>
-        </Tooltip>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+          <Tooltip title="See full summary-stat results for all input variants for this trait">
+            <Button
+              size="small"
+              variant="outlined"
+              startIcon={<SearchIcon fontSize="small" />}
+              onClick={() => handoff(row.original)}>
+              search
+            </Button>
+          </Tooltip>
+          <Tooltip title="Ask the assistant about this trait across the input variants">
+            <IconButton size="small" onClick={() => askAssistant(row.original)}>
+              <ChatIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        </Box>
       ),
     });
     return cols;
