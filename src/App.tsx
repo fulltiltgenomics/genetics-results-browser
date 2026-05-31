@@ -52,6 +52,8 @@ export const App = () => {
               <Suspense fallback={<CircularProgress />}>
                 <Routes>
                   <Route path="/" element={<ChatPage />} />
+                  {/* variant annotation tool moved off / to /annotate; ChatPage owns / (refactor.md §3) */}
+                  <Route path="/annotate" element={<TableContainer />} />
                   <Route path="/gene" element={<GeneContainer />} />
                   <Route path="/gene/:geneName" element={<GeneContainer />} />
                   <Route path="/ld" element={<LDContainer />} />

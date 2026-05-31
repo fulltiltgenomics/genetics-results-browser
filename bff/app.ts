@@ -16,6 +16,28 @@ const jsonParseErrorHandler: ErrorRequestHandler = (err, _req, res, next) => {
 export const createApp = (): Express => {
   const app = express();
 
+  // permissive CORS for dev only: the browser may call the BFF cross-origin when VITE_API_URL is
+  // the absolute http://localhost:5000/api rather than the same-origin vite /api proxy. echo the
+  // requesting origin (not "*") so credentialed XHR is allowed, and short-circuit preflights.
+  // gated off in production because reflecting an arbitrary origin together with
+  // Access-Control-Allow-Credentials:true is unsafe; prod serves the app same-origin behind a
+  // reverse proxy (refactor.md §1) so no cross-origin CORS is needed there.
+  const allowCorsReflection = process.env.NODE_ENV !== "production";
+  app.use((req, res, next) => {
+    if (allowCorsReflection) {
+      const origin = req.headers.origin;
+      if (origin) res.header("Access-Control-Allow-Origin", origin);
+      res.header("Access-Control-Allow-Credentials", "true");
+      res.header("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+      res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
+      if (req.method === "OPTIONS") {
+        res.sendStatus(204);
+        return;
+      }
+    }
+    next();
+  });
+
   // buffer JSON bodies (variant-list POSTs); large credible-set payloads need a generous limit
   app.use(express.json({ limit: "10mb" }));
   app.use(jsonParseErrorHandler);

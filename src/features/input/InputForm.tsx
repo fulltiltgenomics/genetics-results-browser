@@ -45,9 +45,10 @@ const InputForm = () => {
       setMessage(
         "The input is too long to be stored in the url. If you want to share these results, you should share your variant list instead of a direct link."
       );
-      navigate("/");
+      // the annotation tool now lives at /annotate (refactor.md §3); keep the query on the current route
+      navigate("/annotate");
     } else {
-      navigate("/?q=" + lz);
+      navigate("/annotate?q=" + lz);
     }
   };
 

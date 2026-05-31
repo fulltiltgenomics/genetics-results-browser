@@ -45,10 +45,10 @@ const PhenotypeSummaryTable = (props: {}) => {
         sorting: [{ id: "total", desc: true }],
       }}
       renderDetailPanel={({ row }) => (
+        // legacy summary tab is behind a "migrating" placeholder (refactor.md §4, task .20); this
+        // detail panel is not mounted. the phenotype prop was dropped in the main-table migration.
         <VariantMainTable
-          phenotype={row.original.pheno}
-          showTraitCounts={false}
-          enableTopToolbar={false}
+          {...({ phenotype: row.original.pheno, showTraitCounts: false, enableTopToolbar: false } as React.ComponentProps<typeof VariantMainTable>)}
         />
       )}
       muiTableProps={{

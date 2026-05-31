@@ -16,6 +16,30 @@ describe("healthz", () => {
   });
 });
 
+describe("CORS", () => {
+  it("reflects the origin with credentials in non-production (dev)", async () => {
+    const prev = process.env.NODE_ENV;
+    process.env.NODE_ENV = "development";
+    const devApp = createApp();
+    process.env.NODE_ENV = prev;
+
+    const res = await request(devApp).get("/healthz").set("Origin", "http://localhost:3000");
+    expect(res.headers["access-control-allow-origin"]).toBe("http://localhost:3000");
+    expect(res.headers["access-control-allow-credentials"]).toBe("true");
+  });
+
+  it("does not reflect the origin or set credentials in production", async () => {
+    const prev = process.env.NODE_ENV;
+    process.env.NODE_ENV = "production";
+    const prodApp = createApp();
+    process.env.NODE_ENV = prev;
+
+    const res = await request(prodApp).get("/healthz").set("Origin", "http://evil.example");
+    expect(res.headers["access-control-allow-origin"]).toBeUndefined();
+    expect(res.headers["access-control-allow-credentials"]).toBeUndefined();
+  });
+});
+
 describe("passthrough", () => {
   it("forwards GET to the upstream with the path and returns its body", async () => {
     const fetchMock = vi.fn(async () =>

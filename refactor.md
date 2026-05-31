@@ -111,7 +111,7 @@ otherwise solve in the BFF. Detailed specs in **`refactor.backend.md`**. Candida
 
 | View | Route | Type | Notes |
 |------|-------|------|-------|
-| Variant table | `/` | existing, reworked | tabs below |
+| Variant table | `/annotate` | existing, reworked | tabs below; `/` is the chat landing page |
 | → Variant results | tab | adapt | drop "Association results" sub-table |
 | → Data type comparison | tab | adapt | drop association counts |
 | → Phenotype summary | tab | adapt | counts from CS membership; links to phenotype-search view |

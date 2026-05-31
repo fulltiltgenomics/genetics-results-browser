@@ -47,8 +47,10 @@ const TissueSummaryTable = (props: {}) => {
           "No records to display, make sure you have QTL associations toggled above",
       }}
       renderDetailPanel={({ row }) => (
+        // legacy tissue tab is behind a "migrating" placeholder (refactor.md §4, task .21); this
+        // detail panel is not mounted. data is the legacy VariantRecord[] shape pending migration.
         <VariantMainTable
-          data={row.original.qtlAssocs}
+          data={row.original.qtlAssocs as never}
           showTraitCounts={false}
           enableTopToolbar={false}
         />
