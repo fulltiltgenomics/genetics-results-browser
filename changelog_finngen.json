@@ -2,6 +2,49 @@
   "content": [
     {
       "type": "span",
+      "text": "May 31st 2026:",
+      "children": [
+        {
+          "type": "ul",
+          "children": [
+            {
+              "type": "li",
+              "text": "Moved the variant annotation tool to /annotate and made a chat assistant the landing page"
+            },
+            {
+              "type": "li",
+              "text": "Switched to credible-set-only data served by the new genetics-results-api; results are no longer p-value-filtered associations"
+            },
+            {
+              "type": "li",
+              "text": "Replaced the p-value threshold with PIP and cs_min_r2 filters, and moved resource and data-type selection into the main options (derived dynamically from the data)"
+            },
+            {
+              "type": "li",
+              "text": "Added colocalization for each credible set in the expanded variant view"
+            },
+            {
+              "type": "li",
+              "text": "Added a phenotype-search view showing full summary statistics for all input variants for a chosen phenotype, with credible-set membership flags"
+            },
+            {
+              "type": "li",
+              "text": "Added a Gene evidence tab (gene burden, gene expression, Mendelian gene-disease) to the gene view"
+            },
+            {
+              "type": "li",
+              "text": "Added caQTL results and an eQTL/caQTL toggle in the tissue and cell type summary"
+            },
+            {
+              "type": "li",
+              "text": "Added optional eQTL Catalogue quantification levels (exon, transcript, txrev, leafcutter) alongside the default gene level"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "span",
       "text": "Dec 4th 2025:",
       "children": [
         {

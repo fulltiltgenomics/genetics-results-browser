@@ -53,16 +53,9 @@ const About = () => {
     },
     {
       accessorFn: (row: any) => {
-        return row.assoc ? "yes" : "no";
-      },
-      header: "association results",
-      size: 65,
-    },
-    {
-      accessorFn: (row: any) => {
         return row.finemapped ? "yes" : "no";
       },
-      header: "fine-mapping results",
+      header: "credible sets",
       size: 65,
     },
     {
@@ -89,6 +82,32 @@ const About = () => {
         <br />
         This tool helps you answer these kinds of questions while also allowing for deep dives to
         the effects of individual variants.
+      </Typography>
+      <Typography>
+        <br />
+        The variant annotation tool is available at <Link href="/annotate">/annotate</Link>, where
+        you can paste a list of variants or enter a gene. The landing page at{" "}
+        <Link href="/">/</Link> is a chat assistant for asking questions about variants and genes in
+        natural language.
+      </Typography>
+      <Typography>
+        <br />
+        Results are based on <b>credible sets from statistical fine-mapping</b>. For each input
+        variant we show the credible sets it belongs to across all resources, spanning disease and
+        molecular (eQTL, caQTL, pQTL) traits. You can filter by fine-mapping posterior inclusion
+        probability (PIP) and, optionally, by the linkage between your input variant and the credible
+        set (cs_min_r2). Resources and data types can be selected in the main options and are derived
+        dynamically from the underlying data.
+      </Typography>
+      <Typography>
+        <br />
+        Within the expanded view of a variant, each credible set shows the other signals it{" "}
+        <b>colocalizes</b> with. A separate phenotype-search view returns full summary statistics for
+        all of your input variants for a chosen phenotype, flagging which variants fall in a credible
+        set for that phenotype. The gene view includes a <b>Gene evidence</b> tab with gene burden
+        results, gene expression and Mendelian gene-disease associations. eQTL Catalogue results are
+        shown at gene level (ge) by default, with the option to also include exon, transcript,
+        txrev and leafcutter quantification levels.
       </Typography>
       <Typography>
         <br />
@@ -147,11 +166,9 @@ const About = () => {
       />
       <Typography>
         <br />
-        Open Targets association results are from their October 2022 release (last release with
-        non-fine-mapped association results). Open Targets credible sets are from their March 2025
-        release. Open Targets results are only shown for GWAS traits that have been fine-mapped with
-        SuSiE-inf. FinnGen results from Open Targets are not shown in this tool as we show those
-        directly from FinnGen.
+        Open Targets credible sets are from their March 2025 release and are only shown for GWAS
+        traits that have been fine-mapped with SuSiE-inf. FinnGen results from Open Targets are not
+        shown in this tool as we show those directly from FinnGen.
       </Typography>
       <Typography>
         <br />
