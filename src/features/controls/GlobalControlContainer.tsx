@@ -1,6 +1,6 @@
 import { Box, Divider } from "@mui/material";
 import { useDataStore } from "../../store/store";
-import { useServerQuery } from "../../store/serverQuery";
+import { useNormalizedQuery } from "../../store/serverQuery";
 import GlobalThresholds from "./GlobalThresholds";
 import GlobalDataTypeSwitches from "./GlobalDataTypeSwitches";
 import GnomadPopChoice from "./GnomadPopChoice";
@@ -8,7 +8,9 @@ import GlobalQTLSwitches from "./GlobalQTLSwitches";
 
 const GlobalControlContainer = () => {
   const variantInput: string = useDataStore((state) => state.variantInput)!;
-  const { isError, isFetching, isLoading } = useServerQuery(variantInput);
+  // gate on the normalized BFF query; the legacy useServerQuery now throws on the new
+  // NormalizedResponse shape, which would otherwise keep these controls disabled forever
+  const { isError, isFetching, isLoading } = useNormalizedQuery(variantInput);
   const isNotReadyYet = isError || isFetching || isLoading;
 
   return (
