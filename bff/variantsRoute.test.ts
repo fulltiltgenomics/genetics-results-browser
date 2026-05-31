@@ -4,6 +4,7 @@ import { createApp } from "./app.js";
 
 import csBatch from "../src/test/fixtures/credible_sets_by_variant_batch.json" with { type: "json" };
 import annoFinngen from "../src/test/fixtures/variant_annotation_finngen.json" with { type: "json" };
+import annoGnomad from "../src/test/fixtures/variant_annotation_gnomad.json" with { type: "json" };
 import nearestGenes from "../src/test/fixtures/nearest_genes.json" with { type: "json" };
 import datasets from "../src/test/fixtures/datasets.json" with { type: "json" };
 
@@ -19,6 +20,7 @@ const routeFetch = (overrides: Record<string, () => Response> = {}) =>
     if (overrides.rsid && u.includes("/v1/rsid/variants")) return overrides.rsid();
     if (u.includes("/v1/rsid/variants")) return json([]);
     if (u.includes("/v1/credible_sets_by_variant")) return json(csBatch);
+    if (u.includes("/v1/variant_annotation/gnomad")) return json(annoGnomad);
     if (u.includes("/v1/variant_annotation/finngen")) return json(annoFinngen);
     if (u.includes("/v1/nearest_genes")) return json(nearestGenes);
     if (u.includes("/v1/datasets")) return json(datasets);
@@ -113,6 +115,53 @@ describe("POST /v1/results — variant list normalize", () => {
     );
     expect(eqtlCat).toBeDefined();
     expect(eqtlCat.hasSummaryStats).toBe(false);
+  });
+
+  it("attaches a merged GnomadFreq, preferring the larger-AN row, with byPop + popmax", async () => {
+    vi.stubGlobal("fetch", routeFetch());
+
+    const res = await request(app).post("/api/v1/results").send({ query: "19-44908684-T-C" });
+
+    const gnomad = res.body.variants[0].gnomad;
+    expect(gnomad).toBeDefined();
+    // 19-44908684 has two rows: e (AN 1415800) + g (AN 152092). merge picks the larger-AN exome row.
+    expect(gnomad.genomeOrExome).toBe("e");
+    expect(gnomad.variant).toBe("19:44908684:T:C");
+    // afOverall + byPop parsed from the e row's scientific-notation strings
+    expect(gnomad.afOverall).toBeCloseTo(0.14757);
+    expect(gnomad.byPop.afr).toBeCloseTo(0.22661);
+    expect(gnomad.byPop.nfe).toBeCloseTo(0.15142);
+    expect(gnomad.byPop.mid).toBeCloseTo(0.068061);
+    expect(Object.keys(gnomad.byPop).sort()).toEqual(
+      ["afr", "amr", "asj", "eas", "fin", "mid", "nfe", "remaining", "sas"].sort()
+    );
+    // popmax is the max over byPop -> afr in the e row (0.22661)
+    expect(gnomad.popmaxPop).toBe("afr");
+    expect(gnomad.popmaxAf).toBeCloseTo(0.22661);
+  });
+
+  it("handles a single-row gnomAD variant (no g/e merge) and an absent variant", async () => {
+    // 17-7676154-G-A returns one exome row; the gnomad fixture has no row for 1-55039974-G-T
+    vi.stubGlobal("fetch", routeFetch());
+
+    const res = await request(app)
+      .post("/api/v1/results")
+      .send({ query: "17-7676154-G-A\n1-55039974-G-T" });
+
+    const byId: Record<string, { gnomad?: Record<string, unknown> }> = {};
+    for (const v of res.body.variants as Array<{ variant: string }>) {
+      byId[v.variant] = v as { gnomad?: Record<string, unknown> };
+    }
+
+    const tp53 = byId["17:7676154:G:A"].gnomad!;
+    expect(tp53.genomeOrExome).toBe("e");
+    expect(tp53.afOverall).toBeCloseTo(6.842e-7);
+    // only nfe is nonzero; popmax = nfe even though every pop is present
+    expect(tp53.popmaxPop).toBe("nfe");
+    expect(tp53.popmaxAf).toBeCloseTo(8.9928e-7);
+
+    // variant absent from gnomad -> no gnomad field fabricated
+    expect(byId["1:55039974:G:T"].gnomad).toBeUndefined();
   });
 
   it("returns a clean JSON 400 for a malformed JSON body", async () => {

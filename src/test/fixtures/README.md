@@ -14,6 +14,7 @@ shapes match production 1:1 so MSW mocks reflect real responses.
 | `credible_sets_by_variant_batch.json` | `POST /api/v1/credible_sets_by_variant?format=json` body `{"variants":"19-44908684-T-C\n..."}` | same record shape as the GET; `variants` is a newline-separated string |
 | `credible_sets_by_gene.json` | `GET /api/v1/credible_sets_by_gene/CLASRP?format=json` | covers GWAS + eQTL + pQTL + caQTL + sQTL and quant levels ge/exon/txrev/tx/microarray |
 | `variant_annotation_finngen.json` | `GET /api/v1/variant_annotation/finngen?variant=19-44908684-T-C&format=json` | full (already tiny) — rsid, AF, enrichment, most_severe |
+| `variant_annotation_gnomad.json` | `POST /api/v1/variant_annotation/gnomad?format=json` body `{"variants":["19-44908684-T-C","17-7676154-G-A"]}` | per-pop gnomAD AF (strings, scientific notation). 19-44908684 returns TWO rows (genome_or_exome g/e; e has larger AN 1415800 vs g 152092) to exercise the merge; 17-7676154 returns a SINGLE exome row. `consequences` (a large verbatim JSON string the BFF does not consume) trimmed out |
 | `nearest_genes.json` | `POST /api/v1/nearest_genes?format=json&n=1` body `{"variants":"19-44908684-T-C"}` | `variants` is a single-variant string, NOT an array |
 | `datasets.json` | `GET /api/v1/datasets` | one dataset per data_type (gwas/pqtl/eqtl/caqtl/asmqtl/mixed/metaboqtl/exome/gene_based/expression/chromatin_peaks/gene_disease) |
 | `resources.json` | `GET /api/v1/resources` | object keyed by product category; each list trimmed to 3 entries |
@@ -28,7 +29,8 @@ shapes match production 1:1 so MSW mocks reflect real responses.
   separators error (a variant must be `chr-pos-ref-alt`). nearest_genes effectively takes one variant.
 - `variant_annotation/{source}` (POST) is the **EXCEPTION**: its body is a JSON **array**
   `{"variants": ["19-44908684-T-C", ...]}` (per refactor.backend.md §1), unlike the
-  newline-separated string used by credible_sets_by_variant and nearest_genes.
+  newline-separated string used by credible_sets_by_variant and nearest_genes. gnomAD uses this
+  same array body and may return TWO rows per variant (genomes + exomes); the BFF merges them.
 - `summary_stats` requires both `variants` and `phenotypes` query params (both required).
 - `/search` phenotype results already include `data_type` and `has_summary_stats`
   (the two planned backend additions in refactor.backend.md are deployed).

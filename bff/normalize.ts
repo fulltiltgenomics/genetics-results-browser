@@ -3,6 +3,8 @@ import type {
   CredibleSetMembership,
   DatasetDataType,
   DatasetMeta,
+  GnomadFreq,
+  GnomadPop,
   NearestGene,
   NormalizedResponse,
   PhenotypeMeta,
@@ -83,6 +85,28 @@ interface RawDataset {
   };
 }
 
+// gnomad rows from POST variant_annotation/gnomad (JSON array body, like finngen). all fields are
+// strings; AF_* are in scientific notation (e.g. "1.4757e-01"). genome_or_exome is "g"/"e" and a
+// variant may yield TWO rows (genomes + exomes) which the BFF merges into one GnomadFreq.
+interface RawGnomadRow {
+  chr: string;
+  pos: string;
+  ref: string;
+  alt: string;
+  AN: string;
+  AF: string;
+  AF_afr?: string;
+  AF_amr?: string;
+  AF_asj?: string;
+  AF_eas?: string;
+  AF_fin?: string;
+  AF_mid?: string;
+  AF_nfe?: string;
+  AF_remaining?: string;
+  AF_sas?: string;
+  genome_or_exome: "g" | "e";
+}
+
 /* ── helpers ── */
 
 const toColon = (v: string): string => v.replace(/-/g, ":");
@@ -160,6 +184,68 @@ const normalizeNearestGene = (r: RawNearestGene): NearestGene => ({
   geneEnd: r.gene_end,
   geneStrand: r.gene_strand,
 });
+
+const GNOMAD_POPS: readonly GnomadPop[] = [
+  "afr",
+  "amr",
+  "asj",
+  "eas",
+  "fin",
+  "mid",
+  "nfe",
+  "remaining",
+  "sas",
+];
+
+const gnomadVariantId = (r: RawGnomadRow): string => `${r.chr}:${r.pos}:${r.ref}:${r.alt}`;
+
+// merge the genome+exome duplicate rows for one variant into a single GnomadFreq. we prefer the row
+// with the larger AN (allele number = the larger genotyped cohort, so AF estimates are tighter — and
+// it correctly discards AN=0 rows where AF is undefined). popmax is computed here as the max over byPop.
+const mergeGnomadRows = (rows: RawGnomadRow[]): GnomadFreq => {
+  const chosen = rows.reduce((best, r) => ((toNum(r.AN) ?? 0) > (toNum(best.AN) ?? 0) ? r : best));
+
+  const byPop: Partial<Record<GnomadPop, number>> = {};
+  for (const pop of GNOMAD_POPS) {
+    // AF_<pop> arrives as a scientific-notation string; absent/NA -> leave the pop out entirely
+    const af = toNum((chosen as unknown as Record<string, unknown>)[`AF_${pop}`]);
+    if (af !== null) byPop[pop] = af;
+  }
+
+  const freq: GnomadFreq = {
+    variant: gnomadVariantId(chosen),
+    afOverall: toNum(chosen.AF),
+    byPop,
+    genomeOrExome: chosen.genome_or_exome,
+  };
+
+  let popmaxPop: GnomadPop | undefined;
+  let popmaxAf = -Infinity;
+  for (const pop of GNOMAD_POPS) {
+    const af = byPop[pop];
+    if (af !== undefined && af > popmaxAf) {
+      popmaxAf = af;
+      popmaxPop = pop;
+    }
+  }
+  if (popmaxPop !== undefined) {
+    freq.popmaxPop = popmaxPop;
+    freq.popmaxAf = popmaxAf;
+  }
+  return freq;
+};
+
+// group raw gnomad rows by canonical variant id, merging the g/e duplicates into one GnomadFreq each.
+const indexGnomad = (rows: RawGnomadRow[]): Map<string, GnomadFreq> => {
+  const byVariant = new Map<string, RawGnomadRow[]>();
+  for (const r of rows) {
+    const vid = gnomadVariantId(r);
+    (byVariant.get(vid) ?? byVariant.set(vid, []).get(vid)!).push(r);
+  }
+  const out = new Map<string, GnomadFreq>();
+  for (const [vid, vrows] of byVariant) out.set(vid, mergeGnomadRows(vrows));
+  return out;
+};
 
 /* ── fan-out + assembly ── */
 
@@ -245,7 +331,7 @@ export const normalizeVariantList = async (query: string): Promise<NormalizedRes
   const variantsNewline = variantIds.join("\n");
 
   // independent fan-out runs concurrently; datasets/resources are query-independent metadata.
-  const [csRaw, annoRaw, genesRaw, datasetsRaw] = await Promise.all([
+  const [csRaw, annoRaw, gnomadRaw, genesRaw, datasetsRaw] = await Promise.all([
     variantIds.length
       ? upstreamJson<RawCsRow[]>("/v1/credible_sets_by_variant", {
           method: "POST",
@@ -261,6 +347,13 @@ export const normalizeVariantList = async (query: string): Promise<NormalizedRes
         })
       : Promise.resolve<RawAnnotationRow[]>([]),
     variantIds.length
+      ? upstreamJson<RawGnomadRow[]>("/v1/variant_annotation/gnomad", {
+          method: "POST",
+          query: { format: "json" },
+          body: { variants: variantIds }, // JSON ARRAY body, same as the finngen source
+        })
+      : Promise.resolve<RawGnomadRow[]>([]),
+    variantIds.length
       ? upstreamJson<RawNearestGene[]>("/v1/nearest_genes", {
           method: "POST",
           query: { format: "json", n: 1 },
@@ -272,6 +365,7 @@ export const normalizeVariantList = async (query: string): Promise<NormalizedRes
 
   const csRows = csRaw ?? [];
   const annoRows = annoRaw ?? [];
+  const gnomadRows = gnomadRaw ?? [];
   const genesRows = genesRaw ?? [];
   const datasets = datasetsRaw ?? [];
 
@@ -283,6 +377,7 @@ export const normalizeVariantList = async (query: string): Promise<NormalizedRes
   }
   const annoByVariant = new Map<string, RawAnnotationRow>();
   for (const r of annoRows) annoByVariant.set(toColon(r.variant), r);
+  const gnomadByVariant = indexGnomad(gnomadRows);
   const nearestByVariant = new Map<string, NearestGene[]>();
   for (const r of genesRows) {
     const vid = toColon(r.variant);
@@ -300,6 +395,9 @@ export const normalizeVariantList = async (query: string): Promise<NormalizedRes
     };
     const nearest = nearestByVariant.get(vid);
     if (nearest?.length) result.nearestGenes = nearest;
+    // variants absent from gnomad get no gnomad field (don't fabricate)
+    const gnomad = gnomadByVariant.get(vid);
+    if (gnomad) result.gnomad = gnomad;
     if (betaByVariant[vid] !== undefined) result.beta = betaByVariant[vid];
     if (valueByVariant[vid] !== undefined) result.value = valueByVariant[vid];
     return result;
