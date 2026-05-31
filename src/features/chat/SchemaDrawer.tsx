@@ -100,7 +100,7 @@ export const SchemaDrawer = ({ open, onClose, selectedView, onSelectView }: Sche
             </IconButton>
           )}
           <Typography variant="h6" noWrap>
-            {xsDetailVisible && selectedTable ? selectedTable.name : "Tables & columns"}
+            {xsDetailVisible && selectedTable ? selectedTable.name : "Database tables"}
           </Typography>
         </Box>
         <IconButton onClick={onClose} size="small" aria-label="close">

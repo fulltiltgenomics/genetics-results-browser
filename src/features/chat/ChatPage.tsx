@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo, type MouseEvent as ReactMouseEvent, type ReactNode } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Box, Typography, CircularProgress, Button, Chip, Drawer, IconButton, ListItemIcon, ListItemText, Menu, MenuItem, Popover, Alert, Tooltip, useMediaQuery, useTheme } from "@mui/material";
-import { VisibilityOff, Share as ShareIcon, LinkOff as LinkOffIcon, ForkRight as ForkRightIcon, TableView as TableViewIcon } from "@mui/icons-material";
+import { VisibilityOff, Share as ShareIcon, LinkOff as LinkOffIcon, ForkRight as ForkRightIcon } from "@mui/icons-material";
 import MenuIcon from "@mui/icons-material/Menu";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import finnGenieLogo from "../../assets/finngenie-leonardo-gemini-2.5-flash-recraft-vectorized-claude-cropped.svg";
@@ -678,8 +678,7 @@ const ChatPage = () => {
                   {
                     key: "tables",
                     label: "Tables",
-                    icon: <TableViewIcon />,
-                    tooltip: "Tables & columns",
+                    tooltip: "Database tables",
                     onClick: () => schemaRoute.openEmpty(),
                   },
                   {
