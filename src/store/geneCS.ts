@@ -214,3 +214,76 @@ export const geneModelsFromRegion = (rows: GeneInRegionApiRow[]): GeneModel[] =>
 export const GWAS_DATA_NAMES = new Set(
   config.gene_view.resources.filter((r) => r.dataType === "GWAS").map((r) => r.dataName)
 );
+
+/** map of affected/affecting gene symbol -> the credible sets backing that gene in a list */
+export type Gene2CS = { [gene: string]: CSDatum[] };
+
+export interface GeneListFilters {
+  maxCsSize: number;
+  minLeadMlog10p: number;
+  codingOnly: boolean;
+}
+
+// the two gene lists share one quality gate: a real lead signal, a non-huge CS, at least one
+// variant. codingOnly is applied differently per list (cis: any coding variant; trans: per-variant)
+// so it is handled by the callers below, not here.
+const passesQualityGate = (d: CSDatum, f: GeneListFilters): boolean =>
+  d.mlog10p.some((m) => m >= f.minLeadMlog10p) && d.csSize <= f.maxCsSize && d.variant.length > 0;
+
+/**
+ * "Variants in {inputGene} affect these genes" — the cis list.
+ *
+ * why this shape: `cisData` is the credible sets sitting in the input gene's region. a pQTL CS here
+ * means variants in this locus drive some protein's level; that protein's gene is the CS `trait`
+ * (the molecular trait symbol). we keep only pQTL CSs that actually contain a variant annotated to
+ * the input gene (i.e. the signal really lives in this gene), then group them by the affected gene
+ * = `trait`. each (trait, CS) pair is counted once even if several of the CS's variants map to the
+ * input gene.
+ */
+export const buildAffectedGeneList = (
+  cisData: CSDatum[],
+  inputGene: string,
+  filters: GeneListFilters
+): Gene2CS => {
+  const inputGeneLc = inputGene.toLowerCase();
+  const seen = new Set<string>();
+  const gene2cs: Gene2CS = {};
+  for (const d of cisData) {
+    if (d.dataType !== "pQTL" || !passesQualityGate(d, filters)) continue;
+    if (filters.codingOnly && !d.isCoding.some((c) => c)) continue;
+    if (!d.gene.some((g) => g.toLowerCase() === inputGeneLc)) continue;
+    const key = `${d.trait}|${d.traitCSId}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    (gene2cs[d.trait] ??= []).push(d);
+  }
+  return gene2cs;
+};
+
+/**
+ * "Variants in these genes affect {inputGene}" — the trans list.
+ *
+ * why this shape: `transData` is the credible sets where the input gene IS the molecular trait
+ * (pQTL on its protein), so its member variants can live in other genes' loci. we group each pQTL
+ * CS under every gene its variants are annotated to (excluding the "NA" placeholder), i.e. the loci
+ * whose variants affect the input gene. codingOnly here filters per-variant: a gene qualifies only
+ * via a coding variant. each (gene, CS) pair is counted once.
+ */
+export const buildAffectingGeneList = (
+  transData: CSDatum[],
+  filters: GeneListFilters
+): Gene2CS => {
+  const seen = new Set<string>();
+  const gene2cs: Gene2CS = {};
+  for (const d of transData) {
+    if (d.dataType !== "pQTL" || !passesQualityGate(d, filters)) continue;
+    d.gene.forEach((gene, i) => {
+      if (gene === "NA" || (filters.codingOnly && !d.isCoding[i])) return;
+      const key = `${gene}|${d.traitCSId}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      (gene2cs[gene] ??= []).push(d);
+    });
+  }
+  return gene2cs;
+};

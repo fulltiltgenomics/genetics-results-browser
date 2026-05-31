@@ -15,6 +15,7 @@ import {
   useGenesInRegion,
   useGeneTransCredibleSets,
 } from "@/store/serverQuery";
+import { buildAffectedGeneList, buildAffectingGeneList } from "@/store/geneCS";
 import CSPlot from "./CSPlot";
 import { useEffect, useMemo, useState } from "react";
 import { CSDatum, CSStatus, SelectedVariantStats, TraitStatus } from "@/types/types.gene";
@@ -270,63 +271,23 @@ const CisView = ({ geneName }: { geneName: string }) => {
     });
   }, [filteredDataWithResourceToggles]);
 
-  const genesAffectedByInputGene2CS = useMemo(() => {
-    if (data === undefined) {
-      return undefined;
-    }
-    const seenGeneTraitCSIds = new Set<string>();
-    return data
-      .filter(
-        (d) =>
-          d.mlog10p.filter((mlog10p) => mlog10p >= minLeadMlog10p).length > 0 &&
-          d.csSize <= maxCsSize &&
-          d.variant.length > 0 &&
-          (!codingOnly || d.isCoding.some((c) => c))
-      )
-      .reduce((acc, d) => {
-        d.gene.forEach((gene) => {
-          if (d.dataType === "pQTL" && gene.toLowerCase() === geneName.toLowerCase()) {
-            const geneTraitCSId = `${d.trait}|${d.traitCSId}`;
-            if (!seenGeneTraitCSIds.has(geneTraitCSId)) {
-              seenGeneTraitCSIds.add(geneTraitCSId);
-              acc[d.trait] = acc[d.trait] || [];
-              acc[d.trait].push(d);
-            }
-          }
-        });
-        return acc;
-      }, {} as { [key: string]: CSDatum[] });
-  }, [data, maxCsSize, minLeadMlog10p, codingOnly]);
+  // the two gene lists derive straight from the raw cis/trans CS data (not the resource-toggled
+  // view data), so they stay stable as the user toggles resources in the plot.
+  const genesAffectedByInputGene2CS = useMemo(
+    () =>
+      data === undefined
+        ? undefined
+        : buildAffectedGeneList(data, geneName, { maxCsSize, minLeadMlog10p, codingOnly }),
+    [data, geneName, maxCsSize, minLeadMlog10p, codingOnly]
+  );
 
-  const genesAffectingInputGene2CS = useMemo(() => {
-    if (transData === undefined) {
-      return undefined;
-    }
-    const seenGeneTraitCSIds = new Set<string>();
-    return transData
-      .filter(
-        (d) =>
-          d.mlog10p.filter((mlog10p) => mlog10p >= minLeadMlog10p).length > 0 &&
-          d.csSize <= maxCsSize &&
-          d.variant.length > 0 &&
-          d.dataType === "pQTL"
-      )
-      .reduce((acc, d) => {
-        d.gene.forEach((gene, i) => {
-          const geneTraitCSId = `${gene}|${d.traitCSId}`;
-          if (
-            gene !== "NA" &&
-            (!codingOnly || d.isCoding[i]) &&
-            !seenGeneTraitCSIds.has(geneTraitCSId)
-          ) {
-            seenGeneTraitCSIds.add(geneTraitCSId);
-            acc[gene] = acc[gene] || [];
-            acc[gene].push(d);
-          }
-        });
-        return acc;
-      }, {} as { [key: string]: CSDatum[] });
-  }, [transData, maxCsSize, minLeadMlog10p, codingOnly]);
+  const genesAffectingInputGene2CS = useMemo(
+    () =>
+      transData === undefined
+        ? undefined
+        : buildAffectingGeneList(transData, { maxCsSize, minLeadMlog10p, codingOnly }),
+    [transData, maxCsSize, minLeadMlog10p, codingOnly]
+  );
 
   const titleRows = useMemo(() => {
     const rows = sortedData?.map((d) => {

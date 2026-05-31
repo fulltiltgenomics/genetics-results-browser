@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
+  buildAffectedGeneList,
+  buildAffectingGeneList,
   GeneCSApiRow,
   GeneInRegionApiRow,
   geneModelsFromRegion,
   groupCredibleSets,
   mapToDataName,
 } from "./geneCS";
+import { CSDatum } from "@/types/types.gene";
 
 // fixtures captured from the live genetics-results-api (see fixtures/README.md)
 import credibleSetsByGene from "../test/fixtures/credible_sets_by_gene.json";
@@ -90,6 +93,121 @@ describe("groupCredibleSets (new JSON rows -> CSDatum[])", () => {
 
   it("does not emit the unmapped finngen caQTL row", () => {
     expect(data.some((d) => d.dataType === "caQTL")).toBe(false);
+  });
+});
+
+// minimal CSDatum builder: only the fields the two list builders read matter
+const makeCS = (over: Partial<CSDatum>): CSDatum => ({
+  resource: "FinnGen_pQTL",
+  dataset: "FinnGen_Olink",
+  dataType: "pQTL",
+  trait: "TRAIT",
+  traitId: "FinnGen_pQTL|FinnGen_Olink|TRAIT",
+  chr: "1",
+  variant: ["1:100:A:T"],
+  pos: [100],
+  pip: [0.9],
+  mlog10p: [20],
+  beta: [0.5],
+  se: [0.1],
+  csId: "L1",
+  traitCSId: "FinnGen_pQTL|FinnGen_Olink|TRAIT=L1",
+  csNumber: 1,
+  numberOfCSs: 1,
+  csSize: 1,
+  csMinR2: 0.9,
+  consequence: ["missense"],
+  isCoding: [false],
+  isLoF: [false],
+  af: ["0.1"],
+  gene: ["GENEA"],
+  rsid: ["NA"],
+  ...over,
+});
+
+const NO_FILTER = { maxCsSize: 50, minLeadMlog10p: 10, codingOnly: false };
+
+describe("buildAffectedGeneList (cis: variants in input gene affect other genes)", () => {
+  it("groups pQTL CSs whose variants sit in the input gene, keyed by the affected trait gene", () => {
+    const cis = [
+      // pQTL on protein FOO with a variant annotated to the input gene APOE -> APOE affects FOO
+      makeCS({ trait: "FOO", traitCSId: "k1", gene: ["APOE"] }),
+      // a second affected gene BAR
+      makeCS({ trait: "BAR", traitCSId: "k2", gene: ["APOE"] }),
+      // pQTL whose variants are NOT in APOE -> excluded
+      makeCS({ trait: "BAZ", traitCSId: "k3", gene: ["OTHER"] }),
+      // non-pQTL (GWAS) in APOE -> excluded (list is pQTL-only)
+      makeCS({ trait: "QUX", traitCSId: "k4", gene: ["APOE"], dataType: "GWAS" }),
+    ];
+    const res = buildAffectedGeneList(cis, "APOE", NO_FILTER);
+    expect(Object.keys(res).sort()).toEqual(["BAR", "FOO"]);
+    expect(res.FOO).toHaveLength(1);
+  });
+
+  it("matches the input gene case-insensitively and dedupes a CS counted via multiple variants", () => {
+    const cis = [
+      makeCS({ trait: "FOO", traitCSId: "k1", gene: ["apoe", "APOE"] }),
+    ];
+    const res = buildAffectedGeneList(cis, "APOE", NO_FILTER);
+    expect(res.FOO).toHaveLength(1);
+  });
+
+  it("applies the quality gate (lead mlog10p, csSize, has variants)", () => {
+    const cis = [
+      makeCS({ trait: "FOO", traitCSId: "k1", gene: ["APOE"], mlog10p: [3] }), // below threshold
+      makeCS({ trait: "BAR", traitCSId: "k2", gene: ["APOE"], csSize: 999 }), // too large
+      makeCS({ trait: "BAZ", traitCSId: "k3", gene: ["APOE"], mlog10p: [50] }), // passes
+    ];
+    const res = buildAffectedGeneList(cis, "APOE", NO_FILTER);
+    expect(Object.keys(res)).toEqual(["BAZ"]);
+  });
+
+  it("codingOnly keeps only CSs with at least one coding variant", () => {
+    const cis = [
+      makeCS({ trait: "FOO", traitCSId: "k1", gene: ["APOE"], isCoding: [false] }),
+      makeCS({ trait: "BAR", traitCSId: "k2", gene: ["APOE"], isCoding: [true] }),
+    ];
+    const res = buildAffectedGeneList(cis, "APOE", { ...NO_FILTER, codingOnly: true });
+    expect(Object.keys(res)).toEqual(["BAR"]);
+  });
+});
+
+describe("buildAffectingGeneList (trans: variants in other genes affect input gene)", () => {
+  it("groups each pQTL CS under every (non-NA) gene its variants are annotated to", () => {
+    const trans = [
+      makeCS({ traitCSId: "k1", gene: ["GENEA", "GENEB"], isCoding: [false, false] }),
+      makeCS({ traitCSId: "k2", gene: ["GENEA", "NA"], isCoding: [false, false] }),
+    ];
+    const res = buildAffectingGeneList(trans, NO_FILTER);
+    expect(Object.keys(res).sort()).toEqual(["GENEA", "GENEB"]);
+    // GENEA appears in two distinct CSs -> grouped under both
+    expect(res.GENEA).toHaveLength(2);
+    expect(res.GENEB).toHaveLength(1);
+  });
+
+  it("dedupes the same (gene, CS) pair and excludes the NA placeholder gene", () => {
+    const trans = [makeCS({ traitCSId: "k1", gene: ["GENEA", "GENEA", "NA"], isCoding: [false, false, false] })];
+    const res = buildAffectingGeneList(trans, NO_FILTER);
+    expect(res.GENEA).toHaveLength(1);
+    expect(res.NA).toBeUndefined();
+  });
+
+  it("excludes non-pQTL CSs and applies the quality gate", () => {
+    const trans = [
+      makeCS({ traitCSId: "k1", gene: ["GENEA"], dataType: "eQTL" }),
+      makeCS({ traitCSId: "k2", gene: ["GENEB"], mlog10p: [1] }),
+      makeCS({ traitCSId: "k3", gene: ["GENEC"] }),
+    ];
+    const res = buildAffectingGeneList(trans, NO_FILTER);
+    expect(Object.keys(res)).toEqual(["GENEC"]);
+  });
+
+  it("codingOnly filters per-variant: a gene qualifies only via a coding variant", () => {
+    const trans = [
+      makeCS({ traitCSId: "k1", gene: ["GENEA", "GENEB"], isCoding: [true, false] }),
+    ];
+    const res = buildAffectingGeneList(trans, { ...NO_FILTER, codingOnly: true });
+    expect(Object.keys(res)).toEqual(["GENEA"]);
   });
 });
 
