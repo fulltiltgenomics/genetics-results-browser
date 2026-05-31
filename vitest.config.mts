@@ -10,6 +10,8 @@ export default defineConfig({
     globals: true,
     setupFiles: ["./src/test/setup.ts"],
     include: ["src/**/*.{test,spec}.{ts,tsx}"],
+    // e2e/ specs use @playwright/test, not vitest — keep them out of `npm test`
+    exclude: ["node_modules/**", "e2e/**", "bff/**"],
     coverage: {
       provider: "v8",
       reportsDirectory: "./coverage",

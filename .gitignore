@@ -169,6 +169,13 @@ config.py.bak
 static
 data
 
+# Playwright E2E output (screenshots, traces, reports, browser cache)
+test-results/
+playwright-report/
+e2e/.output/
+.playwright/
+ms-playwright/
+
 # Beads / Dolt files (added by bd init)
 .dolt/
 *.db
