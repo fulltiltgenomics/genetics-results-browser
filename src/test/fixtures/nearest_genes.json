@@ -1,0 +1,16 @@
+[
+  {
+    "gene_name": "APOE",
+    "chrom": 19,
+    "gene_start": 44903787,
+    "gene_end": 44909396,
+    "gene_strand": "+",
+    "gene_type": "protein_coding",
+    "distance": 0,
+    "hgnc_symbol": "APOE",
+    "hgnc_name": "apolipoprotein E",
+    "hgnc_alias_symbol": null,
+    "hgnc_prev_symbol": "AD2",
+    "variant": "19-44908684-T-C"
+  }
+]

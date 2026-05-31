@@ -1,0 +1,292 @@
+[
+  {
+    "dataset_id": "finngen_gwas",
+    "resource": "finngen",
+    "version": "R13",
+    "description": "FinnGen R13 core GWAS. Binary disease endpoints and height/weight/BMI quantitative traits in 500,186 Finnish biobank participants.",
+    "author": "FinnGen Consortium",
+    "publication_date": "2025-09-12",
+    "trait_type": "binary",
+    "data_type": "gwas",
+    "products": {
+      "credible_sets": true,
+      "summary_stats": true,
+      "colocalization": {
+        "partners": [
+          "eqtl_catalogue",
+          "finngen_gwas",
+          "finngen_kanta",
+          "finngen_nmr",
+          "finngen_pqtl",
+          "finngen_somascan",
+          "finnliver",
+          "generisk",
+          "interval",
+          "ukbb_finucane",
+          "ukbb_pqtl"
+        ]
+      }
+    },
+    "stats": {
+      "n_phenotypes": 2754,
+      "n_samples_median": 477706,
+      "n_samples_range": [
+        68562,
+        500186
+      ],
+      "n_cases_range": [
+        50,
+        434037
+      ],
+      "n_controls_range": [
+        62519,
+        500136
+      ]
+    },
+    "metadata_endpoint": "/api/v1/resource_metadata/finngen"
+  },
+  {
+    "dataset_id": "finngen_pqtl",
+    "resource": "finngen",
+    "version": "batch1-4",
+    "description": "FinnGen Olink pQTL. Plasma protein levels measured by Olink Explore 3072 (batches 1-3) and Olink Explore HT (batch 4). Unrelated samples were used in analysis. Sample size is 3,561. The samples were collected from blood donors who were heterozygous or homozygous carriers of specific genetic variants of interest.",
+    "author": "FinnGen Consortium",
+    "publication_date": "2025-01-01",
+    "trait_type": "quantitative",
+    "data_type": "pqtl",
+    "products": {
+      "credible_sets": true,
+      "summary_stats": true,
+      "colocalization": {
+        "partners": [
+          "finngen_gwas"
+        ]
+      }
+    },
+    "qtl_types": [
+      "pQTL"
+    ],
+    "n_samples": 3561
+  },
+  {
+    "dataset_id": "finngen_eqtl",
+    "resource": "finngen",
+    "version": "batch1-5",
+    "description": "FinnGen single-cell RNA-seq eQTL. Cell-type-resolved expression QTLs from snRNAseq batches 1-5. Sample size is 1,108. Available predicted cell types: l1.B, l1.CD4_T, l1.CD8_T, l1.DC, l1.Mono, l1.NK, l1.PBMC, l1.other, l1.other_T, l2.B_intermediate, l2.B_memory, l2.B_naive, l2.CD14_Mono, l2.CD16_Mono, l2.CD4_CTL, l2.CD4_Naive, l2.CD4_TCM, l2.CD4_TEM, l2.CD8_Naive, l2.CD8_TEM, l2.HSPC, l2.ILC, l2.MAIT, l2.NK, l2.NK_CD56bright, l2.Plasmablast, l2.Platelet, l2.Treg, l2.cDC2, l2.dnT, l2.gdT, l2.pDC. Cell types were predicted based on GEX using the reference PBMC dataset from Hao et al. (2020) (http://dx.doi.org/10.1016/j.cell.2021.04.048). Citation: Kanai, M. et al.: Population-scale multiome immune cell atlas reveals complex disease drivers (https://doi.org/10.1101/2025.11.25.25340489).",
+    "author": "FinnGen Consortium",
+    "publication_date": "2025-12-15",
+    "trait_type": "quantitative",
+    "data_type": "eqtl",
+    "products": {
+      "credible_sets": true,
+      "summary_stats": true,
+      "colocalization": {
+        "partners": [
+          "finngen_gwas_r12",
+          "finngen_kanta"
+        ]
+      }
+    },
+    "qtl_types": [
+      "eQTL"
+    ],
+    "n_samples": 1108
+  },
+  {
+    "dataset_id": "finngen_caqtl",
+    "resource": "finngen",
+    "version": "batch1-5",
+    "description": "FinnGen ATAC-seq caQTL. Cell-type-resolved chromatin accessibility QTLs from snRNAseq batches 1-5. Sample size is 1,108. Available predicted cell types: l1.B, l1.CD4_T, l1.CD8_T, l1.DC, l1.Mono, l1.NK, l1.PBMC, l1.other, l1.other_T, l2.B_intermediate, l2.B_memory, l2.B_naive, l2.CD14_Mono, l2.CD16_Mono, l2.CD4_CTL, l2.CD4_Naive, l2.CD4_TCM, l2.CD4_TEM, l2.CD8_Naive, l2.CD8_TEM, l2.HSPC, l2.ILC, l2.MAIT, l2.NK, l2.NK_CD56bright, l2.Plasmablast, l2.Platelet, l2.Treg, l2.cDC2, l2.dnT, l2.gdT, l2.pDC. Cell types were predicted based on GEX using the reference PBMC dataset from Hao et al. (2020) (http://dx.doi.org/10.1016/j.cell.2021.04.048). Citation: Kanai, M. et al.: Population-scale multiome immune cell atlas reveals complex disease drivers (https://doi.org/10.1101/2025.11.25.25340489).",
+    "author": "FinnGen Consortium",
+    "publication_date": "2025-12-15",
+    "trait_type": "quantitative",
+    "data_type": "caqtl",
+    "products": {
+      "credible_sets": true,
+      "colocalization": {
+        "partners": [
+          "finngen_gwas_r12",
+          "finngen_kanta"
+        ]
+      }
+    },
+    "qtl_types": [
+      "caQTL"
+    ],
+    "n_samples": 1108
+  },
+  {
+    "dataset_id": "decode_asmqtl_cpg",
+    "resource": "decode",
+    "version": "v1",
+    "description": "deCODE CpG methylation ASM-QTL. Allele-specific methylation QTLs identifying sequence variants associated with 5-mCpG rates of individual CpG units. Based on whole-genome bisulfite sequencing of Icelandic samples.",
+    "author": "deCODE Genetics",
+    "publication_date": "2024-07-24",
+    "trait_type": "quantitative",
+    "data_type": "asmqtl",
+    "products": {
+      "summary_stats": true
+    },
+    "qtl_types": [
+      "asmQTL"
+    ]
+  },
+  {
+    "dataset_id": "eqtl_catalogue",
+    "resource": "eqtl_catalogue",
+    "version": "R7",
+    "description": "eQTL Catalogue R7. A harmonized collection of eQTL / sQTL / pQTL studies across many tissues, cell types, and conditions. Each sub-study is identified by a QTD identifier. eQTL results contain gene-level, transcript-level, exon-level and txrevise results. Full summary stats are not available for the eQTL Catalogue.",
+    "author": "eQTL Catalogue",
+    "publication_date": "2024-06-01",
+    "trait_type": "quantitative",
+    "data_type": "mixed",
+    "products": {
+      "credible_sets": true,
+      "colocalization": {
+        "partners": [
+          "finngen_gwas"
+        ]
+      }
+    },
+    "qtl_types": [
+      "eQTL",
+      "sQTL",
+      "pQTL"
+    ],
+    "collection": true,
+    "subdataset_id_field": "phenotype_code",
+    "stats": {
+      "n_subdatasets": 758,
+      "n_samples_median": 175,
+      "n_samples_range": [
+        65,
+        3301
+      ]
+    },
+    "metadata_endpoint": "/api/v1/resource_metadata/eqtl_catalogue"
+  },
+  {
+    "dataset_id": "finngen_nmr",
+    "resource": "finngen",
+    "version": "NA",
+    "description": "Nightingale nuclear magnetic resonance (NMR) metabolomics QTLs in plasma. 250 metabolites in 34,218 samples from THL biobank.",
+    "author": "FinnGen Consortium",
+    "publication_date": "2025-03-13",
+    "trait_type": "quantitative",
+    "data_type": "metaboqtl",
+    "products": {
+      "colocalization": {
+        "partners": [
+          "finngen_gwas"
+        ]
+      }
+    },
+    "qtl_types": [
+      "metaboQTL"
+    ],
+    "n_samples": 34218
+  },
+  {
+    "dataset_id": "genebass_exome",
+    "resource": "genebass",
+    "version": "NA",
+    "description": "GeneBass exome sequencing variant-level results. Rare variant association testing from exome sequencing of 394,841 UK Biobank participants. Results are filtered to p < 1e-4. Results include per-variant burden test statistics across phenotypes and functional annotations.",
+    "author": "Genebass",
+    "publication_date": "2022-09-14",
+    "trait_type": "mixed",
+    "data_type": "exome",
+    "products": {
+      "exome_results": true
+    },
+    "n_samples": 394841,
+    "stats": {
+      "n_phenotypes": 4529,
+      "n_samples_median": 1714,
+      "n_samples_range": [
+        108,
+        488263
+      ],
+      "n_cases_range": [
+        24,
+        394656
+      ],
+      "n_controls_range": [
+        3992,
+        394817
+      ]
+    },
+    "metadata_endpoint": "/api/v1/resource_metadata/genebass"
+  },
+  {
+    "dataset_id": "genebass_gene_based",
+    "resource": "genebass",
+    "version": "NA",
+    "description": "GeneBass gene-level burden test results. Aggregated gene-level rare variant association results from whole-exome sequencing of 394,841 UK Biobank participants.",
+    "author": "Genebass",
+    "publication_date": "2022-09-14",
+    "trait_type": "mixed",
+    "data_type": "gene_based",
+    "products": {
+      "gene_based_results": true
+    },
+    "n_samples": 394841,
+    "stats": {
+      "n_phenotypes": 4529,
+      "n_samples_median": 1714,
+      "n_samples_range": [
+        108,
+        488263
+      ],
+      "n_cases_range": [
+        24,
+        394656
+      ],
+      "n_controls_range": [
+        3992,
+        394817
+      ]
+    },
+    "metadata_endpoint": "/api/v1/resource_metadata/genebass"
+  },
+  {
+    "dataset_id": "gtex_expression",
+    "resource": "gtex",
+    "version": "v10",
+    "description": "GTEx v10 median TPM gene expression across 54 human tissues from 948 post-mortem donors.",
+    "author": "GTEx Consortium",
+    "publication_date": "2024-11-04",
+    "trait_type": null,
+    "data_type": "expression",
+    "products": {
+      "expression": true
+    },
+    "n_samples": 948
+  },
+  {
+    "dataset_id": "finngen_chromatin_peaks",
+    "resource": "finngen",
+    "version": "batch1-5",
+    "description": "FinnGen single-cell ATAC-seq peak-to-gene associations. Links chromatin accessibility peaks to target genes across immune cell types.",
+    "author": "FinnGen Consortium",
+    "publication_date": "2025-12-15",
+    "trait_type": null,
+    "data_type": "chromatin_peaks",
+    "products": {
+      "chromatin_peaks": true
+    },
+    "n_samples": 1108
+  },
+  {
+    "dataset_id": "gencc",
+    "resource": "gencc",
+    "version": "2025-11-13",
+    "description": "GenCC (Gene Curation Coalition) gene-disease validity classifications. Curated submissions from ClinGen, DECIPHER, Genomics England PanelApp, and other panels.",
+    "author": "GenCC",
+    "publication_date": "2025-11-13",
+    "trait_type": null,
+    "data_type": "gene_disease",
+    "products": {
+      "gene_disease": true
+    }
+  }
+]

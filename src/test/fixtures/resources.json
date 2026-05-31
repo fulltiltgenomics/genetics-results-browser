@@ -1,0 +1,132 @@
+{
+  "credible_sets": [
+    {
+      "id": "finngen_mvp_ukbb",
+      "resource": "finngen_mvp_ukbb",
+      "gencode_version": 49,
+      "metadata": {
+        "author": "FinnGen Consortium",
+        "publication_date": "2025-12-19",
+        "version_label": "R13"
+      }
+    },
+    {
+      "id": "finngen_mvp_ukbb_labs",
+      "resource": "finngen_mvp_ukbb",
+      "gencode_version": 49,
+      "metadata": {
+        "author": "FinnGen Consortium",
+        "publication_date": "2025-12-19",
+        "version_label": "R13"
+      }
+    },
+    {
+      "id": "finngen_ukbb",
+      "resource": "finngen_ukbb",
+      "gencode_version": 49,
+      "metadata": {
+        "author": "FinnGen Consortium",
+        "publication_date": "2025-12-19",
+        "version_label": "R13"
+      }
+    }
+  ],
+  "colocalization": [
+    {
+      "name": "FinnGen_R13_vs_many"
+    },
+    {
+      "name": "FinnGen_eQTL_vs_R12"
+    },
+    {
+      "name": "FinnGen_eQTL_vs_KANTA"
+    }
+  ],
+  "expression": [
+    {
+      "resource": "gtex",
+      "gencode_version": 39
+    },
+    {
+      "resource": "hpa",
+      "gencode_version": 43
+    }
+  ],
+  "chromatin_peaks": [
+    {
+      "resource": "finngen",
+      "version": "R12"
+    }
+  ],
+  "exome_results": [
+    {
+      "id": "genebass",
+      "resource": "genebass",
+      "gencode_version": 35,
+      "version": "v1",
+      "metadata": {
+        "author": "Genebass",
+        "publication_date": "2022-09-14",
+        "version_label": "NA"
+      }
+    },
+    {
+      "id": "ibd_exome_2026",
+      "resource": "ibd_exome_2026",
+      "gencode_version": 43,
+      "version": "2026",
+      "metadata": {
+        "author": "IBD Exome Consortium",
+        "publication_date": "NA",
+        "version_label": "2026"
+      }
+    },
+    {
+      "id": "schema2_exome",
+      "resource": "schema2",
+      "gencode_version": 39,
+      "version": "v2",
+      "metadata": {
+        "author": "SCHEMA Consortium",
+        "publication_date": "NA",
+        "version_label": "v2"
+      }
+    }
+  ],
+  "gene_based": [
+    {
+      "id": "genebass_gene_based",
+      "resource": "genebass",
+      "gencode_version": 35,
+      "metadata": {
+        "author": "Genebass",
+        "publication_date": "2022-09-14",
+        "version_label": "NA"
+      }
+    },
+    {
+      "id": "schema_gene_based",
+      "resource": "schema",
+      "gencode_version": 39,
+      "metadata": {
+        "author": "SCHEMA Consortium",
+        "publication_date": "NA",
+        "version_label": "v2"
+      }
+    },
+    {
+      "id": "bipex_gene_based",
+      "resource": "bipex",
+      "gencode_version": 39,
+      "metadata": {
+        "author": "Bipolar Exomes",
+        "publication_date": "NA",
+        "version_label": "v2"
+      }
+    }
+  ],
+  "gene_disease": [
+    "gencc",
+    "monarch"
+  ]
+}

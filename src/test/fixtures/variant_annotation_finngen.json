@@ -1,0 +1,19 @@
+[
+  {
+    "variant": "19:44908684:T:C",
+    "chr": "19",
+    "pos": "44908684",
+    "ref": "T",
+    "alt": "C",
+    "INFO": "0.9989721364294413",
+    "AF": "0.180060",
+    "AC_Het": "154038",
+    "AC_Hom": "33214",
+    "most_severe": "missense_variant",
+    "gene_most_severe": "APOE",
+    "rsid": "rs429358",
+    "EXOME_enrichment_nfe": "1.2629",
+    "GENOME_enrichment_nfe": "1.41508",
+    "index": "19346397"
+  }
+]

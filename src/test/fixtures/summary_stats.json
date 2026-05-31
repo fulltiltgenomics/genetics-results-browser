@@ -1,0 +1,20 @@
+[
+  {
+    "resource": "finngen",
+    "version": "R13",
+    "phenotype": "ASTHMA_OBESITY",
+    "chr": 19,
+    "pos": 44908684,
+    "ref": "T",
+    "alt": "C",
+    "rsids": "rs429358",
+    "nearest_genes": "APOE",
+    "pval": 3.46274e-06,
+    "mlog10p": 5.46058,
+    "beta": -0.0688333,
+    "se": 0.0148307,
+    "af": 0.181775,
+    "af_cases": 0.171048,
+    "af_controls": 0.182182
+  }
+]
