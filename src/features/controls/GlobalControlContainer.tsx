@@ -2,9 +2,8 @@ import { Box, Divider } from "@mui/material";
 import { useDataStore } from "../../store/store";
 import { useNormalizedQuery } from "../../store/serverQuery";
 import GlobalThresholds from "./GlobalThresholds";
-import GlobalDataTypeSwitches from "./GlobalDataTypeSwitches";
 import GnomadPopChoice from "./GnomadPopChoice";
-import GlobalQTLSwitches from "./GlobalQTLSwitches";
+import ResourceFilter from "./ResourceFilter";
 
 const GlobalControlContainer = () => {
   const variantInput: string = useDataStore((state) => state.variantInput)!;
@@ -30,11 +29,13 @@ const GlobalControlContainer = () => {
         {/* TODO - add back in and implement when we have more finemapping data
           <GlobalAssocFinemapSwitches isNotReadyYet={isNotReadyYet} />
           <Divider sx={{ margin: "auto" }} orientation="vertical" /> */}
-        <GlobalDataTypeSwitches isNotReadyYet={isNotReadyYet} />
-        <Divider sx={{ margin: "auto" }} orientation="vertical" />
-        <GlobalQTLSwitches isNotReadyYet={isNotReadyYet} />
-        <Divider sx={{ margin: "auto" }} orientation="vertical" />
+        {/* data-type/QTL filtering now lives in ResourceFilter on the new path; the legacy
+          GlobalDataTypeSwitches/GlobalQTLSwitches drove the dead clientData/filterRows path
+          and are intentionally no longer mounted here */}
         <GlobalThresholds isNotReadyYet={isNotReadyYet} />
+        <Divider sx={{ margin: "auto" }} orientation="vertical" />
+        {/* lifted resource filter (refactor.md §4); dynamic from the data, reactive via the store. */}
+        <ResourceFilter isNotReadyYet={isNotReadyYet} />
         <Divider sx={{ margin: "auto" }} orientation="vertical" />
         <GnomadPopChoice isNotReadyYet={isNotReadyYet} />
       </Box>
