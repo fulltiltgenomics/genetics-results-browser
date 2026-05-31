@@ -1,6 +1,18 @@
 import { Router, type Request, type Response } from "express";
-import { normalizeVariantList } from "./normalize.js";
+import { normalizeGene, normalizeVariantList } from "./normalize.js";
 import { UpstreamError } from "./upstream.js";
+
+// shared upstream-error -> HTTP mapping for the stage-1 normalize routes: pass through a 4xx upstream
+// status, otherwise collapse connection/timeout/non-JSON failures to 502.
+const sendError = (res: Response, err: unknown, label: string): void => {
+  if (err instanceof UpstreamError) {
+    const status = err.status >= 400 && err.status < 500 ? err.status : 502;
+    res.status(status).json({ error: "upstream_error", message: err.message });
+    return;
+  }
+  console.error(`[bff] ${label} normalize error:`, err);
+  res.status(500).json({ error: "internal_error", message: "failed to assemble results" });
+};
 
 /**
  * Stage-1 normalize endpoint for a variant list.
@@ -29,14 +41,39 @@ export const createVariantsRoute = (): Router => {
       const normalized = await normalizeVariantList(query);
       res.json(normalized);
     } catch (err) {
-      if (err instanceof UpstreamError) {
-        // 502 for connection/timeout/non-JSON; pass through a 4xx upstream status otherwise
-        const status = err.status >= 400 && err.status < 500 ? err.status : 502;
-        res.status(status).json({ error: "upstream_error", message: err.message });
-        return;
-      }
-      console.error("[bff] /v1/results normalize error:", err);
-      res.status(500).json({ error: "internal_error", message: "failed to assemble results" });
+      sendError(res, err, "/v1/results");
+    }
+  });
+
+  /**
+   * Stage-1 normalize endpoint for a GENE query (task .10).
+   *
+   * GET /v1/gene_results/:gene  (optional ?window=<bp>)
+   * A gene is a single token (no multi-line text to parse), so a path param is cleaner than the
+   * variant path's POST body. The variant path stays POST /v1/results because it carries multi-line
+   * input with optional tab-separated beta/value columns. serverQuery's gene hook (task .12) /
+   * the gene view (.29) calls GET /v1/gene_results/${gene} and receives the same NormalizedResponse
+   * shape, with queryType "gene".
+   *
+   * Returns a NormalizedResponse: RAW, unfiltered credible-set member variants in the gene region,
+   * each with its credible sets + dataset/resource/phenotype metadata.
+   */
+  router.get("/v1/gene_results/:gene", async (req: Request, res: Response) => {
+    const gene = req.params.gene?.trim();
+    if (!gene) {
+      res.status(400).json({ error: "bad_request", message: "missing gene" });
+      return;
+    }
+    // optional region window (bp); ignore a non-numeric value rather than passing junk upstream
+    const windowRaw = req.query.window;
+    const windowNum = typeof windowRaw === "string" ? Number(windowRaw) : NaN;
+    const window = Number.isFinite(windowNum) ? windowNum : undefined;
+
+    try {
+      const normalized = await normalizeGene(gene, window);
+      res.json(normalized);
+    } catch (err) {
+      sendError(res, err, "/v1/gene_results");
     }
   });
 

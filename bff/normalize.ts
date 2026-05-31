@@ -424,3 +424,82 @@ export const normalizeVariantList = async (query: string): Promise<NormalizedRes
     },
   };
 };
+
+/**
+ * Stage-1 normalize for a GENE query (queryType: "gene"), the analogue of normalizeVariantList for
+ * the gene view (refactor.md §6 / task .29). Fans out concurrently and assembles the same
+ * NormalizedResponse shape so munge.ts and the gene view consume one structure regardless of input.
+ *
+ * fan-out (concurrent):
+ *   - credible_sets_by_gene/{gene}  — RAW CS rows for the gene region (optional ?window)
+ *   - datasets                      — DatasetMeta + BFF-derived ResourceMeta (query-independent)
+ *
+ * the CS rows already carry per-variant most_severe/gene_most_severe/aaf, so we reuse every variant
+ * helper from the variant path (normalizeCsRow, parseQuantLevel, toNum null-preservation, the camelCase
+ * mappers, derivePhenotypes, normalizeDatasets, deriveResources). the "variants" here are the distinct
+ * credible-set member variants in the region: rows are grouped by canonical chr:pos:ref:alt into
+ * VariantResult[] with credibleSets per variant, mirroring the variant path's per-variant structure.
+ *
+ * decisions:
+ *   - NO nearest_genes fan-out: the query already names the gene/region, so per-member nearest-gene
+ *     lookups add no signal to the gene view (the variant path uses them because the user gives a bare
+ *     variant list).
+ *   - gnomAD DEFERRED: the variant path attaches gnomAD because the user supplies a discrete variant
+ *     list; for a gene the member-variant set is discovered from CS rows and can be large (APOE region),
+ *     so a blanket gnomAD batch here is wasteful. the gene view can enrich lazily later (per task .29).
+ *     left out rather than fabricated — VariantResult.gnomad stays optional.
+ *   - annotation is derived from the CS row fields (most_severe/gene_most_severe) via normalizeAnnotation's
+ *     fallback path; rsid/af/info are null because there is no separate variant_annotation fan-out here.
+ *
+ * NO filtering/grouping/summarizing — that stays client-side (munge, later tasks).
+ */
+export const normalizeGene = async (
+  gene: string,
+  window?: number
+): Promise<NormalizedResponse> => {
+  const [csRaw, datasetsRaw] = await Promise.all([
+    upstreamJson<RawCsRow[]>(`/v1/credible_sets_by_gene/${encodeURIComponent(gene)}`, {
+      query: { format: "json", window },
+    }),
+    upstreamJson<RawDataset[]>("/v1/datasets"),
+  ]);
+
+  const csRows = csRaw ?? [];
+  const datasets = datasetsRaw ?? [];
+
+  // group rows by canonical variant id, preserving first-seen order so the member list is stable
+  const csByVariant = new Map<string, RawCsRow[]>();
+  for (const r of csRows) {
+    const vid = variantIdFromCsRow(r);
+    (csByVariant.get(vid) ?? csByVariant.set(vid, []).get(vid)!).push(r);
+  }
+
+  const variants: VariantResult[] = [...csByVariant.entries()].map(([vid, rows]) => ({
+    variant: vid,
+    // no separate annotation fan-out for the gene path; derive consequence/gene from the CS row
+    annotation: normalizeAnnotation(undefined, rows[0]),
+    credibleSets: rows.map(normalizeCsRow),
+  }));
+
+  return {
+    queryType: "gene",
+    // a gene query has no parsed variant input; the "found" variants are the discovered CS members
+    inputVariants: {
+      found: variants.map((v) => v.variant),
+      notFound: [],
+      unparsed: [],
+      ac0: [],
+      rsidMap: {},
+    },
+    variants,
+    phenotypes: derivePhenotypes(csRows),
+    datasets: normalizeDatasets(datasets),
+    resources: deriveResources(datasets),
+    hasBetas: false, // gene queries carry no user-supplied betas/values
+    hasCustomValues: false,
+    meta: {
+      apiVersions: {},
+      generatedAt: new Date().toISOString(),
+    },
+  };
+};
