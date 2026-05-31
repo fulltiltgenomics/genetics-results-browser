@@ -1,0 +1,62 @@
+[
+  {
+    "resource": "gtex",
+    "version": "v10",
+    "dataset": "GTEx_v10",
+    "chrom": 19,
+    "gene_start": 44905791,
+    "gene_end": 44909393,
+    "gene_name": "APOE",
+    "gene_id": "ENSG00000130203.10",
+    "tissue_cell": "stomach_muscularis",
+    "level": "24.0103"
+  },
+  {
+    "resource": "gtex",
+    "version": "v10",
+    "dataset": "GTEx_v10",
+    "chrom": 19,
+    "gene_start": 44905791,
+    "gene_end": 44909393,
+    "gene_name": "APOE",
+    "gene_id": "ENSG00000130203.10",
+    "tissue_cell": "cells_ebv-transformed_lymphocytes",
+    "level": "2.75058"
+  },
+  {
+    "resource": "gtex",
+    "version": "v10",
+    "dataset": "GTEx_v10",
+    "chrom": 19,
+    "gene_start": 44905791,
+    "gene_end": 44909393,
+    "gene_name": "APOE",
+    "gene_id": "ENSG00000130203.10",
+    "tissue_cell": "prostate",
+    "level": "38.6331"
+  },
+  {
+    "resource": "gtex",
+    "version": "v10",
+    "dataset": "GTEx_v10",
+    "chrom": 19,
+    "gene_start": 44905791,
+    "gene_end": 44909393,
+    "gene_name": "APOE",
+    "gene_id": "ENSG00000130203.10",
+    "tissue_cell": "heart_atrial_appendage",
+    "level": "94.7488"
+  },
+  {
+    "resource": "gtex",
+    "version": "v10",
+    "dataset": "GTEx_v10",
+    "chrom": 19,
+    "gene_start": 44905791,
+    "gene_end": 44909393,
+    "gene_name": "APOE",
+    "gene_id": "ENSG00000130203.10",
+    "tissue_cell": "brain_anterior_cingulate_cortex_ba24",
+    "level": "827.527"
+  }
+]

@@ -1,0 +1,52 @@
+[
+  {
+    "resource": "gencc",
+    "uuid": "GENCC_000104-HGNC_613-OMIM_617347-HP_0000006-GENCC_100002",
+    "gene_symbol": "APOE",
+    "disease_curie": "MONDO:0018473",
+    "disease_title": "hyperlipoproteinemia type 3",
+    "classification": "Strong",
+    "mode_of_inheritance": "Autosomal dominant",
+    "submitter": "Genomics England PanelApp"
+  },
+  {
+    "resource": "gencc",
+    "uuid": "GENCC_000104-HGNC_613-OMIM_611771-HP_0000006-GENCC_100002",
+    "gene_symbol": "APOE",
+    "disease_curie": "MONDO:0012725",
+    "disease_title": "lipoprotein glomerulopathy",
+    "classification": "Strong",
+    "mode_of_inheritance": "Autosomal dominant",
+    "submitter": "Genomics England PanelApp"
+  },
+  {
+    "resource": "gencc",
+    "uuid": "GENCC_000104-HGNC_613-OMIM_617347-HP_0000007-GENCC_100002",
+    "gene_symbol": "APOE",
+    "disease_curie": "MONDO:0018473",
+    "disease_title": "hyperlipoproteinemia type 3",
+    "classification": "Strong",
+    "mode_of_inheritance": "Autosomal recessive",
+    "submitter": "Genomics England PanelApp"
+  },
+  {
+    "resource": "gencc",
+    "uuid": "GENCC_000101-HGNC_613-OMIM_104310-HP_0000006-GENCC_100001",
+    "gene_symbol": "APOE",
+    "disease_curie": "MONDO:0007089",
+    "disease_title": "Alzheimer disease 2",
+    "classification": "Definitive",
+    "mode_of_inheritance": "Autosomal dominant",
+    "submitter": "Ambry Genetics"
+  },
+  {
+    "resource": "gencc",
+    "uuid": "GENCC_000101-HGNC_613-OMIM_617347-HP_0000007-GENCC_100003",
+    "gene_symbol": "APOE",
+    "disease_curie": "MONDO:0018473",
+    "disease_title": "hyperlipoproteinemia type 3",
+    "classification": "Moderate",
+    "mode_of_inheritance": "Autosomal recessive",
+    "submitter": "Ambry Genetics"
+  }
+]

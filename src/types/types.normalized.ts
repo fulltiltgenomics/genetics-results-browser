@@ -375,3 +375,56 @@ export interface PhenoSearchRow {
   csId?: string;
   pip?: number;
 }
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * GENE EVIDENCE TAB (refactor.md §6) — gene-level evidence shown in the gene view,
+ * separate from the CS visualization. Three independent reads through the BFF:
+ *   - gene_based/{gene}            -> burden tests (TSV)
+ *   - expression_by_gene/{gene}    -> per-tissue/cell expression levels (JSON)
+ *   - gene_disease/{gene}          -> Mendelian gene-disease associations (JSON)
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * One gene burden test row, parsed from the gene_based TSV. The endpoint returns a TSV
+ * (not JSON), so numeric columns are parsed from strings here; "NA" becomes null.
+ * Sorted by mlog10pBurden descending by the hook.
+ */
+export interface GeneBurdenRow {
+  dataset: string;
+  trait: string;
+  gene: string;
+  geneId: string;
+  annotation: string; //          variant set tested, e.g. "missense|LC", "pLoF|missense|LC"
+  mlog10pBurden: number | null;
+  beta: number | null;
+  se: number | null;
+  totalVariants: number | null;
+  totalVariantsPheno: number | null;
+  nCases: number | null;
+  nControls: number | null;
+  traitOriginal: string;
+  flags: string;
+}
+
+/** One gene expression row from expression_by_gene. `level` arrives as a string and is parsed. */
+export interface GeneExpressionRow {
+  resource: string; //  e.g. "gtex", "hpa"
+  version: string;
+  dataset: string;
+  geneName: string;
+  geneId: string;
+  tissueCell: string; // tissue/cell label, e.g. "stomach_muscularis"
+  level: number | null; // expression level (TPM/nTPM depending on resource)
+}
+
+/** One Mendelian gene-disease association from gene_disease (e.g. GenCC submissions). */
+export interface GeneDiseaseRow {
+  resource: string; //          e.g. "gencc"
+  uuid: string;
+  geneSymbol: string;
+  diseaseCurie: string;
+  diseaseTitle: string;
+  classification: string; //    evidence strength, e.g. "Strong", "Definitive"
+  modeOfInheritance: string;
+  submitter: string;
+}

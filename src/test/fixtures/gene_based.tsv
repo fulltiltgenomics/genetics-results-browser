@@ -1,0 +1,6 @@
+dataset	trait	gene	gene_id	gene_chr	gene_start_pos	gene_end_pos	annotation	mlog10p_burden	beta	se	total_variants	total_variants_pheno	n_cases	n_controls	trait_original	flags
+genebass	Apolipoprotein A	APOE	ENSG00000130203	19	44905791	44909393	missense|LC	6.28038e+00	-2.84859e-03	5.67767e-04	223	211	343018	NA	continuous_30630_both_sexes__irnt	NA
+genebass	Apolipoprotein A	APOE	ENSG00000130203	19	44905791	44909393	pLoF|missense|LC	6.24457e+00	-2.83668e-03	5.67187e-04	232	219	343018	NA	continuous_30630_both_sexes__irnt	NA
+genebass	C-reactive protein	APOE	ENSG00000130203	19	44905791	44909393	missense|LC	5.26632e+00	-2.68729e-03	5.90874e-04	223	219	376005	NA	continuous_30710_both_sexes__irnt	NA
+genebass	C-reactive protein	APOE	ENSG00000130203	19	44905791	44909393	pLoF|missense|LC	5.02530e+00	-2.61302e-03	5.89880e-04	232	228	376005	NA	continuous_30710_both_sexes__irnt	NA
+genebass	HDL cholesterol	APOE	ENSG00000130203	19	44905791	44909393	missense|LC	4.86500e+00	-2.41943e-03	5.56257e-04	223	212	344938	NA	continuous_30760_both_sexes__irnt	NA

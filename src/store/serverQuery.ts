@@ -4,6 +4,9 @@ import {
   ColocPair,
   CredibleSetDataType,
   DatasetDataType,
+  GeneBurdenRow,
+  GeneDiseaseRow,
+  GeneExpressionRow,
   NormalizedResponse,
   PhenotypeSearchHit,
 } from "@/types/types.normalized";
@@ -863,5 +866,159 @@ export const useSummaryStats = (
     },
     enabled: !!resource && !!dataType && !!phenotype && sorted.length > 0,
     staleTime: Infinity,
+  });
+};
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * GENE EVIDENCE TAB (refactor.md §6) — three independent gene-level reads through the BFF that feed
+ * the new "Gene evidence" tab in the gene view (burden, expression, Mendelian gene-disease). These
+ * are NOT credible-set data and do not flow through munge; each hook owns its own parse/sort.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+// parse a numeric TSV cell; "NA"/empty -> null (gene_based uses "NA" for missing, e.g. n_controls).
+const parseNum = (v: string | undefined): number | null => {
+  if (v === undefined || v === "" || v === "NA") {
+    return null;
+  }
+  const n = Number(v);
+  return Number.isNaN(n) ? null : n;
+};
+
+/**
+ * Parse the gene_based TSV body into typed burden rows, sorted by burden -log10(p) descending.
+ * gene_based returns TSV (not JSON), so we split lines/tabs and index by header (mirrors the legacy
+ * TSV hooks). Exported for unit testing the parser in isolation.
+ */
+export const parseGeneBurdenTsv = (tsv: string): GeneBurdenRow[] => {
+  const lines = tsv.split("\n");
+  if (lines.length === 0 || lines[0].trim() === "") {
+    return [];
+  }
+  const header = lines[0].split("\t");
+  const idx = header.reduce((acc, field, i) => {
+    acc[field.replace("#", "")] = i;
+    return acc;
+  }, {} as { [key: string]: number });
+  const rows: GeneBurdenRow[] = [];
+  for (let i = 1; i < lines.length; i++) {
+    if (lines[i].length === 0) {
+      continue;
+    }
+    const f = lines[i].split("\t");
+    rows.push({
+      dataset: f[idx["dataset"]],
+      trait: f[idx["trait"]],
+      gene: f[idx["gene"]],
+      geneId: f[idx["gene_id"]],
+      annotation: f[idx["annotation"]],
+      mlog10pBurden: parseNum(f[idx["mlog10p_burden"]]),
+      beta: parseNum(f[idx["beta"]]),
+      se: parseNum(f[idx["se"]]),
+      totalVariants: parseNum(f[idx["total_variants"]]),
+      totalVariantsPheno: parseNum(f[idx["total_variants_pheno"]]),
+      nCases: parseNum(f[idx["n_cases"]]),
+      nControls: parseNum(f[idx["n_controls"]]),
+      traitOriginal: f[idx["trait_original"]],
+      flags: f[idx["flags"]],
+    });
+  }
+  // descending burden significance; nulls sort last
+  return rows.sort((a, b) => (b.mlog10pBurden ?? -Infinity) - (a.mlog10pBurden ?? -Infinity));
+};
+
+/** Gene burden results for the gene view's Gene evidence tab (gene_based/{gene}, TSV). */
+export const useGeneBurden = (gene: string | undefined): UseQueryResult<GeneBurdenRow[], Error> => {
+  return useQuery<GeneBurdenRow[]>({
+    queryKey: ["gene-burden", gene],
+    queryFn: async () => {
+      const { data } = await api.get<string>(`/v1/gene_based/${encodeURIComponent(gene!)}`);
+      return parseGeneBurdenTsv(data);
+    },
+    enabled: !!gene,
+    staleTime: 5 * 60 * 1000,
+  });
+};
+
+// raw expression_by_gene JSON row; level is a numeric string the hook parses to a number.
+interface GeneExpressionApiRow {
+  resource: string;
+  version: string;
+  dataset: string;
+  chrom: number;
+  gene_start: number;
+  gene_end: number;
+  gene_name: string;
+  gene_id: string;
+  tissue_cell: string;
+  level: string | number;
+}
+
+/** Gene expression levels per tissue/cell (expression_by_gene/{gene}, JSON), sorted level desc. */
+export const useGeneExpression = (
+  gene: string | undefined
+): UseQueryResult<GeneExpressionRow[], Error> => {
+  return useQuery<GeneExpressionRow[]>({
+    queryKey: ["gene-expression", gene],
+    queryFn: async () => {
+      const { data } = await api.get<GeneExpressionApiRow[]>(
+        `/v1/expression_by_gene/${encodeURIComponent(gene!)}`,
+        { params: { format: "json" } }
+      );
+      return data
+        .map((row): GeneExpressionRow => {
+          const level = typeof row.level === "number" ? row.level : Number(row.level);
+          return {
+            resource: row.resource,
+            version: row.version,
+            dataset: row.dataset,
+            geneName: row.gene_name,
+            geneId: row.gene_id,
+            tissueCell: row.tissue_cell,
+            level: Number.isNaN(level) ? null : level,
+          };
+        })
+        .sort((a, b) => (b.level ?? -Infinity) - (a.level ?? -Infinity));
+    },
+    enabled: !!gene,
+    staleTime: 5 * 60 * 1000,
+  });
+};
+
+// raw gene_disease JSON row; snake_case mapped to GeneDiseaseRow.
+interface GeneDiseaseApiRow {
+  resource: string;
+  uuid: string;
+  gene_symbol: string;
+  disease_curie: string;
+  disease_title: string;
+  classification: string;
+  mode_of_inheritance: string;
+  submitter: string;
+}
+
+/** Mendelian gene-disease associations (gene_disease/{gene}, JSON). */
+export const useGeneDisease = (
+  gene: string | undefined
+): UseQueryResult<GeneDiseaseRow[], Error> => {
+  return useQuery<GeneDiseaseRow[]>({
+    queryKey: ["gene-disease", gene],
+    queryFn: async () => {
+      const { data } = await api.get<GeneDiseaseApiRow[]>(
+        `/v1/gene_disease/${encodeURIComponent(gene!)}`,
+        { params: { format: "json" } }
+      );
+      return data.map((row) => ({
+        resource: row.resource,
+        uuid: row.uuid,
+        geneSymbol: row.gene_symbol,
+        diseaseCurie: row.disease_curie,
+        diseaseTitle: row.disease_title,
+        classification: row.classification,
+        modeOfInheritance: row.mode_of_inheritance,
+        submitter: row.submitter,
+      }));
+    },
+    enabled: !!gene,
+    staleTime: 5 * 60 * 1000,
   });
 };

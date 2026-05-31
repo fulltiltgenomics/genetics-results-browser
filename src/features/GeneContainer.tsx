@@ -1,5 +1,6 @@
-import { Box, Button, TextField, Typography, useTheme } from "@mui/material";
+import { Box, Button, Tab, Tabs, TextField, Typography, useTheme } from "@mui/material";
 import CisView from "./CisView";
+import GeneEvidenceTab from "./gene/GeneEvidenceTab";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
@@ -14,6 +15,8 @@ const GeneContainer = () => {
     }
   }, [params.geneName]);
   const [inputGeneName, setInputGeneName] = useState("");
+  // 0 = credible sets (CS visualization), 1 = gene evidence (burden/expression/gene-disease)
+  const [activeTab, setActiveTab] = useState(0);
 
   const handleInputGeneNameChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     setInputGeneName(event.target.value);
@@ -74,7 +77,25 @@ const GeneContainer = () => {
           <span>show region</span>
         </Button>
       </Box>
-      <CisView geneName={geneName} />
+      {geneName && (
+        <Tabs
+          value={activeTab}
+          onChange={(_e, value) => setActiveTab(value)}
+          sx={{ mb: 1, borderBottom: 1, borderColor: "divider" }}>
+          <Tab label="Credible sets" />
+          <Tab label="Gene evidence" />
+        </Tabs>
+      )}
+      {/* keep CisView mounted across tab switches so its plot/state survive; gene-evidence is only
+          mounted once its tab is opened so its three fetches don't fire on initial gene load. */}
+      <Box sx={{ display: activeTab === 0 ? "block" : "none" }}>
+        <CisView geneName={geneName} />
+      </Box>
+      {activeTab === 1 && geneName && (
+        <Box>
+          <GeneEvidenceTab geneName={geneName} />
+        </Box>
+      )}
     </Box>
   );
 };
