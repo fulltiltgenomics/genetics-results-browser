@@ -11,6 +11,9 @@ import { useThemeStore } from "./store/store.theme";
 import { AuthProvider } from "./features/auth/AuthProvider";
 import { QueryProvider } from "./features/auth/QueryClientProvider";
 const TableContainer = lazy(() => import("./features/table/TableContainer"));
+const PhenotypeSearchContainer = lazy(
+  () => import("./features/phenoSearch/PhenotypeSearchContainer")
+);
 const About = lazy(() => import("./features/page/About"));
 const ChangeLog = lazy(() => import("./features/page/ChangeLog"));
 const LDContainer = lazy(() => import("./features/LDContainer"));
@@ -54,6 +57,11 @@ export const App = () => {
                   <Route path="/" element={<ChatPage />} />
                   {/* variant annotation tool moved off / to /annotate; ChatPage owns / (refactor.md §3) */}
                   <Route path="/annotate" element={<TableContainer />} />
+                  {/* phenotype-search view: full sumstats for input variants × a chosen phenotype (refactor.md §5) */}
+                  <Route
+                    path="/annotate/phenotype-search"
+                    element={<PhenotypeSearchContainer />}
+                  />
                   <Route path="/gene" element={<GeneContainer />} />
                   <Route path="/gene/:geneName" element={<GeneContainer />} />
                   <Route path="/ld" element={<LDContainer />} />

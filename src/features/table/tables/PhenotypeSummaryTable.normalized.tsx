@@ -34,9 +34,9 @@ const PhenotypeSummaryTable = () => {
     [filteredVariants, phenotypes]
   );
 
-  // handoff to the phenotype-search view: stash the chosen trait in the store and navigate to the
-  // planned route. TODO(.24): /annotate/phenotype-search is not registered yet — once it is, this
-  // button immediately lands there and the view reads selectedPhenotype.
+  // handoff to the phenotype-search view (.24): stash the chosen trait in the store and navigate to
+  // /annotate/phenotype-search. the view preselects from the ?resource=&trait= query params (and falls
+  // back to selectedPhenotype) and immediately runs the per-variant summary-stats lookup.
   const handoff = (row: PhenoSummaryRow) => {
     setSelectedPhenotype({ resource: row.resource, trait: row.trait });
     navigate(

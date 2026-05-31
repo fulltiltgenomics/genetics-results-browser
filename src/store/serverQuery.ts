@@ -1,6 +1,12 @@
 import { useQuery, UseQueryResult } from "@tanstack/react-query";
 import { Config, Dataset, DataType, Phenotype, TableData } from "../types/types";
-import { ColocPair, CredibleSetDataType, NormalizedResponse } from "@/types/types.normalized";
+import {
+  ColocPair,
+  CredibleSetDataType,
+  DatasetDataType,
+  NormalizedResponse,
+  PhenotypeSearchHit,
+} from "@/types/types.normalized";
 import { CSDatum, GeneModel } from "@/types/types.gene";
 import config from "@/config.json";
 import { mungeGeneModelResponse } from "./serverMunge";
@@ -607,6 +613,114 @@ export const useColocByCredibleSet = (
         .sort((a, b) => b.ppH4 - a.ppH4);
     },
     enabled: enabled && !!resource && !!trait && !!csId,
+    staleTime: Infinity,
+  });
+};
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * PHENOTYPE SEARCH VIEW (refactor.md §5) — own route /annotate/phenotype-search.
+ * Two granular reads via the BFF passthrough:
+ *   - GET /search?types=phenotypes&has_summary_stats=true  -> autocomplete hits with full sumstats
+ *   - GET /summary_stats/{resource}/{data_type}?variants=&phenotypes=  -> per-variant sumstat rows
+ * The credible-set MEMBERSHIP flag is NOT fetched here: it is derived client-side from the per-variant
+ * credibleSets already in store.normalizedData (cheaper than credible_sets_by_phenotype, which returns
+ * every CS member of the trait). See PhenotypeSearchContainer.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+// raw /search row (types=phenotypes). snake_case from the API; mapped to PhenotypeSearchHit below.
+interface PhenotypeSearchApiRow {
+  type: string;
+  code: string;
+  name: string;
+  resource: string;
+  data_type: string;
+  has_summary_stats?: boolean;
+  sample_size?: number;
+  n_cases?: number | null;
+  n_controls?: number | null;
+}
+
+/**
+ * Fuzzy phenotype autocomplete restricted to phenotypes that have full summary stats (refactor.md §5).
+ * Debouncing is the caller's concern (it owns the input); this hook only gates on a usable query.
+ */
+export const usePhenotypeSearch = (
+  query: string | undefined
+): UseQueryResult<PhenotypeSearchHit[], Error> => {
+  return useQuery<PhenotypeSearchHit[]>({
+    queryKey: ["phenotype-search", query],
+    queryFn: async (): Promise<PhenotypeSearchHit[]> => {
+      const { data } = await api.get<PhenotypeSearchApiRow[]>("/v1/search", {
+        params: { q: query, types: "phenotypes", has_summary_stats: true, format: "json" },
+      });
+      return data.map((row) => ({
+        code: row.code,
+        name: row.name,
+        resource: row.resource,
+        dataType: row.data_type as DatasetDataType,
+        hasSummaryStats: row.has_summary_stats ?? false,
+        sampleSize: row.sample_size,
+        nCases: row.n_cases,
+        nControls: row.n_controls,
+      }));
+    },
+    // require at least 2 chars so we don't spam /search on the first keystroke
+    enabled: !!query && query.trim().length >= 2,
+    staleTime: 5 * 60 * 1000,
+  });
+};
+
+// raw /summary_stats row. snake_case; the variant locus is split across chr/pos/ref/alt.
+export interface SummaryStatApiRow {
+  resource: string;
+  version: string;
+  phenotype: string;
+  chr: number;
+  pos: number;
+  ref: string;
+  alt: string;
+  rsids: string | null;
+  nearest_genes: string | null;
+  pval: number;
+  mlog10p: number;
+  beta: number;
+  se: number;
+  af: number | null;
+  af_cases?: number | null;
+  af_controls?: number | null;
+}
+
+/** "19:44908684:T:C" (internal) -> "19-44908684-T-C" (the API's variants= query format). */
+const toDashVariant = (v: string): string => v.replace(/:/g, "-");
+
+/**
+ * Full summary stats for the input variants × one chosen phenotype (refactor.md §5).
+ * variants are the user's internal "chr:pos:ref:alt" ids; converted to the API's dash format here.
+ * Keyed on the sorted variant list + phenotype so re-picking the same phenotype reuses the cache.
+ */
+export const useSummaryStats = (
+  resource: string | undefined,
+  dataType: string | undefined,
+  variants: string[] | undefined,
+  phenotype: string | undefined
+): UseQueryResult<SummaryStatApiRow[], Error> => {
+  const sorted = (variants ?? []).slice().sort();
+  return useQuery<SummaryStatApiRow[]>({
+    queryKey: ["summary-stats", resource, dataType, phenotype, sorted],
+    queryFn: async (): Promise<SummaryStatApiRow[]> => {
+      const { data } = await api.get<SummaryStatApiRow[]>(
+        `/v1/summary_stats/${encodeURIComponent(resource!)}/${encodeURIComponent(dataType!)}`,
+        {
+          params: {
+            variants: sorted.map(toDashVariant).join(","),
+            phenotypes: phenotype,
+            format: "json",
+          },
+        }
+      );
+      return data;
+    },
+    enabled: !!resource && !!dataType && !!phenotype && sorted.length > 0,
     staleTime: Infinity,
   });
 };
