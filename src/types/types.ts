@@ -46,6 +46,7 @@ export type GeneInfo = {
   summary: string;
 };
 
+// deprecated: legacy aggregate payload; replaced by NormalizedResponse in types.normalized.ts (see refactor.md §1)
 export type TableData = {
   data: Array<VariantRecord>;
   has_betas: boolean;
@@ -67,6 +68,7 @@ export type PopFreqSummary = {
   minPerc: number;
 };
 
+// deprecated: replaced by VariantResult in types.normalized.ts (credible sets primary, no `assoc`); see refactor.md §1
 export type VariantRecord = {
   variant: string;
   beta: number | undefined;
@@ -168,6 +170,7 @@ export type ApiResponseMeta = {
   };
 };
 
+// deprecated: p-value-filtered association record; removed once the credible-set data layer lands (see refactor.md §1 and types.normalized.ts)
 export type AssocRecord = {
   resource: string;
   dataset: string;
@@ -187,6 +190,7 @@ export type AssocRecord = {
   beta_input?: number;
 };
 
+// deprecated: replaced by GroupedCredibleSet in types.normalized.ts (see refactor.md §1)
 export type GroupedAssocRecord = {
   id: string;
   resource: string;
@@ -207,6 +211,7 @@ export type GroupedAssocRecord = {
   count: number;
 };
 
+// deprecated: replaced by ResourceMeta in types.normalized.ts (see refactor.md §1)
 export type AssocResource = {
   resource: string;
   data_types: DataType[];
