@@ -42,6 +42,20 @@
         "color": "#1f77b4"
       },
       {
+        "dataName": "FinnGen_MVP_UKBB",
+        "label": "FG+MVP+UKB",
+        "resource": "FinnGen",
+        "dataType": "GWAS",
+        "color": "#ff7f0e"
+      },
+      {
+        "dataName": "FinnGen_UKBB",
+        "label": "FG+UKB",
+        "resource": "FinnGen",
+        "dataType": "GWAS",
+        "color": "#8c564b"
+      },
+      {
         "dataName": "UKBB_119",
         "label": "UKB",
         "resource": "UKB",

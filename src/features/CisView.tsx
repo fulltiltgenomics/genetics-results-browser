@@ -10,11 +10,10 @@ import {
   useMediaQuery,
 } from "@mui/material";
 import {
-  useCSQuery,
-  useCSTransQuery,
-  useDatasetMetadataQuery,
-  useGeneModelByGeneQuery,
-  useTraitMetadataQuery,
+  useGeneCredibleSets,
+  useGeneInfo,
+  useGenesInRegion,
+  useGeneTransCredibleSets,
 } from "@/store/serverQuery";
 import CSPlot from "./CSPlot";
 import { useEffect, useMemo, useState } from "react";
@@ -38,60 +37,44 @@ const CisView = ({ geneName }: { geneName: string }) => {
   const { isDarkMode } = useThemeStore();
   const isActualDarkMode = isDarkMode ?? prefersDarkMode;
   const { resourceToggles } = useGeneViewStore();
+  // resolve the gene's coordinates first; genes_in_region (the gene track) and the plot range both
+  // need an explicit chr/start/end, which the credible-set endpoints no longer carry.
+  const {
+    data: geneInfo,
+    isPending: geneInfoIsPending,
+    isError: geneInfoIsError,
+    error: geneInfoError,
+  } = useGeneInfo(geneName);
+
+  const range = useMemo(() => {
+    if (!geneInfo) {
+      return undefined;
+    }
+    const minPos = geneInfo.start - config.gene_view.gene_padding;
+    const maxPos = geneInfo.end + config.gene_view.gene_padding;
+    return [Number(geneInfo.chr.replace("X", "23").replace("Y", "24")), minPos, maxPos];
+  }, [geneInfo]);
+
   const {
     data: geneModels,
     isPending: geneModelsIsPending,
     isError: geneModelsIsError,
     error: geneModelsError,
-  } = useGeneModelByGeneQuery(geneName);
-  const geneModel = useMemo(() => {
-    if (!geneModels) {
-      return undefined;
-    }
-    return geneModels.find((gm) => gm.geneName.toLowerCase() === geneName.toLowerCase());
-  }, [geneModels, geneName]);
-  const { data, isPending, isError, error } = useCSQuery(geneName);
+  } = useGenesInRegion(geneInfo?.chr, range?.[1], range?.[2]);
 
-  const range = useMemo(() => {
-    if (!geneModel || !data || data.length === 0) {
-      return undefined;
-    }
-    const minPos =
-      geneModel.exonStarts.reduce((acc, d) => {
-        return Math.max(acc, d);
-      }, -Infinity) - config.gene_view.gene_padding;
-    const maxPos =
-      geneModel.exonEnds.reduce((acc, d) => {
-        return Math.max(acc, d);
-      }, -Infinity) + config.gene_view.gene_padding;
-    return [Number(geneModel.chr.replace("X", "23").replace("Y", "24")), minPos, maxPos];
-  }, [data, geneModel]);
+  const { data, isPending, isError, error } = useGeneCredibleSets(geneName);
 
   const {
     data: transData,
     isPending: transIsPending,
     isError: transIsError,
     error: transError,
-  } = useCSTransQuery(geneName, range);
+  } = useGeneTransCredibleSets(geneName);
 
-  const {
-    data: metadata,
-    isPending: metaisPending,
-    isError: metaIsError,
-    error: metaError,
-  } = useTraitMetadataQuery(data?.map((d) => ({ resource: d.resource, phenocode: d.trait })));
-
-  const {
-    data: datasetMetadata,
-    isFetching: datasetMetadataIsFetching,
-    isError: datasetMetadataIsError,
-    error: datasetMetadataError,
-  } = useDatasetMetadataQuery(
-    // TODO harmonize dataset metadata across resources
-    data
-      ?.filter((d) => d.resource.startsWith("eQTL_Catalogue") && d.trait.toLowerCase() === geneName.toLowerCase())
-      .map((d) => d.dataset)
-  );
+  // the legacy /v1/trait_metadata and /v1/dataset_metadata endpoints are gone on the new API, so the
+  // trait-label / tissue-label enrichment is dropped for now: titleRows falls back to the row's own
+  // trait code/gene symbol plus the config resource label. re-enriching trait names via the new
+  // metadata path is tracked separately (genetics-results-browser-3uu.18 / .25).
 
   const [codingOnly, setCodingOnly] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
@@ -362,13 +345,8 @@ const CisView = ({ geneName }: { geneName: string }) => {
           : isActualDarkMode
           ? config.gene_view.colors.dimDark
           : config.gene_view.colors.dim;
-        // TODO traitName and resourceShortName are a hack based on the resource now
-        if (!metaisPending && metadata !== undefined) {
-          const trait = metadata[`${d.resource}|${d.trait}`];
-          if (trait !== undefined) {
-            traitName = trait.phenostring;
-          }
-        }
+        // traitName/resourceShortName fall back to the row's own trait code/gene symbol and the
+        // config resource label now that trait/dataset metadata enrichment is gone (see above).
         if (d.dataType === "pQTL") {
           if (d.resource === "FinnGen_pQTL") {
             traitName += ` ${d.dataset.match(/FinnGen_(.*?)_/)?.[1]}`;
@@ -377,15 +355,6 @@ const CisView = ({ geneName }: { geneName: string }) => {
           }
         }
         resourceShortName = resource.label;
-        if (datasetMetadata !== undefined) {
-          const metadata = datasetMetadata[d.dataset];
-          if (metadata !== undefined) {
-            traitName = `${metadata.tissue_label} ${metadata.condition_label
-              .replace("_", " ")
-              .replace("naive", "")}`.trim();
-            resourceShortName = metadata.study_label;
-          }
-        }
         if (d.dataType === "eQTL") {
           if (d.resource === "FinnGen_eQTL") {
             traitName += ` ${d.dataset.match(/FinnGen_(.*?)_/)?.[1]}`;
@@ -522,19 +491,24 @@ const CisView = ({ geneName }: { geneName: string }) => {
         <TableBody>{rows}</TableBody>
       </Table>
     );
-  }, [sortedData, metaisPending, metadata, mouseOverTrait, highlightCSs]);
+  }, [sortedData, mouseOverTrait, highlightCSs]);
 
   if (!geneName) {
     return null;
   }
-  if (isError || metaIsError || geneModelsIsError || datasetMetadataIsError) {
+  if (isError || geneInfoIsError || geneModelsIsError || transIsError) {
     return (
       <Typography>
-        {(error || metaError || geneModelsError || datasetMetadataError)!.message}
+        {(error || geneInfoError || geneModelsError || transError)!.message}
       </Typography>
     );
   }
-  if (isPending || metaisPending || geneModelsIsPending || datasetMetadataIsFetching) {
+  if (
+    isPending ||
+    geneInfoIsPending ||
+    geneModelsIsPending ||
+    transIsPending
+  ) {
     return <Typography>Loading...</Typography>;
   }
 

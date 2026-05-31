@@ -4,6 +4,9 @@ import { http, HttpResponse } from "msw";
 import credibleSetsByVariant from "../fixtures/credible_sets_by_variant.json";
 import credibleSetsByVariantBatch from "../fixtures/credible_sets_by_variant_batch.json";
 import credibleSetsByGene from "../fixtures/credible_sets_by_gene.json";
+import credibleSetsByQtlGene from "../fixtures/credible_sets_by_qtl_gene.json";
+import genesInRegion from "../fixtures/genes_in_region.json";
+import searchGenes from "../fixtures/search_genes.json";
 import variantAnnotationFinngen from "../fixtures/variant_annotation_finngen.json";
 import nearestGenes from "../fixtures/nearest_genes.json";
 import datasets from "../fixtures/datasets.json";
@@ -28,6 +31,11 @@ export const handlers = [
   http.post(api("credible_sets_by_variant"), () => HttpResponse.json(credibleSetsByVariantBatch)),
 
   http.get(api("credible_sets_by_gene/:gene"), () => HttpResponse.json(credibleSetsByGene)),
+  http.get(api("credible_sets_by_qtl_gene/:gene"), () =>
+    HttpResponse.json(credibleSetsByQtlGene)
+  ),
+
+  http.get(api("genes_in_region/:chr/:start/:end"), () => HttpResponse.json(genesInRegion)),
 
   http.get(api("variant_annotation/:source"), () => HttpResponse.json(variantAnnotationFinngen)),
   http.post(api("variant_annotation/:source"), () => HttpResponse.json(variantAnnotationFinngen)),
@@ -37,7 +45,14 @@ export const handlers = [
   http.get(api("datasets"), () => HttpResponse.json(datasets)),
   http.get(api("resources"), () => HttpResponse.json(resources)),
 
-  http.get(api("search"), () => HttpResponse.json(searchPhenotypes)),
+  // /search is shared by phenotype autocomplete and gene-coordinate lookup; branch on types=
+  http.get(api("search"), ({ request }) => {
+    const types = new URL(request.url).searchParams.get("types");
+    if (types === "genes") {
+      return HttpResponse.json(searchGenes);
+    }
+    return HttpResponse.json(searchPhenotypes);
+  }),
 
   http.get(api("summary_stats/:resource/:dataType"), () => HttpResponse.json(summaryStats)),
 

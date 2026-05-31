@@ -4,6 +4,10 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { PropsWithChildren } from "react";
 import {
   useColocByCredibleSet,
+  useGeneCredibleSets,
+  useGeneInfo,
+  useGenesInRegion,
+  useGeneTransCredibleSets,
   useNormalizedQuery,
   usePhenotypeSearch,
   useSummaryStats,
@@ -99,6 +103,55 @@ describe("usePhenotypeSearch (phenotype autocomplete, has_summary_stats)", () =>
       hasSummaryStats: true,
     });
     expect(hits[0].sampleSize).toBe(455643);
+  });
+});
+
+describe("gene view hooks (credible sets + gene track on the new API)", () => {
+  it("useGeneInfo resolves a gene symbol to its coordinates via /search", async () => {
+    const { result } = renderHook(() => useGeneInfo("APOE"), { wrapper: makeWrapper() });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    const info = result.current.data!;
+    expect(info.symbol).toBe("APOE");
+    expect(info.chr).toBe("19");
+    expect(info.start).toBeGreaterThan(0);
+    expect(info.end).toBeGreaterThan(info.start);
+  });
+
+  it("useGeneCredibleSets returns grouped CSDatum[] from credible_sets_by_gene", async () => {
+    const { result } = renderHook(() => useGeneCredibleSets("APOE"), { wrapper: makeWrapper() });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    const data = result.current.data!;
+    expect(data.length).toBeGreaterThan(0);
+    // resource is rewritten to the legacy config dataName so the view's color/toggle logic works
+    expect(data.every((d) => d.resource && !d.resource.includes("_catalogue"))).toBe(true);
+    expect(data.every((d) => d.variant.length === d.pip.length)).toBe(true);
+  });
+
+  it("useGeneTransCredibleSets returns grouped CSDatum[] from credible_sets_by_qtl_gene", async () => {
+    const { result } = renderHook(() => useGeneTransCredibleSets("APOE"), {
+      wrapper: makeWrapper(),
+    });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    const data = result.current.data!;
+    expect(data.length).toBeGreaterThan(0);
+    expect(data.every((d) => ["eQTL", "pQTL", "sQTL"].includes(d.dataType))).toBe(true);
+  });
+
+  it("useGenesInRegion adapts genes_in_region rows into GeneModel[]", async () => {
+    const { result } = renderHook(() => useGenesInRegion("19", 44900000, 44920000), {
+      wrapper: makeWrapper(),
+    });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    const models = result.current.data!;
+    expect(models.length).toBeGreaterThan(0);
+    expect(models.every((m) => m.exonStarts.length === 1)).toBe(true);
+  });
+
+  it("useGenesInRegion stays idle until coordinates are known", () => {
+    const { result } = renderHook(() => useGenesInRegion(undefined, undefined, undefined), {
+      wrapper: makeWrapper(),
+    });
+    expect(result.current.fetchStatus).toBe("idle");
   });
 });
 

@@ -1,0 +1,135 @@
+[
+  {
+    "type": "gene",
+    "symbol": "APOE",
+    "name": "apolipoprotein E",
+    "aliases": [
+      "AD2"
+    ],
+    "ensembl_id": "ENSG00000130203",
+    "chrom": 19,
+    "gene_start": 44903787,
+    "gene_end": 44909396,
+    "search_strings": [
+      "apoe",
+      "apolipoprotein e",
+      "ad2",
+      "ensg00000130203"
+    ],
+    "match_type": "exact",
+    "match_score": 100.0,
+    "rank_score": 1200.0,
+    "matched_key": "APOE"
+  },
+  {
+    "type": "gene",
+    "symbol": "LRP8",
+    "name": "LDL receptor related protein 8",
+    "aliases": [
+      "APOER2",
+      "MCI1",
+      "LRP-8",
+      "HSZ75190"
+    ],
+    "ensembl_id": "ENSG00000157193",
+    "chrom": 1,
+    "gene_start": 53242364,
+    "gene_end": 53328469,
+    "search_strings": [
+      "lrp8",
+      "ldl receptor related protein 8",
+      "apoer2",
+      "mci1",
+      "lrp-8",
+      "hsz75190",
+      "ensg00000157193"
+    ],
+    "match_type": "prefix",
+    "match_score": 90.0,
+    "rank_score": 990.0,
+    "matched_key": "APOER2"
+  },
+  {
+    "type": "gene",
+    "symbol": "LRP1",
+    "name": "LDL receptor related protein 1",
+    "aliases": [
+      "LRP",
+      "CD91",
+      "LRP1A",
+      "APOER",
+      "IGFBP3R1",
+      "IGFBP-3R",
+      "APR",
+      "A2MR"
+    ],
+    "ensembl_id": "ENSG00000123384",
+    "chrom": 12,
+    "gene_start": 57128483,
+    "gene_end": 57213361,
+    "search_strings": [
+      "lrp1",
+      "ldl receptor related protein 1",
+      "lrp",
+      "cd91",
+      "lrp1a",
+      "apoer",
+      "igfbp3r1",
+      "igfbp-3r",
+      "apr",
+      "a2mr",
+      "ensg00000123384"
+    ],
+    "match_type": "prefix",
+    "match_score": 88.88888888888889,
+    "rank_score": 988.8888888888889,
+    "matched_key": "APOER"
+  },
+  {
+    "type": "gene",
+    "symbol": "APOA1-AS",
+    "name": "APOA1 antisense RNA",
+    "aliases": [],
+    "ensembl_id": "ENSG00000235910",
+    "chrom": 11,
+    "gene_start": 116836117,
+    "gene_end": 116856210,
+    "search_strings": [
+      "apoa1-as",
+      "apoa1 antisense rna",
+      "ensg00000235910"
+    ],
+    "match_type": "fuzzy",
+    "match_score": 77.14285714285715,
+    "rank_score": 177.14285714285717,
+    "matched_key": "APOA1-AS"
+  },
+  {
+    "type": "gene",
+    "symbol": "APOBEC1",
+    "name": "apolipoprotein B mRNA editing enzyme catalytic subunit 1",
+    "aliases": [
+      "BEDP",
+      "CDAR1",
+      "APOBEC-1",
+      "HEPR"
+    ],
+    "ensembl_id": "ENSG00000111701",
+    "chrom": 12,
+    "gene_start": 7649400,
+    "gene_end": 7665908,
+    "search_strings": [
+      "apobec1",
+      "apolipoprotein b mrna editing enzyme catalytic subunit 1",
+      "bedp",
+      "cdar1",
+      "apobec-1",
+      "hepr",
+      "ensg00000111701"
+    ],
+    "match_type": "fuzzy",
+    "match_score": 77.14285714285715,
+    "rank_score": 177.14285714285717,
+    "matched_key": "APOBEC1"
+  }
+]

@@ -11,7 +11,16 @@ import { CSDatum, GeneModel } from "@/types/types.gene";
 import config from "@/config.json";
 import { mungeGeneModelResponse } from "./serverMunge";
 import { isCoding, isLoF } from "@/utils/coding";
+import {
+  GeneCSApiRow,
+  GeneInRegionApiRow,
+  geneModelsFromRegion,
+  groupCredibleSets,
+} from "./geneCS";
 import api from "./api";
+
+// the gene view's window padding around the gene body (legacy used the same value)
+const GENE_VIEW_PADDING = config.gene_view.gene_padding;
 
 export const useConfigQuery = (): UseQueryResult<Config, Error> => {
   return useQuery<Config>({
@@ -87,6 +96,10 @@ export const useServerQuery = (
   });
 };
 
+/**
+ * @deprecated hits the dead legacy /v1/gene_model_by_gene (404 on the new API). use
+ * useGenesInRegion / useGeneInfo instead. kept only for any non-gene-view caller.
+ */
 export const useGeneModelByGeneQuery = (gene: string): UseQueryResult<GeneModel[], Error> => {
   return useQuery<GeneModel[]>({
     queryKey: ["gene-model-by-gene", gene],
@@ -123,6 +136,9 @@ class CSQueryError extends Error {
   }
 }
 
+/**
+ * @deprecated hits the dead legacy /v1/gene_cs (404 on the new API). use useGeneCredibleSets.
+ */
 export const useCSQuery = (gene: string | undefined): UseQueryResult<CSDatum[], Error> => {
   return useQuery<CSDatum[]>({
     queryKey: ["cs-data", gene],
@@ -253,6 +269,10 @@ export const useCSQuery = (gene: string | undefined): UseQueryResult<CSDatum[], 
   });
 };
 
+/**
+ * @deprecated hits the dead legacy /v1/gene_cs_trans (404 on the new API). use
+ * useGeneTransCredibleSets.
+ */
 export const useCSTransQuery = (
   gene: string | undefined,
   range: number[] | undefined,
@@ -392,6 +412,127 @@ export const useCSTransQuery = (
         return data;
       }),
     enabled: !!gene && !!range,
+    staleTime: Infinity,
+  });
+};
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * GENE VIEW (refactor.md §6) — migrated from the dead /v1/gene_cs* + /v1/gene_model* endpoints to
+ * the new genetics-results-api. cis credible sets come from credible_sets_by_gene, trans (the gene
+ * as a QTL molecular trait) from credible_sets_by_qtl_gene, and the gene track from genes_in_region.
+ * all three return flat JSON rows that groupCredibleSets / geneModelsFromRegion reshape into the
+ * CSDatum[] / GeneModel[] the existing CisView + CSPlot already consume (see store/geneCS.ts).
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+// minimal slice of a /search gene hit — used to resolve a gene symbol to its genomic coordinates.
+interface GeneSearchHit {
+  type: string;
+  symbol: string;
+  chrom: number;
+  gene_start: number;
+  gene_end: number;
+}
+
+export interface GeneInfo {
+  symbol: string;
+  chr: string;
+  start: number;
+  end: number;
+}
+
+/**
+ * resolve a gene symbol to its coordinates via /search (type=genes). genes_in_region needs an
+ * explicit chr/start/end, and the credible-set endpoints don't return the gene body, so this is the
+ * one lookup that seeds both the gene track window and the cis/trans plot range.
+ */
+export const useGeneInfo = (gene: string | undefined): UseQueryResult<GeneInfo | undefined, Error> => {
+  return useQuery<GeneInfo | undefined>({
+    queryKey: ["gene-info", gene],
+    queryFn: async () => {
+      const { data } = await api.get<GeneSearchHit[]>("/v1/search", {
+        params: { q: gene, types: "genes", format: "json" },
+      });
+      const hit = data.find(
+        (d) => d.type === "gene" && d.symbol.toLowerCase() === gene!.toLowerCase()
+      );
+      if (!hit) {
+        return undefined;
+      }
+      return {
+        symbol: hit.symbol,
+        chr: String(hit.chrom),
+        start: hit.gene_start,
+        end: hit.gene_end,
+      };
+    },
+    enabled: !!gene,
+    staleTime: Infinity,
+  });
+};
+
+/**
+ * cis credible sets overlapping the gene region, grouped into CSDatum[] (replaces useCSQuery).
+ * window mirrors the legacy padding so the same stretch of the locus is fetched.
+ */
+export const useGeneCredibleSets = (
+  gene: string | undefined
+): UseQueryResult<CSDatum[], Error> => {
+  return useQuery<CSDatum[]>({
+    queryKey: ["gene-credible-sets", gene],
+    queryFn: async () => {
+      const { data } = await api.get<GeneCSApiRow[]>(
+        `/v1/credible_sets_by_gene/${encodeURIComponent(gene!)}`,
+        { params: { window: GENE_VIEW_PADDING, format: "json" } }
+      );
+      return groupCredibleSets(data);
+    },
+    enabled: !!gene,
+    staleTime: Infinity,
+  });
+};
+
+/**
+ * trans credible sets: QTL credible sets where this gene is the molecular trait, anywhere in the
+ * genome (replaces useCSTransQuery). grouped the same way; the upstream `trait` is already the gene
+ * symbol for QTL rows so the grouping key matches the cis path.
+ */
+export const useGeneTransCredibleSets = (
+  gene: string | undefined
+): UseQueryResult<CSDatum[], Error> => {
+  return useQuery<CSDatum[]>({
+    queryKey: ["gene-trans-credible-sets", gene],
+    queryFn: async () => {
+      const { data } = await api.get<GeneCSApiRow[]>(
+        `/v1/credible_sets_by_qtl_gene/${encodeURIComponent(gene!)}`,
+        { params: { format: "json" } }
+      );
+      return groupCredibleSets(data);
+    },
+    enabled: !!gene,
+    staleTime: Infinity,
+  });
+};
+
+/**
+ * gene track for the plot: gene bodies in the region from genes_in_region, adapted to GeneModel[].
+ * the new endpoint exposes only gene boundaries (no exons), so the track loses exon-level detail
+ * vs the legacy gene_model TSV — see geneModelsFromRegion.
+ */
+export const useGenesInRegion = (
+  chr: string | undefined,
+  start: number | undefined,
+  end: number | undefined
+): UseQueryResult<GeneModel[], Error> => {
+  return useQuery<GeneModel[]>({
+    queryKey: ["genes-in-region", chr, start, end],
+    queryFn: async () => {
+      const { data } = await api.get<GeneInRegionApiRow[]>(
+        `/v1/genes_in_region/${chr}/${start}/${end}`,
+        { params: { format: "json" } }
+      );
+      return geneModelsFromRegion(data);
+    },
+    enabled: !!chr && start !== undefined && end !== undefined,
     staleTime: Infinity,
   });
 };
