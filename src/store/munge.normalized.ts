@@ -17,6 +17,7 @@
 import {
   CredibleSetDataType,
   CredibleSetMembership,
+  DataTypeSummaryRow,
   GroupedCredibleSet,
   NormalizedResponse,
   PhenoSummaryRow,
@@ -171,6 +172,44 @@ export const groupCredibleSets = (
   }
   return Object.values(groups).sort((a, b) => b.maxPip - a.maxPip);
 };
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * DATA TYPE COMPARISON — per-variant CS-membership counts by data type (refactor.md §4).
+ *
+ * Mirrors the legacy DataTypeTable intent (one row per input variant, a count column per data type)
+ * but the counts come from credible-set membership, NOT p-filtered associations. We count DISTINCT
+ * credible sets per data type — collapsing duplicate memberships of the same (resource|dataset|trait
+ * |quantLevel) so the same signal reported under multiple eQTL levels/directions isn't double-counted,
+ * matching how groupCredibleSets collapses the per-variant detail table.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * Summarize filtered variants into one row per variant with CS-membership counts per data type.
+ * Pass variants whose credibleSets have ALREADY been filtered (store filters, then summarizes).
+ * One row is emitted per input variant even when it has zero surviving memberships (total 0) so the
+ * table mirrors the input list — row-dropping is a presentation choice, not done here.
+ */
+export const summarizeDataTypes = (variants: VariantResult[]): DataTypeSummaryRow[] =>
+  variants.map((v) => {
+    const counts: Partial<Record<CredibleSetDataType, number>> = {};
+    // dedupe by data type + the grouping key so multiple memberships of one signal count once.
+    const seen: Record<string, Set<string>> = {};
+    for (const cs of v.credibleSets) {
+      const key = `${cs.resource}|${cs.dataset}|${cs.trait}|${cs.quantLevel ?? ""}`;
+      const bucket = (seen[cs.dataType] ??= new Set());
+      if (bucket.has(key)) continue;
+      bucket.add(key);
+      counts[cs.dataType] = (counts[cs.dataType] ?? 0) + 1;
+    }
+    const total = Object.values(counts).reduce((a, b) => a + b, 0);
+    return {
+      variant: v.variant,
+      rsid: v.annotation.rsid,
+      gene: v.annotation.gene,
+      counts,
+      total,
+    };
+  });
 
 /* ────────────────────────────────────────────────────────────────────────────
  * PHENOTYPE SUMMARY — variant counts by CS membership per trait (refactor.md §4).

@@ -10,18 +10,9 @@ import { lazy, Suspense, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 
 const VariantMainTable = lazy(() => import("./tables/VariantMainTable"));
-
-// placeholder for the summary tabs still on the legacy data path (migrated in .19/.20/.21).
-const MigratingPlaceholder = ({ title }: { title: string }) => (
-  <Box display="flex" flexDirection="column" sx={{ paddingTop: "10px" }}>
-    <Typography sx={{ marginBottom: "10px", paddingLeft: "20px", fontWeight: "bold" }}>
-      {title}
-    </Typography>
-    <Typography sx={{ paddingLeft: "20px", fontStyle: "italic" }}>
-      This view is being migrated to the new credible-set data and is temporarily unavailable.
-    </Typography>
-  </Box>
-);
+const DataTypeTable = lazy(() => import("./tables/DataTypeTable.normalized"));
+const PhenotypeSummaryTable = lazy(() => import("./tables/PhenotypeSummaryTable.normalized"));
+const TissueSummaryTable = lazy(() => import("./tables/TissueSummaryTable.normalized"));
 
 const TableContainer = () => {
   const activeTab = useDataStore((state) => state.activeTab);
@@ -104,17 +95,50 @@ const TableContainer = () => {
                 </Suspense>
               </Box>
             </TabPanel>
-            {/* these tabs are migrated to the normalized data path in separate tasks (.19/.20/.21).
-                until then show a placeholder instead of the legacy clientData-driven tables, which
-                would crash now that the normalized path no longer populates clientData. */}
             <TabPanel value="datatypes" sx={{ padding: 0 }}>
-              <MigratingPlaceholder title="Data type comparison" />
+              <Box display="flex" flexDirection="column" sx={{ paddingTop: "10px" }}>
+                <Typography sx={{ marginBottom: "10px", paddingLeft: "20px", fontWeight: "bold" }}>
+                  Data type comparison
+                </Typography>
+                <Typography sx={{ marginBottom: "10px", paddingLeft: "20px" }}>
+                  For each input variant, the number of credible sets it is a member of, broken down
+                  by data type. Expand a row to see all of that variant's credible sets.
+                </Typography>
+                <Suspense fallback={<CircularProgress />}>
+                  <DataTypeTable enableTopToolbar={true} />
+                </Suspense>
+              </Box>
             </TabPanel>
             <TabPanel value="summary" sx={{ padding: 0 }}>
-              <MigratingPlaceholder title="Phenotype summary" />
+              <Box display="flex" flexDirection="column" sx={{ paddingTop: "10px" }}>
+                <Typography sx={{ marginBottom: "10px", paddingLeft: "20px", fontWeight: "bold" }}>
+                  Phenotype summary
+                </Typography>
+                <Typography sx={{ marginBottom: "10px", paddingLeft: "20px" }}>
+                  Traits ranked by how many of your input variants are in a credible set for them.
+                  Expand a row to see those variants, or use the search button to look up full
+                  summary statistics for the trait across all your variants.
+                </Typography>
+                <Suspense fallback={<CircularProgress />}>
+                  <PhenotypeSummaryTable />
+                </Suspense>
+              </Box>
             </TabPanel>
             <TabPanel value="tissue_summary" sx={{ padding: 0 }}>
-              <MigratingPlaceholder title="Tissue and cell type summary" />
+              <Box display="flex" flexDirection="column" sx={{ paddingTop: "10px" }}>
+                <Typography sx={{ marginBottom: "10px", paddingLeft: "20px", fontWeight: "bold" }}>
+                  Tissue and cell type summary
+                </Typography>
+                <Typography sx={{ marginBottom: "10px", paddingLeft: "20px" }}>
+                  Tissues / cell types ranked by how many of your input variants are in a QTL
+                  credible set there. Use the toggle to switch between eQTL and caQTL.
+                </Typography>
+                <Suspense fallback={<CircularProgress />}>
+                  <Box sx={{ paddingLeft: "20px", paddingRight: "20px" }}>
+                    <TissueSummaryTable />
+                  </Box>
+                </Suspense>
+              </Box>
             </TabPanel>
           </TabContext>
         </>

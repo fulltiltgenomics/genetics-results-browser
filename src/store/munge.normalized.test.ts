@@ -3,6 +3,7 @@ import {
   FilterState,
   filterCredibleSets,
   groupCredibleSets,
+  summarizeDataTypes,
   summarizePhenotypes,
   summarizeTissues,
 } from "./munge.normalized";
@@ -292,6 +293,64 @@ describe("groupCredibleSets", () => {
     const grouped = groupCredibleSets([makeCS({ mlog10p: null })]);
     expect(grouped[0].mlog10p).toHaveLength(1);
     expect(Number.isNaN(grouped[0].mlog10p[0])).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// summarizeDataTypes
+// ---------------------------------------------------------------------------
+
+describe("summarizeDataTypes", () => {
+  it("counts distinct CS memberships per data type for each variant", () => {
+    const v = makeVariant({
+      credibleSets: [
+        makeCS({ dataType: "GWAS", trait: "T2D" }),
+        makeCS({ dataType: "GWAS", trait: "ASTHMA" }),
+        makeCS({ dataType: "eQTL", quantLevel: "ge", trait: "APOE" }),
+        makeCS({ dataType: "pQTL", trait: "APOE" }),
+      ],
+    });
+    const [row] = summarizeDataTypes([v]);
+    expect(row.counts).toEqual({ GWAS: 2, eQTL: 1, pQTL: 1 });
+    expect(row.total).toBe(4);
+  });
+
+  it("dedupes duplicate memberships of the same signal within a data type", () => {
+    const v = makeVariant({
+      credibleSets: [
+        // same resource|dataset|trait|quantLevel -> one distinct signal
+        makeCS({ dataType: "GWAS", trait: "T2D", csId: "a", beta: 0.5 }),
+        makeCS({ dataType: "GWAS", trait: "T2D", csId: "b", beta: -0.5 }),
+      ],
+    });
+    const [row] = summarizeDataTypes([v]);
+    expect(row.counts.GWAS).toBe(1);
+    expect(row.total).toBe(1);
+  });
+
+  it("counts different eQTL quant levels of the same gene separately", () => {
+    const v = makeVariant({
+      credibleSets: [
+        makeCS({ dataType: "eQTL", trait: "CLASRP", quantLevel: "ge" }),
+        makeCS({ dataType: "eQTL", trait: "CLASRP", quantLevel: "exon" }),
+      ],
+    });
+    expect(summarizeDataTypes([v])[0].counts.eQTL).toBe(2);
+  });
+
+  it("emits a zero-total row for a variant with no surviving memberships", () => {
+    const v = makeVariant({ variant: "19:9:A:G", credibleSets: [] });
+    const [row] = summarizeDataTypes([v]);
+    expect(row.variant).toBe("19:9:A:G");
+    expect(row.total).toBe(0);
+    expect(row.counts).toEqual({});
+  });
+
+  it("carries the variant's rsid and gene through for display", () => {
+    const v = makeVariant({ credibleSets: [makeCS()] });
+    const [row] = summarizeDataTypes([v]);
+    expect(row.rsid).toBe("rs429358");
+    expect(row.gene).toBe("APOE");
   });
 });
 

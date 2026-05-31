@@ -279,6 +279,20 @@ export interface GroupedCredibleSet {
   count: number;
 }
 
+/**
+ * Data-type-comparison row — per input variant, how many distinct credible-set memberships it has
+ * in each data type (refactor.md §4 "Data type comparison"). Replaces the legacy association counts;
+ * these are credible-set membership counts, not p-filtered association counts.
+ */
+export interface DataTypeSummaryRow {
+  variant: VariantId;
+  rsid: string | null;
+  gene: string | null; // gene_most_severe of the queried variant
+  /** distinct CS memberships per data type (counts grouped CS, deduped by resource|dataset|trait). */
+  counts: Partial<Record<CredibleSetDataType, number>>;
+  total: number;
+}
+
 /** Phenotype-summary row — variant counts by CS membership. Replaces association-based counts. */
 export interface PhenoSummaryRow {
   resource: string;
