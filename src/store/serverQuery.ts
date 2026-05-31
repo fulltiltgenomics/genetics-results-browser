@@ -1,6 +1,6 @@
 import { useQuery, UseQueryResult } from "@tanstack/react-query";
 import { Config, Dataset, DataType, Phenotype, TableData } from "../types/types";
-import { NormalizedResponse } from "@/types/types.normalized";
+import { ColocPair, CredibleSetDataType, NormalizedResponse } from "@/types/types.normalized";
 import { CSDatum, GeneModel } from "@/types/types.gene";
 import config from "@/config.json";
 import { mungeGeneModelResponse } from "./serverMunge";
@@ -549,6 +549,64 @@ export const useVariantAnnotationQuery = (
       return response;
     },
     enabled: !!variants && variants.length > 0,
+    staleTime: Infinity,
+  });
+};
+
+// raw row shape from colocalization_by_credible_set_id — only the fields we map to ColocPair.
+interface ColocApiRow {
+  resource: string;
+  data_type: string;
+  trait: string;
+  trait_original?: string;
+  cell_type: string | null;
+  "PP.H4.abf": number;
+  clpp: number | null;
+  cs_size: number;
+  hit: string;
+}
+
+// only surface meaningful colocalizations — H4 below this is effectively "no shared signal".
+export const COLOC_PP_H4_THRESHOLD = 0.5;
+
+/**
+ * Lazily fetch what a single credible set colocalizes with (refactor.md §4): each partner row is a
+ * trait whose fine-mapped signal colocalizes with the queried CS. Keyed on the CS's own (resource,
+ * trait/phenocode, csId) — NOT colocalization_by_variant, which returns the whole region network.
+ *
+ * `enabled` is gated so the request only fires when the user opens the coloc affordance for a row.
+ * Rows are filtered to PP.H4 >= COLOC_PP_H4_THRESHOLD and sorted by PP.H4 descending.
+ */
+export const useColocByCredibleSet = (
+  resource: string | undefined,
+  trait: string | undefined,
+  csId: string | undefined,
+  enabled: boolean
+): UseQueryResult<ColocPair[], Error> => {
+  return useQuery<ColocPair[]>({
+    queryKey: ["coloc-by-cs", resource, trait, csId],
+    queryFn: async (): Promise<ColocPair[]> => {
+      const path = `/v1/colocalization_by_credible_set_id/${encodeURIComponent(
+        resource!
+      )}/${encodeURIComponent(trait!)}/${encodeURIComponent(csId!)}`;
+      const { data } = await api.get<ColocApiRow[]>(`${path}?format=json`);
+      return data
+        .filter((row) => row["PP.H4.abf"] >= COLOC_PP_H4_THRESHOLD)
+        .map(
+          (row): ColocPair => ({
+            resource2: row.resource,
+            dataType2: row.data_type as CredibleSetDataType,
+            trait2: row.trait,
+            cellType2: row.cell_type,
+            ppH4: row["PP.H4.abf"],
+            clpp: row.clpp,
+            cs2Size: row.cs_size,
+            hit2: row.hit,
+          })
+        )
+        .sort((a, b) => b.ppH4 - a.ppH4);
+    },
+    enabled: enabled && !!resource && !!trait && !!csId,
     staleTime: Infinity,
   });
 };

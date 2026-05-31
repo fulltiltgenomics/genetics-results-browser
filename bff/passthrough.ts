@@ -44,8 +44,12 @@ export const createPassthrough = (): Router => {
 
       res.status(upstream.status);
       upstream.headers.forEach((value, key) => {
-        // content-length is recomputed by express when we send the buffered body
-        if (key.toLowerCase() === "content-length") return;
+        const k = key.toLowerCase();
+        // content-length is recomputed by express when we send the buffered body.
+        // content-encoding must NOT be forwarded: Node's fetch transparently decompresses the
+        // upstream body, so we hold plain bytes — re-advertising "gzip" makes the browser try to
+        // gunzip plain JSON and fail with ERR_CONTENT_DECODING_FAILED.
+        if (k === "content-length" || k === "content-encoding") return;
         res.setHeader(key, value);
       });
 

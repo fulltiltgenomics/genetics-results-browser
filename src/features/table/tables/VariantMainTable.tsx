@@ -67,6 +67,9 @@ const VariantMainTable = (props: {
       }}
       onSortingChange={setSorting}
       onPaginationChange={setPagination}
+      // stable row id keyed on the variant so the expanded credible-set detail (and the lazy coloc
+      // panel nested inside it) survives re-renders triggered by the per-CS coloc query resolving
+      getRowId={(row) => row.variant}
       renderDetailPanel={({ row }) => (
         <Box sx={{ margin: "auto", width: "100%" }}>
           <VariantCredibleSetTable data={row.original} />

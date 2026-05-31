@@ -270,6 +270,9 @@ export interface GroupedCredibleSet {
   quantLevel: QuantLevel | null; // distinguishes ge/exon/tx/txrev/leafcutter when non-gene levels shown
   cellType: string | null;
   phenocodes: string[];
+  // cs_ids of the memberships in this group, parallel to phenocodes. coloc is per-credible-set, so
+  // the expanded-row coloc lookup keys on these (a single-membership group has exactly one).
+  csIds: string[];
   pip: number[];
   mlog10p: number[];
   beta: number[];
@@ -329,7 +332,7 @@ export interface ColocPair {
   trait2Phenostring?: string;
   cellType2: string | null;
   ppH4: number; // PP.H4.abf — colocalization posterior
-  clpp: number;
+  clpp: number | null; // CLPP — null for some partner rows (confirmed live)
   cs2Size: number; // cs_size of the partner CS
   hit2: VariantId; // hit
 }

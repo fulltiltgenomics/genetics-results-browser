@@ -151,6 +151,7 @@ export const groupCredibleSets = (
         quantLevel: cs.quantLevel,
         cellType: cs.cellType,
         phenocodes: [cs.trait],
+        csIds: [cs.csId],
         pip: [cs.pip],
         mlog10p: [cs.mlog10p ?? NaN],
         beta: [cs.beta],
@@ -161,6 +162,7 @@ export const groupCredibleSets = (
       };
     } else {
       g.phenocodes.push(cs.trait);
+      g.csIds.push(cs.csId);
       g.pip.push(cs.pip);
       g.mlog10p.push(cs.mlog10p ?? NaN);
       g.beta.push(cs.beta);

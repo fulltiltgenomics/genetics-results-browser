@@ -8,6 +8,7 @@ import { pValRepr } from "../utils/tableutil";
 import { HtmlTooltip } from "../../tooltips/HtmlTooltip";
 import { UpOrDownIcon } from "../UpDownIcons";
 import { naInfSort } from "../utils/sorting";
+import ColocSection from "./ColocSection";
 
 /**
  * The single per-variant detail table for the credible-set-only data model (refactor.md §4).
@@ -151,6 +152,11 @@ const VariantCredibleSetTable = (props: { data: VariantResult }) => {
         muiTableProps={{ sx: { tableLayout: "fixed" } }}
         muiTableBodyCellProps={{ sx: { fontSize: "0.75rem" } }}
         sortingFns={{ naInfSort }}
+        // stable row id so MRT keeps the coloc detail-panel expanded across re-renders (the lazy
+        // coloc query resolving would otherwise reset index-keyed expansion state)
+        getRowId={(row) => row.id}
+        // per-CS colocalization is fetched lazily only when a row's detail panel is expanded
+        renderDetailPanel={({ row }) => <ColocSection row={row.original} />}
       />
     </Box>
   );

@@ -60,6 +60,24 @@ describe("passthrough", () => {
     expect(fetchMock.mock.calls[0][1]?.method).toBe("GET");
   });
 
+  it("does not forward content-encoding (node fetch already decoded the body)", async () => {
+    // the upstream advertises gzip; node's fetch transparently decompresses, so re-forwarding
+    // "gzip" would make the browser try to gunzip plain JSON -> ERR_CONTENT_DECODING_FAILED.
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { "content-type": "application/json", "content-encoding": "gzip" },
+      })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await request(app).get("/api/v1/colocalization_by_credible_set_id/finngen/T/cs1");
+
+    expect(res.status).toBe(200);
+    expect(res.headers["content-encoding"]).toBeUndefined();
+    expect(res.body).toEqual({ ok: true });
+  });
+
   it("forwards POST bodies to the upstream", async () => {
     const fetchMock = vi.fn(async () =>
       new Response(JSON.stringify({ ok: true }), {

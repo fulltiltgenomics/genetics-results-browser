@@ -255,6 +255,15 @@ describe("groupCredibleSets", () => {
     expect(grouped[0].beta).toEqual([0.5, 0.7]);
   });
 
+  it("tracks the cs_id of each membership for per-CS colocalization lookups", () => {
+    const grouped = groupCredibleSets([
+      makeCS({ trait: "T2D", csId: "cs_a" }),
+      makeCS({ trait: "T2D", csId: "cs_b" }), // same group, distinct CS
+    ]);
+    expect(grouped).toHaveLength(1);
+    expect(grouped[0].csIds).toEqual(["cs_a", "cs_b"]);
+  });
+
   it("splits opposite beta directions into separate groups", () => {
     const grouped = groupCredibleSets([
       makeCS({ trait: "T2D", beta: 0.5 }),
