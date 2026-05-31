@@ -130,4 +130,42 @@ describe("ResourceFilter", () => {
     render(<ResourceFilter isNotReadyYet={true} />);
     expect(screen.getByLabelText("FinnGen")).toBeDisabled();
   });
+
+  it("hides the quant-level toggle when there is no leveled eQTL data", () => {
+    useDataStore.getState().setNormalizedData(makeResponse([makeCS({ resource: "finngen" })]));
+    render(<ResourceFilter isNotReadyYet={false} />);
+    expect(screen.queryByText("eQTL quantification")).not.toBeInTheDocument();
+  });
+
+  it("shows the quant-level toggle and reactively reveals non-ge levels when turned on", async () => {
+    const user = userEvent.setup();
+    useDataStore.getState().setNormalizedData(
+      makeResponse([
+        makeCS({ resource: "eqtl_catalogue", trait: "CLASRP", dataType: "eQTL", quantLevel: "ge" }),
+        makeCS({
+          resource: "eqtl_catalogue",
+          trait: "CLASRP",
+          dataType: "eQTL",
+          quantLevel: "exon",
+          csId: "cs2",
+        }),
+      ])
+    );
+    render(<ResourceFilter isNotReadyYet={false} />);
+
+    // default off = ge-level only: the exon row is filtered out (refactor.md §4).
+    expect(
+      useDataStore.getState().filteredVariants[0].credibleSets.map((c) => c.quantLevel)
+    ).toEqual(["ge"]);
+
+    const toggle = screen.getByLabelText(
+      "Show all eQTL Catalogue quantification levels (exon/tx/txrev/leafcutter)"
+    );
+    await user.click(toggle);
+
+    expect(useDataStore.getState().includeAllQuantLevels).toBe(true);
+    expect(
+      useDataStore.getState().filteredVariants[0].credibleSets.map((c) => c.quantLevel).sort()
+    ).toEqual(["exon", "ge"]);
+  });
 });

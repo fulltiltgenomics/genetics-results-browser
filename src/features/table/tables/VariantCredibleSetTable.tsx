@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Box, Typography } from "@mui/material";
+import { Box, Chip, Typography } from "@mui/material";
 import { MaterialReactTable } from "material-react-table";
 import type { MRT_ColumnDef } from "material-react-table";
 import { GroupedCredibleSet, VariantResult } from "../../../types/types.normalized";
@@ -43,12 +43,31 @@ const getColumns = (): MRT_ColumnDef<GroupedCredibleSet>[] => [
     size: 160,
   },
   {
-    // QTL trait is the collapsed gene symbol; show the quant level alongside when it is non-gene
+    // QTL trait collapses to the gene symbol (refactor.md §4). gene-level (ge) rows show the symbol
+    // alone — no redundant "ge" badge. only non-gene eQTL levels carry a level chip to disambiguate
+    // an otherwise-identical gene symbol (e.g. CLASRP · exon). pQTL=protein, caQTL=peak id,
+    // GWAS=phenotype all have quantLevel === null and so render the bare trait.
     accessorFn: (row) =>
-      row.quantLevel && row.quantLevel !== "ge" ? `${row.trait} (${row.quantLevel})` : row.trait,
+      row.quantLevel && row.quantLevel !== "ge" ? (
+        <Box sx={{ display: "flex", alignItems: "center", gap: "4px" }}>
+          <span>{row.trait}</span>
+          <Chip
+            label={row.quantLevel}
+            size="small"
+            variant="outlined"
+            sx={{ height: "16px", fontSize: "0.65rem", "& .MuiChip-label": { px: "5px" } }}
+          />
+        </Box>
+      ) : (
+        row.trait
+      ),
     id: "trait",
     header: "trait",
-    filterFn: "contains",
+    // sort on the raw gene symbol; the accessorFn returns a ReactElement that MRT can't compare
+    sortingFn: (rowA, rowB) => rowA.original.trait.localeCompare(rowB.original.trait),
+    // keep filtering on the raw gene symbol; the level is a presentational chip, not part of the text
+    filterFn: (row, _id, filterValue) =>
+      row.original.trait.toLowerCase().includes(String(filterValue).toLowerCase()),
     muiFilterTextFieldProps: { placeholder: "trait" },
   },
   {
