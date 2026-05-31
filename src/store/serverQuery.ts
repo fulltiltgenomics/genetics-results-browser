@@ -1,5 +1,6 @@
 import { useQuery, UseQueryResult } from "@tanstack/react-query";
 import { Config, Dataset, DataType, Phenotype, TableData } from "../types/types";
+import { NormalizedResponse } from "@/types/types.normalized";
 import { CSDatum, GeneModel } from "@/types/types.gene";
 import config from "@/config.json";
 import { mungeGeneModelResponse } from "./serverMunge";
@@ -16,6 +17,38 @@ export const useConfigQuery = (): UseQueryResult<Config, Error> => {
   });
 };
 
+/**
+ * stage-1 fetch against the BFF: POST /v1/results { query } -> NormalizedResponse (raw, unfiltered
+ * credible sets per variant + annotation + nearest genes + dataset/resource/phenotype metadata).
+ * the request body mirrors the legacy useServerQuery contract, so InputForm's query string flows
+ * unchanged; only the response type differs (NormalizedResponse vs TableData). see refactor.md §1.
+ *
+ * additive/non-breaking: this is the replacement for useServerQuery, but the store/munge/components
+ * still consume the legacy TableData shape until tasks .13 (munge) and .14 (store) migrate them, so
+ * both hooks coexist for now.
+ */
+export const useNormalizedQuery = (
+  variantInput: string | undefined
+): UseQueryResult<NormalizedResponse, Error> => {
+  return useQuery<NormalizedResponse>({
+    queryKey: ["normalized-results", variantInput],
+    queryFn: async (): Promise<NormalizedResponse> => {
+      const { data } = await api.post<NormalizedResponse>("/v1/results", {
+        query: variantInput,
+      });
+      return data;
+    },
+    enabled: !!variantInput,
+    placeholderData: (prev) => prev,
+    staleTime: Infinity,
+  });
+};
+
+/**
+ * @deprecated legacy fat-aggregation fetch returning TableData (assoc + finemapped). superseded by
+ * useNormalizedQuery (BFF stage-1, NormalizedResponse) — see refactor.md §1. kept until its consumers
+ * (store.ts/munge.ts/components) migrate in tasks .13/.14, then removed with the assoc data path.
+ */
 export const useServerQuery = (
   variantInput: string | undefined
 ): UseQueryResult<TableData, Error> => {

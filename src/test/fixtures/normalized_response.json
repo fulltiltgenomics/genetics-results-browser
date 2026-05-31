@@ -1,0 +1,454 @@
+{
+  "queryType": "variant",
+  "inputVariants": {
+    "found": [
+      "19:44908684:T:C"
+    ],
+    "notFound": [],
+    "unparsed": [],
+    "ac0": [],
+    "rsidMap": {}
+  },
+  "variants": [
+    {
+      "variant": "19:44908684:T:C",
+      "annotation": {
+        "rsid": "rs429358",
+        "consequence": "missense variant",
+        "isCoding": true,
+        "isLoF": false,
+        "gene": "APOE",
+        "af": 0.18006,
+        "info": 0.9989721364294413,
+        "enrichmentNfe": 1.41508
+      },
+      "credibleSets": [
+        {
+          "resource": "finngen",
+          "version": "R12",
+          "dataset": "FinnGen_kanta",
+          "dataType": "GWAS",
+          "trait": "3000242",
+          "traitOriginal": "3000242",
+          "quantLevel": null,
+          "cellType": null,
+          "chr": 19,
+          "pos": 44908684,
+          "ref": "T",
+          "alt": "C",
+          "csId": "chr19:43408684-46408684_1",
+          "csSize": 1,
+          "csMinR2": 1,
+          "mlog10p": 16.3087,
+          "beta": 0.2884,
+          "se": 0.03438,
+          "pip": 0.9618,
+          "aaf": 0.1801,
+          "mostSevere": "missense_variant",
+          "geneMostSevere": "APOE"
+        },
+        {
+          "resource": "ukbb",
+          "version": "3k",
+          "dataset": "UKB_PPP",
+          "dataType": "pQTL",
+          "trait": "ACY1",
+          "traitOriginal": "ACY1",
+          "quantLevel": null,
+          "cellType": "plasma",
+          "chr": 19,
+          "pos": 44908684,
+          "ref": "T",
+          "alt": "C",
+          "csId": "chr19:43408684-46408684_1",
+          "csSize": 12,
+          "csMinR2": 0.5366,
+          "mlog10p": 11.2062,
+          "beta": -0.06402,
+          "se": 0.00931,
+          "pip": 0.2986,
+          "aaf": 0.161,
+          "mostSevere": "missense_variant",
+          "geneMostSevere": "APOE"
+        },
+        {
+          "resource": "eqtl_catalogue",
+          "version": "R7",
+          "dataset": "QTD000435",
+          "dataType": "eQTL",
+          "trait": "CLASRP",
+          "traitOriginal": "ENSG00000104859.15_19_45068055_45068058|exon",
+          "quantLevel": "exon",
+          "cellType": "brain_(DLPFC)|naive",
+          "chr": 19,
+          "pos": 44908684,
+          "ref": "T",
+          "alt": "C",
+          "csId": "ENSG00000104859.15_19_45068055_45068058_L1",
+          "csSize": 26,
+          "csMinR2": 0.3312,
+          "mlog10p": 4.4863,
+          "beta": 0.2319,
+          "se": 0.05536,
+          "pip": 0.0078,
+          "aaf": 0.1801,
+          "mostSevere": "missense_variant",
+          "geneMostSevere": "APOE"
+        },
+        {
+          "resource": "finngen",
+          "version": "R12",
+          "dataset": "FinnGen_ATACseq",
+          "dataType": "caQTL",
+          "trait": "chr19-44906317-44906816",
+          "traitOriginal": "chr19-44906317-44906816",
+          "quantLevel": null,
+          "cellType": "l1.PBMC",
+          "chr": 19,
+          "pos": 44908684,
+          "ref": "T",
+          "alt": "C",
+          "csId": "chr19-44906317-44906816_1",
+          "csSize": 10,
+          "csMinR2": 0.3003,
+          "mlog10p": 4.7445,
+          "beta": -0.1887,
+          "se": 0.04379,
+          "pip": 0.0402,
+          "aaf": 0.1801,
+          "mostSevere": "missense_variant",
+          "geneMostSevere": "APOE"
+        },
+        {
+          "resource": "open_targets",
+          "version": "25.12",
+          "dataset": "Open_Targets_25.12",
+          "dataType": "GWAS",
+          "trait": "GCST003665",
+          "traitOriginal": "GCST003665",
+          "quantLevel": null,
+          "cellType": null,
+          "chr": 19,
+          "pos": 44908684,
+          "ref": "T",
+          "alt": "C",
+          "csId": "429ca2b095d4029fc5acee89494be447",
+          "csSize": 1,
+          "csMinR2": 1,
+          "mlog10p": 51.9209,
+          "beta": 0.1466,
+          "se": null,
+          "pip": 1,
+          "aaf": 0.1801,
+          "mostSevere": "missense_variant",
+          "geneMostSevere": "APOE"
+        },
+        {
+          "resource": "open_targets",
+          "version": "25.12",
+          "dataset": "Open_Targets_25.12",
+          "dataType": "GWAS",
+          "trait": "GCST004607",
+          "traitOriginal": "GCST004607",
+          "quantLevel": null,
+          "cellType": null,
+          "chr": 19,
+          "pos": 44908684,
+          "ref": "T",
+          "alt": "C",
+          "csId": "45b7ace4280ac28cd0abcc05a4ecdeb2",
+          "csSize": 5,
+          "csMinR2": 0.7418,
+          "mlog10p": null,
+          "beta": -0.01861,
+          "se": null,
+          "pip": 0.0858,
+          "aaf": 0.1801,
+          "mostSevere": "missense_variant",
+          "geneMostSevere": "APOE"
+        }
+      ],
+      "nearestGenes": [
+        {
+          "geneName": "APOE",
+          "distance": 0,
+          "geneStart": 44903787,
+          "geneEnd": 44909396,
+          "geneStrand": "+"
+        }
+      ],
+      "gnomad": {
+        "variant": "19:44908684:T:C",
+        "afOverall": 0.14757,
+        "byPop": {
+          "afr": 0.22661,
+          "amr": 0.10427,
+          "asj": 0.12045,
+          "eas": 0.097853,
+          "fin": 0.19123,
+          "mid": 0.068061,
+          "nfe": 0.15142,
+          "remaining": 0.13929,
+          "sas": 0.1004
+        },
+        "genomeOrExome": "e",
+        "popmaxPop": "afr",
+        "popmaxAf": 0.22661
+      }
+    }
+  ],
+  "phenotypes": {
+    "finngen|3000242": {
+      "resource": "finngen",
+      "dataType": "GWAS",
+      "trait": "3000242",
+      "phenostring": "3000242"
+    },
+    "ukbb|ACY1": {
+      "resource": "ukbb",
+      "dataType": "pQTL",
+      "trait": "ACY1",
+      "phenostring": "ACY1"
+    },
+    "eqtl_catalogue|CLASRP": {
+      "resource": "eqtl_catalogue",
+      "dataType": "eQTL",
+      "trait": "CLASRP",
+      "phenostring": "CLASRP"
+    },
+    "finngen|chr19-44906317-44906816": {
+      "resource": "finngen",
+      "dataType": "caQTL",
+      "trait": "chr19-44906317-44906816",
+      "phenostring": "chr19-44906317-44906816"
+    },
+    "open_targets|GCST003665": {
+      "resource": "open_targets",
+      "dataType": "GWAS",
+      "trait": "GCST003665",
+      "phenostring": "GCST003665"
+    },
+    "open_targets|GCST004607": {
+      "resource": "open_targets",
+      "dataType": "GWAS",
+      "trait": "GCST004607",
+      "phenostring": "GCST004607"
+    }
+  },
+  "datasets": {
+    "finngen_gwas": {
+      "datasetId": "finngen_gwas",
+      "resource": "finngen",
+      "dataType": "gwas",
+      "version": "R13",
+      "description": "FinnGen R13 core GWAS. Binary disease endpoints and height/weight/BMI quantitative traits in 500,186 Finnish biobank participants.",
+      "qtlTypes": [],
+      "tissueLabel": null,
+      "cellType": null,
+      "quantMethod": null
+    },
+    "finngen_pqtl": {
+      "datasetId": "finngen_pqtl",
+      "resource": "finngen",
+      "dataType": "pqtl",
+      "version": "batch1-4",
+      "description": "FinnGen Olink pQTL. Plasma protein levels measured by Olink Explore 3072 (batches 1-3) and Olink Explore HT (batch 4). Unrelated samples were used in analysis. Sample size is 3,561. The samples were collected from blood donors who were heterozygous or homozygous carriers of specific genetic variants of interest.",
+      "qtlTypes": [
+        "pQTL"
+      ],
+      "tissueLabel": null,
+      "cellType": null,
+      "quantMethod": null,
+      "sampleSize": 3561
+    },
+    "finngen_eqtl": {
+      "datasetId": "finngen_eqtl",
+      "resource": "finngen",
+      "dataType": "eqtl",
+      "version": "batch1-5",
+      "description": "FinnGen single-cell RNA-seq eQTL. Cell-type-resolved expression QTLs from snRNAseq batches 1-5. Sample size is 1,108. Available predicted cell types: l1.B, l1.CD4_T, l1.CD8_T, l1.DC, l1.Mono, l1.NK, l1.PBMC, l1.other, l1.other_T, l2.B_intermediate, l2.B_memory, l2.B_naive, l2.CD14_Mono, l2.CD16_Mono, l2.CD4_CTL, l2.CD4_Naive, l2.CD4_TCM, l2.CD4_TEM, l2.CD8_Naive, l2.CD8_TEM, l2.HSPC, l2.ILC, l2.MAIT, l2.NK, l2.NK_CD56bright, l2.Plasmablast, l2.Platelet, l2.Treg, l2.cDC2, l2.dnT, l2.gdT, l2.pDC. Cell types were predicted based on GEX using the reference PBMC dataset from Hao et al. (2020) (http://dx.doi.org/10.1016/j.cell.2021.04.048). Citation: Kanai, M. et al.: Population-scale multiome immune cell atlas reveals complex disease drivers (https://doi.org/10.1101/2025.11.25.25340489).",
+      "qtlTypes": [
+        "eQTL"
+      ],
+      "tissueLabel": null,
+      "cellType": null,
+      "quantMethod": null,
+      "sampleSize": 1108
+    },
+    "finngen_caqtl": {
+      "datasetId": "finngen_caqtl",
+      "resource": "finngen",
+      "dataType": "caqtl",
+      "version": "batch1-5",
+      "description": "FinnGen ATAC-seq caQTL. Cell-type-resolved chromatin accessibility QTLs from snRNAseq batches 1-5. Sample size is 1,108. Available predicted cell types: l1.B, l1.CD4_T, l1.CD8_T, l1.DC, l1.Mono, l1.NK, l1.PBMC, l1.other, l1.other_T, l2.B_intermediate, l2.B_memory, l2.B_naive, l2.CD14_Mono, l2.CD16_Mono, l2.CD4_CTL, l2.CD4_Naive, l2.CD4_TCM, l2.CD4_TEM, l2.CD8_Naive, l2.CD8_TEM, l2.HSPC, l2.ILC, l2.MAIT, l2.NK, l2.NK_CD56bright, l2.Plasmablast, l2.Platelet, l2.Treg, l2.cDC2, l2.dnT, l2.gdT, l2.pDC. Cell types were predicted based on GEX using the reference PBMC dataset from Hao et al. (2020) (http://dx.doi.org/10.1016/j.cell.2021.04.048). Citation: Kanai, M. et al.: Population-scale multiome immune cell atlas reveals complex disease drivers (https://doi.org/10.1101/2025.11.25.25340489).",
+      "qtlTypes": [
+        "caQTL"
+      ],
+      "tissueLabel": null,
+      "cellType": null,
+      "quantMethod": null,
+      "sampleSize": 1108
+    },
+    "decode_asmqtl_cpg": {
+      "datasetId": "decode_asmqtl_cpg",
+      "resource": "decode",
+      "dataType": "asmqtl",
+      "version": "v1",
+      "description": "deCODE CpG methylation ASM-QTL. Allele-specific methylation QTLs identifying sequence variants associated with 5-mCpG rates of individual CpG units. Based on whole-genome bisulfite sequencing of Icelandic samples.",
+      "qtlTypes": [],
+      "tissueLabel": null,
+      "cellType": null,
+      "quantMethod": null
+    },
+    "eqtl_catalogue": {
+      "datasetId": "eqtl_catalogue",
+      "resource": "eqtl_catalogue",
+      "dataType": "mixed",
+      "version": "R7",
+      "description": "eQTL Catalogue R7. A harmonized collection of eQTL / sQTL / pQTL studies across many tissues, cell types, and conditions. Each sub-study is identified by a QTD identifier. eQTL results contain gene-level, transcript-level, exon-level and txrevise results. Full summary stats are not available for the eQTL Catalogue.",
+      "qtlTypes": [
+        "eQTL",
+        "sQTL",
+        "pQTL"
+      ],
+      "tissueLabel": null,
+      "cellType": null,
+      "quantMethod": null
+    },
+    "finngen_nmr": {
+      "datasetId": "finngen_nmr",
+      "resource": "finngen",
+      "dataType": "metaboqtl",
+      "version": "NA",
+      "description": "Nightingale nuclear magnetic resonance (NMR) metabolomics QTLs in plasma. 250 metabolites in 34,218 samples from THL biobank.",
+      "qtlTypes": [
+        "metaboQTL"
+      ],
+      "tissueLabel": null,
+      "cellType": null,
+      "quantMethod": null,
+      "sampleSize": 34218
+    },
+    "genebass_exome": {
+      "datasetId": "genebass_exome",
+      "resource": "genebass",
+      "dataType": "exome",
+      "version": "NA",
+      "description": "GeneBass exome sequencing variant-level results. Rare variant association testing from exome sequencing of 394,841 UK Biobank participants. Results are filtered to p < 1e-4. Results include per-variant burden test statistics across phenotypes and functional annotations.",
+      "qtlTypes": [],
+      "tissueLabel": null,
+      "cellType": null,
+      "quantMethod": null,
+      "sampleSize": 394841
+    },
+    "genebass_gene_based": {
+      "datasetId": "genebass_gene_based",
+      "resource": "genebass",
+      "dataType": "gene_based",
+      "version": "NA",
+      "description": "GeneBass gene-level burden test results. Aggregated gene-level rare variant association results from whole-exome sequencing of 394,841 UK Biobank participants.",
+      "qtlTypes": [],
+      "tissueLabel": null,
+      "cellType": null,
+      "quantMethod": null,
+      "sampleSize": 394841
+    },
+    "gtex_expression": {
+      "datasetId": "gtex_expression",
+      "resource": "gtex",
+      "dataType": "expression",
+      "version": "v10",
+      "description": "GTEx v10 median TPM gene expression across 54 human tissues from 948 post-mortem donors.",
+      "qtlTypes": [],
+      "tissueLabel": null,
+      "cellType": null,
+      "quantMethod": null,
+      "sampleSize": 948
+    },
+    "finngen_chromatin_peaks": {
+      "datasetId": "finngen_chromatin_peaks",
+      "resource": "finngen",
+      "dataType": "chromatin_peaks",
+      "version": "batch1-5",
+      "description": "FinnGen single-cell ATAC-seq peak-to-gene associations. Links chromatin accessibility peaks to target genes across immune cell types.",
+      "qtlTypes": [],
+      "tissueLabel": null,
+      "cellType": null,
+      "quantMethod": null,
+      "sampleSize": 1108
+    },
+    "gencc": {
+      "datasetId": "gencc",
+      "resource": "gencc",
+      "dataType": "gene_disease",
+      "version": "2025-11-13",
+      "description": "GenCC (Gene Curation Coalition) gene-disease validity classifications. Curated submissions from ClinGen, DECIPHER, Genomics England PanelApp, and other panels.",
+      "qtlTypes": [],
+      "tissueLabel": null,
+      "cellType": null,
+      "quantMethod": null
+    }
+  },
+  "resources": [
+    {
+      "id": "finngen",
+      "resource": "finngen",
+      "dataTypes": [
+        "gwas",
+        "pqtl",
+        "eqtl",
+        "caqtl",
+        "metaboqtl",
+        "chromatin_peaks"
+      ],
+      "hasSummaryStats": true
+    },
+    {
+      "id": "decode",
+      "resource": "decode",
+      "dataTypes": [
+        "asmqtl"
+      ],
+      "hasSummaryStats": true
+    },
+    {
+      "id": "eqtl_catalogue",
+      "resource": "eqtl_catalogue",
+      "dataTypes": [
+        "mixed"
+      ],
+      "hasSummaryStats": false
+    },
+    {
+      "id": "genebass",
+      "resource": "genebass",
+      "dataTypes": [
+        "exome",
+        "gene_based"
+      ],
+      "hasSummaryStats": false
+    },
+    {
+      "id": "gtex",
+      "resource": "gtex",
+      "dataTypes": [
+        "expression"
+      ],
+      "hasSummaryStats": false
+    },
+    {
+      "id": "gencc",
+      "resource": "gencc",
+      "dataTypes": [
+        "gene_disease"
+      ],
+      "hasSummaryStats": false
+    }
+  ],
+  "hasBetas": false,
+  "hasCustomValues": false,
+  "meta": {
+    "apiVersions": {},
+    "generatedAt": "2026-05-31T10:20:09.469Z"
+  }
+}
