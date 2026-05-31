@@ -63,6 +63,16 @@ credible-set records instead of `assoc` + `finemapped`).
 > and the general API should not carry app-specific shaping. The BFF gives the table and the chat one
 > shared fetch path; the client keeps interactivity cheap.
 
+**BFF host decision (locked).** The BFF is a **standalone Node/TypeScript service** (`./bff`, Express),
+mirroring the existing chat backend pattern (`VITE_CHAT_URL`) — its own dev port and reverse-proxy
+entry, sharable by the table and the chat. *Not* vite middleware, *not* client-side. It reads the
+upstream API base from `GENETICS_API_URL` (default `http://localhost:2000/api`) and its listen port
+from `BFF_PORT` (default `5000`; 2000=API, 3000=vite, 4000=chat are already taken in dev). In dev the
+browser talks to the BFF via `VITE_API_URL=http://localhost:5000/api` (and the vite `/api` proxy also
+targets `:5000`); in prod a reverse proxy routes `/api` → BFF. The scaffold exposes `GET /healthz`
+and a generic `/api/*` passthrough to the upstream; the real stage-1 normalize endpoints land in the
+follow-up tasks. Run with `npm run bff` / `npm run bff:dev`; tests via `npm run bff:test`.
+
 ### Layer-by-layer impact
 
 | Layer | Files | Disposition |
@@ -255,6 +265,8 @@ Phased, not big-bang — keep the app shippable throughout. View-by-view cutover
 ## 11. OPEN ITEMS / DECISIONS LOCKED
 
 - Aggregation: **BFF for fetch/normalize; client-side reactive filter/group/summarize.** ✅
+- BFF host: **standalone Node/TypeScript service (`./bff`, Express), default port 5000** — mirrors the
+  chat backend (`VITE_CHAT_URL`); not vite middleware, not client-side. ✅
 - Phenotype search: **its own view/route.** ✅
 - Backend scope: **targeted additions OK** (e.g. `/search` `has_summary_stats`). ✅
 - Sequencing: **phased migration.** ✅
