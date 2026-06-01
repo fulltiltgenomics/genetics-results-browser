@@ -77,6 +77,9 @@ export const mapToDataName = (
     case "finngen":
       if (dataType === "eQTL") return "FinnGen_eQTL";
       if (dataType === "pQTL") return "FinnGen_pQTL";
+      // caQTL trait is an ATAC peak id (not a gene symbol); it still gets its own config bucket so
+      // the cis/trans plot colors + toggles it instead of dropping it
+      if (dataType === "caQTL") return "FinnGen_caQTL";
       return undefined;
     default:
       // open_targets and anything else not modelled in config — not shown in this view

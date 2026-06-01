@@ -96,6 +96,13 @@
         "resource": "eQTL Catalogue R7",
         "dataType": "eQTL",
         "color": "#17becf"
+      },
+      {
+        "dataName": "FinnGen_caQTL",
+        "label": "FinnGen",
+        "resource": "FinnGen",
+        "dataType": "caQTL",
+        "color": "#e377c2"
       }
     ]
   }

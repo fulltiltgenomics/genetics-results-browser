@@ -29,6 +29,8 @@ describe("mapToDataName (new resource ids -> legacy config dataName)", () => {
     expect(mapToDataName("ukbb", "UKB_PPP", "pQTL")).toBe("UKBB_pQTL");
     expect(mapToDataName("finngen", "FinnGen_snRNAseq", "eQTL")).toBe("FinnGen_eQTL");
     expect(mapToDataName("eqtl_catalogue", "QTD000499", "eQTL")).toBe("eQTL_Catalogue_R7");
+    // finngen caQTL gets its own bucket so the gene-view plot surfaces it instead of dropping it
+    expect(mapToDataName("finngen", "FinnGen_ATACseq", "caQTL")).toBe("FinnGen_caQTL");
   });
 
   it("maps the combined FinnGen meta-analyses to their own buckets", () => {
@@ -38,9 +40,8 @@ describe("mapToDataName (new resource ids -> legacy config dataName)", () => {
     expect(mapToDataName("finngen_ukbb", "FinnGen_R13_UKBB", "GWAS")).toBe("FinnGen_UKBB");
   });
 
-  it("drops resources not modelled in the gene-view config (e.g. open_targets, finngen caQTL)", () => {
+  it("drops resources not modelled in the gene-view config (e.g. open_targets)", () => {
     expect(mapToDataName("open_targets", "Open_Targets_25.12", "GWAS")).toBeUndefined();
-    expect(mapToDataName("finngen", "FinnGen_ATACseq", "caQTL")).toBeUndefined();
   });
 });
 
@@ -91,8 +92,12 @@ describe("groupCredibleSets (new JSON rows -> CSDatum[])", () => {
     expect(ad.csNumber).toBe(1);
   });
 
-  it("does not emit the unmapped finngen caQTL row", () => {
-    expect(data.some((d) => d.dataType === "caQTL")).toBe(false);
+  it("emits finngen caQTL rows under the FinnGen_caQTL bucket (peak-id trait kept verbatim)", () => {
+    const ca = data.find((d) => d.dataType === "caQTL");
+    expect(ca).toBeDefined();
+    expect(ca!.resource).toBe("FinnGen_caQTL");
+    // trait is an ATAC peak id, not a gene symbol
+    expect(ca!.trait).toMatch(/^chr/);
   });
 });
 
