@@ -1,8 +1,41 @@
 import { useState } from "react";
 import { Box, Button, CircularProgress, Chip, Typography } from "@mui/material";
 import HubOutlinedIcon from "@mui/icons-material/HubOutlined";
-import { COLOC_PP_H4_THRESHOLD, useColocByCredibleSet } from "../../../store/serverQuery";
-import { GroupedCredibleSet } from "../../../types/types.normalized";
+import {
+  COLOC_PP_H4_THRESHOLD,
+  useColocByCredibleSet,
+  useTraitNameMapping,
+} from "../../../store/serverQuery";
+import { ColocPair, GroupedCredibleSet } from "../../../types/types.normalized";
+
+/**
+ * partner trait cell: QTL partners show gene symbol/protein/peak + a quant-level chip (bare for
+ * ge/null, "[exon]"-style chip for non-ge eQTL levels — mirrors VariantCredibleSetTable's trait
+ * column); GWAS partners show the resolved phenostring when the trait_name_mapping has it, else the
+ * bare phenocode. cellType2 (tissue/cell) is rendered in its own column by the caller.
+ */
+const PartnerTrait = (props: { coloc: ColocPair; phenostrings?: Record<string, string> }) => {
+  const { coloc, phenostrings } = props;
+  // GWAS partner: prefer a human phenostring; fall back to the phenocode if the map lacks it.
+  if (coloc.dataType2 === "GWAS") {
+    return <span>{phenostrings?.[coloc.trait2] ?? coloc.trait2}</span>;
+  }
+  // QTL partner: bare gene symbol unless a non-gene eQTL quant level needs disambiguating.
+  if (coloc.quantLevel2 && coloc.quantLevel2 !== "ge") {
+    return (
+      <Box sx={{ display: "flex", alignItems: "center", gap: "4px" }}>
+        <span>{coloc.trait2}</span>
+        <Chip
+          label={coloc.quantLevel2}
+          size="small"
+          variant="outlined"
+          sx={{ height: "16px", fontSize: "0.62rem", "& .MuiChip-label": { px: "5px" } }}
+        />
+      </Box>
+    );
+  }
+  return <span>{coloc.trait2}</span>;
+};
 
 /**
  * Per-credible-set colocalization affordance for the expanded variant detail (refactor.md §4):
@@ -19,6 +52,8 @@ const CredibleSetColoc = (props: { resource: string; trait: string; csId: string
     props.csId,
     open
   );
+  // resolve GWAS partner phenocodes to phenostrings; one cached fetch shared across open sections.
+  const { data: phenostrings } = useTraitNameMapping(open);
 
   return (
     <Box sx={{ marginBottom: "8px" }}>
@@ -85,7 +120,7 @@ const CredibleSetColoc = (props: { resource: string; trait: string; csId: string
                       />
                     </td>
                     <td style={{ paddingRight: "12px" }}>
-                      {c.trait2Phenostring ?? c.trait2}
+                      <PartnerTrait coloc={c} phenostrings={phenostrings} />
                     </td>
                     <td style={{ paddingRight: "12px" }}>{c.cellType2 ?? "-"}</td>
                     <td style={{ paddingRight: "12px" }}>{c.ppH4.toPrecision(3)}</td>

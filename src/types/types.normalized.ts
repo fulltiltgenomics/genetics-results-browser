@@ -329,7 +329,8 @@ export interface ColocPair {
   resource2: string;
   dataType2: CredibleSetDataType;
   trait2: string;
-  trait2Phenostring?: string;
+  trait2Original?: string; // partner trait_original; carries the eQTL Catalogue quant-level suffix
+  quantLevel2: QuantLevel | null; // parsed from trait2Original (ge/exon/tx/txrev/leafcutter), null for non-QTL/pQTL
   cellType2: string | null;
   ppH4: number; // PP.H4.abf — colocalization posterior
   clpp: number | null; // CLPP — null for some partner rows (confirmed live)

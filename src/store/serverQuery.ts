@@ -10,6 +10,7 @@ import {
   NormalizedResponse,
   PhenotypeSearchHit,
 } from "@/types/types.normalized";
+import { parseQuantLevel } from "@/utils/quantLevel";
 import { CSDatum, GeneModel } from "@/types/types.gene";
 import config from "@/config.json";
 import { mungeGeneModelResponse } from "./serverMunge";
@@ -820,6 +821,9 @@ export const useColocByCredibleSet = (
             resource2: row.resource,
             dataType2: row.data_type as CredibleSetDataType,
             trait2: row.trait,
+            trait2Original: row.trait_original,
+            // reuse the same quant-level parse as the main QTL display; null for pQTL/GWAS/caQTL.
+            quantLevel2: parseQuantLevel(row.trait_original),
             cellType2: row.cell_type,
             ppH4: row["PP.H4.abf"],
             clpp: row.clpp,
@@ -831,6 +835,25 @@ export const useColocByCredibleSet = (
     },
     enabled: enabled && !!resource && !!trait && !!csId,
     staleTime: Infinity,
+  });
+};
+
+/**
+ * The upstream `{phenocode: phenostring}` map (GET /v1/trait_name_mapping). One call returns the
+ * whole dictionary (~28k entries, covering both FinnGen GWAS phenocodes like AD_LO_EXMORE ->
+ * "Alzheimer's disease (Late onset)…" and QTL dataset ids), so we fetch it once and cache forever.
+ * Used by ColocSection to turn bare GWAS partner phenocodes into human-readable phenostrings.
+ */
+export const useTraitNameMapping = (enabled: boolean): UseQueryResult<Record<string, string>, Error> => {
+  return useQuery<Record<string, string>>({
+    queryKey: ["trait-name-mapping"],
+    queryFn: async (): Promise<Record<string, string>> => {
+      const { data } = await api.get<Record<string, string>>("/v1/trait_name_mapping");
+      return data;
+    },
+    enabled,
+    staleTime: Infinity,
+    gcTime: Infinity,
   });
 };
 

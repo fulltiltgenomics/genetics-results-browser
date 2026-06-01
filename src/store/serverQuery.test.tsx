@@ -12,6 +12,7 @@ import {
   useNormalizedQuery,
   usePhenotypeSearch,
   useSummaryStats,
+  useTraitNameMapping,
 } from "./serverQuery";
 
 // fresh client with retries off so a failing query rejects immediately instead of retrying for seconds
@@ -100,8 +101,8 @@ describe("useColocByCredibleSet (lazy per-credible-set colocalization)", () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
 
     const pairs = result.current.data!;
-    // all three fixture rows have PP.H4 >= 0.5, so all survive; sorted by PP.H4 desc
-    expect(pairs.length).toBe(3);
+    // all five fixture rows have PP.H4 >= 0.5, so all survive; sorted by PP.H4 desc
+    expect(pairs.length).toBe(5);
     expect(pairs.map((p) => p.ppH4)).toEqual([...pairs.map((p) => p.ppH4)].sort((a, b) => b - a));
 
     const top = pairs[0];
@@ -112,6 +113,36 @@ describe("useColocByCredibleSet (lazy per-credible-set colocalization)", () => {
     expect(top.clpp).toBe(0.9618);
     expect(top.cs2Size).toBe(1);
     expect(top.hit2).toBe("19:44908684:T:C");
+    // GWAS partners carry no quant level (no "|" suffix in trait_original)
+    expect(top.quantLevel2).toBeNull();
+
+    // eQTL partner: trait_original suffix after the last "|" parses to the quant level
+    const eqtl = pairs.find((p) => p.dataType2 === "eQTL")!;
+    expect(eqtl.trait2).toBe("CLASRP");
+    expect(eqtl.trait2Original).toBe("ENSG00000104859.15_19_45068055_45068058|exon");
+    expect(eqtl.quantLevel2).toBe("exon");
+    expect(eqtl.cellType2).toBe("brain_(DLPFC)|naive");
+
+    // pQTL partner: the "|aptamer" suffix is NOT a quant level, so it parses to null
+    const pqtl = pairs.find((p) => p.dataType2 === "pQTL")!;
+    expect(pqtl.trait2).toBe("APOE");
+    expect(pqtl.quantLevel2).toBeNull();
+    expect(pqtl.clpp).toBeNull();
+  });
+});
+
+describe("useTraitNameMapping (GWAS phenocode -> phenostring map)", () => {
+  it("stays idle until enabled", () => {
+    const { result } = renderHook(() => useTraitNameMapping(false), { wrapper: makeWrapper() });
+    expect(result.current.fetchStatus).toBe("idle");
+  });
+
+  it("resolves GWAS phenocodes to human phenostrings", async () => {
+    const { result } = renderHook(() => useTraitNameMapping(true), { wrapper: makeWrapper() });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    const map = result.current.data!;
+    expect(map["AD_LO_EXMORE"]).toBe("Alzheimer's disease (Late onset) (more control exclusions)");
+    expect(map["I9_IHD"]).toBe("Ischaemic heart disease, wide definition");
   });
 });
 

@@ -14,6 +14,7 @@ import resources from "../fixtures/resources.json";
 import searchPhenotypes from "../fixtures/search_phenotypes.json";
 import summaryStats from "../fixtures/summary_stats.json";
 import colocalizationByCsId from "../fixtures/colocalization_by_credible_set_id.json";
+import traitNameMapping from "../fixtures/trait_name_mapping.json";
 // gene-evidence tab fixtures (refactor.md §6). gene_based is served as TSV, so import it raw.
 import geneBasedTsv from "../fixtures/gene_based.tsv?raw";
 import expressionByGene from "../fixtures/expression_by_gene.json";
@@ -63,6 +64,9 @@ export const handlers = [
   http.get(api("colocalization_by_credible_set_id/:resource/:phenotype/:csId"), () =>
     HttpResponse.json(colocalizationByCsId)
   ),
+
+  // {phenocode: phenostring} map used to resolve GWAS coloc partner names (ColocSection)
+  http.get(api("trait_name_mapping"), () => HttpResponse.json(traitNameMapping)),
 
   // gene-evidence tab: gene_based is TSV (text), the other two are JSON
   http.get(api("gene_based/:gene"), () =>
