@@ -64,7 +64,7 @@ export interface LLMChatProps {
   /** description shown in empty state */
   emptyStateDescription?: string;
 
-  /** container height (default: "calc(100vh - 300px)") */
+  /** container height (default: "calc(100dvh - 300px)") */
   height?: string;
 
   /** current session ID (for persistence) */
