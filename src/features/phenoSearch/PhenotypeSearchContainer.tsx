@@ -100,6 +100,15 @@ const PhenotypeSearchContainer = () => {
   const rows = useMemo<PhenoSearchRow[]>(() => {
     if (!chosen) return [];
     // index the store's per-variant credible sets for the chosen (resource, trait).
+    // genetics-results-browser-7rd: this join assumes the CS-membership `trait` (passed straight through
+    // bff/normalize.normalizeCsRow from the upstream credible-set `trait` field) equals the /search
+    // `code` (chosen.code) for the same phenotype. verified live (2026-06-01) for every sumstats-
+    // searchable GWAS resource the search box surfaces — finngen, pgc, gp2, covid_hgi — where
+    // code === trait === trait_original. QTL resources never appear in types=phenotypes search, and
+    // ibd_gwas has summary stats but no credible sets (so its flag is correctly always false). a focused
+    // alignment test (PhenotypeSearchContainer.test.tsx) pins this per resource; if a future resource's
+    // CS-trait vocabulary diverges from its /search code, harden the match here (normalize both sides /
+    // also accept cs.traitOriginal) and add a divergent-case test.
     const csByVariant = new Map<string, { csId: string; pip: number }>();
     for (const v of normalizedData?.variants ?? []) {
       const member = v.credibleSets.find(

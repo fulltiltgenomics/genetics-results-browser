@@ -54,4 +54,61 @@ describe("PhenotypeSearchContainer (.24)", () => {
     // inCredibleSet flag rendered as a PIP chip (pip 0.9618 -> "PIP 0.96")
     expect(screen.getByText(/PIP 0\.96/)).toBeInTheDocument();
   });
+
+  // genetics-results-browser-7rd: the inCredibleSet join keys on `cs.resource === chosen.resource &&
+  // cs.trait === chosen.code`. chosen.code comes from /search; cs.trait passes straight through
+  // bff/normalize.normalizeCsRow from the upstream credible-set `trait` field. This was verified live
+  // (2026-06-01, :2000) to hold (code === trait === trait_original) for EVERY sumstats-searchable GWAS
+  // resource the phenotype-search box can surface: finngen, pgc, gp2, covid_hgi. QTL resources never
+  // appear in types=phenotypes search, and ibd_gwas has summary_stats but no credible sets (so its
+  // inCredibleSet is correctly always "no"). These cases pin that alignment per resource so a future
+  // resource whose CS-trait vocab diverges from its /search code fails here instead of silently
+  // false-negativing the flag.
+  const sumstatsCodeEqualsCsTrait: Array<{ resource: string; code: string }> = [
+    { resource: "finngen", code: "F5_SCHZPHR" },
+    { resource: "pgc", code: "SCZ" },
+    { resource: "gp2", code: "PD" },
+    { resource: "covid_hgi", code: "COVID_C2" },
+  ];
+
+  it.each(sumstatsCodeEqualsCsTrait)(
+    "flags inCredibleSet when a store CS for $resource has trait === the /search code $code",
+    async ({ resource, code }) => {
+      // minimal normalized response: one input variant (matching the summary_stats fixture row at
+      // 19:44908684:T:C) whose single CS membership uses (resource, trait=code) exactly as the live
+      // API emits them. if the join broke or the vocab diverged, the chip would read "no".
+      const csVariant: NormalizedResponse["variants"][number] = {
+        ...fixture.variants[0],
+        credibleSets: [
+          {
+            ...fixture.variants[0].credibleSets[0],
+            resource,
+            trait: code,
+            traitOriginal: code,
+            pip: 0.5,
+          },
+        ],
+      };
+      const seeded: NormalizedResponse = {
+        ...fixture,
+        variants: [csVariant],
+        inputVariants: {
+          ...fixture.inputVariants,
+          found: ["19:44908684:T:C"],
+        },
+      };
+      useDataStore.getState().setNormalizedData(seeded);
+
+      const Wrapper = makeWrapper(
+        `/annotate/phenotype-search?resource=${resource}&trait=${code}`
+      );
+      render(<PhenotypeSearchContainer />, { wrapper: Wrapper });
+
+      await waitFor(() =>
+        expect(screen.getByText("19:44908684:T:C")).toBeInTheDocument()
+      );
+      // pip 0.5 -> "PIP 0.50"; presence of the chip proves cs.trait matched chosen.code for this resource
+      expect(screen.getByText(/PIP 0\.50/)).toBeInTheDocument();
+    }
+  );
 });
