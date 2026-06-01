@@ -25,6 +25,79 @@ import api from "./api";
 // the gene view's window padding around the gene body (legacy used the same value)
 const GENE_VIEW_PADDING = config.gene_view.gene_padding;
 
+/**
+ * raw /datasets row from the new genetics-results-api (snake_case). only the fields the About page
+ * surfaces are typed here; the live payload also carries author/publication_date/metadata_endpoint
+ * etc. which we don't currently render.
+ */
+export interface DatasetApiRow {
+  dataset_id: string;
+  resource: string;
+  version?: string;
+  description?: string;
+  trait_type?: string | null;
+  data_type: string;
+  qtl_types?: string[];
+  products: {
+    credible_sets?: boolean;
+    summary_stats?: boolean;
+    colocalization?: { partners: string[] };
+    [key: string]: unknown;
+  };
+  stats?: {
+    n_phenotypes?: number;
+    n_samples_median?: number;
+    n_subdatasets?: number;
+    [key: string]: unknown;
+  };
+  n_samples?: number;
+}
+
+// typed projection of a /datasets row used by the About "currently included datasets" table.
+export interface DatasetRow {
+  datasetId: string;
+  resource: string;
+  version?: string;
+  description?: string;
+  dataType: string;
+  qtlTypes?: string[];
+  hasCredibleSets: boolean;
+  hasSummaryStats: boolean;
+  hasColocalization: boolean;
+  nPhenotypes?: number;
+  // single representative sample size: median when a dataset spans many phenotypes, else n_samples
+  nSamples?: number;
+}
+
+/**
+ * GET /v1/datasets -> the resources/datasets currently included, one row per dataset_id. replaces
+ * the dead useConfigQuery-based sourcing on the About page (the new API has no /v1/config).
+ */
+export const useDatasets = (): UseQueryResult<DatasetRow[], Error> => {
+  return useQuery<DatasetRow[]>({
+    queryKey: ["datasets"],
+    queryFn: async (): Promise<DatasetRow[]> => {
+      const { data } = await api.get<DatasetApiRow[]>("/v1/datasets", {
+        params: { format: "json" },
+      });
+      return data.map((row) => ({
+        datasetId: row.dataset_id,
+        resource: row.resource,
+        version: row.version,
+        description: row.description,
+        dataType: row.data_type,
+        qtlTypes: row.qtl_types,
+        hasCredibleSets: row.products?.credible_sets === true,
+        hasSummaryStats: row.products?.summary_stats === true,
+        hasColocalization: Array.isArray(row.products?.colocalization?.partners),
+        nPhenotypes: row.stats?.n_phenotypes,
+        nSamples: row.stats?.n_samples_median ?? row.n_samples,
+      }));
+    },
+    staleTime: 5 * 60 * 1000,
+  });
+};
+
 export const useConfigQuery = (): UseQueryResult<Config, Error> => {
   return useQuery<Config>({
     queryKey: ["config"],

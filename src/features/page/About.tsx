@@ -1,69 +1,65 @@
 import { Link, Typography } from "@mui/material";
 import { MaterialReactTable, MRT_ColumnDef } from "material-react-table";
-import { useConfigQuery } from "../../store/serverQuery";
-import { useMemo, useState } from "react";
-import { ResourceConfig } from "../../types/types";
+import { DatasetRow, useDatasets } from "../../store/serverQuery";
+import { useMemo } from "react";
 
 const About = () => {
-  const { data } = useConfigQuery();
-  const [datasets, setDatasets] = useState<ResourceConfig[]>([]);
+  const { data: datasets } = useDatasets();
 
-  useMemo(() => {
-    if (data) {
-      const dsets: Record<string, ResourceConfig> = {};
-      data.assoc.resources.forEach((dataset) => {
-        if (!(dataset.resource in dsets)) {
-          dsets[dataset.resource] = dataset;
-        }
-        dsets[dataset.resource].assoc = true;
-      });
-      data.finemapped.resources.forEach((dataset: any) => {
-        if (!(dataset.resource in dsets)) {
-          dsets[dataset.resource] = dataset;
-        }
-        dsets[dataset.resource].finemapped = true;
-      });
-      setDatasets(Object.values(dsets));
-    }
-  }, [data]);
+  // prefer qtl_types (e.g. eQTL/sQTL/pQTL) over the coarse data_type when present
+  const dataTypeLabel = (row: DatasetRow): string =>
+    row.qtlTypes && row.qtlTypes.length > 0
+      ? row.qtlTypes.join(", ")
+      : row.dataType.replace(/_/g, " ");
 
-  const columns: MRT_ColumnDef<any>[] = [
-    {
-      accessorFn: (row: any) => {
-        return (
-          <Link href={row.url} color="inherit" target="_blank">
-            {row.resource.replace(/_/g, " ")}
-          </Link>
-        );
+  const products = (row: DatasetRow): string => {
+    const p: string[] = [];
+    if (row.hasCredibleSets) p.push("credible sets");
+    if (row.hasSummaryStats) p.push("summary stats");
+    if (row.hasColocalization) p.push("colocalization");
+    return p.join(", ");
+  };
+
+  const columns = useMemo<MRT_ColumnDef<DatasetRow>[]>(
+    () => [
+      {
+        accessorFn: (row) => row.resource.replace(/_/g, " "),
+        header: "resource",
+        size: 90,
       },
-      header: "resource",
-      size: 65,
-    },
-    {
-      accessorKey: "version",
-      header: "version",
-      size: 65,
-    },
-    {
-      accessorFn: (row: any) => {
-        return row.data_types.join(", ");
+      {
+        accessorKey: "datasetId",
+        header: "dataset",
+        size: 110,
       },
-      header: "data types",
-      size: 65,
-    },
-    {
-      accessorFn: (row: any) => {
-        return row.finemapped ? "yes" : "no";
+      {
+        accessorFn: dataTypeLabel,
+        header: "data type",
+        size: 90,
       },
-      header: "credible sets",
-      size: 65,
-    },
-    {
-      accessorKey: "n_traits",
-      header: "traits",
-      size: 65,
-    },
-  ];
+      {
+        accessorKey: "description",
+        header: "description",
+        size: 260,
+      },
+      {
+        accessorFn: products,
+        header: "products",
+        size: 130,
+      },
+      {
+        accessorFn: (row) => row.nPhenotypes ?? "",
+        header: "phenotypes",
+        size: 70,
+      },
+      {
+        accessorFn: (row) => (row.nSamples != null ? row.nSamples.toLocaleString() : ""),
+        header: "samples",
+        size: 70,
+      },
+    ],
+    []
+  );
 
   return (
     <>
@@ -137,7 +133,7 @@ const About = () => {
       </Typography>
       <MaterialReactTable
         columns={columns}
-        data={datasets}
+        data={datasets ?? []}
         enablePagination={false}
         enableBottomToolbar={false}
         enableTopToolbar={false}

@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { PropsWithChildren } from "react";
 import {
   useColocByCredibleSet,
+  useDatasets,
   useGeneCredibleSets,
   useGeneInfo,
   useGenesInRegion,
@@ -46,6 +47,37 @@ describe("useNormalizedQuery (BFF stage-1 fetch)", () => {
     // enabled:!!variantInput keeps the query idle, so it never resolves data
     expect(result.current.fetchStatus).toBe("idle");
     expect(result.current.data).toBeUndefined();
+  });
+});
+
+describe("useDatasets (currently included datasets for the About page)", () => {
+  it("maps /datasets rows to typed DatasetRow with product flags", async () => {
+    const { result } = renderHook(() => useDatasets(), { wrapper: makeWrapper() });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+
+    const rows = result.current.data!;
+    expect(rows.length).toBeGreaterThan(0);
+
+    const finngen = rows.find((r) => r.datasetId === "finngen_gwas")!;
+    expect(finngen.resource).toBe("finngen");
+    expect(finngen.dataType).toBe("gwas");
+    expect(finngen.hasCredibleSets).toBe(true);
+    expect(finngen.hasSummaryStats).toBe(true);
+    expect(finngen.hasColocalization).toBe(true);
+    expect(finngen.nPhenotypes).toBe(2754);
+    // n_samples_median preferred when present
+    expect(finngen.nSamples).toBe(477706);
+
+    // qtl_types carried through for QTL datasets; n_samples used when stats.n_samples_median absent
+    const eqtl = rows.find((r) => r.datasetId === "finngen_eqtl")!;
+    expect(eqtl.qtlTypes).toEqual(["eQTL"]);
+    expect(eqtl.nSamples).toBe(1108);
+
+    // a summary-stats-only dataset (no credible sets / coloc)
+    const asm = rows.find((r) => r.datasetId === "decode_asmqtl_cpg")!;
+    expect(asm.hasCredibleSets).toBe(false);
+    expect(asm.hasSummaryStats).toBe(true);
+    expect(asm.hasColocalization).toBe(false);
   });
 });
 
