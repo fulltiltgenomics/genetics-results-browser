@@ -3,6 +3,7 @@ import { Typography, Box, Link, useMediaQuery, IconButton, Button, Menu, MenuIte
 import Brightness4Icon from "@mui/icons-material/Brightness4";
 import Brightness7Icon from "@mui/icons-material/Brightness7";
 import AdminPanelSettingsIcon from "@mui/icons-material/AdminPanelSettings";
+import AccountCircleIcon from "@mui/icons-material/AccountCircle";
 import KeyIcon from "@mui/icons-material/Key";
 import LogoutIcon from "@mui/icons-material/Logout";
 import { useHotkeys } from "react-hotkeys-hook";
@@ -32,6 +33,8 @@ const Header = () => {
   useHotkeys("ctrl+s", () => new Audio(sounds[Math.floor(Math.random() * sounds.length)]).play());
 
   const prefersDarkMode = useMediaQuery("(prefers-color-scheme: dark)");
+  // on phones the full email + buttons overflow the row and overlap; collapse to icons
+  const isNarrow = useMediaQuery("(max-width: 600px)");
   const { isDarkMode, setDarkMode: setTheme } = useThemeStore();
   const actualDarkMode = isDarkMode ?? prefersDarkMode;
 
@@ -53,7 +56,7 @@ const Header = () => {
           flexDirection: "row",
           width: "100%",
           alignItems: "center",
-          gap: 2,
+          gap: { xs: 1, sm: 2 },
         }}>
         <IconButton onClick={handleThemeClick} color="inherit" aria-label="toggle theme">
           {actualDarkMode ? <Brightness7Icon /> : <Brightness4Icon />}
@@ -87,25 +90,40 @@ const Header = () => {
           </Link>
         </Typography>
         <Box flexGrow={1} />
-        {isAdmin && (
-          <Button
-            onClick={() => navigate("/admin")}
-            color="inherit"
-            startIcon={<AdminPanelSettingsIcon />}
-            sx={{ textTransform: "none" }}
-          >
-            Admin
-          </Button>
-        )}
-        {isAuthenticated ? (
-          <>
+        {isAdmin &&
+          (isNarrow ? (
+            <IconButton onClick={() => navigate("/admin")} color="inherit" aria-label="Admin">
+              <AdminPanelSettingsIcon />
+            </IconButton>
+          ) : (
             <Button
-              onClick={(e) => setMenuAnchor(e.currentTarget)}
+              onClick={() => navigate("/admin")}
               color="inherit"
+              startIcon={<AdminPanelSettingsIcon />}
               sx={{ textTransform: "none" }}
             >
-              {user}
+              Admin
             </Button>
+          ))}
+        {isAuthenticated ? (
+          <>
+            {isNarrow ? (
+              <IconButton
+                onClick={(e) => setMenuAnchor(e.currentTarget)}
+                color="inherit"
+                aria-label={user ?? "account"}
+              >
+                <AccountCircleIcon />
+              </IconButton>
+            ) : (
+              <Button
+                onClick={(e) => setMenuAnchor(e.currentTarget)}
+                color="inherit"
+                sx={{ textTransform: "none" }}
+              >
+                {user}
+              </Button>
+            )}
             <Menu
               anchorEl={menuAnchor}
               open={Boolean(menuAnchor)}

@@ -45,6 +45,9 @@ const ChatPage = () => {
   const navigate = useNavigate();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
+  // landscape phones: viewport is too short to fit two header rows, the rating bar and the
+  // disclaimer alongside a usable chat, so trim the non-essential chrome to give the chat room
+  const isShort = useMediaQuery("(max-height: 500px)");
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [activeSession, setActiveSession] = useState<SessionDetail | null>(null);
@@ -897,7 +900,7 @@ const ChatPage = () => {
       <Typography
         variant="caption"
         color="text.secondary"
-        sx={{ textAlign: "center", px: 2, py: 1, display: "block" }}
+        sx={{ textAlign: "center", px: 2, py: { xs: 0.5, md: 1 }, display: isShort ? "none" : "block" }}
       >
         FinnGenie is an AI tool intended to assist exploration, not replace expert judgment. It may
         generate incorrect or misleading information. Always validate findings against authoritative
