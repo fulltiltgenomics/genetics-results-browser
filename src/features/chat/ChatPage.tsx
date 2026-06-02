@@ -894,6 +894,7 @@ const ChatPage = () => {
         onClose={schemaRoute.close}
         selectedView={schemaRoute.selectedView}
         onSelectView={schemaRoute.openTo}
+        onShowOverview={schemaRoute.clearSelection}
       />
       <Popover
         open={sharePopoverOpen}

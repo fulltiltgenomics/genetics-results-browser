@@ -1,10 +1,5 @@
 import { useEffect, useState } from "react";
 import {
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
-  Button,
   Table,
   TableBody,
   TableCell,
@@ -16,11 +11,10 @@ import {
   Box,
   CircularProgress,
   Tooltip,
-  useMediaQuery,
-  useTheme,
 } from "@mui/material";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import axios from "axios";
+import { SideSheet } from "../../components/SideSheet";
 
 interface Dataset {
   dataset_id: string;
@@ -113,8 +107,6 @@ const formatRange = (range?: number[]) => {
 const CheckMark = () => <CheckCircleIcon sx={{ fontSize: 16, color: "success.main" }} />;
 
 export const DatasetsDialog = ({ open, onClose }: DatasetsDialogProps) => {
-  const theme = useTheme();
-  const isXs = useMediaQuery(theme.breakpoints.down("sm"));
   const [datasets, setDatasets] = useState<Dataset[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -151,9 +143,7 @@ export const DatasetsDialog = ({ open, onClose }: DatasetsDialogProps) => {
   }
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="lg" fullWidth fullScreen={isXs}>
-      <DialogTitle>Currently available datasets</DialogTitle>
-      <DialogContent dividers>
+    <SideSheet open={open} onClose={onClose} title="Currently available datasets">
         {loading && (
           <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
             <CircularProgress />
@@ -179,11 +169,7 @@ export const DatasetsDialog = ({ open, onClose }: DatasetsDialogProps) => {
                 <DatasetTable datasets={cat.datasets} category={cat.label} />
               </Box>
             ))}
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose}>Close</Button>
-      </DialogActions>
-    </Dialog>
+    </SideSheet>
   );
 };
 
