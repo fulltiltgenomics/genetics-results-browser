@@ -11,7 +11,7 @@ ARG DATA_SOURCE
 WORKDIR /var/www/genetics-results-browser
 
 COPY package*.json ./
-RUN npm install
+RUN npm ci
 COPY . .
 COPY .env.${DEPLOY_ENV}.${DATA_SOURCE} .env
 COPY ./src/config.${DATA_SOURCE}.json ./src/config.json
