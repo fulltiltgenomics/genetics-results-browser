@@ -43,6 +43,16 @@ export const AboutDialog = ({ open, onClose }: AboutDialogProps) => {
       </Typography>
 
       <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
+        Beyond our own curated genetics datasets (see Datasets), I can pull live information
+        from external resources: gnomAD (population allele frequencies and gene constraint),
+        myvariant.info (ClinVar, CADD, PolyPhen-2, SIFT), and MGI (mouse knockout phenotypes
+        and orthologs), and HGNC gene annotations (including gene groups/families). I can also
+        search the scientific literature and the web, compute LD from the FinnGen reference
+        panel, draw PheWAS plots (limited to variants in credible sets, not non-significant
+        associations), and run custom queries against our results database.
+      </Typography>
+
+      <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
         By default, your chats are stored so we can improve me. Chats are not stored by us when you use the Secret Chat feature. We use Anthropic and Perplexity APIs that have their own privacy and data retention policies: <a target="_blank" href="https://privacy.claude.com">Anthropic</a>  <a target="_blank" href="https://docs.perplexity.ai/docs/resources/privacy-security">Perplexity</a>
       </Typography>
     </SideSheet>
