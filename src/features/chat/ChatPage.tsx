@@ -280,7 +280,7 @@ const ChatPage = () => {
       }
 
       try {
-        await saveMessage(sessionId, msg.id, msg.role, msg.content, contentJson, literatureBackend, toolProfile);
+        await saveMessage(sessionId, msg.id, msg.role, msg.content, contentJson, literatureBackend, toolProfile, msg.toolResultsJson);
       } catch (err) {
         console.error("Failed to save message:", err);
       }
@@ -302,6 +302,7 @@ const ChatPage = () => {
       messageContent?: any[] | null,
       literatureBackend?: string | null,
       toolProfile?: string | null,
+      toolResults?: any[] | null,
     ) => {
       if (isSecretChat) return;
       console.log("[handleStreamingComplete] literatureBackend:", literatureBackend, "toolProfile:", toolProfile);
@@ -318,11 +319,13 @@ const ChatPage = () => {
       // save assistant message with full content_json (includes tool calls), literature backend, and tool profile
       if (!savedMessageIds.current.has(assistantMessage.id) && assistantMessage.content.trim()) {
         const contentJson = messageContent ? JSON.stringify(messageContent) : null;
+        const toolResultsJson = toolResults ? JSON.stringify(toolResults) : null;
         await saveMessageToBackend(
           activeSessionId,
           {
             ...assistantMessage,
             contentJson,
+            toolResultsJson,
           },
           literatureBackend,
           toolProfile,
@@ -505,6 +508,7 @@ const ChatPage = () => {
         createdAt: m.createdAt,
         thumbsUp: m.thumbsUp,
         contentJson: m.contentJson,
+        toolResultsJson: m.toolResultsJson,
         attachments,
       };
     });

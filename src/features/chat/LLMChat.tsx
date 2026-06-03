@@ -424,12 +424,29 @@ export const LLMChat = ({
       const messageHistory = [
         ...messages
           .filter((m) => m.content.trim() !== "" || (m.attachments && m.attachments.length > 0))
-          .map((m) => {
+          .flatMap((m) => {
             // for assistant messages, use contentJson for full message structure (tool calls etc)
             if (m.role === "assistant" && m.contentJson) {
               try {
                 const parsed = JSON.parse(m.contentJson);
-                return { role: m.role, content: parsed };
+                const entries: any[] = [{ role: m.role, content: parsed }];
+                // replay persisted tool results so resumed conversations carry the
+                // actual tool data, not just the assistant's prose summary. The
+                // synthetic user turn answers the assistant's tool_use blocks; the
+                // backend pairs them by tool_use_id. Messages without toolResultsJson
+                // (older conversations) emit only the assistant entry, and the server
+                // strips the orphan tool_use blocks as before (backward compatible).
+                if (m.toolResultsJson) {
+                  try {
+                    const toolResults = JSON.parse(m.toolResultsJson);
+                    if (Array.isArray(toolResults) && toolResults.length > 0) {
+                      entries.push({ role: "user", content: toolResults });
+                    }
+                  } catch {
+                    // ignore malformed tool results; fall back to old behavior
+                  }
+                }
+                return entries;
               } catch {
                 // fall back to text content if parsing fails
               }
@@ -453,9 +470,9 @@ export const LLMChat = ({
               if (m.content.trim()) {
                 content.push({ type: "text", text: m.content });
               }
-              return { role: m.role, content };
+              return [{ role: m.role, content }];
             }
-            return { role: m.role, content: m.content };
+            return [{ role: m.role, content: m.content }];
           }),
       ];
 
@@ -510,6 +527,7 @@ export const LLMChat = ({
 
       let accumulatedContent = "";
       let messageContent: any[] | null = null;
+      let toolResults: any[] | null = null;
       let receivedDone = false;
       let streamError: string | null = null;
       let inactivityTimer: ReturnType<typeof setTimeout> | null = null;
@@ -584,6 +602,7 @@ export const LLMChat = ({
             } else if (data.type === "done") {
               receivedDone = true;
               messageContent = data.message_content || null;
+              toolResults = data.tool_results || null;
             } else if (data.type === "usage") {
               // only update if context grew (it should never shrink within a conversation)
               setContextUsage((prev) =>
@@ -620,7 +639,7 @@ export const LLMChat = ({
             role: "assistant",
             content: accumulatedContent,
           };
-          onStreamingComplete?.(userMsg, completedAssistantMsg, messageContent, literatureBackend, toolProfile);
+          onStreamingComplete?.(userMsg, completedAssistantMsg, messageContent, literatureBackend, toolProfile, toolResults);
 
           // check if this is the first exchange
           if (!hasTriggeredFirstExchange.current) {
@@ -640,7 +659,7 @@ export const LLMChat = ({
               role: "assistant",
               content: accumulatedContent,
             };
-            onStreamingComplete?.(userMsg, stoppedMsg, messageContent, literatureBackend, toolProfile);
+            onStreamingComplete?.(userMsg, stoppedMsg, messageContent, literatureBackend, toolProfile, toolResults);
             if (!hasTriggeredFirstExchange.current) {
               hasTriggeredFirstExchange.current = true;
               onFirstExchange?.(literatureBackend, toolProfile);

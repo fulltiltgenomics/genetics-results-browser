@@ -41,6 +41,7 @@ export interface ChatMessage {
   createdAt?: string;
   thumbsUp?: boolean | null;
   contentJson?: string | null; // JSON string of full message content blocks (for tool calls)
+  toolResultsJson?: string | null; // JSON string of tool_result blocks for this assistant turn
   literatureBackend?: string | null; // literature search backend used
   attachments?: FileAttachment[]; // file attachments (images, TSV, Excel)
 }
@@ -89,6 +90,7 @@ export interface LLMChatProps {
     messageContent?: any[] | null,
     literatureBackend?: string | null,
     toolProfile?: string | null,
+    toolResults?: any[] | null,
   ) => void;
 
   /** callback to rate a message */

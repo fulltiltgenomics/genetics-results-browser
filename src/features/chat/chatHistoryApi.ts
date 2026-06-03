@@ -31,6 +31,7 @@ export interface ChatMessageRecord {
   contentJson: string | null;
   literatureBackend: string | null;
   toolProfile: string | null;
+  toolResultsJson: string | null;
 }
 
 export interface SessionDetail extends ChatSession {
@@ -151,6 +152,7 @@ export async function saveMessage(
   contentJson?: string | null,
   literatureBackend?: string | null,
   toolProfile?: string | null,
+  toolResultsJson?: string | null,
 ): Promise<ChatMessageRecord> {
   const payload = {
     id: messageId,
@@ -159,6 +161,7 @@ export async function saveMessage(
     content_json: contentJson,
     literature_backend: literatureBackend,
     tool_profile: toolProfile,
+    tool_results_json: toolResultsJson,
   };
   console.log("[saveMessage] Saving with payload:", payload);
   const response = await fetch(`${chatUrl}/v1/chat/sessions/${sessionId}/messages`, {
@@ -221,6 +224,7 @@ function mapMessage(data: any): ChatMessageRecord {
     contentJson: data.content_json,
     literatureBackend: data.literature_backend,
     toolProfile: data.tool_profile,
+    toolResultsJson: data.tool_results_json,
   };
 }
 
