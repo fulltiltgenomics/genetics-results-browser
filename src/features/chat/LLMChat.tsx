@@ -1030,7 +1030,7 @@ export const LLMChat = ({
   if (!hasMessages) {
     return (
       <Box
-        sx={{ display: "flex", flexDirection: "column", height, alignItems: "center", position: "relative" }}
+        sx={{ display: "flex", flexDirection: "column", height, alignItems: "center", position: "relative", overflow: "auto" }}
         onDragEnter={handleDragEnter}
         onDragLeave={handleDragLeave}
         onDragOver={handleDragOver}
