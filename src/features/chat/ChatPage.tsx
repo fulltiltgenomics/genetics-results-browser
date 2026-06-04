@@ -196,6 +196,22 @@ const ChatPage = () => {
     }
   };
 
+  // reset to a blank, not-yet-persisted new chat at root; the session is created
+  // lazily on the first message (see handleFirstExchange), so the URL stays "/"
+  const handleGoHome = () => {
+    setIsSecretChat(false);
+    setSessionError(null);
+    inlineSessionIdRef.current = null;
+    isNewSession.current = false;
+    setLoadedMessages(undefined);
+    setActiveSession(null);
+    setActiveSessionId(null);
+    setChatKey(`new-${Date.now()}`);
+    savedMessageIds.current = new Set();
+    currentMessagesRef.current = [];
+    navigate("/");
+  };
+
   const handleNewSecretChat = () => {
     setIsSecretChat(true);
     setActiveSessionId(null);
@@ -594,7 +610,8 @@ const ChatPage = () => {
               component="img"
               src={finnGenieLogo}
               alt="FinnGenie"
-              sx={{ height: { xs: 28, md: 60 }, flexShrink: 0 }}
+              onClick={handleGoHome}
+              sx={{ height: { xs: 28, md: 60 }, flexShrink: 0, cursor: "pointer" }}
             />
             <Box
               sx={{
