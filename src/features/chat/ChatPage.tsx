@@ -5,6 +5,7 @@ import { VisibilityOff, Share as ShareIcon, LinkOff as LinkOffIcon, ForkRight as
 import MenuIcon from "@mui/icons-material/Menu";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import finnGenieLogo from "../../assets/finngenie-leonardo-gemini-2.5-flash-recraft-vectorized-claude-cropped.svg";
+import { APP_NAME } from "../../config/appName";
 import { LLMChat } from "./LLMChat";
 import { ChatHistorySidebar } from "./ChatHistorySidebar";
 import { SessionRating } from "./SessionRating";
@@ -613,7 +614,7 @@ const ChatPage = () => {
             <Box
               component="img"
               src={finnGenieLogo}
-              alt="FinnGenie"
+              alt={APP_NAME}
               onClick={handleGoHome}
               sx={{ height: { xs: 28, md: 60 }, flexShrink: 0, cursor: "pointer" }}
             />
@@ -641,7 +642,7 @@ const ChatPage = () => {
                   noWrap={isMobile}
                   sx={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}
                 >
-                  {isSecretChat ? "Secret Chat" : activeSession?.title || "FinnGenie"}
+                  {isSecretChat ? "Secret Chat" : activeSession?.title || APP_NAME}
                 </Typography>
                 {isSecretChat && (
                   <Chip
@@ -870,7 +871,7 @@ const ChatPage = () => {
                 onStreamingComplete={handleStreamingComplete}
                 onRateMessage={isSecretChat ? undefined : handleRateMessage}
                 placeholder="Ask about phenotypes, genes, variants..."
-                emptyStateTitle="Welcome to FinnGenie"
+                emptyStateTitle={`Welcome to ${APP_NAME}`}
                 emptyStateDescription=""
                 height="100%"
                 exampleQuestions={[
@@ -904,7 +905,7 @@ const ChatPage = () => {
         color="text.secondary"
         sx={{ textAlign: "center", px: 2, py: { xs: 0.5, md: 1 }, display: isShort ? "none" : "block" }}
       >
-        FinnGenie is an AI tool intended to assist exploration, not replace expert judgment. It may
+        {APP_NAME} is an AI tool intended to assist exploration, not replace expert judgment. It may
         generate incorrect or misleading information. Always validate findings against authoritative
         sources before use in research.
       </Typography>

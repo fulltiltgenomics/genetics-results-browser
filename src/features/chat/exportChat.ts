@@ -1,5 +1,6 @@
 import { marked } from "marked";
 import type { ChatMessage } from "./chat.types";
+import { APP_NAME } from "../../config/appName";
 
 const IMAGE_MARKER_REGEX = /\[IMAGE:([^:]+):([^:]+):([^\]]+)\]/g;
 
@@ -9,7 +10,7 @@ const IMAGE_MARKER_REGEX = /\[IMAGE:([^:]+):([^:]+):([^\]]+)\]/g;
  */
 export function buildChatMarkdown(messages: ChatMessage[]): string {
   const parts = messages.map((msg) => {
-    const role = msg.role === "user" ? "## User" : "## FinnGenie";
+    const role = msg.role === "user" ? "## User" : `## ${APP_NAME}`;
     let content = msg.content.replace(
       IMAGE_MARKER_REGEX,
       (_match, format, alt, base64Data) => `![${alt}](data:image/${format};base64,${base64Data})`,

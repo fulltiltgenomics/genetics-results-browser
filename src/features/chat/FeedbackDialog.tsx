@@ -14,6 +14,7 @@ import {
 } from "@mui/material";
 import { Delete as DeleteIcon } from "@mui/icons-material";
 import { SideSheet } from "../../components/SideSheet";
+import { APP_NAME } from "../../config/appName";
 import { getUserComments, addUserComment, deleteUserComment, type UserComment } from "./llmConfigApi";
 
 interface FeedbackDialogProps {
@@ -89,8 +90,8 @@ export const FeedbackDialog = ({ open, onClose }: FeedbackDialogProps) => {
         )}
 
         <Typography variant="body2" color="text.secondary" sx={{ mt: 1, mb: 2 }}>
-          Leave any comments, feedback, or notes about your experience with FinnGenie. This helps us
-          understand how FinnGenie is being used and how we can improve it.
+          Leave any comments, feedback, or notes about your experience with {APP_NAME}. This helps us
+          understand how {APP_NAME} is being used and how we can improve it.
         </Typography>
 
         <TextField

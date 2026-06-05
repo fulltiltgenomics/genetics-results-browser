@@ -3,6 +3,7 @@ import { Search as SearchIcon } from "@mui/icons-material";
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { LLMChat } from "../chat";
+import { APP_NAME } from "../../config/appName";
 import api from "../../store/api";
 import type { PhenotypeMarkdown } from "./phenotype.types";
 
@@ -66,7 +67,7 @@ const PhenotypeContainer = () => {
       </Typography>
 
       <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
-        Input a phenotype code to chat about association results with FinnGenie.
+        Input a phenotype code to chat about association results with {APP_NAME}.
       </Typography>
 
       <Paper sx={{ p: 2, mb: 3, display: "flex", gap: 2, alignItems: "flex-start" }}>
