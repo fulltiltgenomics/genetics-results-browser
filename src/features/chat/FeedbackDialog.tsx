@@ -1,9 +1,5 @@
 import { useState, useEffect } from "react";
 import {
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   Button,
   TextField,
   Typography,
@@ -14,10 +10,10 @@ import {
   ListItem,
   ListItemText,
   ListItemSecondaryAction,
-  useMediaQuery,
   useTheme,
 } from "@mui/material";
 import { Delete as DeleteIcon } from "@mui/icons-material";
+import { SideSheet } from "../../components/SideSheet";
 import { getUserComments, addUserComment, deleteUserComment, type UserComment } from "./llmConfigApi";
 
 interface FeedbackDialogProps {
@@ -27,7 +23,6 @@ interface FeedbackDialogProps {
 
 export const FeedbackDialog = ({ open, onClose }: FeedbackDialogProps) => {
   const theme = useTheme();
-  const isXs = useMediaQuery(theme.breakpoints.down("sm"));
   const [comments, setComments] = useState<UserComment[]>([]);
   const [newComment, setNewComment] = useState("");
   const [saving, setSaving] = useState(false);
@@ -86,9 +81,7 @@ export const FeedbackDialog = ({ open, onClose }: FeedbackDialogProps) => {
   };
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth fullScreen={isXs}>
-      <DialogTitle>Feedback</DialogTitle>
-      <DialogContent>
+    <SideSheet open={open} onClose={onClose} title="Feedback">
         {error && (
           <Alert severity="error" sx={{ mb: 2 }} onClose={() => setError(null)}>
             {error}
@@ -156,10 +149,6 @@ export const FeedbackDialog = ({ open, onClose }: FeedbackDialogProps) => {
             </>
           )
         )}
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose}>Close</Button>
-      </DialogActions>
-    </Dialog>
+    </SideSheet>
   );
 };

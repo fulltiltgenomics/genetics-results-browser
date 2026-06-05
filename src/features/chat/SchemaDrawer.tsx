@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from "react";
 import {
-  Drawer,
   Box,
   Typography,
   IconButton,
@@ -27,11 +26,11 @@ import {
   useMediaQuery,
   useTheme,
 } from "@mui/material";
-import CloseIcon from "@mui/icons-material/Close";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import CheckIcon from "@mui/icons-material/Check";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import { SideSheet } from "../../components/SideSheet";
 import {
   useSchema,
   type TableMeta,
@@ -45,12 +44,19 @@ interface SchemaDrawerProps {
   onClose: () => void;
   selectedView: string | null;
   onSelectView: (name: string) => void;
+  // clear the selection and return to the overview pane (without closing the drawer)
+  onShowOverview: () => void;
 }
 
-const DRAWER_WIDTH = 720;
 const RAIL_WIDTH = 220;
 
-export const SchemaDrawer = ({ open, onClose, selectedView, onSelectView }: SchemaDrawerProps) => {
+export const SchemaDrawer = ({
+  open,
+  onClose,
+  selectedView,
+  onSelectView,
+  onShowOverview,
+}: SchemaDrawerProps) => {
   const { data, isPending, isError, error, refetch } = useSchema();
   const theme = useTheme();
   const isXs = useMediaQuery(theme.breakpoints.down("sm"));
@@ -71,7 +77,8 @@ export const SchemaDrawer = ({ open, onClose, selectedView, onSelectView }: Sche
     if (selectedView) setXsShowDetail(true);
   }, [open, selectedView]);
 
-  const xsDetailVisible = isXs && xsShowDetail && !!selectedTable;
+  // detail pane holds either a table's detail or the overview; on xs it's one pane at a time
+  const xsDetailVisible = isXs && xsShowDetail;
   const railVisible = !isXs || !xsDetailVisible;
   const detailVisible = !isXs || xsDetailVisible;
 
@@ -80,35 +87,27 @@ export const SchemaDrawer = ({ open, onClose, selectedView, onSelectView }: Sche
     if (isXs) setXsShowDetail(true);
   };
 
+  const handleShowOverview = () => {
+    onShowOverview();
+    if (isXs) setXsShowDetail(true);
+  };
+
   return (
-    <Drawer
-      anchor="right"
-      variant="temporary"
+    <SideSheet
       open={open}
       onClose={onClose}
-      PaperProps={{ sx: { width: { xs: "100%", sm: DRAWER_WIDTH }, maxWidth: "100vw" } }}
+      disableContentPadding
+      title={
+        !xsDetailVisible ? "Database tables" : selectedTable ? selectedTable.name : "Schema overview"
+      }
+      headerLeading={
+        xsDetailVisible && (
+          <IconButton onClick={() => setXsShowDetail(false)} size="small" aria-label="back to list">
+            <ArrowBackIcon />
+          </IconButton>
+        )
+      }
     >
-      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", px: 2, py: 1.5 }}>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0 }}>
-          {xsDetailVisible && (
-            <IconButton
-              onClick={() => setXsShowDetail(false)}
-              size="small"
-              aria-label="back to list"
-            >
-              <ArrowBackIcon />
-            </IconButton>
-          )}
-          <Typography variant="h6" noWrap>
-            {xsDetailVisible && selectedTable ? selectedTable.name : "Database tables"}
-          </Typography>
-        </Box>
-        <IconButton onClick={onClose} size="small" aria-label="close">
-          <CloseIcon />
-        </IconButton>
-      </Box>
-      <Divider />
-
       {isPending && <LoadingState />}
 
       {isError && (
@@ -136,7 +135,7 @@ export const SchemaDrawer = ({ open, onClose, selectedView, onSelectView }: Sche
               </Button>
             }
           >
-            No tables could be loaded from BigQuery. The database service is reachable but
+            No tables could be loaded from the database. The database service is reachable but
             its schema queries are failing — check credentials and PROJECT_ID/DATASET_ID on
             the genetics-results-db service.
           </Alert>
@@ -162,6 +161,15 @@ export const SchemaDrawer = ({ open, onClose, selectedView, onSelectView }: Sche
               <SchemaWarnings warnings={data.warnings} sx={{ m: 1 }} />
             )}
             <List dense disablePadding>
+              <ListItem disablePadding>
+                <ListItemButton selected={!selectedTable} onClick={handleShowOverview}>
+                  <ListItemText
+                    primary="Overview"
+                    primaryTypographyProps={{ sx: { fontSize: "0.85rem" } }}
+                  />
+                </ListItemButton>
+              </ListItem>
+              <Divider component="li" />
               {data.tables.map((table) => (
                 <ListItem key={table.name} disablePadding>
                   <ListItemButton
@@ -194,14 +202,12 @@ export const SchemaDrawer = ({ open, onClose, selectedView, onSelectView }: Sche
             {selectedTable ? (
               <TableDetail table={selectedTable} />
             ) : (
-              <Typography variant="body2" color="text.secondary">
-                Select a table from the list to see its columns and example queries.
-              </Typography>
+              <SchemaOverview tableCount={data.tables.length} />
             )}
           </Box>
         </Box>
       )}
-    </Drawer>
+    </SideSheet>
   );
 };
 
@@ -214,7 +220,7 @@ const SchemaWarnings = ({
 }) => (
   <Alert severity="warning" sx={sx}>
     <Typography variant="body2" sx={{ fontWeight: 600, mb: 0.5 }}>
-      {warnings.length === 1 ? "1 view failed to load:" : `${warnings.length} views failed to load:`}
+      {warnings.length === 1 ? "1 table failed to load:" : `${warnings.length} tables failed to load:`}
     </Typography>
     {warnings.map((w) => (
       <Typography
@@ -235,6 +241,41 @@ const LoadingState = () => (
     <Skeleton variant="rectangular" height={32} sx={{ my: 1 }} />
     <Skeleton variant="rectangular" height={32} sx={{ my: 1 }} />
     <Skeleton variant="rectangular" height={200} sx={{ mt: 2 }} />
+  </Box>
+);
+
+const SchemaOverview = ({ tableCount }: { tableCount: number }) => (
+  <Box sx={{ maxWidth: 560 }}>
+    <Typography variant="h6" gutterBottom>
+      About these tables
+    </Typography>
+    <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+      Here you can browse the {tableCount} tables FinnGenie can read from the database.
+    </Typography>
+    <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+      For questions about a specific gene, variant, or phenotype, FinnGenie usually uses its
+      built-in tools. It queries these tables directly when a question needs aggregating or
+      comparing data across the whole dataset — for example counts, summaries, or cross-dataset
+      comparisons that the other tools can't express.
+    </Typography>
+    <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+      Either way, browsing here lets you double-check what data FinnGenie has access to and
+      understand exactly what each field means.
+    </Typography>
+    <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
+      Select a table on the left to see:
+    </Typography>
+    <Box component="ul" sx={{ m: 0, mb: 1.5, pl: 3 }}>
+      <Typography component="li" variant="body2" color="text.secondary">
+        its columns, with types and descriptions
+      </Typography>
+      <Typography component="li" variant="body2" color="text.secondary">
+        the allowed values for categorical fields
+      </Typography>
+      <Typography component="li" variant="body2" color="text.secondary">
+        example SQL queries you can ask FinnGenie to run or adapt
+      </Typography>
+    </Box>
   </Box>
 );
 

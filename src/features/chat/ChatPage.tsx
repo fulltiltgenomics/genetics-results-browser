@@ -211,6 +211,22 @@ const ChatPage = () => {
     }
   };
 
+  // reset to a blank, not-yet-persisted new chat at root; the session is created
+  // lazily on the first message (see handleFirstExchange), so the URL stays "/"
+  const handleGoHome = () => {
+    setIsSecretChat(false);
+    setSessionError(null);
+    inlineSessionIdRef.current = null;
+    isNewSession.current = false;
+    setLoadedMessages(undefined);
+    setActiveSession(null);
+    setActiveSessionId(null);
+    setChatKey(`new-${Date.now()}`);
+    savedMessageIds.current = new Set();
+    currentMessagesRef.current = [];
+    navigate("/");
+  };
+
   const handleNewSecretChat = () => {
     setIsSecretChat(true);
     setSeedInput(undefined);
@@ -297,7 +313,7 @@ const ChatPage = () => {
       }
 
       try {
-        await saveMessage(sessionId, msg.id, msg.role, msg.content, contentJson, literatureBackend, toolProfile);
+        await saveMessage(sessionId, msg.id, msg.role, msg.content, contentJson, literatureBackend, toolProfile, msg.toolResultsJson);
       } catch (err) {
         console.error("Failed to save message:", err);
       }
@@ -319,6 +335,7 @@ const ChatPage = () => {
       messageContent?: any[] | null,
       literatureBackend?: string | null,
       toolProfile?: string | null,
+      toolResults?: any[] | null,
     ) => {
       if (isSecretChat) return;
       console.log("[handleStreamingComplete] literatureBackend:", literatureBackend, "toolProfile:", toolProfile);
@@ -335,11 +352,13 @@ const ChatPage = () => {
       // save assistant message with full content_json (includes tool calls), literature backend, and tool profile
       if (!savedMessageIds.current.has(assistantMessage.id) && assistantMessage.content.trim()) {
         const contentJson = messageContent ? JSON.stringify(messageContent) : null;
+        const toolResultsJson = toolResults ? JSON.stringify(toolResults) : null;
         await saveMessageToBackend(
           activeSessionId,
           {
             ...assistantMessage,
             contentJson,
+            toolResultsJson,
           },
           literatureBackend,
           toolProfile,
@@ -523,6 +542,7 @@ const ChatPage = () => {
         createdAt: m.createdAt,
         thumbsUp: m.thumbsUp,
         contentJson: m.contentJson,
+        toolResultsJson: m.toolResultsJson,
         attachments,
       };
     });
@@ -612,7 +632,8 @@ const ChatPage = () => {
               component="img"
               src={finnGenieLogo}
               alt="FinnGenie"
-              sx={{ height: { xs: 28, md: 60 }, flexShrink: 0 }}
+              onClick={handleGoHome}
+              sx={{ height: { xs: 28, md: 60 }, flexShrink: 0, cursor: "pointer" }}
             />
             <Box
               sx={{
@@ -916,6 +937,7 @@ const ChatPage = () => {
         onClose={schemaRoute.close}
         selectedView={schemaRoute.selectedView}
         onSelectView={schemaRoute.openTo}
+        onShowOverview={schemaRoute.clearSelection}
       />
       <Popover
         open={sharePopoverOpen}

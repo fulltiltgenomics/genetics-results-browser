@@ -1,9 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
 import {
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   Button,
   TextField,
   Typography,
@@ -19,6 +15,7 @@ import {
 } from "@mui/material";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import DeleteIcon from "@mui/icons-material/Delete";
+import { SideSheet } from "../../components/SideSheet";
 import { createToken, listTokens, revokeToken, type TokenInfo } from "../chat/tokenApi";
 
 interface McpTokenDialogProps {
@@ -86,9 +83,7 @@ const McpTokenDialog = ({ open, onClose }: McpTokenDialogProps) => {
   const origin = window.location.origin;
 
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
-      <DialogTitle>MCP and API Keys</DialogTitle>
-      <DialogContent>
+    <SideSheet open={open} onClose={onClose} title="MCP and API Keys">
         {error && (
           <Alert severity="error" sx={{ mb: 2 }}>
             {error}
@@ -258,11 +253,7 @@ const McpTokenDialog = ({ open, onClose }: McpTokenDialogProps) => {
             See <a href={`${origin}/api/v1/docs`} target="_blank" rel="noreferrer">API docs</a> for available API endpoints.
           </Typography>
           </Box>
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose}>Close</Button>
-      </DialogActions>
-    </Dialog>
+    </SideSheet>
   );
 };
 

@@ -8,6 +8,7 @@ interface SchemaHashRoute {
   selectedView: string | null;
   openTo: (name: string) => void;
   openEmpty: () => void;
+  clearSelection: () => void;
   close: () => void;
 }
 
@@ -80,6 +81,14 @@ export function useSchemaHashRoute(knownViews: string[] | undefined): SchemaHash
     setOpen(true);
   }, []);
 
+  // return to the overview pane without closing the drawer; drop the view from the hash if it's ours
+  const clearSelection = useCallback(() => {
+    setSelectedView(null);
+    if (HASH_PATTERN.test(window.location.hash)) {
+      _replaceHash("");
+    }
+  }, []);
+
   const close = useCallback(() => {
     setOpen(false);
     // only clear hash if it currently belongs to us; avoid stomping unrelated hashes
@@ -88,5 +97,5 @@ export function useSchemaHashRoute(knownViews: string[] | undefined): SchemaHash
     }
   }, []);
 
-  return { open, selectedView, openTo, openEmpty, close };
+  return { open, selectedView, openTo, openEmpty, clearSelection, close };
 }
