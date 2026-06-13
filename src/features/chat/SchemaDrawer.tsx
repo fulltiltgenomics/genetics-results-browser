@@ -31,6 +31,7 @@ import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import CheckIcon from "@mui/icons-material/Check";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import { SideSheet } from "../../components/SideSheet";
+import { APP_NAME } from "../../config/appName";
 import {
   useSchema,
   type TableMeta,
@@ -250,16 +251,16 @@ const SchemaOverview = ({ tableCount }: { tableCount: number }) => (
       About these tables
     </Typography>
     <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-      Here you can browse the {tableCount} tables FinnGenie can read from the database.
+      Here you can browse the {tableCount} tables {APP_NAME} can read from the database.
     </Typography>
     <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-      For questions about a specific gene, variant, or phenotype, FinnGenie usually uses its
+      For questions about a specific gene, variant, or phenotype, {APP_NAME} usually uses its
       built-in tools. It queries these tables directly when a question needs aggregating or
       comparing data across the whole dataset — for example counts, summaries, or cross-dataset
       comparisons that the other tools can't express.
     </Typography>
     <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-      Either way, browsing here lets you double-check what data FinnGenie has access to and
+      Either way, browsing here lets you double-check what data {APP_NAME} has access to and
       understand exactly what each field means.
     </Typography>
     <Typography variant="body2" color="text.secondary" sx={{ mb: 0.5 }}>
@@ -273,7 +274,7 @@ const SchemaOverview = ({ tableCount }: { tableCount: number }) => (
         the allowed values for categorical fields
       </Typography>
       <Typography component="li" variant="body2" color="text.secondary">
-        example SQL queries you can ask FinnGenie to run or adapt
+        example SQL queries you can ask {APP_NAME} to run or adapt
       </Typography>
     </Box>
   </Box>

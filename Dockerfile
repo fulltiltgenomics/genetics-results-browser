@@ -4,9 +4,11 @@ LABEL maintainer="Juha Karjalainen <jkarjala@broadinstitute.org>"
 RUN apt-get update && apt-get install -y nginx libz-dev libbz2-dev liblzma-dev zlib1g-dev libpcre2-dev libssl-dev libcurl4-openssl-dev bzip2 gcc g++ make
 
 # dev or prod
-ARG DEPLOY_ENV 
+ARG DEPLOY_ENV
 # finngen or public
 ARG DATA_SOURCE
+# product/brand name shown in UI (e.g. FinnGenie, GeneGenie)
+ARG APP_NAME=FinnGenie
 
 WORKDIR /var/www/genetics-results-browser
 
@@ -15,6 +17,7 @@ RUN npm ci
 COPY . .
 COPY .env.${DEPLOY_ENV}.${DATA_SOURCE} .env
 COPY ./src/config.${DATA_SOURCE}.json ./src/config.json
+RUN echo "VITE_APP_NAME=${APP_NAME}" >> .env
 RUN npm run build
 COPY nginx.${DEPLOY_ENV}.conf /etc/nginx/conf.d/default.conf 
 

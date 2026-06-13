@@ -16,6 +16,7 @@ import {
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import DeleteIcon from "@mui/icons-material/Delete";
 import { SideSheet } from "../../components/SideSheet";
+import { APP_NAME } from "../../config/appName";
 import { createToken, listTokens, revokeToken, type TokenInfo } from "../chat/tokenApi";
 
 interface McpTokenDialogProps {
@@ -174,7 +175,7 @@ const McpTokenDialog = ({ open, onClose }: McpTokenDialogProps) => {
             MCP access
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            Use this configuration to add FinnGenie MCP to Claude, Cursor, etc. Replace &lt;TOKEN&gt; with a created key:
+            Use this configuration to add {APP_NAME} MCP to Claude, Cursor, etc. Replace &lt;TOKEN&gt; with a created key:
           </Typography>
           <Box
             component="pre"

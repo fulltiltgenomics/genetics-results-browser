@@ -36,6 +36,7 @@ import type { PluggableList } from "unified";
 import { fetchEventSource } from "@microsoft/fetch-event-source";
 import type { ChatMessage, LLMChatProps, LiteratureBackend, ToolProfile, PendingAttachment, FileAttachment, ContextUsage } from "./chat.types";
 import { MessageRating } from "./MessageRating";
+import { APP_NAME } from "../../config/appName";
 import { PendingAttachments, MessageAttachments } from "./FileAttachments";
 import { getAttachmentType, isValidAttachmentType } from "./chatHistoryApi";
 import { useSchema } from "./schemaApi";
@@ -1217,7 +1218,7 @@ export const LLMChat = ({
                     display: "block",
                     opacity: 0.8,
                   }}>
-                  {message.role === "user" ? "You" : "FinnGenie"}
+                  {message.role === "user" ? "You" : APP_NAME}
                 </Typography>
                 {message.attachments && message.attachments.length > 0 && (
                   <MessageAttachments

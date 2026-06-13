@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Typography } from "@mui/material";
 import { SideSheet } from "../../components/SideSheet";
+import { APP_NAME } from "../../config/appName";
 
 interface AboutDialogProps {
   open: boolean;
@@ -29,7 +30,7 @@ export const AboutDialog = ({ open, onClose }: AboutDialogProps) => {
   }, [open]);
 
   return (
-    <SideSheet open={open} onClose={onClose} title="About FinnGenie">
+    <SideSheet open={open} onClose={onClose} title={`About ${APP_NAME}`}>
       <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
         I can help you explore and interpret human genetics results. Ask me about phenotypes, genes,
         variants, biological interpretations, and more.
