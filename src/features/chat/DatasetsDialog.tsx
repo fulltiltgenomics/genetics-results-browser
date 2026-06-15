@@ -75,6 +75,10 @@ const categories: Category[] = [
       d.products?.credible_sets !== undefined,
   },
   {
+    label: "asmQTL sumstats",
+    filter: (d) => d.data_type === "asmqtl",
+  },
+  {
     label: "Colocalization-only",
     filter: (d) => {
       const keys = Object.keys(d.products || {});
@@ -127,16 +131,13 @@ export const DatasetsDialog = ({ open, onClose }: DatasetsDialogProps) => {
     datasets: datasets.filter(cat.filter),
   }));
 
-  // insert uncategorized datasets (asmQTL sumstats) right after the QTL credible sets table
+  // surface any dataset not matched by a category above under "Other" so nothing
+  // silently disappears from the dialog (normally empty once products are correct).
   const shown = new Set(categorized.flatMap((c) => c.datasets.map((d) => d.dataset_id)));
   const uncategorized = datasets.filter((d) => !shown.has(d.dataset_id));
   if (uncategorized.length > 0) {
-    const qtlIdx = categorized.findIndex((c) =>
-      c.label.startsWith("QTL credible sets")
-    );
-    const insertAt = qtlIdx >= 0 ? qtlIdx + 1 : categorized.length;
-    categorized.splice(insertAt, 0, {
-      label: "asmQTL sumstats",
+    categorized.push({
+      label: "Other",
       datasets: uncategorized,
       filter: () => false,
     });
