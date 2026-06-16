@@ -69,10 +69,10 @@ const categories: Category[] = [
     filter: (d) => d.data_type === "gene_based",
   },
   {
-    label: "QTL credible sets (eQTL / pQTL / caQTL / sQTL)",
+    label: "QTL datasets (eQTL / pQTL / caQTL / sQTL)",
     filter: (d) =>
       ["eqtl", "pqtl", "caqtl", "sqtl", "metaboqtl", "mixed"].includes(d.data_type) &&
-      d.products?.credible_sets !== undefined,
+      (d.products?.credible_sets !== undefined || d.products?.summary_stats !== undefined),
   },
   {
     label: "asmQTL sumstats",
@@ -177,17 +177,17 @@ export const DatasetsDialog = ({ open, onClose }: DatasetsDialogProps) => {
 const DatasetTable = ({ datasets, category }: { datasets: Dataset[]; category: string }) => {
   const showCredibleSets =
     category === "GWAS credible sets" ||
-    category === "QTL credible sets (eQTL / pQTL / caQTL / sQTL)";
+    category === "QTL datasets (eQTL / pQTL / caQTL / sQTL)";
   const showQtlTypes =
     category !== "Colocalization-only" && datasets.some((d) => d.qtl_types);
   const showSumstats = [
     "GWAS credible sets",
-    "QTL credible sets (eQTL / pQTL / caQTL / sQTL)",
+    "QTL datasets (eQTL / pQTL / caQTL / sQTL)",
     "asmQTL sumstats",
   ].includes(category);
   const showColoc = datasets.some((d) => (d.products as Record<string, unknown>)?.colocalization);
   const showStats =
-    category !== "QTL credible sets (eQTL / pQTL / caQTL / sQTL)" &&
+    category !== "QTL datasets (eQTL / pQTL / caQTL / sQTL)" &&
     datasets.some(
       (d) => d.stats?.n_phenotypes || d.stats?.n_subdatasets || d.n_phenotypes != null
     );
