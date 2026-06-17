@@ -294,7 +294,7 @@ const DatasetTable = ({ datasets, category }: { datasets: Dataset[]; category: s
                       >
                         <Chip
                           size="small"
-                          label={partners.length + " partners"}
+                          label={partners.length + (partners.length === 1 ? " partner" : " partners")}
                           variant="outlined"
                           sx={{ cursor: "help" }}
                         />
