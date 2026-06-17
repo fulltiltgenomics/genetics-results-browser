@@ -55,7 +55,7 @@ import {
   type UsageDataPoint,
   type FeedbackItem,
 } from "./adminApi";
-import { formatRelativeTime } from "./utils";
+import { fillUsageGaps, formatRelativeTime } from "./utils";
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, ChartTooltip, Legend);
 
@@ -257,19 +257,20 @@ export default function AdminPage() {
     }
   };
 
+  const chartSeries = fillUsageGaps(analyticsData);
   const chartData = {
-    labels: analyticsData.map((d) => d.date),
+    labels: chartSeries.map((d) => d.date),
     datasets: [
       {
         label: "Conversations",
-        data: analyticsData.map((d) => d.conversations),
+        data: chartSeries.map((d) => d.conversations),
         borderColor: "rgb(63, 81, 181)",
         backgroundColor: "rgba(63, 81, 181, 0.1)",
         tension: 0.3,
       },
       {
         label: "Unique Users",
-        data: analyticsData.map((d) => d.unique_users),
+        data: chartSeries.map((d) => d.unique_users),
         borderColor: "rgb(233, 30, 99)",
         backgroundColor: "rgba(233, 30, 99, 0.1)",
         tension: 0.3,
