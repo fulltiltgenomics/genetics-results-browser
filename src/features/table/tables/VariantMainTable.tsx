@@ -1,5 +1,4 @@
-import { Box, MenuItem, useTheme } from "@mui/material";
-import ChatIcon from "@mui/icons-material/ChatBubbleOutline";
+import { Box, useTheme } from "@mui/material";
 import { MaterialReactTable, MRT_SortingState } from "material-react-table";
 import { useNavigate } from "react-router-dom";
 import { naInfSort, variantSort } from "../utils/sorting";
@@ -10,7 +9,7 @@ import { getVariantMainTableColumnsNormalized } from "./VariantMainTable.columns
 import { useDataStore } from "../../../store/store";
 import { useNormalizedQuery } from "../../../store/serverQuery";
 import { useChatSeedStore } from "../../../store/store.chatSeed";
-import { cleanConsequence } from "../utils/tableutil";
+import { cleanConsequence, formatTraitName } from "../utils/tableutil";
 
 // build a concise, context-rich chat prompt from a variant row for the annotation -> chat hand-off
 const buildVariantSeed = (row: VariantResult): string => {
@@ -46,18 +45,39 @@ const VariantMainTable = (props: {
 
   const [sorting, setSorting] = useState<MRT_SortingState>([]);
 
+  // seed the assistant chat from a variant row and route to /chat (triggered by the inline speech
+  // bubble in the variant column — replaces the former row-actions menu).
+  const askAssistant = (row: VariantResult) => {
+    setChatSeed(buildVariantSeed(row));
+    navigate("/chat");
+  };
+
+  // resolve a credible set's resource+trait to its human-readable phenostring (BFF-populated from
+  // trait_name_mapping); falls back to the raw trait id for QTL gene symbols / unmapped codes.
+  // underscores -> spaces for display (covers the top-association column and the detail table).
+  const phenotypes = normalizedData?.phenotypes;
+  const traitName = (resource: string, trait: string): string =>
+    formatTraitName(phenotypes?.[`${resource}|${trait}`]?.phenostring ?? trait);
+
   const columns = useMemo(
     () =>
       getVariantMainTableColumnsNormalized(
         selectedPopulation,
         props.showTraitCounts,
         normalizedData?.hasBetas ?? false,
-        normalizedData?.hasCustomValues ?? false
+        normalizedData?.hasCustomValues ?? false,
+        askAssistant,
+        traitName
       ),
-    [selectedPopulation, props.showTraitCounts, normalizedData?.hasBetas, normalizedData?.hasCustomValues]
+    [selectedPopulation, props.showTraitCounts, normalizedData?.hasBetas, normalizedData?.hasCustomValues, phenotypes]
   );
 
-  const tableData: VariantResult[] = props.data ?? filteredVariants;
+  // only show variants that are a member of at least one credible set after stage-2 filtering, so
+  // toggling resources / data types / thresholds visibly changes the rows (mirrors the legacy table,
+  // which dropped variants with no passing associations).
+  const tableData: VariantResult[] = (props.data ?? filteredVariants).filter(
+    (v) => v.credibleSets.length > 0
+  );
 
   return (
     <MaterialReactTable
@@ -68,33 +88,17 @@ const VariantMainTable = (props: {
       // BFF /v1/results now returns NormalizedResponse and the legacy export path reads the old
       // top-level data.data shape, so it always errors. csv/tsv export is migrated in its own task.
       enableColumnFilterModes
-      // per-row "ask the assistant" hand-off: seed the chat with a variant-context prompt, then
-      // route to /chat where ChatPage consumes the seed and prefills the input (no auto-send).
-      enableRowActions
-      positionActionsColumn="first"
-      renderRowActionMenuItems={({ row, closeMenu }) => [
-        <MenuItem
-          key="ask-assistant"
-          onClick={() => {
-            setChatSeed(buildVariantSeed(row.original));
-            closeMenu();
-            navigate("/chat");
-          }}>
-          <ChatIcon fontSize="small" sx={{ mr: 1 }} />
-          Ask the assistant
-        </MenuItem>,
-      ]}
       initialState={{
         showColumnFilters: true,
         density: "compact",
-        columnOrder: ["mrt-row-expand", "mrt-row-actions"].concat(columns.map((c) => c.id!)),
+        columnOrder: ["mrt-row-expand"].concat(columns.map((c) => c.id!)),
       }}
       state={{
         isLoading,
         showAlertBanner: isError,
         showProgressBars: isFetching,
         pagination,
-        columnOrder: ["mrt-row-expand", "mrt-row-actions"].concat(columns.map((c) => c.id!)),
+        columnOrder: ["mrt-row-expand"].concat(columns.map((c) => c.id!)),
         sorting,
       }}
       onSortingChange={setSorting}
@@ -104,7 +108,7 @@ const VariantMainTable = (props: {
       getRowId={(row) => row.variant}
       renderDetailPanel={({ row }) => (
         <Box sx={{ margin: "auto", width: "100%" }}>
-          <VariantCredibleSetTable data={row.original} />
+          <VariantCredibleSetTable data={row.original} traitName={traitName} />
         </Box>
       )}
       muiTableProps={{ sx: { tableLayout: "fixed" } }}
