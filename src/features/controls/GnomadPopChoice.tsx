@@ -1,23 +1,41 @@
 import { Autocomplete, TextField } from "@mui/material";
-import { TableData } from "../../types/types";
 import { useDataStore } from "../../store/store";
+import { GnomadPop } from "../../types/types.normalized";
+
+// gnomAD populations carried by the new credible-set API (GnomadFreq.byPop). the legacy options came
+// from the dead clientData.meta.gnomad.populations, which is undefined on the normalized path — so
+// the dropdown was empty. these codes match the AF the variant table reads for the selected pop.
+const POPULATIONS: { code: GnomadPop; label: string }[] = [
+  { code: "afr", label: "African / African American" },
+  { code: "amr", label: "Admixed American" },
+  { code: "asj", label: "Ashkenazi Jewish" },
+  { code: "eas", label: "East Asian" },
+  { code: "fin", label: "Finnish" },
+  { code: "mid", label: "Middle Eastern" },
+  { code: "nfe", label: "European (non-Finnish)" },
+  { code: "remaining", label: "Remaining" },
+  { code: "sas", label: "South Asian" },
+];
+
+const POP_LABEL = new Map(POPULATIONS.map((p) => [p.code as string, p.label]));
 
 const GnomadPopChoice = (props: { isNotReadyYet: boolean }) => {
-  const clientData: TableData | undefined = useDataStore((state) => state.clientData);
   const setSelectedPopulation = useDataStore((state) => state.setSelectedPopulation);
+  const selectedPopulation = useDataStore((state) => state.selectedPopulation);
 
   return (
     <Autocomplete
-      sx={{ width: 200, paddingLeft: "20px" }}
+      sx={{ width: 320, paddingLeft: "20px" }}
       disabled={props.isNotReadyYet}
-      id="phenotype-select"
-      options={clientData?.meta.gnomad.populations || []}
-      getOptionLabel={(option) => option}
+      id="gnomad-population-select"
+      options={POPULATIONS.map((p) => p.code as string)}
+      value={selectedPopulation ?? null}
+      getOptionLabel={(option) => `${option} (${POP_LABEL.get(option) ?? option})`}
       renderOption={(optionProps, pop) => {
         const { key, ...rest } = optionProps;
         return (
           <span key={key} {...rest}>
-            {pop}
+            {pop} ({POP_LABEL.get(pop) ?? pop})
           </span>
         );
       }}

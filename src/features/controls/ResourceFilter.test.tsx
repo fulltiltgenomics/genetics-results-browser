@@ -159,7 +159,7 @@ describe("ResourceFilter", () => {
     ).toEqual(["ge"]);
 
     const toggle = screen.getByLabelText(
-      "Show all eQTL Catalogue quantification levels (exon/tx/txrev/leafcutter)"
+      "Show all eQTL Catalogue quantification levels (exon/tx/txrev/leafcutter/majiq)"
     );
     await user.click(toggle);
 

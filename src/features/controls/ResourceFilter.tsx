@@ -2,6 +2,7 @@ import { Box, Divider, FormControlLabel, FormGroup, FormLabel, Switch } from "@m
 import { useMemo, ReactElement } from "react";
 import { useDataStore } from "../../store/store";
 import { CredibleSetDataType, NormalizedResponse } from "../../types/types.normalized";
+import { DataTypeIcon } from "../table/DataTypeIcon";
 
 /**
  * Lifted resource filter (refactor.md §4): moved out of the variant expanded table into the main
@@ -27,11 +28,15 @@ const ResourceFilter = (props: { isNotReadyYet: boolean }) => {
   const includeAllQuantLevels = useDataStore((state) => state.includeAllQuantLevels);
   const setIncludeAllQuantLevels = useDataStore((state) => state.setIncludeAllQuantLevels);
 
-  // distinct CS resources in the raw data, sorted for stable display. derived from the unfiltered
-  // variants so toggling a resource OFF doesn't remove it from the list (the user must be able to
-  // toggle it back on).
+  // all resources the API serves, sorted for stable display: the union of the dataset-derived
+  // ResourceMeta (so resources with no CS for the current variants still appear) and any resource
+  // present in the CS data but missing from that metadata (e.g. open_targets). derived from the
+  // unfiltered data so toggling a resource OFF doesn't remove it from the list.
   const availableResources: string[] = useMemo(() => {
     const present = new Set<string>();
+    // ResourceMeta.id is the resource identifier the filter matches on (cs.resource); .resource is a
+    // friendlier display label handled by labelFor below.
+    for (const r of normalizedData?.resources ?? []) present.add(r.id);
     for (const v of normalizedData?.variants ?? []) {
       for (const cs of v.credibleSets) present.add(cs.resource);
     }
@@ -96,7 +101,12 @@ const ResourceFilter = (props: { isNotReadyYet: boolean }) => {
             onChange={() => toggleCredibleSetDataType(dataType)}
           />
         }
-        label={dataType}
+        label={
+          <Box sx={{ display: "flex", alignItems: "center", gap: "6px" }}>
+            <DataTypeIcon dataType={dataType} />
+            <span>{dataType}</span>
+          </Box>
+        }
       />
     );
   });
@@ -148,8 +158,8 @@ const ResourceFilter = (props: { isNotReadyYet: boolean }) => {
                     onChange={() => setIncludeAllQuantLevels(!includeAllQuantLevels)}
                   />
                 }
-                // default off = gene-level (ge) only; on adds exon/tx/txrev/leafcutter (refactor.md §4)
-                label="Show all eQTL Catalogue quantification levels (exon/tx/txrev/leafcutter)"
+                // default off = gene-level (ge) only; on adds exon/tx/txrev/leafcutter/majiq (refactor.md §4)
+                label="Show all eQTL Catalogue quantification levels (exon/tx/txrev/leafcutter/majiq)"
               />
             </FormGroup>
           </Box>

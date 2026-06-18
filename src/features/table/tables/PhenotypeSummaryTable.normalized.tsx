@@ -8,6 +8,7 @@ import { PhenoSummaryRow } from "../../../types/types.normalized";
 import { summarizePhenotypes } from "../../../store/munge.normalized";
 import { useDataStore } from "../../../store/store";
 import { useChatSeedStore } from "../../../store/store.chatSeed";
+import { formatTraitName } from "../utils/tableutil";
 import { naInfSort } from "../utils/sorting";
 import VariantMainTable from "./VariantMainTable";
 
@@ -76,7 +77,8 @@ const PhenotypeSummaryTable = () => {
         size: 100,
       },
       {
-        accessorKey: "phenostring",
+        // underscores -> spaces for display (consistent with the variant table / detail table)
+        accessorFn: (row) => formatTraitName(row.phenostring),
         header: "trait",
         id: "trait",
         filterFn: "contains",

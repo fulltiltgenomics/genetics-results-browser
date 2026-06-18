@@ -34,6 +34,16 @@ export const cleanConsequence = (consequence: string): string => {
   return consequence.replace(/_variant/g, "").replace(/_/g, " ");
 };
 
+// display formatter for trait / phenotype names: underscores -> spaces across the whole UI
+// (e.g. "COVID_B2" -> "COVID B2", "macrophage_naive" -> "macrophage naive"). raw trait codes are
+// still used unchanged for API matching / navigation; this is display-only.
+export const formatTraitName = (name: string): string => name.replace(/_/g, " ");
+
+// display formatter for tissue / cell-type labels: underscores -> spaces and the "|" tissue/condition
+// separator -> ", " (e.g. "tibial_nerve|naive" -> "tibial nerve, naive"). display-only.
+export const formatTissue = (label: string): string =>
+  label.replace(/_/g, " ").replace(/\|/g, ", ");
+
 // TODO if the threshold is the same across resources, just show the number
 export const renderPThreshold = (clientData: TableData, thres: number): string => {
   if (thres === 1) {

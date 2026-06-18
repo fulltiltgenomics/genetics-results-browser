@@ -5,6 +5,7 @@ import { TissueSummaryRow } from "../../../types/types.normalized";
 import { filterCredibleSets, summarizeTissues } from "../../../store/munge.normalized";
 import { useDataStore } from "../../../store/store";
 import { naInfSort } from "../utils/sorting";
+import { formatTissue } from "../utils/tableutil";
 
 /**
  * Tissue & cell type summary tab for the credible-set-only data model (refactor.md §4).
@@ -23,7 +24,8 @@ import { naInfSort } from "../utils/sorting";
 const getColumns = (dataType: "eQTL" | "caQTL"): MRT_ColumnDef<TissueSummaryRow>[] => {
   const cols: MRT_ColumnDef<TissueSummaryRow>[] = [
     {
-      accessorKey: "tissueOrCellType",
+      // "tibial_nerve|naive" -> "tibial nerve, naive" (display-only)
+      accessorFn: (row) => formatTissue(row.tissueOrCellType),
       header: dataType === "caQTL" ? "cell type" : "tissue / cell type",
       id: "tissueOrCellType",
       filterFn: "contains",

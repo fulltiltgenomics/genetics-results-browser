@@ -40,6 +40,15 @@ export const App = () => {
           },
           fontSize: 12,
         },
+        components: {
+          // unify tooltip font size across the app: plain MUI tooltips (e.g. the variant speech
+          // bubble, data-type badges) were ~11px while the rich HtmlTooltip is 16px. match them.
+          MuiTooltip: {
+            styleOverrides: {
+              tooltip: { fontSize: "1rem" },
+            },
+          },
+        },
       }),
     [isDarkMode]
   );
