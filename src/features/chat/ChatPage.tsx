@@ -61,6 +61,9 @@ const ChatPage = () => {
   const [aboutOpen, setAboutOpen] = useState(false);
   const [tokensOpen, setTokensOpen] = useState(false);
   const [isSecretChat, setIsSecretChat] = useState(false);
+  // client-only conversation id for secret chats: never persisted, sent purely so
+  // distinct secret conversations can be counted from logs (like normal sessionId)
+  const [secretSessionId, setSecretSessionId] = useState<string | null>(null);
   const [exportMenuAnchor, setExportMenuAnchor] = useState<HTMLElement | null>(null);
   const [actionMenuAnchorEl, setActionMenuAnchorEl] = useState<HTMLElement | null>(null);
   const [datasetsOpen, setDatasetsOpen] = useState(false);
@@ -217,6 +220,7 @@ const ChatPage = () => {
     setIsSecretChat(true);
     setActiveSessionId(null);
     setActiveSession(null);
+    setSecretSessionId(crypto.randomUUID());
     setChatKey(`secret-${Date.now()}`);
     savedMessageIds.current = new Set();
     currentMessagesRef.current = [];
@@ -864,7 +868,7 @@ const ChatPage = () => {
               )}
               <LLMChat
                 key={chatKey}
-                sessionId={activeSessionId}
+                sessionId={isSecretChat ? secretSessionId : activeSessionId}
                 initialMessages={isSecretChat ? undefined : loadedMessages}
                 onMessagesChange={handleMessagesChange}
                 onFirstExchange={handleFirstExchange}
