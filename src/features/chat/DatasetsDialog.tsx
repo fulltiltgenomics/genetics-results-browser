@@ -69,10 +69,14 @@ const categories: Category[] = [
     filter: (d) => d.data_type === "gene_based",
   },
   {
-    label: "QTL credible sets (eQTL / pQTL / caQTL / sQTL)",
+    label: "QTL datasets (eQTL / pQTL / caQTL / sQTL)",
     filter: (d) =>
       ["eqtl", "pqtl", "caqtl", "sqtl", "metaboqtl", "mixed"].includes(d.data_type) &&
-      d.products?.credible_sets !== undefined,
+      (d.products?.credible_sets !== undefined || d.products?.summary_stats !== undefined),
+  },
+  {
+    label: "asmQTL sumstats",
+    filter: (d) => d.data_type === "asmqtl",
   },
   {
     label: "Colocalization-only",
@@ -127,16 +131,13 @@ export const DatasetsDialog = ({ open, onClose }: DatasetsDialogProps) => {
     datasets: datasets.filter(cat.filter),
   }));
 
-  // insert uncategorized datasets (asmQTL sumstats) right after the QTL credible sets table
+  // surface any dataset not matched by a category above under "Other" so nothing
+  // silently disappears from the dialog (normally empty once products are correct).
   const shown = new Set(categorized.flatMap((c) => c.datasets.map((d) => d.dataset_id)));
   const uncategorized = datasets.filter((d) => !shown.has(d.dataset_id));
   if (uncategorized.length > 0) {
-    const qtlIdx = categorized.findIndex((c) =>
-      c.label.startsWith("QTL credible sets")
-    );
-    const insertAt = qtlIdx >= 0 ? qtlIdx + 1 : categorized.length;
-    categorized.splice(insertAt, 0, {
-      label: "asmQTL sumstats",
+    categorized.push({
+      label: "Other",
       datasets: uncategorized,
       filter: () => false,
     });
@@ -176,17 +177,17 @@ export const DatasetsDialog = ({ open, onClose }: DatasetsDialogProps) => {
 const DatasetTable = ({ datasets, category }: { datasets: Dataset[]; category: string }) => {
   const showCredibleSets =
     category === "GWAS credible sets" ||
-    category === "QTL credible sets (eQTL / pQTL / caQTL / sQTL)";
+    category === "QTL datasets (eQTL / pQTL / caQTL / sQTL)";
   const showQtlTypes =
     category !== "Colocalization-only" && datasets.some((d) => d.qtl_types);
   const showSumstats = [
     "GWAS credible sets",
-    "QTL credible sets (eQTL / pQTL / caQTL / sQTL)",
+    "QTL datasets (eQTL / pQTL / caQTL / sQTL)",
     "asmQTL sumstats",
   ].includes(category);
   const showColoc = datasets.some((d) => (d.products as Record<string, unknown>)?.colocalization);
   const showStats =
-    category !== "QTL credible sets (eQTL / pQTL / caQTL / sQTL)" &&
+    category !== "QTL datasets (eQTL / pQTL / caQTL / sQTL)" &&
     datasets.some(
       (d) => d.stats?.n_phenotypes || d.stats?.n_subdatasets || d.n_phenotypes != null
     );

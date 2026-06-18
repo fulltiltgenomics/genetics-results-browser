@@ -571,6 +571,7 @@ export const LLMChat = ({
             literature_backend: literatureBackend,
             tool_profile: toolProfile,
             secret: isSecretChat || false,
+            session_id: sessionId || null,
           }),
           signal: abortControllerRef.current.signal,
           async onopen(response) {
