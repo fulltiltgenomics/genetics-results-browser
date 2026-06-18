@@ -1,4 +1,4 @@
-import { upstreamJson } from "./upstream.js";
+import { upstreamJson, UpstreamError } from "./upstream.js";
 
 // canonical internal id is colon-separated chr:pos:ref:alt (GRCh38); accept the usual CPRA
 // separators (- _ | / \) and an optional chr prefix, mirroring the MCP _parse_variant_list.
@@ -16,7 +16,7 @@ export interface ParsedRow {
   value?: number | string;
 }
 
-const normalizeVariant = (raw: string): string | null => {
+export const normalizeVariant = (raw: string): string | null => {
   const tryMatch = (s: string): string | null => {
     const m = VARIANT_RE.exec(s);
     if (!m) return null;
@@ -138,4 +138,40 @@ export const resolveInput = async (text: string): Promise<ResolvedInput> => {
   }
 
   return { rows, variantIds, rsidMap, notFound, unparsed, betaByVariant, valueByVariant };
+};
+
+interface VariantSetResponse {
+  name: string;
+  variants: string[];
+}
+
+/**
+ * Expand a named curated variant set (e.g. "FinnGen_enriched_202505", "COVID19_HGI_severity") into
+ * its newline-joined variant list via GET /v1/variant_sets/{name}. The legacy backend resolved these
+ * tokens server-side; the new genetics-results-api serves the curated lists through this endpoint.
+ *
+ * Returns the expanded variant text, or null when the query is not a named-set token (a multi-token
+ * list, a bare variant id, an rsid, or an unknown set name) so the caller falls back to the normal
+ * variant-list parse. Only single bare tokens that are NOT a variant/rsid trigger the lookup, so a
+ * normal variant list never pays the extra round-trip.
+ */
+export const maybeExpandVariantSet = async (text: string): Promise<string | null> => {
+  const trimmed = text.trim();
+  // a named set is a single bare token: no internal whitespace/newlines, no tab-separated columns
+  if (trimmed === "" || /\s/.test(trimmed)) return null;
+  // tokens that already are a variant id or rsid are handled by the normal parse path
+  if (normalizeVariant(trimmed) !== null || RSID_RE.test(trimmed)) return null;
+
+  try {
+    const res = await upstreamJson<VariantSetResponse>(
+      `/v1/variant_sets/${encodeURIComponent(trimmed)}`
+    );
+    const variants = res?.variants ?? [];
+    return variants.length ? variants.join("\n") : null;
+  } catch (err) {
+    // an unknown set name is a 404 -> not a named set, let the normal path mark it unparsed.
+    // any other upstream failure is genuine and should surface.
+    if (err instanceof UpstreamError && err.status === 404) return null;
+    throw err;
+  }
 };

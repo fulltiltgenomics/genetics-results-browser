@@ -1,6 +1,6 @@
 # BACKEND ENDPOINT SPECS — `genetics-results-api`
 
-Two targeted additions the annotation-tool refactor needs from `../genetics-results-api`
+Three targeted additions the annotation-tool refactor needs from `../genetics-results-api`
 (see `refactor.md` §2). File references point into that repo.
 
 ---
@@ -138,9 +138,58 @@ No data changes.
 
 ---
 
+## 3. Named curated variant sets (`/variant_sets`)
+
+### Goal
+The annotation tool's example/priority links submit a **named token**, not a variant list:
+`FinnGen_enriched_202505` (the Finnish-enriched example) and `COVID19_HGI_severity` (COVID severity
+leads). The legacy backend expanded these server-side; the new API must serve the curated lists so the
+BFF can turn the token back into a variant list and run the normal stage-1 fan-out.
+
+### Finding: the lists already exist in config, just unserved
+`variant_set_files` (`app/config/profiles/finngen/common.py:66`, also `daly`) already maps each name to
+a small newline-delimited GCS file of variant ids (`chr1_5045339_C_T`, one per line). `startup_checks.py`
+flagged it as *"configured but consumed by no service"* — there was no route. The buckets are
+**per-profile** (finngen vs daly), so the BFF can't read them directly; the API must serve them.
+
+### Change to `../genetics-results-api`
+- New `VariantSetService` (`app/services/variant_set_service.py`) reads the configured file via the
+  existing `app/core/file_utils.read_file` (fsspec) and validates each line through `app/core/variant.py`
+  `Variant`, emitting canonical `chr:pos:ref:alt` (skips blank/`#`/malformed lines).
+- New router (`app/routers/variant_set.py`), registered in `server.py`, both routes `@is_public`:
+  - `GET /api/v1/variant_sets` → `["COVID19_HGI_all", "COVID19_HGI_severity", "FinnGen_enriched_202505"]`
+  - `GET /api/v1/variant_sets/{name}` → `{ "name", "variants": ["1:5045339:C:T", ...] }`; unknown name → 404
+- Service registered in `service_container.py`; getter `get_variant_set_service` in `dependencies.py`.
+- `startup_checks.py` now existence-checks the variant-set files (they are a real dependency).
+
+### BFF side (this repo)
+`maybeExpandVariantSet` (`bff/inputParse.ts`) runs first in `normalizeVariantList`: a single bare token
+that is **not** a variant id or rsid is looked up via `GET /v1/variant_sets/{name}`; on 200 its variants
+replace the query text, on 404 it falls through to the normal parse (token → `unparsed`, as before). A
+normal variant/rsid list never triggers the lookup.
+
+### Large-list performance (chunked fan-out)
+Each batch endpoint does one upstream `tabix -R` over all requested variants (optimal per call), but for
+the ~890-variant FinnGen set that becomes hundreds of sequential random-access GCS range seeks — gnomAD
+alone exceeded 290s server-side (`variant_annotation_service.stream_by_variants` →
+`gcloud_tabix_base._stream_range`, a single `tabix -R /dev/stdin`). GCS serves **parallel** range reads
+well, so the BFF (`bff/batch.ts`) splits each endpoint's variant list into 100-variant chunks issued
+concurrently under a shared semaphore (`fetchBatched` + `Semaphore`). Measured: gnomAD 888 variants
+~290s→~57s; full FinnGen fan-out (all four endpoints) ~151s and complete vs a hard timeout before.
+Because many concurrent chunks raise the odds of a transient upstream tabix/GCS hiccup (a sporadic
+`Invalid BGZF header` mid-stream read was observed) and `Promise.all` would fail the whole request on
+one, each chunk is wrapped in `withRetry` (retry 5xx/connection, not 4xx). Small inputs are a single
+chunk and behave exactly as before (single variant ~3s).
+
+### Effort
+Small. New service + router + 3 wiring lines on the API; one helper + a timeout bump on the BFF.
+
+---
+
 ## Summary
 
 | Endpoint | Change | Code surface | Data work |
 |----------|--------|--------------|-----------|
 | gnomAD AF | new **source** on existing `variant_annotation` (multi-variant already supported) | per-source cpra indices in `VariantAnnotationService` + config (~10–15 lines) | `tabix` index the existing `.tsv.bgz` + upload `.tbi` |
 | `/search has_summary_stats` | new query param + `has_summary_stats` flag + expose `data_type`, matched on `(resource, data_type)` from `summary_stats` config | `search.py` + phenotype search-index build | none |
+| `/variant_sets` | new router serving the already-configured `variant_set_files` (list + by-name); BFF expands the named example tokens through it | `VariantSetService` + router + container/deps wiring; BFF `maybeExpandVariantSet` | none (files already in GCS) |

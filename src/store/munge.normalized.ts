@@ -75,6 +75,7 @@ const NON_GENE_QUANT_LEVELS: ReadonlySet<QuantLevel> = new Set([
   "tx",
   "txrev",
   "leafcutter",
+  "majiq",
 ]);
 
 /** a single membership passes the current filters. pure, no allocation per call beyond comparisons. */
@@ -150,6 +151,7 @@ export const groupCredibleSets = (
         trait: cs.trait,
         quantLevel: cs.quantLevel,
         cellType: cs.cellType,
+        cellTypes: [cs.cellType],
         phenocodes: [cs.trait],
         csIds: [cs.csId],
         pip: [cs.pip],
@@ -161,6 +163,7 @@ export const groupCredibleSets = (
         count: 1,
       };
     } else {
+      g.cellTypes.push(cs.cellType);
       g.phenocodes.push(cs.trait);
       g.csIds.push(cs.csId);
       g.pip.push(cs.pip);

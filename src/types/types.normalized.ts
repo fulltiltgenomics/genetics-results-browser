@@ -82,7 +82,7 @@ export type DatasetDataType =
  * null for non-leveled data (GWAS/pQTL/caQTL). Default view shows ge only; an option exposes the
  * others, and when shown the level is displayed alongside the gene symbol.
  */
-export type QuantLevel = "ge" | "exon" | "tx" | "txrev" | "leafcutter";
+export type QuantLevel = "ge" | "exon" | "tx" | "txrev" | "leafcutter" | "majiq";
 
 /* ────────────────────────────────────────────────────────────────────────────
  * STAGE 1 — what the BFF returns (raw, unfiltered)
@@ -165,6 +165,14 @@ export interface GnomadFreq {
   popmaxPop?: GnomadPop;
   popmaxAf?: number;
   genomeOrExome?: "g" | "e";
+  /** all VEP consequences per gene from gnomAD (drives the "most severe" column tooltip). */
+  consequences?: GnomadConsequence[];
+}
+
+/** one gnomAD VEP consequence for a (variant, gene) pair. */
+export interface GnomadConsequence {
+  gene: string;
+  consequence: string;
 }
 
 /**
@@ -269,6 +277,8 @@ export interface GroupedCredibleSet {
   trait: string; //                gene symbol for QTLs
   quantLevel: QuantLevel | null; // distinguishes ge/exon/tx/txrev/leafcutter when non-gene levels shown
   cellType: string | null;
+  /** cell type per membership, parallel to pip/mlog10p/beta. caQTL groups span many cell types. */
+  cellTypes: (string | null)[];
   phenocodes: string[];
   // cs_ids of the memberships in this group, parallel to phenocodes. coloc is per-credible-set, so
   // the expanded-row coloc lookup keys on these (a single-membership group has exactly one).

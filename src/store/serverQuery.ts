@@ -133,6 +133,10 @@ export const useNormalizedQuery = (
     enabled: !!variantInput,
     placeholderData: (prev) => prev,
     staleTime: Infinity,
+    // /v1/results is an expensive fan-out (the BFF already retries each upstream chunk internally),
+    // so don't let the global 3x query retry multiply the whole heavy call on failure — one retry is
+    // enough to ride out a transient blip without hammering the BFF with several full re-runs.
+    retry: 1,
   });
 };
 

@@ -3,6 +3,7 @@ import type {
   CredibleSetMembership,
   DatasetDataType,
   DatasetMeta,
+  GnomadConsequence,
   GnomadFreq,
   GnomadPop,
   NearestGene,
@@ -15,8 +16,9 @@ import type {
   VariantResult,
 } from "../src/types/types.normalized.js";
 import { isCoding, isLoF } from "./coding.js";
-import { resolveInput } from "./inputParse.js";
-import { upstreamJson } from "./upstream.js";
+import { maybeExpandVariantSet, resolveInput } from "./inputParse.js";
+import { fetchBatched, Semaphore, withRetry } from "./batch.js";
+import { upstreamJson, UpstreamError } from "./upstream.js";
 
 /* ── raw upstream row shapes (snake_case, as captured in src/test/fixtures/*.json) ── */
 
@@ -105,6 +107,14 @@ interface RawGnomadRow {
   AF_remaining?: string;
   AF_sas?: string;
   genome_or_exome: "g" | "e";
+  // per-gene VEP consequences, a JSON-ENCODED STRING in the format=json response (the API keeps the
+  // column raw), e.g. '[{"gene_symbol":"APOE","consequences":["missense_variant"], ...}]'.
+  consequences?: string | null;
+}
+
+interface RawGnomadConsequence {
+  gene_symbol?: string | null;
+  consequences?: string[] | null;
 }
 
 /* ── helpers ── */
@@ -119,7 +129,7 @@ const toNum = (v: unknown): number | null => {
 
 // the eQTL Catalogue quant level is the suffix after the last "|" of trait_original
 // ("ENSG..._19_45068055_45068058|exon" -> "exon"); only these tokens are valid levels.
-const QUANT_LEVELS: ReadonlySet<string> = new Set(["ge", "exon", "tx", "txrev", "leafcutter"]);
+const QUANT_LEVELS: ReadonlySet<string> = new Set(["ge", "exon", "tx", "txrev", "leafcutter", "majiq"]);
 const parseQuantLevel = (traitOriginal: string): QuantLevel | null => {
   const idx = traitOriginal.lastIndexOf("|");
   if (idx === -1) return null;
@@ -212,12 +222,36 @@ const mergeGnomadRows = (rows: RawGnomadRow[]): GnomadFreq => {
     if (af !== null) byPop[pop] = af;
   }
 
+  // the per-gene VEP consequences arrive as a JSON-encoded string; parse, then flatten into
+  // {gene, consequence} pairs (deduped). best-effort — malformed JSON yields no consequences.
+  let rawConsequences: RawGnomadConsequence[] = [];
+  if (typeof chosen.consequences === "string" && chosen.consequences.trim() !== "") {
+    try {
+      const parsed = JSON.parse(chosen.consequences);
+      if (Array.isArray(parsed)) rawConsequences = parsed;
+    } catch {
+      rawConsequences = [];
+    }
+  }
+  const consequences: GnomadConsequence[] = [];
+  const seenConsequence = new Set<string>();
+  for (const c of rawConsequences) {
+    const gene = c?.gene_symbol ?? "";
+    for (const cons of c?.consequences ?? []) {
+      const key = `${gene}|${cons}`;
+      if (seenConsequence.has(key)) continue;
+      seenConsequence.add(key);
+      consequences.push({ gene, consequence: cons });
+    }
+  }
+
   const freq: GnomadFreq = {
     variant: gnomadVariantId(chosen),
     afOverall: toNum(chosen.AF),
     byPop,
     genomeOrExome: chosen.genome_or_exome,
   };
+  if (consequences.length) freq.consequences = consequences;
 
   let popmaxPop: GnomadPop | undefined;
   let popmaxAf = -Infinity;
@@ -298,10 +332,30 @@ const normalizeDatasets = (datasets: RawDataset[]): Record<string, DatasetMeta> 
   return out;
 };
 
-// PhenotypeMeta keyed by `${resource}|${trait}`. genetics-results-api has no bulk phenostring
-// endpoint for an arbitrary trait set, so we seed entries from the CS rows present (phenostring
-// defaults to the trait id) — the phenotype-search view (/search) enriches names on demand later.
-const derivePhenotypes = (csRows: RawCsRow[]): Record<string, PhenotypeMeta> => {
+// trait code -> human-readable name, from GET /v1/trait_name_mapping (covers finngen phenocodes,
+// Open Targets GCST study ids, ATC drug codes, genebass, etc.). the map is large (~2 MB / ~28k
+// entries) and effectively static, so cache it process-wide; name resolution is best-effort, so a
+// fetch failure falls back to an empty map (callers then show the raw trait code).
+let traitNameMapCache: Record<string, string> | null = null;
+const getTraitNameMap = async (): Promise<Record<string, string>> => {
+  if (traitNameMapCache) return traitNameMapCache;
+  try {
+    const m = (await upstreamJson<Record<string, string>>("/v1/trait_name_mapping")) ?? {};
+    traitNameMapCache = m;
+    return m;
+  } catch {
+    return {};
+  }
+};
+
+// PhenotypeMeta keyed by `${resource}|${trait}`. phenostring is resolved from the trait_name_mapping
+// (Open Targets study ids, ATC codes, finngen phenocodes/lab ids resolve to real names); QTL traits
+// are gene/protein symbols absent from the map and so pass through unchanged. falls back to the raw
+// trait id when the map has no entry.
+const derivePhenotypes = (
+  csRows: RawCsRow[],
+  traitNameMap: Record<string, string>
+): Record<string, PhenotypeMeta> => {
   const out: Record<string, PhenotypeMeta> = {};
   for (const r of csRows) {
     const key = `${r.resource}|${r.trait}`;
@@ -310,7 +364,7 @@ const derivePhenotypes = (csRows: RawCsRow[]): Record<string, PhenotypeMeta> => 
       resource: r.resource,
       dataType: asCredibleSetDataType(r.data_type),
       trait: r.trait,
-      phenostring: r.trait, // no upstream name lookup for arbitrary traits; trait id is the fallback
+      phenostring: traitNameMap[r.trait] ?? r.trait,
     };
   }
   return out;
@@ -323,50 +377,68 @@ const derivePhenotypes = (csRows: RawCsRow[]): Record<string, PhenotypeMeta> => 
  * NO filtering/grouping/summarizing — that stays client-side (munge, later tasks).
  */
 export const normalizeVariantList = async (query: string): Promise<NormalizedResponse> => {
-  const resolved = await resolveInput(query);
+  // a single named-set token (e.g. "FinnGen_enriched_202505") expands to its curated variant list
+  // upstream; everything else flows through unchanged as a normal variant/rsid list.
+  const expanded = await maybeExpandVariantSet(query);
+  const resolved = await resolveInput(expanded ?? query);
   const { variantIds, rsidMap, notFound, unparsed, betaByVariant, valueByVariant } = resolved;
 
-  // newline-separated STRING body for credible_sets_by_variant + nearest_genes (fixtures/README gotcha);
-  // variant_annotation/finngen is the exception and takes a JSON array.
-  const variantsNewline = variantIds.join("\n");
+  // the batch endpoints each do one upstream `tabix -R` over all requested variants — optimal per
+  // call, but a large list (e.g. FinnGen_enriched_202505, ~900 variants) becomes hundreds of
+  // sequential GCS range seeks (gnomAD alone >290s). split into chunks issued concurrently under a
+  // shared cap: GCS serves parallel range reads, so wall time drops ~5x. a generous per-chunk timeout
+  // still guards a genuinely stuck upstream; small lists are a single chunk and return immediately.
+  const CHUNK_SIZE = 100;
+  const FANOUT_CONCURRENCY = 8;
+  const batchTimeoutMs = 120_000;
+  const sem = new Semaphore(FANOUT_CONCURRENCY);
+
+  // many concurrent chunks multiply exposure to TRANSIENT upstream tabix/GCS errors (e.g. a sporadic
+  // "Invalid BGZF header" mid-stream read), and Promise.all would fail the whole request on one. retry
+  // each chunk on a 5xx/connection error (a fresh tabix attempt clears it); don't retry 4xx.
+  const retryServerErrors = (err: unknown): boolean =>
+    !(err instanceof UpstreamError) || err.status >= 500;
+  const batched = <T>(call: (c: string[]) => Promise<T[] | null>): Promise<T[]> =>
+    fetchBatched(variantIds, CHUNK_SIZE, sem, (c) => withRetry(() => call(c), 3, 400, retryServerErrors));
 
   // independent fan-out runs concurrently; datasets/resources are query-independent metadata.
-  const [csRaw, annoRaw, gnomadRaw, genesRaw, datasetsRaw] = await Promise.all([
-    variantIds.length
-      ? upstreamJson<RawCsRow[]>("/v1/credible_sets_by_variant", {
-          method: "POST",
-          query: { format: "json" },
-          body: { variants: variantsNewline },
-        })
-      : Promise.resolve<RawCsRow[]>([]),
-    variantIds.length
-      ? upstreamJson<RawAnnotationRow[]>("/v1/variant_annotation/finngen", {
-          method: "POST",
-          query: { format: "json" },
-          body: { variants: variantIds }, // JSON ARRAY exception
-        })
-      : Promise.resolve<RawAnnotationRow[]>([]),
-    variantIds.length
-      ? upstreamJson<RawGnomadRow[]>("/v1/variant_annotation/gnomad", {
-          method: "POST",
-          query: { format: "json" },
-          body: { variants: variantIds }, // JSON ARRAY body, same as the finngen source
-        })
-      : Promise.resolve<RawGnomadRow[]>([]),
-    variantIds.length
-      ? upstreamJson<RawNearestGene[]>("/v1/nearest_genes", {
-          method: "POST",
-          query: { format: "json", n: 1 },
-          body: { variants: variantsNewline },
-        })
-      : Promise.resolve<RawNearestGene[]>([]),
+  const [csRows, annoRows, gnomadRows, genesRows, datasetsRaw, traitNameMap] = await Promise.all([
+    batched((c) =>
+      upstreamJson<RawCsRow[]>("/v1/credible_sets_by_variant", {
+        method: "POST",
+        query: { format: "json" },
+        body: { variants: c.join("\n") }, // newline STRING body
+        timeoutMs: batchTimeoutMs,
+      })
+    ),
+    batched((c) =>
+      upstreamJson<RawAnnotationRow[]>("/v1/variant_annotation/finngen", {
+        method: "POST",
+        query: { format: "json" },
+        body: { variants: c }, // JSON ARRAY exception
+        timeoutMs: batchTimeoutMs,
+      })
+    ),
+    batched((c) =>
+      upstreamJson<RawGnomadRow[]>("/v1/variant_annotation/gnomad", {
+        method: "POST",
+        query: { format: "json" },
+        body: { variants: c }, // JSON ARRAY body, same as the finngen source
+        timeoutMs: batchTimeoutMs,
+      })
+    ),
+    batched((c) =>
+      upstreamJson<RawNearestGene[]>("/v1/nearest_genes", {
+        method: "POST",
+        query: { format: "json", n: 1 },
+        body: { variants: c.join("\n") }, // newline STRING body
+        timeoutMs: batchTimeoutMs,
+      })
+    ),
     upstreamJson<RawDataset[]>("/v1/datasets"),
+    getTraitNameMap(),
   ]);
 
-  const csRows = csRaw ?? [];
-  const annoRows = annoRaw ?? [];
-  const gnomadRows = gnomadRaw ?? [];
-  const genesRows = genesRaw ?? [];
   const datasets = datasetsRaw ?? [];
 
   // index raw rows by canonical variant id
@@ -413,7 +485,7 @@ export const normalizeVariantList = async (query: string): Promise<NormalizedRes
       rsidMap,
     },
     variants,
-    phenotypes: derivePhenotypes(csRows),
+    phenotypes: derivePhenotypes(csRows, traitNameMap),
     datasets: normalizeDatasets(datasets),
     resources: deriveResources(datasets),
     hasBetas: Object.keys(betaByVariant).length > 0,
@@ -457,11 +529,12 @@ export const normalizeGene = async (
   gene: string,
   window?: number
 ): Promise<NormalizedResponse> => {
-  const [csRaw, datasetsRaw] = await Promise.all([
+  const [csRaw, datasetsRaw, traitNameMap] = await Promise.all([
     upstreamJson<RawCsRow[]>(`/v1/credible_sets_by_gene/${encodeURIComponent(gene)}`, {
       query: { format: "json", window },
     }),
     upstreamJson<RawDataset[]>("/v1/datasets"),
+    getTraitNameMap(),
   ]);
 
   const csRows = csRaw ?? [];
@@ -492,7 +565,7 @@ export const normalizeGene = async (
       rsidMap: {},
     },
     variants,
-    phenotypes: derivePhenotypes(csRows),
+    phenotypes: derivePhenotypes(csRows, traitNameMap),
     datasets: normalizeDatasets(datasets),
     resources: deriveResources(datasets),
     hasBetas: false, // gene queries carry no user-supplied betas/values

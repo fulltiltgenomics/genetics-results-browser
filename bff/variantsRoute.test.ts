@@ -236,3 +236,59 @@ describe("POST /v1/results — variant list normalize", () => {
     expect(res.body.error).toBe("upstream_error");
   });
 });
+
+describe("POST /v1/results — named variant set expansion", () => {
+  // a named-set token expands via /v1/variant_sets/{name} into a variant list, then flows through
+  // the normal fan-out. routeFetch serves the expansion + a CS fixture matching the expanded variant.
+  const routeWithSet = (variants: string[], status = 200) =>
+    vi.fn(async (url: string | URL) => {
+      const u = String(url);
+      if (u.includes("/v1/variant_sets/")) {
+        return status === 200
+          ? json({ name: "ExampleSet", variants })
+          : json({ detail: "Unknown variant set" }, status);
+      }
+      if (u.includes("/v1/credible_sets_by_variant")) return json(csBatch);
+      if (u.includes("/v1/variant_annotation/gnomad")) return json(annoGnomad);
+      if (u.includes("/v1/variant_annotation/finngen")) return json(annoFinngen);
+      if (u.includes("/v1/nearest_genes")) return json(nearestGenes);
+      if (u.includes("/v1/datasets")) return json(datasets);
+      return json({}, 404);
+    });
+
+  it("expands a known named set token into its curated variant list", async () => {
+    const fetchMock = routeWithSet(["19:44908684:T:C"]);
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await request(app).post("/api/v1/results").send({ query: "ExampleSet" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.inputVariants.found).toEqual(["19:44908684:T:C"]);
+    expect(res.body.inputVariants.unparsed).toEqual([]);
+    // the expansion endpoint was queried with the bare token
+    const calledSet = fetchMock.mock.calls.some((c) =>
+      String(c[0]).includes("/v1/variant_sets/ExampleSet")
+    );
+    expect(calledSet).toBe(true);
+  });
+
+  it("falls back to the normal parse (token marked unparsed) when the set name is unknown (404)", async () => {
+    vi.stubGlobal("fetch", routeWithSet([], 404));
+
+    const res = await request(app).post("/api/v1/results").send({ query: "NoSuchSet" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.inputVariants.unparsed).toEqual(["NoSuchSet"]);
+    expect(res.body.inputVariants.found).toEqual([]);
+  });
+
+  it("does not attempt set expansion for a normal variant list", async () => {
+    const fetchMock = routeWithSet(["19:44908684:T:C"]);
+    vi.stubGlobal("fetch", fetchMock);
+
+    await request(app).post("/api/v1/results").send({ query: "19-44908684-T-C" });
+
+    const calledSet = fetchMock.mock.calls.some((c) => String(c[0]).includes("/v1/variant_sets/"));
+    expect(calledSet).toBe(false);
+  });
+});

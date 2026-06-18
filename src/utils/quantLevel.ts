@@ -5,7 +5,7 @@ import { QuantLevel } from "../types/types.normalized";
 // only these tokens are valid levels — anything else (e.g. pQTL "aptamer") yields null.
 // mirrors bff/normalize.ts parseQuantLevel; the BFF keeps its own copy because its tsconfig
 // scope excludes src/ runtime modules (same reason bff/coding.ts mirrors src/utils/coding.ts).
-const QUANT_LEVELS: ReadonlySet<string> = new Set(["ge", "exon", "tx", "txrev", "leafcutter"]);
+const QUANT_LEVELS: ReadonlySet<string> = new Set(["ge", "exon", "tx", "txrev", "leafcutter", "majiq"]);
 
 export const parseQuantLevel = (traitOriginal: string | null | undefined): QuantLevel | null => {
   if (!traitOriginal) return null;
