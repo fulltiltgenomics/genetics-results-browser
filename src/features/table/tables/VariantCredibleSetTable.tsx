@@ -9,6 +9,7 @@ import { HtmlTooltip } from "../../tooltips/HtmlTooltip";
 import { UpOrDownIcon } from "../UpDownIcons";
 import { naInfSort } from "../utils/sorting";
 import { DataTypeIcon } from "../DataTypeIcon";
+import { PhenotypeTooltip } from "../../tooltips/PhenotypeTooltip";
 import ColocSection from "./ColocSection";
 
 // numeric comparator that pushes NaN to the bottom regardless of sort direction
@@ -162,22 +163,37 @@ const getColumns = (
     id: "trait",
     header: "trait",
     Cell: ({ row }) => {
-      const idx = repIndex(row.original);
-      const name = traitName(row.original.resource, row.original.trait);
-      const cell = row.original.dataType === "caQTL" ? row.original.cellTypes[idx] : null;
+      const g = row.original;
+      const idx = repIndex(g);
+      const name = traitName(g.resource, g.trait);
+      const cell = g.dataType === "caQTL" ? g.cellTypes[idx] : null;
       const label = cell ? `${name} (${formatTissue(cell)})` : name;
-      return row.original.quantLevel && row.original.quantLevel !== "ge" ? (
-        <Box sx={{ display: "flex", alignItems: "center", gap: "4px" }}>
-          <span>{label}</span>
-          <Chip
-            label={row.original.quantLevel}
-            size="small"
-            variant="outlined"
-            sx={{ height: "16px", fontSize: "0.65rem", "& .MuiChip-label": { px: "5px" } }}
-          />
-        </Box>
-      ) : (
-        label
+      const labelSpan = (
+        <span style={{ textDecoration: "underline dotted", cursor: "help" }}>{label}</span>
+      );
+      const inner =
+        g.quantLevel && g.quantLevel !== "ge" ? (
+          <Box sx={{ display: "flex", alignItems: "center", gap: "4px" }}>
+            {labelSpan}
+            <Chip
+              label={g.quantLevel}
+              size="small"
+              variant="outlined"
+              sx={{ height: "16px", fontSize: "0.65rem", "& .MuiChip-label": { px: "5px" } }}
+            />
+          </Box>
+        ) : (
+          labelSpan
+        );
+      return (
+        <PhenotypeTooltip
+          resource={g.resource}
+          phenocode={g.traitOriginal}
+          phenostring={name}
+          dataType={g.dataType}
+          dataset={g.dataset}
+          content={inner}
+        />
       );
     },
     // sort/filter on the resolved name; the accessorFn returns a ReactElement that MRT can't compare

@@ -13,6 +13,7 @@ import { DataTypeIcon } from "../DataTypeIcon";
 import { GnomadAfTooltip } from "../../tooltips/GnomadAfTooltip";
 import { GnomadConsequenceTooltip } from "../../tooltips/GnomadConsequenceTooltip";
 import GeneTooltip from "../../tooltips/GeneToolTip";
+import { PhenotypeTooltip } from "../../tooltips/PhenotypeTooltip";
 
 /**
  * Columns for the credible-set-native main variant table (refactor.md §4).
@@ -268,7 +269,18 @@ export const getVariantMainTableColumnsNormalized = (
         return (
           <Box sx={{ display: "flex", alignItems: "center", gap: "4px" }}>
             <DataTypeIcon dataType={cs.dataType} />
-            <span>{topAssocLabel(cs, traitName)}</span>
+            <PhenotypeTooltip
+              resource={cs.resource}
+              phenocode={cs.traitOriginal}
+              phenostring={traitName(cs.resource, cs.trait)}
+              dataType={cs.dataType}
+              dataset={cs.dataset}
+              content={
+                <span style={{ textDecoration: "underline dotted", cursor: "help" }}>
+                  {topAssocLabel(cs, traitName)}
+                </span>
+              }
+            />
           </Box>
         );
       },

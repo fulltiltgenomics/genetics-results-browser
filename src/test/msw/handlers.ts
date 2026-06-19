@@ -68,6 +68,20 @@ export const handlers = [
   // {phenocode: phenostring} map used to resolve GWAS coloc partner names (ColocSection)
   http.get(api("trait_name_mapping"), () => HttpResponse.json(traitNameMapping)),
 
+  // harmonized per-phenotype metadata (counts) used lazily by PhenotypeTooltip on hover
+  http.get(api("resource_metadata/:resource"), () =>
+    HttpResponse.json([
+      {
+        phenotype_code: "G6_ALZHEIMER",
+        phenotype_string: "Alzheimer's disease",
+        n_samples: 412181,
+        n_cases: 9301,
+        n_controls: 402880,
+        trait_type: "binary",
+      },
+    ])
+  ),
+
   // gene-evidence tab: gene_based is TSV (text), the other two are JSON
   http.get(api("gene_based/:gene"), () =>
     HttpResponse.text(geneBasedTsv, { headers: { "Content-Type": "text/tab-separated-values" } })

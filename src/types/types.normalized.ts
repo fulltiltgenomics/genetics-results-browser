@@ -275,6 +275,7 @@ export interface GroupedCredibleSet {
   dataset: string;
   dataType: CredibleSetDataType;
   trait: string; //                gene symbol for QTLs
+  traitOriginal: string; //        unharmonized phenocode/study id (resource_metadata join key for counts)
   quantLevel: QuantLevel | null; // distinguishes ge/exon/tx/txrev/leafcutter when non-gene levels shown
   cellType: string | null;
   /** cell type per membership, parallel to pip/mlog10p/beta. caQTL groups span many cell types. */
@@ -311,6 +312,8 @@ export interface PhenoSummaryRow {
   resource: string;
   dataType: CredibleSetDataType;
   trait: string;
+  traitOriginal: string; //     unharmonized phenocode/study id (resource_metadata join key for counts)
+  dataset: string; //           representative dataset display name (for the phenotype tooltip)
   phenostring: string;
   variantCount: number; //      # input variants in a CS for this trait
   consistentCount?: number; //  requires user betas

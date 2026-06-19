@@ -842,6 +842,72 @@ export const useColocByCredibleSet = (
   });
 };
 
+// harmonized per-phenotype metadata (GET /v1/resource_metadata/{resource}). one numeric NA -> null.
+export interface PhenotypeMetadata {
+  name: string;
+  nCases: number | null;
+  nControls: number | null;
+  nSamples: number | null;
+  traitType: string | null;
+}
+
+// raw resource_metadata row (snake_case TSV-derived JSON; numeric fields can be the string "NA").
+interface ResourceMetadataApiRow {
+  phenotype_code: string | number;
+  phenotype_string: string;
+  n_samples: number | string;
+  n_cases: number | string;
+  n_controls: number | string;
+  trait_type: string;
+}
+
+const metaNum = (v: number | string | undefined): number | null => {
+  if (v === undefined || v === null || v === "" || v === "NA") return null;
+  const n = Number(v);
+  return Number.isNaN(n) ? null : n;
+};
+
+/**
+ * Per-phenotype metadata for one resource (case/sample counts + name), keyed by phenotype_code.
+ * Backs the phenotype tooltip's "N cases / N samples". Lazy + cached forever: only the resources the
+ * user actually hovers are fetched, and each resource is fetched once (open_targets is ~5 MB / ~8 s,
+ * so fetching it eagerly in stage-1 would gate every query — hence this is hover-gated per resource).
+ * Resources without harmonized metadata 404; the hook swallows that to an empty map.
+ */
+export const useResourceMetadata = (
+  resource: string | undefined,
+  enabled: boolean
+): UseQueryResult<Record<string, PhenotypeMetadata>, Error> => {
+  return useQuery<Record<string, PhenotypeMetadata>>({
+    queryKey: ["resource-metadata", resource],
+    queryFn: async (): Promise<Record<string, PhenotypeMetadata>> => {
+      try {
+        const { data } = await api.get<ResourceMetadataApiRow[]>(
+          `/v1/resource_metadata/${encodeURIComponent(resource!)}`,
+          { params: { format: "json" } }
+        );
+        const out: Record<string, PhenotypeMetadata> = {};
+        for (const row of data) {
+          out[String(row.phenotype_code)] = {
+            name: row.phenotype_string ?? "",
+            nCases: metaNum(row.n_cases),
+            nControls: metaNum(row.n_controls),
+            nSamples: metaNum(row.n_samples),
+            traitType: row.trait_type ?? null,
+          };
+        }
+        return out;
+      } catch {
+        // resources without harmonized metadata (e.g. gnomad-only) -> no counts, not an error
+        return {};
+      }
+    },
+    enabled: enabled && !!resource,
+    staleTime: Infinity,
+    gcTime: Infinity,
+  });
+};
+
 /**
  * The upstream `{phenocode: phenostring}` map (GET /v1/trait_name_mapping). One call returns the
  * whole dictionary (~28k entries, covering both FinnGen GWAS phenocodes like AD_LO_EXMORE ->

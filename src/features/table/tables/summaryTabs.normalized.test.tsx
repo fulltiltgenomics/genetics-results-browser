@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import DataTypeTable from "./DataTypeTable.normalized";
 import PhenotypeSummaryTable from "./PhenotypeSummaryTable.normalized";
 import TissueSummaryTable from "./TissueSummaryTable.normalized";
@@ -41,9 +42,11 @@ describe("DataTypeTable (.19)", () => {
 describe("PhenotypeSummaryTable (.20)", () => {
   it("renders trait rows derived from CS membership with a search handoff button", () => {
     render(
-      <MemoryRouter>
-        <PhenotypeSummaryTable />
-      </MemoryRouter>
+      <QueryClientProvider client={new QueryClient()}>
+        <MemoryRouter>
+          <PhenotypeSummaryTable />
+        </MemoryRouter>
+      </QueryClientProvider>
     );
     // one search-handoff button per trait row; the tooltip title is its accessible name.
     expect(

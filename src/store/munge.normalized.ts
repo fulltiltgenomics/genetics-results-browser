@@ -149,6 +149,7 @@ export const groupCredibleSets = (
         dataset: cs.dataset,
         dataType: cs.dataType,
         trait: cs.trait,
+        traitOriginal: cs.traitOriginal,
         quantLevel: cs.quantLevel,
         cellType: cs.cellType,
         cellTypes: [cs.cellType],
@@ -230,6 +231,8 @@ interface PhenoAcc {
   resource: string;
   dataType: CredibleSetDataType;
   trait: string;
+  traitOriginal: string;
+  dataset: string;
   variants: Set<VariantId>;
   consistent: number;
   opposite: number;
@@ -256,6 +259,8 @@ export const summarizePhenotypes = (
           resource: cs.resource,
           dataType: cs.dataType,
           trait: cs.trait,
+          traitOriginal: cs.traitOriginal,
+          dataset: cs.dataset,
           variants: new Set(),
           consistent: 0,
           opposite: 0,
@@ -277,6 +282,8 @@ export const summarizePhenotypes = (
         resource: a.resource,
         dataType: a.dataType,
         trait: a.trait,
+        traitOriginal: a.traitOriginal,
+        dataset: a.dataset,
         phenostring: meta?.phenostring ?? a.trait,
         variantCount: a.variants.size,
         variants: [...a.variants],

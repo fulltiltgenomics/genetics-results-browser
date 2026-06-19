@@ -10,6 +10,7 @@ import { useDataStore } from "../../../store/store";
 import { useChatSeedStore } from "../../../store/store.chatSeed";
 import { formatTraitName } from "../utils/tableutil";
 import { naInfSort } from "../utils/sorting";
+import { PhenotypeTooltip } from "../../tooltips/PhenotypeTooltip";
 import VariantMainTable from "./VariantMainTable";
 
 /**
@@ -84,6 +85,21 @@ const PhenotypeSummaryTable = () => {
         filterFn: "contains",
         sortingFn: "alphanumeric",
         muiFilterTextFieldProps: { placeholder: "trait" },
+        // hover: phenocode, data type, dataset, and case/sample counts (lazy per-resource fetch)
+        Cell: ({ row }) => (
+          <PhenotypeTooltip
+            resource={row.original.resource}
+            phenocode={row.original.traitOriginal}
+            phenostring={row.original.phenostring}
+            dataType={row.original.dataType}
+            dataset={row.original.dataset}
+            content={
+              <span style={{ textDecoration: "underline dotted", cursor: "help" }}>
+                {formatTraitName(row.original.phenostring)}
+              </span>
+            }
+          />
+        ),
       },
       {
         accessorKey: "variantCount",
