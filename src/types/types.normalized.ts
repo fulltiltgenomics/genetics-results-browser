@@ -383,6 +383,7 @@ export interface PhenoSearchRow {
   rsid: string | null;
   gene: string | null; // nearest_genes from the sumstats row
   consequence: string;
+  pval: number; //        raw p-value from the sumstats row (shown directly; mlog10p kept for sorting)
   mlog10p: number;
   beta: number;
   se: number;

@@ -1,5 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Autocomplete,
   Box,
@@ -9,26 +8,28 @@ import {
   Typography,
   debounce,
 } from "@mui/material";
+import { alpha } from "@mui/material/styles";
 import { MaterialReactTable, MRT_ColumnDef } from "material-react-table";
 import { useDataStore } from "../../store/store";
 import { usePhenotypeSearch, useSummaryStats } from "../../store/serverQuery";
 import { PhenoSearchRow, PhenotypeSearchHit } from "../../types/types.normalized";
 import { naInfSort } from "../table/utils/sorting";
+import { pValRepr } from "../table/utils/tableutil";
 import GeneTooltip from "../tooltips/GeneToolTip";
 
 /**
- * Phenotype search view (refactor.md §5, own route /annotate/phenotype-search).
+ * Phenotype search tab (refactor.md §5).
  *
  * For the user's INPUT variants, show the FULL summary statistics for one chosen phenotype plus a
  * per-variant inCredibleSet flag.
  *
  * Entry points:
  *   - the Phenotype Summary tab handoff (PhenotypeSummaryTable.normalized): it sets store.selectedPhenotype
- *     AND navigates here with ?resource=&trait=. We preselect from those and run immediately.
+ *     and switches to this tab. We preselect from selectedPhenotype and run immediately.
  *   - the in-view search box: debounced /search autocomplete restricted to phenotypes with full sumstats.
  *
  * Input variants come from store.normalizedData.inputVariants.found (the same variants the user queried
- * on /annotate). If none are present (user navigated here directly) we prompt them back to /annotate.
+ * on /annotate). If none are present we prompt the user to enter variants first.
  *
  * inCredibleSet is derived from the per-variant credibleSets ALREADY in store.normalizedData — cheaper
  * and more precise than credible_sets_by_phenotype (which returns every CS member of the trait). A
@@ -45,9 +46,6 @@ interface ChosenPhenotype {
 }
 
 const PhenotypeSearchContainer = () => {
-  const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-
   const normalizedData = useDataStore((state) => state.normalizedData);
   const selectedPhenotype = useDataStore((state) => state.selectedPhenotype);
 
@@ -66,24 +64,25 @@ const PhenotypeSearchContainer = () => {
   const { data: searchHits = [], isFetching: searchFetching } =
     usePhenotypeSearch(debouncedQuery);
 
-  // preselect from the .20 handoff: URL ?resource=&trait= (authoritative) backed by store.selectedPhenotype.
-  // the handoff knows resource+trait but not data_type — phenotypes that flow through the Phenotype
-  // Summary tab are credible-set GWAS rows, so default the data_type to "gwas"; the phenostring is
-  // resolved from normalizedData.phenotypes when available.
+  // preselect from the Phenotype Summary handoff (store.selectedPhenotype). The handoff knows
+  // resource+trait but not data_type — phenotypes that flow through that tab are credible-set GWAS
+  // rows, so default the data_type to "gwas"; the phenostring is resolved from normalizedData.phenotypes.
+  // Since this is now a persistent tab (not a remounted page), react to *changes* in selectedPhenotype
+  // (tracked by a ref) so a second handoff re-runs, while a manual search-box pick is left untouched.
+  const lastHandoffRef = useRef<string | null>(null);
   useEffect(() => {
-    if (chosen) return;
-    const resource = searchParams.get("resource") ?? selectedPhenotype?.resource;
-    const trait = searchParams.get("trait") ?? selectedPhenotype?.trait;
-    if (!resource || !trait) return;
-    const meta = normalizedData?.phenotypes?.[`${resource}|${trait}`];
+    if (!selectedPhenotype) return;
+    const key = `${selectedPhenotype.resource}|${selectedPhenotype.trait}`;
+    if (lastHandoffRef.current === key) return;
+    lastHandoffRef.current = key;
+    const meta = normalizedData?.phenotypes?.[key];
     setChosen({
-      resource,
+      resource: selectedPhenotype.resource,
       dataType: (meta?.dataType ?? "gwas").toLowerCase(),
-      code: trait,
-      name: meta?.phenostring ?? trait,
+      code: selectedPhenotype.trait,
+      name: meta?.phenostring ?? selectedPhenotype.trait,
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchParams, selectedPhenotype, normalizedData]);
+  }, [selectedPhenotype, normalizedData]);
 
   const {
     data: sumstatRows = [],
@@ -131,6 +130,7 @@ const PhenotypeSearchContainer = () => {
         rsid: r.rsids ?? anno?.rsid ?? null,
         gene: anno?.gene ?? r.nearest_genes ?? null,
         consequence: anno?.consequence ?? "",
+        pval: r.pval,
         mlog10p: r.mlog10p,
         beta: r.beta,
         se: r.se,
@@ -142,15 +142,28 @@ const PhenotypeSearchContainer = () => {
     });
   }, [sumstatRows, normalizedData, chosen]);
 
+  // column order mirrors the Variant results table: variant, rsid, AF, most severe, most severe gene,
+  // p-value, beta, se, then the per-phenotype in-credible-set flag.
   const columns = useMemo<MRT_ColumnDef<PhenoSearchRow>[]>(
     () => [
       { accessorKey: "variant", header: "variant", id: "variant", size: 150 },
       { accessorKey: "rsid", header: "rsid", id: "rsid", size: 110 },
       {
+        accessorKey: "af",
+        header: "AF",
+        id: "af",
+        size: 70,
+        Cell: ({ cell }) => {
+          const v = cell.getValue<number | null>();
+          return v == null ? "" : v.toPrecision(3);
+        },
+      },
+      { accessorKey: "consequence", header: "most severe", id: "consequence", size: 120 },
+      {
         accessorKey: "gene",
-        header: "gene",
+        header: "most severe gene",
         id: "gene",
-        size: 90,
+        size: 110,
         // hover: gene summary from mygene.info (matches the variant results table)
         Cell: ({ cell }) => {
           const gene = cell.getValue<string | null>();
@@ -158,24 +171,24 @@ const PhenotypeSearchContainer = () => {
           return <GeneTooltip geneName={gene} content={<span>{gene}</span>} />;
         },
       },
-      { accessorKey: "consequence", header: "consequence", id: "consequence", size: 130 },
       {
+        // displayed as a p-value (pValRepr), matching the Variant results table; sorted on mlog10p.
         accessorKey: "mlog10p",
-        header: "-log10(p)",
+        header: "p-value",
         id: "mlog10p",
         sortingFn: naInfSort,
         sortDescFirst: true,
-        size: 90,
-        Cell: ({ cell }) => {
-          const v = cell.getValue<number>();
-          return v == null || Number.isNaN(v) ? "" : v.toPrecision(4);
+        size: 80,
+        Cell: ({ row }) => {
+          const m = row.original.mlog10p;
+          return m == null || Number.isNaN(m) ? "" : pValRepr(m);
         },
       },
       {
         accessorKey: "beta",
         header: "beta",
         id: "beta",
-        size: 80,
+        size: 70,
         Cell: ({ cell }) => {
           const v = cell.getValue<number>();
           return v == null || Number.isNaN(v) ? "" : v.toPrecision(3);
@@ -185,41 +198,35 @@ const PhenotypeSearchContainer = () => {
         accessorKey: "se",
         header: "se",
         id: "se",
-        size: 80,
+        size: 70,
         Cell: ({ cell }) => {
           const v = cell.getValue<number>();
           return v == null || Number.isNaN(v) ? "" : v.toPrecision(3);
         },
       },
       {
-        accessorKey: "af",
-        header: "af",
-        id: "af",
-        size: 80,
-        Cell: ({ cell }) => {
-          const v = cell.getValue<number | null>();
-          return v == null ? "" : v.toPrecision(3);
-        },
-      },
-      {
         accessorKey: "inCredibleSet",
         header: "in credible set",
         id: "inCredibleSet",
-        size: 120,
-        Cell: ({ row }) =>
-          row.original.inCredibleSet ? (
+        size: 110,
+        // yes/no in mild green/red so it reads at a glance; PIP (when in a CS) on hover.
+        Cell: ({ row }) => {
+          const inCs = row.original.inCredibleSet;
+          const pip = row.original.pip;
+          return (
             <Chip
               size="small"
-              color="primary"
-              label={
-                row.original.pip != null
-                  ? `PIP ${row.original.pip.toPrecision(2)}`
-                  : "yes"
-              }
+              label={inCs ? "yes" : "no"}
+              title={inCs && pip != null ? `PIP ${pip.toPrecision(2)}` : undefined}
+              sx={{
+                fontWeight: 600,
+                backgroundColor: (t) =>
+                  alpha(inCs ? t.palette.success.main : t.palette.error.main, 0.16),
+                color: (t) => (inCs ? t.palette.success.dark : t.palette.error.dark),
+              }}
             />
-          ) : (
-            <Chip size="small" variant="outlined" label="no" />
-          ),
+          );
+        },
       },
     ],
     []
@@ -229,19 +236,10 @@ const PhenotypeSearchContainer = () => {
   if (inputVariants.length === 0) {
     return (
       <Box sx={{ p: 2 }}>
-        <Typography variant="h6" sx={{ mb: 1 }}>
-          Phenotype search
-        </Typography>
         <Typography>
-          This view shows full summary statistics for your input variants. Start by entering
-          variants on the{" "}
-          <Box
-            component="span"
-            sx={{ color: "primary.main", cursor: "pointer", textDecoration: "underline" }}
-            onClick={() => navigate("/annotate")}>
-            variant table
-          </Box>
-          , then come back here or use the search button in the Phenotype summary tab.
+          This tab shows full summary statistics for your input variants. Enter variants in the input
+          box above (or the Variant results tab) first, then search for a phenotype here or use the
+          search button in the Phenotype summary tab.
         </Typography>
       </Box>
     );
@@ -249,15 +247,6 @@ const PhenotypeSearchContainer = () => {
 
   return (
     <Box sx={{ p: 2 }}>
-      <Box display="flex" flexDirection="row" gap={2} alignItems="center" sx={{ mb: 2 }}>
-        <Typography variant="h6">Phenotype search</Typography>
-        <Box
-          sx={{ color: "primary.main", cursor: "pointer", textDecoration: "underline" }}
-          onClick={() => navigate("/annotate")}>
-          <Typography variant="body2">back to variant table</Typography>
-        </Box>
-      </Box>
-
       <Typography sx={{ mb: 2 }}>
         Full summary statistics for your {inputVariants.length} input variant
         {inputVariants.length === 1 ? "" : "s"} for a chosen phenotype, plus whether each variant is
@@ -348,9 +337,13 @@ const PhenotypeSearchContainer = () => {
           initialState={{
             density: "compact",
             sorting: [{ id: "mlog10p", desc: true }],
+            // 20 rows per page by default (matches the Variant results table), not MRT's default 10
+            pagination: { pageIndex: 0, pageSize: 20 },
           }}
           sortingFns={{ naInfSort }}
           enableGlobalFilter={false}
+          muiTableProps={{ sx: { tableLayout: "fixed" } }}
+          muiPaginationProps={{ rowsPerPageOptions: [10, 20, 100, 1000] }}
           muiTableBodyCellProps={{ sx: { fontSize: "0.75rem" } }}
           renderEmptyRowsFallback={() => (
             <Box sx={{ p: 2 }}>

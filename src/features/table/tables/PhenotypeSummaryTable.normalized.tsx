@@ -19,10 +19,10 @@ import VariantMainTable from "./VariantMainTable";
  * Each row expands to the variants that are in a CS for that trait (re-uses VariantMainTable scoped
  * to the trait via the store's selectedPhenotype-style filter applied to the row's variant subset).
  *
- * HANDOFF (refactor.md §4 / §5): a per-row "search" button hands off to the phenotype-search view
- * for the chosen trait. That view (task .24) does not exist yet, so the handoff both (a) sets the
- * store's selectedPhenotype (the future view reads it) and (b) navigates to the planned route. The
- * route is wired and ready; see the TODO in handoff() — it becomes live once .24 registers the route.
+ * HANDOFF (refactor.md §4 / §5): a per-row "search" button hands off to the Phenotype search tab for
+ * the chosen trait by setting store.selectedPhenotype and switching the active tab (the search tab
+ * preselects from selectedPhenotype). It used to navigate to a /annotate/phenotype-search route, but
+ * that nested route 404'd on a server without SPA fallback; a tab keeps the variant context in-store.
  */
 
 const PhenotypeSummaryTable = () => {
@@ -31,6 +31,7 @@ const PhenotypeSummaryTable = () => {
   const phenotypes = useDataStore((state) => state.normalizedData?.phenotypes ?? {});
   const hasBetas = useDataStore((state) => state.normalizedData?.hasBetas ?? false);
   const setSelectedPhenotype = useDataStore((state) => state.setSelectedPhenotype);
+  const setActiveTab = useDataStore((state) => state.setActiveTab);
   const setChatSeed = useChatSeedStore((state) => state.setChatSeed);
   const navigate = useNavigate();
 
@@ -39,14 +40,11 @@ const PhenotypeSummaryTable = () => {
     [filteredVariants, phenotypes]
   );
 
-  // handoff to the phenotype-search view (.24): stash the chosen trait in the store and navigate to
-  // /annotate/phenotype-search. the view preselects from the ?resource=&trait= query params (and falls
-  // back to selectedPhenotype) and immediately runs the per-variant summary-stats lookup.
+  // handoff to the Phenotype search tab: stash the chosen trait in the store and switch tabs. the
+  // search tab preselects from selectedPhenotype and immediately runs the per-variant sumstats lookup.
   const handoff = (row: PhenoSummaryRow) => {
     setSelectedPhenotype({ resource: row.resource, trait: row.trait });
-    navigate(
-      `/annotate/phenotype-search?resource=${encodeURIComponent(row.resource)}&trait=${encodeURIComponent(row.trait)}`
-    );
+    setActiveTab("phenotype_search");
   };
 
   // ask-the-assistant hand-off: seed a trait-context prompt scoped to the current input variants,

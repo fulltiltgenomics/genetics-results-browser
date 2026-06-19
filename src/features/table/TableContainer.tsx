@@ -13,6 +13,9 @@ const VariantMainTable = lazy(() => import("./tables/VariantMainTable"));
 const DataTypeTable = lazy(() => import("./tables/DataTypeTable.normalized"));
 const PhenotypeSummaryTable = lazy(() => import("./tables/PhenotypeSummaryTable.normalized"));
 const TissueSummaryTable = lazy(() => import("./tables/TissueSummaryTable.normalized"));
+const PhenotypeSearchContainer = lazy(
+  () => import("../phenoSearch/PhenotypeSearchContainer")
+);
 
 const TableContainer = () => {
   const activeTab = useDataStore((state) => state.activeTab);
@@ -77,6 +80,7 @@ const TableContainer = () => {
                 label="tissue and cell type summary"
                 disabled={!hasData}
               />
+              <Tab value="phenotype_search" label="phenotype search" disabled={!hasData} />
             </Tabs>
             <TabPanel value="variants" sx={{ padding: 0 }}>
               <Box display="flex" flexDirection="column" sx={{ paddingTop: "10px" }}>
@@ -136,6 +140,23 @@ const TableContainer = () => {
                 <Suspense fallback={<CircularProgress />}>
                   <Box sx={{ paddingLeft: "20px", paddingRight: "20px" }}>
                     <TissueSummaryTable />
+                  </Box>
+                </Suspense>
+              </Box>
+            </TabPanel>
+            <TabPanel value="phenotype_search" sx={{ padding: 0 }}>
+              <Box display="flex" flexDirection="column" sx={{ paddingTop: "10px" }}>
+                <Typography sx={{ marginBottom: "10px", paddingLeft: "20px", fontWeight: "bold" }}>
+                  Phenotype search
+                </Typography>
+                <Typography sx={{ marginBottom: "10px", paddingLeft: "20px" }}>
+                  Look up the full summary statistics of your input variants for any one phenotype
+                  with summary stats, and see which variants are in a credible set for it. Hand off
+                  from a row's search button in the Phenotype summary tab, or search here directly.
+                </Typography>
+                <Suspense fallback={<CircularProgress />}>
+                  <Box sx={{ paddingLeft: "20px", paddingRight: "20px" }}>
+                    <PhenotypeSearchContainer />
                   </Box>
                 </Suspense>
               </Box>

@@ -1030,7 +1030,7 @@ export const useTraitNameMapping = (enabled: boolean): UseQueryResult<Record<str
 };
 
 /* ────────────────────────────────────────────────────────────────────────────
- * PHENOTYPE SEARCH VIEW (refactor.md §5) — own route /annotate/phenotype-search.
+ * PHENOTYPE SEARCH TAB (refactor.md §5) — a tab inside the variant table (TableContainer).
  * Two granular reads via the BFF passthrough:
  *   - GET /search?types=phenotypes&has_summary_stats=true  -> autocomplete hits with full sumstats
  *   - GET /summary_stats/{resource}/{data_type}?variants=&phenotypes=  -> per-variant sumstat rows
@@ -1063,7 +1063,10 @@ export const usePhenotypeSearch = (
     queryKey: ["phenotype-search", query],
     queryFn: async (): Promise<PhenotypeSearchHit[]> => {
       const { data } = await api.get<PhenotypeSearchApiRow[]>("/v1/search", {
-        params: { q: query, types: "phenotypes", has_summary_stats: true, format: "json" },
+        // limit defaults to 10 upstream; a phenotype word (e.g. "asthma") can match dozens of
+        // endpoints, so ask for the max (100). NOTE: has_summary_stats is applied AFTER the index
+        // takes its top-`limit`, so a high limit also yields more *with* summary stats.
+        params: { q: query, types: "phenotypes", has_summary_stats: true, limit: 100, format: "json" },
       });
       return data.map((row) => ({
         code: row.code,
