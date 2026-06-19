@@ -12,7 +12,7 @@ import broadLogo from "../../assets/broad-logo.png";
 import finngenLogo from "../../assets/finngen-logo-400-1.png";
 import { useThemeStore } from "@/store/store.theme";
 import { useAuth } from "@/store/useAuth";
-import { useLocation, useNavigate } from "react-router-dom";
+import { Link as RouterLink, useLocation, useNavigate } from "react-router-dom";
 import McpTokenDialog from "./McpTokenDialog";
 
 const Header = () => {
@@ -84,14 +84,16 @@ const Header = () => {
           onDoubleClick={() => new Audio(sounds[Math.floor(Math.random() * sounds.length)]).play()}
           sx={{ height: 40, backgroundColor: "white", p: 0.5, borderRadius: 0.5 }}
         />
-        {/* contextual main link: "Anno" to enter the annotation tool, "Chat" while inside it */}
+        {/* contextual main link: "Anno" to enter the annotation tool, "Chat" while inside it.
+            use client-side routing (RouterLink), NOT href — an href does a full document load of
+            /chat, which the server doesn't serve as a static file (the failing "chat" request). */}
         <Typography variant="h6" sx={{ paddingLeft: "20px" }}>
           {location.pathname.startsWith("/annotate") ? (
-            <Link href="/chat" underline="hover">
+            <Link component={RouterLink} to="/chat" underline="hover">
               Chat
             </Link>
           ) : (
-            <Link href="/annotate" underline="hover">
+            <Link component={RouterLink} to="/annotate" underline="hover">
               Anno
             </Link>
           )}
