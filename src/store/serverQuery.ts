@@ -842,6 +842,58 @@ export const useColocByCredibleSet = (
   });
 };
 
+/**
+ * What a variant's credible set (in a given resource+phenotype) colocalizes with, via
+ * GET /v1/colocalization_by_variant/{variant}/{resource}/{phenotype}. This replaces the
+ * colocalization_by_credible_set_id call, which only accepts region-format cs ids
+ * (chr{N}:{start}-{end}_{L}) and 422s on the variant-format (FinnGen labs) and molecular-QTL
+ * (eQTL Catalogue) cs ids that make up most credible sets — see the coloc router's cs-id parser.
+ * Anchoring on the variant the user is viewing works for every cs-id format and is the same
+ * "this signal colocalizes with…" question. Same simple-schema rows as before, so the ColocPair
+ * mapping is unchanged; filtered to PP.H4 >= threshold and sorted descending.
+ */
+export const useColocByVariant = (
+  variant: string | undefined,
+  resource: string | undefined,
+  trait: string | undefined,
+  enabled: boolean
+): UseQueryResult<ColocPair[], Error> => {
+  return useQuery<ColocPair[]>({
+    queryKey: ["coloc-by-variant", variant, resource, trait],
+    queryFn: async (): Promise<ColocPair[]> => {
+      const path = `/v1/colocalization_by_variant/${encodeURIComponent(
+        toDashVariant(variant!)
+      )}/${encodeURIComponent(resource!)}/${encodeURIComponent(trait!)}`;
+      const { data } = await api.get<ColocApiRow[]>(`${path}?format=json`);
+      // the upstream can return the same partner row more than once (observed for FinnGen GWAS
+      // partners); collapse exact duplicates. NO PP.H4 cutoff — show all colocalization data.
+      const seen = new Set<string>();
+      const pairs: ColocPair[] = [];
+      for (const row of data) {
+        const pair: ColocPair = {
+          resource2: row.resource,
+          dataType2: row.data_type as CredibleSetDataType,
+          trait2: row.trait,
+          trait2Original: row.trait_original,
+          quantLevel2: parseQuantLevel(row.trait_original),
+          cellType2: row.cell_type,
+          ppH4: row["PP.H4.abf"],
+          clpp: row.clpp,
+          cs2Size: row.cs_size,
+          hit2: row.hit,
+        };
+        const key = `${pair.resource2}|${pair.dataType2}|${pair.trait2}|${pair.cellType2}|${pair.hit2}|${pair.ppH4}|${pair.clpp}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        pairs.push(pair);
+      }
+      return pairs.sort((a, b) => b.ppH4 - a.ppH4);
+    },
+    enabled: enabled && !!variant && !!resource && !!trait,
+    staleTime: Infinity,
+  });
+};
+
 // harmonized per-phenotype metadata (GET /v1/resource_metadata/{resource}). one numeric NA -> null.
 export interface PhenotypeMetadata {
   name: string;

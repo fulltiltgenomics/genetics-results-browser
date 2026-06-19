@@ -1,11 +1,7 @@
 import { useState } from "react";
 import { Box, Button, CircularProgress, Chip, Typography } from "@mui/material";
 import HubOutlinedIcon from "@mui/icons-material/HubOutlined";
-import {
-  COLOC_PP_H4_THRESHOLD,
-  useColocByCredibleSet,
-  useTraitNameMapping,
-} from "../../../store/serverQuery";
+import { useColocByVariant, useTraitNameMapping } from "../../../store/serverQuery";
 import { ColocPair, GroupedCredibleSet } from "../../../types/types.normalized";
 
 /**
@@ -38,18 +34,18 @@ const PartnerTrait = (props: { coloc: ColocPair; phenostrings?: Record<string, s
 };
 
 /**
- * Per-credible-set colocalization affordance for the expanded variant detail (refactor.md §4):
- * "this signal colocalizes with…". The fetch is lazy — it only fires after the user clicks open,
- * via useColocByCredibleSet gated on `enabled`. One section per distinct cs_id, since coloc is
- * per-credible-set; a grouped row that collapses several memberships shows one block per CS.
+ * Per-signal colocalization affordance for the expanded variant detail (refactor.md §4): "this
+ * signal colocalizes with…". The fetch is lazy — it only fires after the user clicks open, via
+ * useColocByVariant gated on `enabled`. Anchored on the variant + the credible set's resource/trait
+ * (not the cs id), so it works regardless of cs-id format (region / variant / molecular-QTL).
  */
-const CredibleSetColoc = (props: { resource: string; trait: string; csId: string }) => {
+const CredibleSetColoc = (props: { variant: string; resource: string; trait: string }) => {
   const [open, setOpen] = useState(false);
   // the query stays idle until the user opens it; staleTime keeps it cached on reopen.
-  const { data, isFetching, isError } = useColocByCredibleSet(
+  const { data, isFetching, isError } = useColocByVariant(
+    props.variant,
     props.resource,
     props.trait,
-    props.csId,
     open
   );
   // resolve GWAS partner phenocodes to phenostrings; one cached fetch shared across open sections.
@@ -63,7 +59,7 @@ const CredibleSetColoc = (props: { resource: string; trait: string; csId: string
         startIcon={<HubOutlinedIcon sx={{ fontSize: "0.9rem" }} />}
         onClick={() => setOpen((o) => !o)}
         sx={{ textTransform: "none", fontSize: "0.72rem", padding: "2px 6px" }}>
-        {open ? "hide" : "show"} colocalizations · {props.csId}
+        {open ? "hide" : "show"} colocalization data
       </Button>
 
       {open && (
@@ -87,8 +83,7 @@ const CredibleSetColoc = (props: { resource: string; trait: string; csId: string
           {!isFetching && !isError && data && data.length > 0 && (
             <Box sx={{ maxHeight: "260px", overflowY: "auto" }}>
               <Typography sx={{ fontSize: "0.7rem", fontStyle: "italic", marginBottom: "2px" }}>
-                {data.length} colocalization{data.length === 1 ? "" : "s"} (PP.H4 ≥{" "}
-                {COLOC_PP_H4_THRESHOLD})
+                {data.length} colocalization{data.length === 1 ? "" : "s"}
               </Typography>
               <table style={{ fontSize: "0.72rem", borderCollapse: "collapse" }}>
               <thead>
@@ -137,23 +132,24 @@ const CredibleSetColoc = (props: { resource: string; trait: string; csId: string
   );
 };
 
-const ColocSection = (props: { row: GroupedCredibleSet }) => {
-  // coloc is per credible set; a grouped row can carry several memberships -> one block per cs_id.
-  const distinctCsIds = Array.from(new Set(props.row.csIds));
-
+const ColocSection = (props: { row: GroupedCredibleSet; variant: string }) => {
+  // the coloc endpoint filters on the credible-set file's NATIVE trait id, which the credible_sets
+  // API harmonizes inconsistently: a GWAS `trait` is a display name and the phenocode the coloc file
+  // keys on lives in `traitOriginal` (e.g. "Atrial_fibrillation_and_flutter" vs "I9_AF"), whereas a
+  // QTL `trait` is already the gene/protein symbol the coloc file uses (traitOriginal adds molecular
+  // detail). pass the phenocode for GWAS, the symbol for QTLs — otherwise GWAS rows wrongly show none.
+  const phenotypeKey =
+    props.row.dataType === "GWAS" ? props.row.traitOriginal : props.row.trait;
   return (
     <Box sx={{ display: "flex", flexDirection: "column" }}>
       <Typography sx={{ fontSize: "0.72rem", fontWeight: "bold", marginBottom: "4px" }}>
         What this signal colocalizes with
       </Typography>
-      {distinctCsIds.map((csId) => (
-        <CredibleSetColoc
-          key={csId}
-          resource={props.row.resource}
-          trait={props.row.trait}
-          csId={csId}
-        />
-      ))}
+      <CredibleSetColoc
+        variant={props.variant}
+        resource={props.row.resource}
+        trait={phenotypeKey}
+      />
     </Box>
   );
 };

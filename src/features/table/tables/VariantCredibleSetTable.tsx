@@ -355,10 +355,11 @@ const VariantCredibleSetTable = (props: {
             {distinctCellTypes(row.original).length > 1 && (
               <CellTypeStatsTable group={row.original} />
             )}
-            <ColocSection row={row.original} />
+            <ColocSection row={row.original} variant={props.data.variant} />
           </>
         )}
       />
+      )}
     </Box>
   );
 };

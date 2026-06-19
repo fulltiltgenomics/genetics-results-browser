@@ -65,6 +65,11 @@ export const handlers = [
     HttpResponse.json(colocalizationByCsId)
   ),
 
+  // variant-anchored coloc used by ColocSection (works for all cs-id formats, unlike the cs-id route)
+  http.get(api("colocalization_by_variant/:variant/:resource/:phenotype"), () =>
+    HttpResponse.json(colocalizationByCsId)
+  ),
+
   // {phenocode: phenostring} map used to resolve GWAS coloc partner names (ColocSection)
   http.get(api("trait_name_mapping"), () => HttpResponse.json(traitNameMapping)),
 
