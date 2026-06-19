@@ -1,5 +1,5 @@
-import { useMemo } from "react";
-import { Box, Chip, Typography } from "@mui/material";
+import { useEffect, useMemo, useState } from "react";
+import { Box, Chip, Skeleton, Typography } from "@mui/material";
 import { MaterialReactTable } from "material-react-table";
 import type { MRT_ColumnDef } from "material-react-table";
 import { GroupedCredibleSet, VariantResult } from "../../../types/types.normalized";
@@ -307,6 +307,19 @@ const CellTypeStatsTable = ({ group }: { group: GroupedCredibleSet }) => (
   </Box>
 );
 
+// cheap skeleton shown the instant a row expands. Rendering the real interactive MaterialReactTable
+// is the slow part of an expand (it builds dozens of MUI Tooltip/Box/Chip components, heavily
+// amplified by dev-mode + StrictMode) — not data, the rows are already in memory. This is a handful
+// of plain Skeleton bars so the panel opens immediately; the full sortable/filterable table swaps in
+// a frame later. row count is hinted from the real data so the placeholder is the right height.
+const DetailSkeleton = ({ rowHint }: { rowHint: number }) => (
+  <Box sx={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+    {Array.from({ length: Math.min(Math.max(rowHint, 1), 8) }).map((_, i) => (
+      <Skeleton key={i} variant="rounded" height={22} width="100%" />
+    ))}
+  </Box>
+);
+
 const VariantCredibleSetTable = (props: {
   data: VariantResult;
   traitName?: (resource: string, trait: string) => string;
@@ -318,6 +331,21 @@ const VariantCredibleSetTable = (props: {
   );
   const columns = useMemo(() => getColumns(traitName), [traitName]);
 
+  // defer the heavy MaterialReactTable mount so the detail panel opens instantly with the skeleton
+  // above; double rAF guarantees the skeleton paints before the MRT mount blocks the main thread.
+  // cancels on unmount so a quick collapse-before-paint doesn't upgrade a dead panel.
+  const [showInteractive, setShowInteractive] = useState(false);
+  useEffect(() => {
+    let raf2 = 0;
+    const raf1 = requestAnimationFrame(() => {
+      raf2 = requestAnimationFrame(() => setShowInteractive(true));
+    });
+    return () => {
+      cancelAnimationFrame(raf1);
+      cancelAnimationFrame(raf2);
+    };
+  }, []);
+
   return (
     <Box sx={{ display: "flex", flexDirection: "column" }}>
       <Typography sx={{ marginBottom: "10px", fontWeight: "bold" }}>
@@ -327,10 +355,16 @@ const VariantCredibleSetTable = (props: {
         The credible sets across all phenotypes and QTLs that contain this variant, after the current
         PIP / resource / data-type filters.
       </Typography>
+      {!showInteractive ? (
+        <DetailSkeleton rowHint={grouped.length} />
+      ) : (
       <MaterialReactTable
         columns={columns}
         data={grouped}
         enableTopToolbar={false}
+        // data/columns are memoized; keep MRT from auto-resetting the page on change to avoid the
+        // reset -> setState -> re-render loop (see VariantMainTable) and to hold position on re-render.
+        autoResetPageIndex={false}
         // default ordering: most credible (PIP desc), then most significant (mlog10p desc), then
         // largest effect (|beta| desc). users can re-sort any of these columns.
         initialState={{
