@@ -39,6 +39,12 @@ const QueryVariantInfo = () => {
     <></>
   );
 
+  // the tables only render variants that are a member of at least one credible set, so surface that
+  // count alongside the found count to explain why fewer rows may show than variants found.
+  const inCredibleSet = (normalizedData?.variants ?? []).filter(
+    (v) => v.credibleSets.length > 0
+  ).length;
+
   let foundElem = <></>;
   if (input.found.length > 0) {
     foundElem =
@@ -49,11 +55,12 @@ const QueryVariantInfo = () => {
               ? "Both "
               : `All ${input.found.length} `
             : input.found.length}{" "}
-          variants found
+          variants found, {inCredibleSet} in at least one credible set across all datasets
         </Typography>
       ) : (
         <Typography variant="h6" gutterBottom>
           Variant {input.found[0]} found
+          {inCredibleSet === 0 ? ", not in any credible set" : ""}
         </Typography>
       );
   }
