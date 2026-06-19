@@ -1,4 +1,4 @@
-import { useQuery, UseQueryResult } from "@tanstack/react-query";
+import { useQuery, useQueries, UseQueryResult } from "@tanstack/react-query";
 import { Config, Dataset, DataType, Phenotype, TableData } from "../types/types";
 import {
   ColocPair,
@@ -958,6 +958,56 @@ export const useResourceMetadata = (
     staleTime: Infinity,
     gcTime: Infinity,
   });
+};
+
+// one peak_to_genes row (snake_case JSON). only the fields we use are typed; the payload also carries
+// the hurdle model stats + gene/peak coordinates which we don't surface here.
+interface PeakGeneApiRow {
+  peak_id: string;
+  gene_id: string;
+  symbol: string;
+  cell_type: string;
+}
+
+// genes one ATAC peak regulates (GET /v1/peak_to_genes/{peak_id}). dash-format peak id (chr-start-end),
+// which is exactly the caQTL credible-set trait id, so no reformatting is needed.
+const fetchPeakGenes = async (peak: string): Promise<string[]> => {
+  const { data } = await api.get<PeakGeneApiRow[]>(
+    `/v1/peak_to_genes/${encodeURIComponent(peak)}`,
+    { params: { format: "json" } }
+  );
+  // NOTE: each peak_to_genes row carries its own cell_type, but that is the cell type in which the
+  // peak->gene LINK was detected — orthogonal to the caQTL discovery cell_type that keys the tissue
+  // row. They rarely overlap, so filtering by the row's cell type would wrongly drop most genes. We
+  // therefore take the union of symbols across all link cell types.
+  return [...new Set(data.map((r) => r.symbol).filter(Boolean))].sort();
+};
+
+/**
+ * Resolve a set of ATAC peaks to the union of genes they regulate, via peak_to_genes. Used by the
+ * caQTL tissue-summary "linked genes" column. Each peak is its own query (keyed by peak id) so peaks
+ * shared across rows are fetched once and cached forever; calling this from the row cell means only
+ * the ~page-worth of currently rendered rows fetch at a time. Returns the deduped, sorted symbols.
+ */
+export const usePeakGenes = (
+  peaks: string[],
+  enabled: boolean
+): { genes: string[]; isLoading: boolean; isError: boolean } => {
+  const results = useQueries({
+    queries: peaks.map((peak) => ({
+      queryKey: ["peak-to-genes", peak],
+      queryFn: () => fetchPeakGenes(peak),
+      enabled: enabled && !!peak,
+      staleTime: Infinity,
+      gcTime: Infinity,
+    })),
+  });
+  const genes = [...new Set(results.flatMap((r) => r.data ?? []))].sort();
+  return {
+    genes,
+    isLoading: results.some((r) => r.isLoading),
+    isError: results.some((r) => r.isError),
+  };
 };
 
 /**

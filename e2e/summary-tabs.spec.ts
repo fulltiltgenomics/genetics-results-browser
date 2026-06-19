@@ -44,10 +44,12 @@ test("migrated summary tabs render credible-set data", async ({ page }) => {
   // eQTL default toggle is present
   await expect(page.getByRole("button", { name: "eQTL" })).toBeVisible({ timeout: 15_000 });
   await snapshot(page, "tab-tissue-eqtl");
-  // switch to caQTL and confirm the table changes (ATAC cell type + deferred linked-genes column)
+  // switch to caQTL and confirm the table changes (ATAC cell type + live peak->gene linked-genes)
   await page.getByRole("button", { name: "caQTL" }).click();
   await expect(page.getByText("linked genes")).toBeVisible({ timeout: 10_000 });
   await expect(page.getByText("l1.PBMC")).toBeVisible({ timeout: 10_000 });
+  // peak_to_genes enrichment resolves a known gene for this region's ATAC peaks
+  await expect(page.getByText("NECTIN2", { exact: false }).first()).toBeVisible({ timeout: 15_000 });
   const file = await snapshot(page, "tab-tissue-caqtl");
   expect(file).toContain("tab-tissue-caqtl");
 });

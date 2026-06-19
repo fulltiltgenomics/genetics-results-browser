@@ -57,14 +57,19 @@ describe("PhenotypeSummaryTable (.20)", () => {
 
 describe("TissueSummaryTable (.21)", () => {
   it("defaults to eQTL and switches the table when the local caQTL toggle is clicked", () => {
-    render(<TissueSummaryTable />);
+    // wrapped in a QueryClientProvider: the caQTL "linked genes" cell fetches peak_to_genes live
+    render(
+      <QueryClientProvider client={new QueryClient()}>
+        <TissueSummaryTable />
+      </QueryClientProvider>
+    );
     // eQTL is the default selection: the eQTL tissue label (ge-only default drops the exon eQTL row,
     // so the brain eQTL tissue is absent; pQTL "plasma" is NOT shown here as this tab is QTL-typed to
     // eQTL). switching to caQTL must surface the ATAC cell type.
     const caqtlToggle = screen.getByRole("button", { name: "caQTL" });
     fireEvent.click(caqtlToggle);
     expect(screen.getByText("l1.PBMC")).toBeInTheDocument();
-    // the deferred peak->gene column header is present in caQTL mode
+    // the peak->gene "linked genes" column header is present in caQTL mode
     expect(screen.getByText("linked genes")).toBeInTheDocument();
   });
 });

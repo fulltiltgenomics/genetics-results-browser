@@ -323,9 +323,9 @@ interface TissueAcc {
  * Summarize filtered variants into tissue/cell-type rows for ONE QTL data type (eQTL or caQTL).
  * @param dataType which QTL layer to summarize — the decoupled eQTL/caQTL toggle.
  *
- * peak->gene enrichment (linkedGenes for caQTL) is intentionally NOT computed here: it requires a
- * lazy peak_to_genes fetch (refactor.md §2) which is a later concern (.21/.23). linkedGenes is left
- * undefined; the peak ids are aggregated internally so a follow-up enrichment hook can fill it in.
+ * peak->gene enrichment is NOT done here: peak_to_genes is fetched lazily per visible row in the
+ * tissue table (usePeakGenes). We surface the deduped peak ids on the row so that cell can resolve
+ * them on demand without re-deriving the membership set.
  */
 export const summarizeTissues = (
   variants: VariantResult[],
@@ -352,7 +352,9 @@ export const summarizeTissues = (
       dataType,
       variantCount: a.variants.size,
       variants: [...a.variants],
-      // linkedGenes deferred: requires lazy peak_to_genes; peaks aggregated above for that hook.
+      // caQTL: peak ids for this cell type, resolved to genes live via peak_to_genes (sorted for
+      // stable identity); undefined for eQTL where the trait is already a gene/tissue label.
+      peaks: dataType === "caQTL" ? [...a.peaks].sort() : undefined,
     }))
     .sort((a, b) => b.variantCount - a.variantCount);
 };

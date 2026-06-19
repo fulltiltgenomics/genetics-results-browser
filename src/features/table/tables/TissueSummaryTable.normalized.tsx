@@ -1,11 +1,35 @@
-import { Box, ToggleButton, ToggleButtonGroup, Typography } from "@mui/material";
+import { Box, Skeleton, ToggleButton, ToggleButtonGroup, Typography } from "@mui/material";
 import { MaterialReactTable, MRT_ColumnDef } from "material-react-table";
 import { useMemo, useState } from "react";
 import { TissueSummaryRow } from "../../../types/types.normalized";
 import { filterCredibleSets, summarizeTissues } from "../../../store/munge.normalized";
 import { useDataStore } from "../../../store/store";
+import { usePeakGenes } from "../../../store/serverQuery";
 import { naInfSort } from "../utils/sorting";
 import { formatTissue } from "../utils/tableutil";
+import GeneTooltip from "../../tooltips/GeneToolTip";
+
+/**
+ * "linked genes" cell for the caQTL view: resolves the row's ATAC peaks to the union of genes they
+ * regulate via peak_to_genes (lazy — only the rows MRT actually renders fetch). Each gene carries the
+ * mygene.info tooltip, matching the gene columns elsewhere.
+ */
+const LinkedGenesCell = ({ peaks }: { peaks: string[] }) => {
+  const { genes, isLoading, isError } = usePeakGenes(peaks, peaks.length > 0);
+  if (peaks.length === 0) return <span>—</span>;
+  if (isLoading) return <Skeleton variant="text" width={120} />;
+  if (isError || genes.length === 0) return <span>—</span>;
+  return (
+    <Box sx={{ display: "flex", flexWrap: "wrap", gap: "2px 6px" }}>
+      {genes.map((g, i) => (
+        <span key={g}>
+          <GeneTooltip geneName={g} content={<span>{g}</span>} />
+          {i < genes.length - 1 ? "," : ""}
+        </span>
+      ))}
+    </Box>
+  );
+};
 
 /**
  * Tissue & cell type summary tab for the credible-set-only data model (refactor.md §4).
@@ -43,16 +67,17 @@ const getColumns = (dataType: "eQTL" | "caQTL"): MRT_ColumnDef<TissueSummaryRow>
       size: 80,
     },
   ];
-  // caQTL traits are ATAC peaks; the linked gene(s) require a lazy peak_to_genes fetch that is
-  // deferred (refactor.md §2). show the column as a placeholder so the intent is visible.
+  // caQTL traits are ATAC peaks; resolve each row's peaks to the genes they regulate, lazily per
+  // rendered row via peak_to_genes (usePeakGenes in LinkedGenesCell).
   if (dataType === "caQTL") {
     cols.push({
-      accessorFn: (row) => (row.linkedGenes && row.linkedGenes.length ? row.linkedGenes.join(", ") : "—"),
+      accessorFn: (row) => (row.peaks?.length ? row.peaks.length : 0),
       id: "linkedGenes",
       header: "linked genes",
       enableSorting: false,
       enableColumnFilter: false,
-      size: 160,
+      size: 220,
+      Cell: ({ row }) => <LinkedGenesCell peaks={row.original.peaks ?? []} />,
     });
   }
   return cols;

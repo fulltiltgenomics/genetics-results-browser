@@ -73,6 +73,15 @@ export const handlers = [
   // {phenocode: phenostring} map used to resolve GWAS coloc partner names (ColocSection)
   http.get(api("trait_name_mapping"), () => HttpResponse.json(traitNameMapping)),
 
+  // peak->gene links used lazily by the caQTL tissue summary "linked genes" column (usePeakGenes).
+  // two rows for one peak across different link cell types -> the hook unions to a single symbol.
+  http.get(api("peak_to_genes/:peak"), ({ params }) =>
+    HttpResponse.json([
+      { peak_id: String(params.peak), gene_id: "ENSG00000130203", symbol: "APOE", cell_type: "l1.B" },
+      { peak_id: String(params.peak), gene_id: "ENSG00000130203", symbol: "APOE", cell_type: "l1.Mono" },
+    ])
+  ),
+
   // harmonized per-phenotype metadata (counts) used lazily by PhenotypeTooltip on hover
   http.get(api("resource_metadata/:resource"), () =>
     HttpResponse.json([

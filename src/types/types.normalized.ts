@@ -329,8 +329,8 @@ export interface TissueSummaryRow {
   tissueOrCellType: string; // cellType (caQTL) or tissue label (eQTL)
   dataType: Extract<CredibleSetDataType, "eQTL" | "caQTL">;
   variantCount: number;
-  /** caQTL only: genes the peak links to, via peak_to_genes (lazy/optional enrichment). */
-  linkedGenes?: string[];
+  /** caQTL only: the ATAC peak ids seen for this cell type; resolved to genes live via peak_to_genes. */
+  peaks?: string[];
   variants: VariantId[];
 }
 

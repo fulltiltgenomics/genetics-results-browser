@@ -493,13 +493,30 @@ describe("summarizeTissues", () => {
     expect(summarizeTissues([v], "eQTL")).toHaveLength(0);
   });
 
-  it("does not compute linkedGenes (peak->gene enrichment deferred)", () => {
-    const v = makeVariant({
+  it("surfaces deduped caQTL peak ids for live peak->gene enrichment", () => {
+    const v1 = makeVariant({
+      variant: "19:1:A:G",
       credibleSets: [
         makeCS({ dataType: "caQTL", cellType: "l1.PBMC", trait: "chr19-44906317-44906816" }),
       ],
     });
-    expect(summarizeTissues([v], "caQTL")[0].linkedGenes).toBeUndefined();
+    const v2 = makeVariant({
+      variant: "19:2:A:G",
+      credibleSets: [
+        // same cell type + same peak as v1 -> the peak is deduped within the row
+        makeCS({ dataType: "caQTL", cellType: "l1.PBMC", trait: "chr19-44906317-44906816" }),
+        makeCS({ dataType: "caQTL", cellType: "l1.PBMC", trait: "chr19-44914519-44915652" }),
+      ],
+    });
+    const row = summarizeTissues([v1, v2], "caQTL")[0];
+    expect(row.peaks).toEqual(["chr19-44906317-44906816", "chr19-44914519-44915652"]);
+  });
+
+  it("does not set peaks for eQTL (trait is already a gene/tissue label)", () => {
+    const v = makeVariant({
+      credibleSets: [makeCS({ dataType: "eQTL", quantLevel: "ge", cellType: "brain" })],
+    });
+    expect(summarizeTissues([v], "eQTL")[0].peaks).toBeUndefined();
   });
 });
 
