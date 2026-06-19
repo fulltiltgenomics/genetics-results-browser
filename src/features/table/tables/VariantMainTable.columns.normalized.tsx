@@ -23,14 +23,14 @@ import { PhenotypeTooltip } from "../../tooltips/PhenotypeTooltip";
  */
 
 /** gnomAD AF for the selected population (undefined = overall). guards against missing data. */
-const gnomadAf = (gnomad: GnomadFreq | undefined, pop: string | undefined): number | null => {
+export const gnomadAf = (gnomad: GnomadFreq | undefined, pop: string | undefined): number | null => {
   if (!gnomad) return null;
   if (pop === undefined) return gnomad.afOverall;
   return gnomad.byPop[pop as GnomadPop] ?? null;
 };
 
 /** format an AF (or a dash when missing) — credible-set CS arrays may carry NaN/null. */
-const afRepr = (af: number | null): string => {
+export const afRepr = (af: number | null): string => {
   if (af === null || Number.isNaN(af)) return "-";
   if (af === 0) return "0";
   if (af < 0.001) return af.toExponential(2);

@@ -214,6 +214,7 @@ export const summarizeDataTypes = (variants: VariantResult[]): DataTypeSummaryRo
       consequence: v.annotation.consequence,
       gene: v.annotation.gene,
       consequences: v.gnomad?.consequences,
+      gnomad: v.gnomad,
       counts,
       total,
     };

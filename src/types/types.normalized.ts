@@ -304,6 +304,7 @@ export interface DataTypeSummaryRow {
   consequence: string | null; // most_severe of the queried variant (mirrors the variant table column)
   gene: string | null; // gene_most_severe of the queried variant
   consequences?: GnomadConsequence[]; // all gnomAD VEP consequences (for the most-severe tooltip)
+  gnomad?: GnomadFreq; //                gnomAD frequencies of the queried variant (for the AF column/tooltip)
   /** distinct CS memberships per data type (counts grouped CS, deduped by resource|dataset|trait). */
   counts: Partial<Record<CredibleSetDataType, number>>;
   total: number;

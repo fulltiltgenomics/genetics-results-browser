@@ -14,6 +14,7 @@ import { useDataStore } from "../../store/store";
 import { usePhenotypeSearch, useSummaryStats } from "../../store/serverQuery";
 import { PhenoSearchRow, PhenotypeSearchHit } from "../../types/types.normalized";
 import { naInfSort } from "../table/utils/sorting";
+import GeneTooltip from "../tooltips/GeneToolTip";
 
 /**
  * Phenotype search view (refactor.md §5, own route /annotate/phenotype-search).
@@ -145,7 +146,18 @@ const PhenotypeSearchContainer = () => {
     () => [
       { accessorKey: "variant", header: "variant", id: "variant", size: 150 },
       { accessorKey: "rsid", header: "rsid", id: "rsid", size: 110 },
-      { accessorKey: "gene", header: "gene", id: "gene", size: 90 },
+      {
+        accessorKey: "gene",
+        header: "gene",
+        id: "gene",
+        size: 90,
+        // hover: gene summary from mygene.info (matches the variant results table)
+        Cell: ({ cell }) => {
+          const gene = cell.getValue<string | null>();
+          if (!gene) return "";
+          return <GeneTooltip geneName={gene} content={<span>{gene}</span>} />;
+        },
+      },
       { accessorKey: "consequence", header: "consequence", id: "consequence", size: 130 },
       {
         accessorKey: "mlog10p",

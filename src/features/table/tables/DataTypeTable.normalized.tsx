@@ -7,6 +7,9 @@ import { useDataStore } from "../../../store/store";
 import { naInfSort, variantSort } from "../utils/sorting";
 import { cleanConsequence } from "../utils/tableutil";
 import { GnomadConsequenceTooltip } from "../../tooltips/GnomadConsequenceTooltip";
+import { GnomadAfTooltip } from "../../tooltips/GnomadAfTooltip";
+import GeneTooltip from "../../tooltips/GeneToolTip";
+import { gnomadAf, afRepr } from "./VariantMainTable.columns.normalized";
 import VariantCredibleSetTable from "./VariantCredibleSetTable";
 
 /**
@@ -19,7 +22,9 @@ import VariantCredibleSetTable from "./VariantCredibleSetTable";
 // the data types we surface as columns, in display order. caQTL is new to the tool (refactor.md §2).
 const DATA_TYPE_COLUMNS: CredibleSetDataType[] = ["GWAS", "eQTL", "pQTL", "sQTL", "caQTL"];
 
-const getColumns = (): MRT_ColumnDef<DataTypeSummaryRow>[] => [
+const getColumns = (
+  selectedPopulation: string | undefined
+): MRT_ColumnDef<DataTypeSummaryRow>[] => [
   {
     accessorKey: "variant",
     header: "variant",
@@ -36,6 +41,34 @@ const getColumns = (): MRT_ColumnDef<DataTypeSummaryRow>[] => [
     filterFn: "contains",
     muiFilterTextFieldProps: { placeholder: "rsid" },
     size: 90,
+  },
+  {
+    // gnomAD AF for the selected population — identical to the variant results table column.
+    accessorFn: (row) => afRepr(gnomadAf(row.gnomad, selectedPopulation)),
+    id: "gnomad_af",
+    header: `${selectedPopulation || "global"} AF`,
+    filterFn: "contains",
+    muiFilterTextFieldProps: { placeholder: "filter" },
+    sortingFn: (a, b) => {
+      const av = gnomadAf(a.original.gnomad, selectedPopulation);
+      const bv = gnomadAf(b.original.gnomad, selectedPopulation);
+      // sort missing/NaN to the bottom
+      const an = av === null || Number.isNaN(av) ? Number.POSITIVE_INFINITY : av;
+      const bn = bv === null || Number.isNaN(bv) ? Number.POSITIVE_INFINITY : bv;
+      return an - bn;
+    },
+    sortDescFirst: false,
+    size: 80,
+    // hover: per-population gnomAD AF log plot + gnomAD link (matches the variant results table)
+    Cell: ({ row }) => {
+      const text = afRepr(gnomadAf(row.original.gnomad, selectedPopulation));
+      if (!row.original.gnomad) return text;
+      return (
+        <GnomadAfTooltip variant={row.original.variant} gnomad={row.original.gnomad}>
+          {text}
+        </GnomadAfTooltip>
+      );
+    },
   },
   {
     accessorFn: (row) => cleanConsequence(row.consequence ?? ""),
@@ -59,6 +92,12 @@ const getColumns = (): MRT_ColumnDef<DataTypeSummaryRow>[] => [
     muiFilterTextFieldProps: { placeholder: "gene" },
     enableSorting: false,
     size: 90,
+    // hover: gene summary fetched on demand from mygene.info (matches the variant results table)
+    Cell: ({ row }) => {
+      const gene = row.original.gene;
+      if (!gene) return "-";
+      return <GeneTooltip geneName={gene} content={<span>{gene}</span>} />;
+    },
   },
   ...DATA_TYPE_COLUMNS.map(
     (dt): MRT_ColumnDef<DataTypeSummaryRow> => ({
@@ -89,9 +128,10 @@ const getColumns = (): MRT_ColumnDef<DataTypeSummaryRow>[] => [
 const DataTypeTable = (props: { enableTopToolbar: boolean }) => {
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 20 });
   const filteredVariants = useDataStore((state) => state.filteredVariants);
+  const selectedPopulation = useDataStore((state) => state.selectedPopulation);
 
   const data = useMemo(() => summarizeDataTypes(filteredVariants), [filteredVariants]);
-  const columns = useMemo(getColumns, []);
+  const columns = useMemo(() => getColumns(selectedPopulation), [selectedPopulation]);
 
   // map a summary row back to the underlying VariantResult so the detail panel can reuse the shared
   // credible-set table (summarizeDataTypes only carries counts, not the memberships themselves).
