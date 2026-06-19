@@ -9,13 +9,20 @@ import { useNormalizedQuery } from "../../store/serverQuery";
 import { lazy, Suspense, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 
-const VariantMainTable = lazy(() => import("./tables/VariantMainTable"));
-const DataTypeTable = lazy(() => import("./tables/DataTypeTable.normalized"));
-const PhenotypeSummaryTable = lazy(() => import("./tables/PhenotypeSummaryTable.normalized"));
-const TissueSummaryTable = lazy(() => import("./tables/TissueSummaryTable.normalized"));
-const PhenotypeSearchContainer = lazy(
-  () => import("../phenoSearch/PhenotypeSearchContainer")
-);
+// import factories kept named so we can BOTH lazy() them and preload the chunks (see the preload
+// effect): warming the chunks means the first switch to a tab doesn't flash the Suspense fallback,
+// which otherwise collapses the panel height and jolts the scroll position (settles once cached).
+const importVariantMainTable = () => import("./tables/VariantMainTable");
+const importDataTypeTable = () => import("./tables/DataTypeTable.normalized");
+const importPhenotypeSummaryTable = () => import("./tables/PhenotypeSummaryTable.normalized");
+const importTissueSummaryTable = () => import("./tables/TissueSummaryTable.normalized");
+const importPhenotypeSearch = () => import("../phenoSearch/PhenotypeSearchContainer");
+
+const VariantMainTable = lazy(importVariantMainTable);
+const DataTypeTable = lazy(importDataTypeTable);
+const PhenotypeSummaryTable = lazy(importPhenotypeSummaryTable);
+const TissueSummaryTable = lazy(importTissueSummaryTable);
+const PhenotypeSearchContainer = lazy(importPhenotypeSearch);
 
 const TableContainer = () => {
   const activeTab = useDataStore((state) => state.activeTab);
@@ -33,6 +40,16 @@ const TableContainer = () => {
     }
   }, [data]);
 
+  // warm the other tabs' lazy chunks in the background so the first switch to a tab renders the real
+  // content immediately instead of flashing the Suspense spinner (which collapses the panel and makes
+  // the page scroll jump before settling). harmless if already loaded — import() returns the cache.
+  useEffect(() => {
+    importDataTypeTable();
+    importPhenotypeSummaryTable();
+    importTissueSummaryTable();
+    importPhenotypeSearch();
+  }, []);
+
   // tabs unlock once stage-1 data has arrived; filteredVariants is then derived reactively
   const hasData = normalizedData !== undefined;
 
@@ -42,29 +59,52 @@ const TableContainer = () => {
 
   const isVariantPage = window.location.pathname.startsWith("/annotate");
 
+  // a lazy tab chunk suspends for one frame even when preloaded; a bare spinner collapses the panel
+  // to ~40px, which clamps the scroll upward and back (the "jump"). reserve panel-sized height so the
+  // document height doesn't change while the (preloaded, ~instant) fallback shows.
+  const tabFallback = (
+    <Box sx={{ display: "flex", justifyContent: "center", pt: 6, minHeight: "100vh" }}>
+      <CircularProgress />
+    </Box>
+  );
+
   return (
     <>
-      <Box display="flex" flexDirection="row" gap={2} style={{ marginBottom: "20px" }}>
-        {isVariantPage && (
-          <>
-            <Typography variant="h6">Variant table</Typography>
-            <Box
-              sx={{ display: "flex", alignItems: "center", cursor: "pointer" }}
-              onClick={() => navigate("/gene")}>
-              <Typography variant="h6" style={{ color: theme.palette.primary.main }}>
-                Gene view
-              </Typography>
-            </Box>
-            <Box
-              sx={{ display: "flex", alignItems: "center", cursor: "pointer" }}
-              onClick={() => navigate("/ld")}>
-              <Typography variant="h6" style={{ color: theme.palette.primary.main }}>
-                LD lookup
-              </Typography>
-            </Box>
-          </>
-        )}
-      </Box>
+      {isVariantPage && (
+        // top-level nav menu: the current section in bold, the other views as menu links
+        <Box
+          sx={{
+            display: "flex",
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 2.5,
+            mb: "20px",
+            pb: 1,
+            borderBottom: 1,
+            borderColor: "divider",
+          }}>
+          <Typography variant="h6" sx={{ fontWeight: 700 }}>
+            Variant table
+          </Typography>
+          {[
+            { label: "Gene view", to: "/gene" },
+            { label: "LD lookup", to: "/ld" },
+            { label: "About", to: "/about" },
+          ].map((item) => (
+            <Typography
+              key={item.to}
+              variant="h6"
+              onClick={() => navigate(item.to)}
+              sx={{
+                cursor: "pointer",
+                color: theme.palette.primary.main,
+                "&:hover": { textDecoration: "underline" },
+              }}>
+              {item.label}
+            </Typography>
+          ))}
+        </Box>
+      )}
       <InputForm />
       {variantInput !== undefined ? (
         <>
@@ -94,7 +134,7 @@ const TableContainer = () => {
                   Use the arrows on the left of each variant to expand it and see all of its
                   credible-set / fine-mapping results.
                 </Typography>
-                <Suspense fallback={<CircularProgress />}>
+                <Suspense fallback={tabFallback}>
                   <VariantMainTable enableTopToolbar={true} showTraitCounts={true} />
                 </Suspense>
               </Box>
@@ -108,7 +148,7 @@ const TableContainer = () => {
                   For each input variant, the number of credible sets it is a member of, broken down
                   by data type. Expand a row to see all of that variant's credible sets.
                 </Typography>
-                <Suspense fallback={<CircularProgress />}>
+                <Suspense fallback={tabFallback}>
                   <DataTypeTable enableTopToolbar={true} />
                 </Suspense>
               </Box>
@@ -123,7 +163,7 @@ const TableContainer = () => {
                   Expand a row to see those variants, or use the search button to look up full
                   summary statistics for the trait across all your variants.
                 </Typography>
-                <Suspense fallback={<CircularProgress />}>
+                <Suspense fallback={tabFallback}>
                   <PhenotypeSummaryTable />
                 </Suspense>
               </Box>
@@ -137,7 +177,7 @@ const TableContainer = () => {
                   Tissues / cell types ranked by how many of your input variants are in a QTL
                   credible set there. Use the toggle to switch between eQTL and caQTL.
                 </Typography>
-                <Suspense fallback={<CircularProgress />}>
+                <Suspense fallback={tabFallback}>
                   <Box sx={{ paddingLeft: "20px", paddingRight: "20px" }}>
                     <TissueSummaryTable />
                   </Box>
@@ -154,7 +194,7 @@ const TableContainer = () => {
                   with summary stats, and see which variants are in a credible set for it. Hand off
                   from a row's search button in the Phenotype summary tab, or search here directly.
                 </Typography>
-                <Suspense fallback={<CircularProgress />}>
+                <Suspense fallback={tabFallback}>
                   <Box sx={{ paddingLeft: "20px", paddingRight: "20px" }}>
                     <PhenotypeSearchContainer />
                   </Box>

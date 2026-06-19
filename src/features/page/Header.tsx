@@ -84,10 +84,17 @@ const Header = () => {
           onDoubleClick={() => new Audio(sounds[Math.floor(Math.random() * sounds.length)]).play()}
           sx={{ height: 40, backgroundColor: "white", p: 0.5, borderRadius: 0.5 }}
         />
+        {/* contextual main link: "Anno" to enter the annotation tool, "Chat" while inside it */}
         <Typography variant="h6" sx={{ paddingLeft: "20px" }}>
-          <Link href="/annotate" underline="hover">
-            Annotate
-          </Link>
+          {location.pathname.startsWith("/annotate") ? (
+            <Link href="/chat" underline="hover">
+              Chat
+            </Link>
+          ) : (
+            <Link href="/annotate" underline="hover">
+              Anno
+            </Link>
+          )}
         </Typography>
         <Box flexGrow={1} />
         {isAdmin &&
