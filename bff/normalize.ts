@@ -348,10 +348,11 @@ const getTraitNameMap = async (): Promise<Record<string, string>> => {
   }
 };
 
-// PhenotypeMeta keyed by `${resource}|${trait}`. phenostring is resolved from the trait_name_mapping
-// (Open Targets study ids, ATC codes, finngen phenocodes/lab ids resolve to real names); QTL traits
-// are gene/protein symbols absent from the map and so pass through unchanged. falls back to the raw
-// trait id when the map has no entry.
+// PhenotypeMeta keyed by `${resource}|${trait}`. phenostring (the display name) is resolved by the
+// trait IDENTIFIER, trait_original — the trait_name_mapping is keyed by the identifier (finngen
+// phenocodes like I9_AF, Open Targets GCST ids, ATC codes, lab/OMOP ids), NOT the harmonized `trait`
+// (which for FinnGen GWAS is already a display name and for Open Targets is the bare GCST code). Fall
+// back to the upstream display name (trait), then the raw identifier, when the map has no entry.
 const derivePhenotypes = (
   csRows: RawCsRow[],
   traitNameMap: Record<string, string>
@@ -364,7 +365,7 @@ const derivePhenotypes = (
       resource: r.resource,
       dataType: asCredibleSetDataType(r.data_type),
       trait: r.trait,
-      phenostring: traitNameMap[r.trait] ?? r.trait,
+      phenostring: traitNameMap[r.trait_original] ?? r.trait ?? r.trait_original,
     };
   }
   return out;

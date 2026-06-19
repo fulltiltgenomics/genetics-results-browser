@@ -5,6 +5,8 @@ import { DataTypeSummaryRow, CredibleSetDataType } from "../../../types/types.no
 import { summarizeDataTypes } from "../../../store/munge.normalized";
 import { useDataStore } from "../../../store/store";
 import { naInfSort, variantSort } from "../utils/sorting";
+import { cleanConsequence } from "../utils/tableutil";
+import { GnomadConsequenceTooltip } from "../../tooltips/GnomadConsequenceTooltip";
 import VariantCredibleSetTable from "./VariantCredibleSetTable";
 
 /**
@@ -34,6 +36,20 @@ const getColumns = (): MRT_ColumnDef<DataTypeSummaryRow>[] => [
     filterFn: "contains",
     muiFilterTextFieldProps: { placeholder: "rsid" },
     size: 90,
+  },
+  {
+    accessorFn: (row) => cleanConsequence(row.consequence ?? ""),
+    id: "consequence",
+    header: "most severe",
+    filterFn: "contains",
+    muiFilterTextFieldProps: { placeholder: "consequence" },
+    size: 120,
+    // hover: all gnomAD VEP consequences and their genes (matches the variant results table)
+    Cell: ({ row }) => (
+      <GnomadConsequenceTooltip consequences={row.original.consequences}>
+        {cleanConsequence(row.original.consequence ?? "")}
+      </GnomadConsequenceTooltip>
+    ),
   },
   {
     accessorFn: (row) => row.gene ?? "-",

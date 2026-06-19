@@ -301,7 +301,9 @@ export interface GroupedCredibleSet {
 export interface DataTypeSummaryRow {
   variant: VariantId;
   rsid: string | null;
+  consequence: string | null; // most_severe of the queried variant (mirrors the variant table column)
   gene: string | null; // gene_most_severe of the queried variant
+  consequences?: GnomadConsequence[]; // all gnomAD VEP consequences (for the most-severe tooltip)
   /** distinct CS memberships per data type (counts grouped CS, deduped by resource|dataset|trait). */
   counts: Partial<Record<CredibleSetDataType, number>>;
   total: number;

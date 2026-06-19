@@ -4,7 +4,8 @@ import { MaterialReactTable } from "material-react-table";
 import type { MRT_ColumnDef } from "material-react-table";
 import { GroupedCredibleSet, VariantResult } from "../../../types/types.normalized";
 import { groupCredibleSets } from "../../../store/munge.normalized";
-import { pValRepr, formatTissue } from "../utils/tableutil";
+import { useDataStore } from "../../../store/store";
+import { pValRepr, formatTissue, makeTraitNameResolver } from "../utils/tableutil";
 import { HtmlTooltip } from "../../tooltips/HtmlTooltip";
 import { UpOrDownIcon } from "../UpDownIcons";
 import { naInfSort } from "../utils/sorting";
@@ -320,11 +321,12 @@ const DetailSkeleton = ({ rowHint }: { rowHint: number }) => (
   </Box>
 );
 
-const VariantCredibleSetTable = (props: {
-  data: VariantResult;
-  traitName?: (resource: string, trait: string) => string;
-}) => {
-  const traitName = props.traitName ?? ((_r: string, t: string) => t);
+const VariantCredibleSetTable = (props: { data: VariantResult }) => {
+  // resolve trait display names from the store directly so every caller (variant results, data-type
+  // comparison, phenotype summary) shows the same resolved name — no per-caller traitName prop to
+  // forget (a missing prop is exactly why the data-type comparison detail showed raw codes).
+  const phenotypes = useDataStore((state) => state.normalizedData?.phenotypes);
+  const traitName = useMemo(() => makeTraitNameResolver(phenotypes), [phenotypes]);
   const grouped = useMemo(
     () => groupCredibleSets(props.data.credibleSets),
     [props.data.credibleSets]

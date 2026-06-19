@@ -4,12 +4,12 @@ import { useNavigate } from "react-router-dom";
 import { naInfSort, variantSort } from "../utils/sorting";
 import VariantCredibleSetTable from "./VariantCredibleSetTable";
 import { VariantResult } from "../../../types/types.normalized";
-import { useCallback, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { getVariantMainTableColumnsNormalized } from "./VariantMainTable.columns.normalized";
 import { useDataStore } from "../../../store/store";
 import { useNormalizedQuery } from "../../../store/serverQuery";
 import { useChatSeedStore } from "../../../store/store.chatSeed";
-import { cleanConsequence, formatTraitName } from "../utils/tableutil";
+import { cleanConsequence, makeTraitNameResolver } from "../utils/tableutil";
 
 // build a concise, context-rich chat prompt from a variant row for the annotation -> chat hand-off
 const buildVariantSeed = (row: VariantResult): string => {
@@ -56,13 +56,9 @@ const VariantMainTable = (props: {
   // trait_name_mapping); falls back to the raw trait id for QTL gene symbols / unmapped codes.
   // underscores -> spaces for display (covers the top-association column and the detail table).
   const phenotypes = normalizedData?.phenotypes;
-  // stable identity (depends only on phenotypes) so the columns/detail-table memos that close over it
-  // don't rebuild every render — unstable columns/data are what trip MRT's reset-on-change loop.
-  const traitName = useCallback(
-    (resource: string, trait: string): string =>
-      formatTraitName(phenotypes?.[`${resource}|${trait}`]?.phenostring ?? trait),
-    [phenotypes]
-  );
+  // stable identity (depends only on phenotypes) so the columns memo that closes over it doesn't
+  // rebuild every render — unstable columns/data are what trip MRT's reset-on-change loop.
+  const traitName = useMemo(() => makeTraitNameResolver(phenotypes), [phenotypes]);
 
   const columns = useMemo(
     () =>
@@ -124,7 +120,7 @@ const VariantMainTable = (props: {
       getRowId={(row) => row.variant}
       renderDetailPanel={({ row }) => (
         <Box sx={{ margin: "auto", width: "100%" }}>
-          <VariantCredibleSetTable data={row.original} traitName={traitName} />
+          <VariantCredibleSetTable data={row.original} />
         </Box>
       )}
       muiTableProps={{ sx: { tableLayout: "fixed" } }}

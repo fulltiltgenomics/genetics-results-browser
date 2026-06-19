@@ -39,6 +39,20 @@ export const cleanConsequence = (consequence: string): string => {
 // still used unchanged for API matching / navigation; this is display-only.
 export const formatTraitName = (name: string): string => name.replace(/_/g, " ");
 
+/**
+ * Build the canonical trait display-name resolver from the BFF-populated phenotypes map. The map is
+ * keyed by `${resource}|${trait}` and its phenostring is already resolved by the trait IDENTIFIER
+ * (trait_original) on the BFF side, so callers look up by the credible set's `trait` and get the
+ * human-readable name (underscores -> spaces), falling back to the raw trait when unmapped.
+ *
+ * Centralized so every table (variant results, the credible-set detail, data-type comparison,
+ * phenotype summary) resolves names identically — pass the store's normalizedData.phenotypes.
+ */
+export const makeTraitNameResolver =
+  (phenotypes?: Record<string, { phenostring?: string }>) =>
+  (resource: string, trait: string): string =>
+    formatTraitName(phenotypes?.[`${resource}|${trait}`]?.phenostring ?? trait);
+
 // display formatter for tissue / cell-type labels: underscores -> spaces and the "|" tissue/condition
 // separator -> ", " (e.g. "tibial_nerve|naive" -> "tibial nerve, naive"). display-only.
 export const formatTissue = (label: string): string =>
