@@ -26,6 +26,9 @@ const buildFilterState = (state: DataState): FilterState => ({
   dataTypes: state.toggledCredibleSetDataTypes,
   includeAllQuantLevels: state.includeAllQuantLevels,
   selectedPhenotype: state.selectedPhenotype,
+  cisWindow: state.cisWindow,
+  showCis: state.showCisQtl,
+  showTrans: state.showTransQtl,
 });
 
 /**
@@ -58,8 +61,15 @@ interface DataState {
   toggleGWASType: (GWASType: string) => void;
   toggledQTLTypes: Record<string, boolean>;
   toggleQTLType: (QTLType: QTLType) => void;
+  // cis-window half-width (Mb); shared by the normalized path's cis/trans classification.
   cisWindow: number;
   setCisWindow: (cisWindow: number) => void;
+  // QTL cis/trans display toggles (normalized path). default both on, mirroring the legacy CIS/TRANS
+  // QTL switches; classification uses cisWindow + per-membership geneTargets (munge.normalized).
+  showCisQtl: boolean;
+  showTransQtl: boolean;
+  setShowCisQtl: (show: boolean) => void;
+  setShowTransQtl: (show: boolean) => void;
   /** @deprecated p-value threshold loses meaning with credible-set-only data (refactor.md §4). */
   pThreshold: number;
   /** @deprecated */
@@ -226,20 +236,40 @@ export const useDataStore = create<DataState>()(
     },
     cisWindow: 1.5,
     setCisWindow: (cisWindow) =>
-      set((state) => ({
-        cisWindow: cisWindow,
-        clientData: filterRows(
-          state.serverData!,
-          state.toggledDataTypes,
-          state.toggledGWASTypes,
-          state.toggledQTLTypes,
+      set((state) => {
+        const next = { ...state, cisWindow };
+        return {
           cisWindow,
-          state.pThreshold,
-          state.pipThreshold,
-          state.selectedPheno,
-          true
-        ),
-      })),
+          // guard the dead legacy recompute (serverData is undefined on the normalized path, which
+          // would deref undefined in filterRows); recompute the normalized filteredVariants instead.
+          clientData: state.serverData
+            ? filterRows(
+                state.serverData,
+                state.toggledDataTypes,
+                state.toggledGWASTypes,
+                state.toggledQTLTypes,
+                cisWindow,
+                state.pThreshold,
+                state.pipThreshold,
+                state.selectedPheno,
+                true
+              )
+            : state.clientData,
+          filteredVariants: recomputeFilteredVariants(next),
+        };
+      }),
+    showCisQtl: true,
+    showTransQtl: true,
+    setShowCisQtl: (show) =>
+      set((state) => {
+        const next = { ...state, showCisQtl: show };
+        return { showCisQtl: show, filteredVariants: recomputeFilteredVariants(next) };
+      }),
+    setShowTransQtl: (show) =>
+      set((state) => {
+        const next = { ...state, showTransQtl: show };
+        return { showTransQtl: show, filteredVariants: recomputeFilteredVariants(next) };
+      }),
     pThreshold: 5e-8,
     setPThreshold: (pThreshold) =>
       set((state) => {

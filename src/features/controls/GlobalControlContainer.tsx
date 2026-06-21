@@ -4,6 +4,7 @@ import { useNormalizedQuery } from "../../store/serverQuery";
 import GlobalThresholds from "./GlobalThresholds";
 import GnomadPopChoice from "./GnomadPopChoice";
 import ResourceFilter from "./ResourceFilter";
+import CisTransToggles from "./CisTransToggles";
 
 const GlobalControlContainer = () => {
   const variantInput: string = useDataStore((state) => state.variantInput)!;
@@ -33,6 +34,9 @@ const GlobalControlContainer = () => {
           GlobalDataTypeSwitches/GlobalQTLSwitches drove the dead clientData/filterRows path
           and are intentionally no longer mounted here */}
         <GlobalThresholds isNotReadyYet={isNotReadyYet} />
+        <Divider sx={{ margin: "auto" }} orientation="vertical" />
+        {/* QTL cis/trans toggles re-added from the pre-refactor controls; window lives in thresholds. */}
+        <CisTransToggles isNotReadyYet={isNotReadyYet} />
         <Divider sx={{ margin: "auto" }} orientation="vertical" />
         {/* lifted resource filter (refactor.md §4); dynamic from the data, reactive via the store. */}
         <ResourceFilter isNotReadyYet={isNotReadyYet} />

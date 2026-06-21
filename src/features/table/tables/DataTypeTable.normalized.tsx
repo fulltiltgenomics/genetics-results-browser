@@ -139,6 +139,9 @@ const DataTypeTable = (props: { enableTopToolbar: boolean }) => {
   const resourceFilter = useDataStore((state) => state.resourceFilter);
   const includeAllQuantLevels = useDataStore((state) => state.includeAllQuantLevels);
   const selectedPhenotype = useDataStore((state) => state.selectedPhenotype);
+  const cisWindow = useDataStore((state) => state.cisWindow);
+  const showCisQtl = useDataStore((state) => state.showCisQtl);
+  const showTransQtl = useDataStore((state) => state.showTransQtl);
 
   const filteredVariants = useMemo(
     () =>
@@ -150,6 +153,9 @@ const DataTypeTable = (props: { enableTopToolbar: boolean }) => {
             dataTypes: {}, // empty = every data type enabled, so toggles don't affect this tab
             includeAllQuantLevels,
             selectedPhenotype,
+            cisWindow,
+            showCis: showCisQtl,
+            showTrans: showTransQtl,
           })
         : [],
     [
@@ -159,6 +165,9 @@ const DataTypeTable = (props: { enableTopToolbar: boolean }) => {
       resourceFilter,
       includeAllQuantLevels,
       selectedPhenotype,
+      cisWindow,
+      showCisQtl,
+      showTransQtl,
     ]
   );
 

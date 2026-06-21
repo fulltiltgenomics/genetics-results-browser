@@ -15,9 +15,11 @@ const GlobalThresholds = (props: { isNotReadyYet: boolean }) => {
   const [pValueThresholdStr, setPValueThresholdStr] = useState(
     useDataStore.getState().pValueThreshold.toString()
   );
+  const [cisWindowStr, setCisWindowStr] = useState(useDataStore.getState().cisWindow.toString());
 
   const setPipThreshold = useDataStore((state) => state.setPipThreshold);
   const setPValueThreshold = useDataStore((state) => state.setPValueThreshold);
+  const setCisWindow = useDataStore((state) => state.setCisWindow);
 
   const updatePipThreshold = (value: string) => {
     setPipThresholdStr(value);
@@ -41,6 +43,18 @@ const GlobalThresholds = (props: { isNotReadyYet: boolean }) => {
     }
     if (p != useDataStore.getState().pValueThreshold) {
       setPValueThreshold(p);
+    }
+  };
+
+  const updateCisWindow = (value: string) => {
+    setCisWindowStr(value);
+    let mb = Number(value);
+    // cis window is a non-negative distance in Mb; invalid/empty falls back to 0 (everything trans).
+    if (isNaN(mb) || mb < 0) {
+      mb = 0;
+    }
+    if (mb != useDataStore.getState().cisWindow) {
+      setCisWindow(mb);
     }
   };
 
@@ -91,6 +105,28 @@ const GlobalThresholds = (props: { isNotReadyYet: boolean }) => {
               disabled={props.isNotReadyYet}
               onClick={() => {
                 updatePValueThreshold("");
+              }}>
+              <ClearIcon />
+            </IconButton>
+          ),
+        }}
+      />
+      <TextField
+        id="cis_window"
+        label="cis window (Mb, one side)"
+        value={cisWindowStr}
+        variant="standard"
+        disabled={props.isNotReadyYet}
+        onChange={(event) => {
+          updateCisWindow(event.target.value);
+        }}
+        InputProps={{
+          endAdornment: (
+            <IconButton
+              sx={{ visibility: cisWindowStr !== "" ? "visible" : "hidden" }}
+              disabled={props.isNotReadyYet}
+              onClick={() => {
+                updateCisWindow("");
               }}>
               <ClearIcon />
             </IconButton>

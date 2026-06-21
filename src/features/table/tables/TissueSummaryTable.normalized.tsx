@@ -93,6 +93,9 @@ const TissueSummaryTable = () => {
   const pValueThreshold = useDataStore((state) => state.pValueThreshold);
   const resourceFilter = useDataStore((state) => state.resourceFilter);
   const includeAllQuantLevels = useDataStore((state) => state.includeAllQuantLevels);
+  const cisWindow = useDataStore((state) => state.cisWindow);
+  const showCisQtl = useDataStore((state) => state.showCisQtl);
+  const showTransQtl = useDataStore((state) => state.showTransQtl);
 
   const data = useMemo(() => {
     if (!normalizedData) return [];
@@ -104,9 +107,22 @@ const TissueSummaryTable = () => {
       resources: resourceFilter,
       dataTypes: {},
       includeAllQuantLevels,
+      cisWindow,
+      showCis: showCisQtl,
+      showTrans: showTransQtl,
     });
     return summarizeTissues(filtered, dataType);
-  }, [normalizedData, pipThreshold, pValueThreshold, resourceFilter, includeAllQuantLevels, dataType]);
+  }, [
+    normalizedData,
+    pipThreshold,
+    pValueThreshold,
+    resourceFilter,
+    includeAllQuantLevels,
+    cisWindow,
+    showCisQtl,
+    showTransQtl,
+    dataType,
+  ]);
 
   const columns = useMemo(() => getColumns(dataType), [dataType]);
 

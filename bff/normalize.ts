@@ -3,6 +3,7 @@ import type {
   CredibleSetMembership,
   DatasetDataType,
   DatasetMeta,
+  GeneTarget,
   GnomadConsequence,
   GnomadFreq,
   GnomadPop,
@@ -397,6 +398,148 @@ const derivePhenotypes = (
   return out;
 };
 
+/* ── QTL cis/trans gene-target resolution ──────────────────────────────────────
+ * cis/trans needs the QTL molecular feature's coordinates, which the CS rows don't carry. Resolving
+ * gene symbols one-by-one via /search is far too slow (~0.4s/gene). Instead resolve BY REGION:
+ *   - gene-based QTL (eQTL/pQTL/sQTL/edQTL): the trait IS a gene symbol. A true cis gene is within the
+ *     cis window of the variant, so genes_in_region around each variant locus (±CIS_FETCH_MB, generous
+ *     vs the typical ≤1.5 Mb window) returns every cis candidate with coords. A trait gene not found in
+ *     any variant's region is far → trans (no coords needed for trans).
+ *   - caQTL: the trait is an ATAC peak; peak_to_genes returns the regulated gene(s) WITH coords.
+ * The client then classifies cis/trans reactively from the adjustable window (munge.normalized).
+ */
+const GENE_QTL_TYPES: ReadonlySet<string> = new Set(["eQTL", "pQTL", "sQTL", "edQTL"]);
+// genes_in_region half-width: comfortably above the typical/legacy cis window (1.5 Mb) so any
+// realistic cis gene is fetched; genes beyond this are unambiguously trans at any sane window.
+const CIS_FETCH_MB = 2.5;
+const PEAK_RESOLVE_CAP = 200; // bound peak_to_genes fan-out on pathological caQTL-heavy queries
+
+interface RawGeneRegionRow {
+  gene_name: string;
+  chrom: number;
+  gene_start: number;
+  gene_end: number;
+  gene_strand: "+" | "-";
+  hgnc_symbol?: string | null;
+  hgnc_prev_symbol?: string | null;
+}
+interface RawPeakGeneRow {
+  symbol: string;
+  gene_chrom: string; // "chr19"
+  gene_start: number;
+  gene_end: number;
+}
+
+// "chr19" | 19 | "X" -> numeric chromosome matching the CS rows' numeric chr.
+const parseChrom = (c: string | number): number => {
+  if (typeof c === "number") return c;
+  const tok = c.trim().replace(/^chr/i, "").toUpperCase();
+  if (tok === "X") return 23;
+  if (tok === "Y") return 24;
+  if (tok === "MT" || tok === "M") return 25;
+  return Number(tok);
+};
+
+/**
+ * Resolve and attach QTL target genes (+coords) to each membership for cis/trans + caQTL display.
+ * Mutates the passed memberships' geneTargets in place. Best-effort: upstream errors leave a
+ * membership without geneTargets (the client then treats a gene-based QTL as trans).
+ */
+const attachGeneTargets = async (variants: VariantResult[]): Promise<void> => {
+  const W = CIS_FETCH_MB * 1e6;
+  const lociByChrom = new Map<number, Set<number>>();
+  const peaks = new Set<string>();
+  for (const v of variants) {
+    for (const cs of v.credibleSets) {
+      if (GENE_QTL_TYPES.has(cs.dataType)) {
+        (lociByChrom.get(cs.chr) ?? lociByChrom.set(cs.chr, new Set()).get(cs.chr)!).add(cs.pos);
+      } else if (cs.dataType === "caQTL") {
+        peaks.add(cs.trait);
+      }
+    }
+  }
+  if (lociByChrom.size === 0 && peaks.size === 0) return;
+
+  // merge each chromosome's loci into as few ±W intervals as possible (overlapping windows coalesce).
+  const intervals: Array<{ chrom: number; start: number; end: number }> = [];
+  for (const [chrom, posSet] of lociByChrom) {
+    const sorted = [...posSet].sort((a, b) => a - b);
+    let start = sorted[0] - W;
+    let end = sorted[0] + W;
+    for (let i = 1; i < sorted.length; i++) {
+      if (sorted[i] - W <= end) end = sorted[i] + W;
+      else {
+        intervals.push({ chrom, start, end });
+        start = sorted[i] - W;
+        end = sorted[i] + W;
+      }
+    }
+    intervals.push({ chrom, start, end });
+  }
+
+  const sem = new Semaphore(8);
+  const geneBySymbol = new Map<string, GeneTarget>();
+  const genesByPeak = new Map<string, GeneTarget[]>();
+
+  await Promise.all([
+    ...intervals.map((iv) =>
+      sem.run(async () => {
+        const rows = await upstreamJson<RawGeneRegionRow[]>(
+          `/v1/genes_in_region/${iv.chrom}/${Math.max(1, Math.floor(iv.start))}/${Math.ceil(iv.end)}`,
+          { query: { format: "json" } }
+        ).catch(() => null);
+        for (const g of rows ?? []) {
+          const target: GeneTarget = {
+            symbol: g.gene_name,
+            chrom: g.chrom,
+            start: g.gene_start,
+            end: g.gene_end,
+            strand: g.gene_strand,
+          };
+          // index by gene_name plus HGNC current/previous symbols so a QTL trait symbol from any
+          // resource resolves; gene_name wins (set first, never overwritten by an alias key).
+          for (const key of [g.gene_name, g.hgnc_symbol, g.hgnc_prev_symbol]) {
+            if (key && !geneBySymbol.has(key)) geneBySymbol.set(key, target);
+          }
+        }
+      })
+    ),
+    ...[...peaks].slice(0, PEAK_RESOLVE_CAP).map((peak) =>
+      sem.run(async () => {
+        const rows = await upstreamJson<RawPeakGeneRow[]>(
+          `/v1/peak_to_genes/${encodeURIComponent(peak)}`,
+          { query: { format: "json" } }
+        ).catch(() => null);
+        const seen = new Set<string>();
+        const targets: GeneTarget[] = [];
+        for (const r of rows ?? []) {
+          if (!r.symbol || seen.has(r.symbol)) continue;
+          seen.add(r.symbol);
+          targets.push({
+            symbol: r.symbol,
+            chrom: parseChrom(r.gene_chrom),
+            start: r.gene_start,
+            end: r.gene_end,
+          });
+        }
+        genesByPeak.set(peak, targets);
+      })
+    ),
+  ]);
+
+  for (const v of variants) {
+    for (const cs of v.credibleSets) {
+      if (GENE_QTL_TYPES.has(cs.dataType)) {
+        const g = geneBySymbol.get(cs.trait);
+        if (g) cs.geneTargets = [g];
+      } else if (cs.dataType === "caQTL") {
+        const gs = genesByPeak.get(cs.trait);
+        if (gs && gs.length) cs.geneTargets = gs;
+      }
+    }
+  }
+};
+
 /**
  * Stage-1 normalize for a variant list. Fans out the granular genetics-results-api endpoints
  * concurrently and assembles a NormalizedResponse with RAW, unfiltered credible-set memberships
@@ -504,6 +647,9 @@ export const normalizeVariantList = async (query: string): Promise<NormalizedRes
     return result;
   });
 
+  // resolve QTL cis/trans target genes after the CS rows are assembled (needs the loci + traits).
+  await attachGeneTargets(variants);
+
   return {
     queryType: "variant",
     inputVariants: {
@@ -582,6 +728,8 @@ export const normalizeGene = async (
     annotation: normalizeAnnotation(undefined, rows[0]),
     credibleSets: rows.map(normalizeCsRow),
   }));
+
+  await attachGeneTargets(variants);
 
   return {
     queryType: "gene",

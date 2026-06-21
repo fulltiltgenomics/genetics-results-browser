@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   FilterState,
+  classifyCisTrans,
   filterCredibleSets,
   groupCredibleSets,
   summarizeDataTypes,
@@ -75,6 +76,8 @@ const allOn: FilterState = {
   pValueThreshold: 1,
   dataTypes: {},
   includeAllQuantLevels: true,
+  cisWindow: 1.5,
+  // showCis/showTrans left undefined = both enabled (permissive default).
 };
 
 // pull the (single) variant's surviving traits for terse assertions
@@ -114,6 +117,70 @@ describe("filterCredibleSets p-value threshold", () => {
     });
     const out = filterCredibleSets([v], { ...allOn, pValueThreshold: 0.05 });
     expect(traits(out).sort()).toEqual(["EDGE", "NULLP", "SIG"]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// classifyCisTrans + cis/trans filtering
+// ---------------------------------------------------------------------------
+
+describe("classifyCisTrans", () => {
+  // variant locus is chr19:44908684 (makeCS default)
+  const near = { symbol: "G", chrom: 19, start: 44900000, end: 44920000, strand: "+" as const };
+  const far = { symbol: "F", chrom: 19, start: 50000000, end: 50010000, strand: "+" as const };
+  const otherChr = { symbol: "O", chrom: 7, start: 44908000, end: 44909000, strand: "+" as const };
+
+  it("returns null for non-QTL / metaboQTL (never cis/trans-classified)", () => {
+    expect(classifyCisTrans(makeCS({ dataType: "GWAS" }), 1.5)).toBeNull();
+    expect(classifyCisTrans(makeCS({ dataType: "metaboQTL" }), 1.5)).toBeNull();
+  });
+
+  it("cis when the variant is within the window of a target gene", () => {
+    expect(classifyCisTrans(makeCS({ dataType: "eQTL", geneTargets: [near] }), 1.5)).toBe("cis");
+  });
+
+  it("trans when the only target gene is beyond the window or on another chromosome", () => {
+    expect(classifyCisTrans(makeCS({ dataType: "eQTL", geneTargets: [far] }), 1.5)).toBe("trans");
+    expect(classifyCisTrans(makeCS({ dataType: "eQTL", geneTargets: [otherChr] }), 1.5)).toBe("trans");
+  });
+
+  it("trans when a classifiable QTL has no resolved target gene", () => {
+    expect(classifyCisTrans(makeCS({ dataType: "pQTL", geneTargets: undefined }), 1.5)).toBe("trans");
+  });
+
+  it("window controls the boundary (a far gene becomes cis with a wide enough window)", () => {
+    const cs = makeCS({ dataType: "eQTL", geneTargets: [far] });
+    expect(classifyCisTrans(cs, 1.5)).toBe("trans");
+    expect(classifyCisTrans(cs, 6)).toBe("cis"); // 5.09 Mb away -> within ±6 Mb
+  });
+});
+
+describe("filterCredibleSets cis/trans toggles", () => {
+  const near = { symbol: "G", chrom: 19, start: 44900000, end: 44920000, strand: "+" as const };
+  const far = { symbol: "F", chrom: 19, start: 50000000, end: 50010000, strand: "+" as const };
+
+  it("showCis=false drops cis QTLs but keeps trans QTLs and GWAS", () => {
+    const v = makeVariant({
+      credibleSets: [
+        makeCS({ trait: "CISQTL", dataType: "eQTL", geneTargets: [near] }),
+        makeCS({ trait: "TRANSQTL", dataType: "eQTL", geneTargets: [far] }),
+        makeCS({ trait: "GWAS", dataType: "GWAS" }),
+      ],
+    });
+    const out = filterCredibleSets([v], { ...allOn, showCis: false });
+    expect(traits(out).sort()).toEqual(["GWAS", "TRANSQTL"]);
+  });
+
+  it("showTrans=false drops trans QTLs but keeps cis QTLs and GWAS", () => {
+    const v = makeVariant({
+      credibleSets: [
+        makeCS({ trait: "CISQTL", dataType: "eQTL", geneTargets: [near] }),
+        makeCS({ trait: "TRANSQTL", dataType: "eQTL", geneTargets: [far] }),
+        makeCS({ trait: "GWAS", dataType: "GWAS" }),
+      ],
+    });
+    const out = filterCredibleSets([v], { ...allOn, showTrans: false });
+    expect(traits(out).sort()).toEqual(["CISQTL", "GWAS"]);
   });
 });
 

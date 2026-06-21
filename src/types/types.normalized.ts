@@ -84,6 +84,19 @@ export type DatasetDataType =
  */
 export type QuantLevel = "ge" | "exon" | "tx" | "txrev" | "leafcutter" | "majiq";
 
+/**
+ * A QTL's molecular target gene with genomic coordinates, used to classify the membership as cis or
+ * trans (variant within ±cisWindow of the gene) and, for caQTL, to display the regulated gene(s).
+ * strand is absent for caQTL linked genes (peak_to_genes carries no strand) — callers anchor on start.
+ */
+export interface GeneTarget {
+  symbol: string;
+  chrom: number;
+  start: number;
+  end: number;
+  strand?: "+" | "-";
+}
+
 /* ────────────────────────────────────────────────────────────────────────────
  * STAGE 1 — what the BFF returns (raw, unfiltered)
  * ──────────────────────────────────────────────────────────────────────────── */
@@ -130,6 +143,13 @@ export interface CredibleSetMembership {
   // variant annotation embedded by the API (annotation of the queried variant)
   mostSevere: string; //         e.g. "missense_variant"
   geneMostSevere: string | null;
+
+  /**
+   * QTL molecular-target gene(s) with coords, resolved by the BFF (cis/trans + caQTL gene display).
+   * gene-based QTL (eQTL/pQTL/sQTL/edQTL): the trait gene (0..1 entries). caQTL: the peak's linked
+   * gene(s) from peak_to_genes (0..n). GWAS/metaboQTL: undefined (never cis/trans-classified).
+   */
+  geneTargets?: GeneTarget[];
 }
 
 /**
@@ -283,6 +303,11 @@ export interface GroupedCredibleSet {
   dataset: string;
   dataType: CredibleSetDataType;
   trait: string; //                gene symbol for QTLs
+  /** the queried variant's locus (same across the group; for cis/trans relative to geneTargets). */
+  chr: number;
+  pos: number;
+  /** QTL target gene(s) with coords from the representative membership (cis/trans + caQTL display). */
+  geneTargets?: GeneTarget[];
   traitOriginal: string; //        unharmonized phenocode/study id (resource_metadata join key for counts)
   quantLevel: QuantLevel | null; // distinguishes ge/exon/tx/txrev/leafcutter when non-gene levels shown
   cellType: string | null;

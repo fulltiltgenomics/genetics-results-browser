@@ -73,7 +73,42 @@ export interface FilterState {
   includeAllQuantLevels?: boolean;
   /** when set, keep only memberships for this resource+trait (mirrors legacy selected-phenotype filter). */
   selectedPhenotype?: SelectedPhenotype;
+  /** cis-window half-width in Mb: a QTL is cis if the variant is within ±cisWindow of a target gene. */
+  cisWindow: number;
+  /** keep cis QTL memberships. absent = enabled (permissive default, like the data-type toggles). */
+  showCis?: boolean;
+  /** keep trans QTL memberships. absent = enabled. */
+  showTrans?: boolean;
 }
+
+/** QTL data types that carry a molecular target gene and so can be classified cis/trans. */
+const CIS_TRANS_TYPES: ReadonlySet<CredibleSetDataType> = new Set([
+  "eQTL",
+  "pQTL",
+  "sQTL",
+  "edQTL",
+  "caQTL",
+]);
+
+/**
+ * Classify a QTL membership as "cis" or "trans" relative to the queried variant, or null when it is
+ * not cis/trans-classifiable (GWAS, metaboQTL, which have no gene target). cis = the variant is within
+ * ±cisWindow Mb of any target gene's TSS (strand-anchored; start when strand unknown, e.g. caQTL).
+ * A classifiable QTL with no resolved target gene is "trans" (it lies beyond the BFF's fetch window).
+ */
+export const classifyCisTrans = (
+  cs: Pick<CredibleSetMembership, "dataType" | "chr" | "pos" | "geneTargets">,
+  cisWindowMb: number
+): "cis" | "trans" | null => {
+  if (!CIS_TRANS_TYPES.has(cs.dataType)) return null;
+  const win = cisWindowMb * 1e6;
+  for (const g of cs.geneTargets ?? []) {
+    if (g.chrom !== cs.chr) continue;
+    const tss = g.strand === "-" ? g.end : g.start;
+    if (Math.abs(cs.pos - tss) <= win) return "cis";
+  }
+  return "trans";
+};
 
 /** non-gene eQTL Catalogue quant levels — filtered out unless includeAllQuantLevels is on. */
 const NON_GENE_QUANT_LEVELS: ReadonlySet<QuantLevel> = new Set([
@@ -108,6 +143,11 @@ const passesFilter = (cs: CredibleSetMembership, f: FilterState): boolean => {
       return false;
     }
   }
+  // cis/trans QTL toggles (absent = enabled). null classification (GWAS/metaboQTL) always passes,
+  // mirroring the legacy filter where non-classifiable rows ignored the cis/trans switches.
+  const cisTrans = classifyCisTrans(cs, f.cisWindow);
+  if (cisTrans === "cis" && f.showCis === false) return false;
+  if (cisTrans === "trans" && f.showTrans === false) return false;
   return true;
 };
 
@@ -157,6 +197,9 @@ export const groupCredibleSets = (
         dataset: cs.dataset,
         dataType: cs.dataType,
         trait: cs.trait,
+        chr: cs.chr,
+        pos: cs.pos,
+        geneTargets: cs.geneTargets,
         traitOriginal: cs.traitOriginal,
         quantLevel: cs.quantLevel,
         cellType: cs.cellType,
