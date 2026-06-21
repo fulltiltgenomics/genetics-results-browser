@@ -494,6 +494,25 @@ describe("summarizePhenotypes", () => {
     const summary = summarizePhenotypes([v], {});
     expect(summary[0].phenostring).toBe("UNKNOWN");
   });
+
+  it("surfaces caQTL linked genes + peak (so tables show genes, not the peak id)", () => {
+    const peak = "chr19-44906317-44906816";
+    const v = makeVariant({
+      credibleSets: [
+        makeCS({
+          trait: peak,
+          dataType: "caQTL",
+          geneTargets: [
+            { symbol: "NECTIN2", chrom: 19, start: 44846175, end: 44889228 },
+            { symbol: "ZNF180", chrom: 19, start: 44470957, end: 44500540 },
+          ],
+        }),
+      ],
+    });
+    const row = summarizePhenotypes([v], {})[0];
+    expect(row.linkedGenes).toEqual(["NECTIN2", "ZNF180"]); // sorted
+    expect(row.peak).toBe(peak);
+  });
 });
 
 // ---------------------------------------------------------------------------

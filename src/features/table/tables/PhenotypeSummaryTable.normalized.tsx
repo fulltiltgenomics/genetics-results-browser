@@ -98,28 +98,42 @@ const PhenotypeSummaryTable = () => {
         size: 100,
       },
       {
-        // underscores -> spaces for display (consistent with the variant table / detail table)
-        accessorFn: (row) => formatTraitName(row.phenostring),
+        // underscores -> spaces for display (consistent with the variant table / detail table).
+        // caQTL: show the peak's linked gene(s) instead of the peak id (peak -> tooltip).
+        accessorFn: (row) =>
+          row.linkedGenes?.length ? row.linkedGenes.join(", ") : formatTraitName(row.phenostring),
         header: "trait",
         id: "trait",
         filterFn: "contains",
         sortingFn: "alphanumeric",
         muiFilterTextFieldProps: { placeholder: "trait" },
         // hover: phenocode, data type, dataset, and case/sample counts (lazy per-resource fetch)
-        Cell: ({ row }) => (
-          <PhenotypeTooltip
-            resource={row.original.resource}
-            phenocode={row.original.traitOriginal}
-            phenostring={row.original.phenostring}
-            dataType={row.original.dataType}
-            dataset={row.original.dataset}
-            content={
-              <span style={{ textDecoration: "underline dotted", cursor: "help" }}>
-                {formatTraitName(row.original.phenostring)}
-              </span>
-            }
-          />
-        ),
+        Cell: ({ row }) => {
+          const r = row.original;
+          if (r.linkedGenes?.length) {
+            return (
+              <Tooltip title={`ATAC peak: ${r.peak ?? r.trait}`} arrow>
+                <span style={{ textDecoration: "underline dotted", cursor: "help" }}>
+                  {r.linkedGenes.join(", ")}
+                </span>
+              </Tooltip>
+            );
+          }
+          return (
+            <PhenotypeTooltip
+              resource={r.resource}
+              phenocode={r.traitOriginal}
+              phenostring={r.phenostring}
+              dataType={r.dataType}
+              dataset={r.dataset}
+              content={
+                <span style={{ textDecoration: "underline dotted", cursor: "help" }}>
+                  {formatTraitName(r.phenostring)}
+                </span>
+              }
+            />
+          );
+        },
       },
       {
         accessorKey: "variantCount",

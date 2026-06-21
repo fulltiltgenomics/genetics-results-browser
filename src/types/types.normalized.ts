@@ -355,6 +355,10 @@ export interface PhenoSummaryRow {
   consistentCount?: number; //  requires user betas
   oppositeCount?: number;
   variants: VariantId[];
+  /** caQTL only: the peak's linked gene(s), shown instead of the ATAC peak id (peak -> tooltip). */
+  linkedGenes?: string[];
+  /** caQTL only: the ATAC peak id (the harmonized `trait`), surfaced in a tooltip. */
+  peak?: string;
 }
 
 /** Tissue/cell-type summary row — decoupled from main options; toggled eQTL vs caQTL. */

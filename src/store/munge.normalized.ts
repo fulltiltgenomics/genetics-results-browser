@@ -290,6 +290,8 @@ interface PhenoAcc {
   variants: Set<VariantId>;
   consistent: number;
   opposite: number;
+  /** caQTL: union of the peak's linked gene symbols across the grouped memberships. */
+  linkedGenes: Set<string>;
 }
 
 /**
@@ -318,9 +320,11 @@ export const summarizePhenotypes = (
           variants: new Set(),
           consistent: 0,
           opposite: 0,
+          linkedGenes: new Set(),
         };
       }
       a.variants.add(v.variant);
+      if (cs.dataType === "caQTL") for (const g of cs.geneTargets ?? []) a.linkedGenes.add(g.symbol);
       // direction agreement is only meaningful when the user supplied a beta for this variant.
       if (inputBeta !== undefined) {
         const product = cs.beta * inputBeta;
@@ -342,6 +346,11 @@ export const summarizePhenotypes = (
         variantCount: a.variants.size,
         variants: [...a.variants],
       };
+      // caQTL: surface the peak's linked gene(s); the table shows them instead of the peak id.
+      if (a.dataType === "caQTL" && a.linkedGenes.size > 0) {
+        row.linkedGenes = [...a.linkedGenes].sort();
+        row.peak = a.trait;
+      }
       // omit direction counts entirely when no input betas exist (matches legacy "stay 0" intent
       // but expressed as optional fields on the new row type).
       if (hasAnyBeta) {
