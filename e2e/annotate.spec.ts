@@ -13,7 +13,7 @@ test("annotate route renders credible-set data", async ({ page }) => {
   await page.getByRole("button", { name: /annotate/i }).click();
 
   // the main table renders the variant row once stage-1 BFF data + stage-2 filtering complete
-  await expect(page.getByText("19:44908684:T:C")).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText("19:44908684:T:C", { exact: true })).toBeVisible({ timeout: 30_000 });
   await expect(page.getByText("rs429358")).toBeVisible();
 
   await snapshot(page, "annotate-main-table");

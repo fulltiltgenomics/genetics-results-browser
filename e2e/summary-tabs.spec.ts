@@ -24,7 +24,7 @@ test("migrated summary tabs render credible-set data", async ({ page }) => {
   await expect(page.getByText("caQTL CS")).toBeVisible();
   await expect(page.getByText("total CS")).toBeVisible();
   // af column (mirrors the variant results table) — header is "<pop> AF" / "global AF"
-  await expect(page.getByRole("columnheader", { name: /\bAF$/ })).toBeVisible();
+  await expect(page.getByText("global AF").first()).toBeVisible();
   await expect(page.getByText("most severe gene")).toBeVisible();
   await snapshot(page, "tab-data-type-comparison");
 

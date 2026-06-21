@@ -15,7 +15,7 @@ test("eQTL quant-level toggle reveals non-ge levels with a level chip", async ({
   await input.fill("19-44908684-T-C");
   await page.getByRole("button", { name: /annotate/i }).click();
 
-  await expect(page.getByText("19:44908684:T:C")).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText("19:44908684:T:C", { exact: true })).toBeVisible({ timeout: 30_000 });
 
   // drop the PIP threshold to 0 so the low-PIP exon-level eQTL row (pip≈0.008 for this variant) is
   // not removed by the PIP gate — this isolates the quant-level toggle as the only thing hiding it.

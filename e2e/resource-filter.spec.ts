@@ -16,7 +16,7 @@ test("resource filter lists dynamic resources and reactively refilters the table
   await page.getByRole("button", { name: /annotate/i }).click();
 
   // wait for the main table to render the variant row (stage-1 + stage-2 complete)
-  await expect(page.getByText("19:44908684:T:C")).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText("19:44908684:T:C", { exact: true })).toBeVisible({ timeout: 30_000 });
 
   // the lifted resource filter shows multiple resources actually present in this variant's CS data.
   const resourceSwitch = (name: string) => page.getByRole("checkbox", { name, exact: true });

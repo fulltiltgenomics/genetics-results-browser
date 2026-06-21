@@ -35,17 +35,17 @@ test("annotate full single-variant verification walk + screenshots", async ({ pa
   await fillInput(page, SINGLE);
 
   // ── stage-1 BFF fetch + stage-2 client filter complete → main table row ──────
-  await expect(page.getByText("19:44908684:T:C")).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText("19:44908684:T:C", { exact: true })).toBeVisible({ timeout: 30_000 });
   await expect(page.getByText("rs429358")).toBeVisible();
   // no "Association results" / p-value vestiges anywhere; CS-only data (intended diff)
   await expect(page.getByText(/Association results/i)).toHaveCount(0);
   await expect(page.getByText(/being migrated/i)).toHaveCount(0);
   await snapshot(page, "verify-01-main-table");
 
-  // ── controls panel: PIP + cs_min_r2 (no p-value), dynamic resource filter, gnomAD pop ───
+  // ── controls panel: PIP + p-value thresholds, dynamic resource filter, gnomAD pop ───
   await expect(page.getByLabel("PIP threshold")).toBeVisible();
-  await expect(page.getByLabel("cs_min_r2 threshold")).toBeVisible();
-  await expect(page.getByLabel("p-value threshold")).toHaveCount(0);
+  await expect(page.getByLabel("p-value threshold")).toBeVisible();
+  await expect(page.getByLabel("cs_min_r2 threshold")).toHaveCount(0);
   // dynamic resource filter lists resources actually present in this variant's CS data
   const resourceSwitch = (name: string) =>
     page.getByRole("checkbox", { name, exact: true });
@@ -160,9 +160,10 @@ test("annotate multi-variant with betas exercises consistent/opposite columns", 
   await page.goto("/annotate");
   await fillInput(page, MULTI_WITH_BETAS);
 
-  // both variant rows render (stage-1 + stage-2 complete)
-  await expect(page.getByText("19:44908684:T:C")).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByText("19:45869791:ATT:A")).toBeVisible({ timeout: 15_000 });
+  // variant 1 renders. variant 2 (19:45869791:ATT:A) has only a weak eQTL CS (p≈0.15) which the
+  // default 0.05 p-value threshold filters out, so it is correctly absent from the main table; it is
+  // still counted in the QueryVariantInfo "found" summary above.
+  await expect(page.getByText("19:44908684:T:C", { exact: true })).toBeVisible({ timeout: 30_000 });
   // betas present → main table exposes the "my beta" column
   await expect(page.getByText("my beta", { exact: true })).toBeVisible();
   await snapshot(page, "verify-11-multivariant-main-with-betas");

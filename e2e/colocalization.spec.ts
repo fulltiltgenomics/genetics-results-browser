@@ -15,7 +15,7 @@ test("expanded credible set lazily loads its colocalizations", async ({ page }) 
   await page.getByRole("button", { name: /annotate/i }).click();
 
   // main table row
-  await expect(page.getByText("19:44908684:T:C")).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText("19:44908684:T:C", { exact: true })).toBeVisible({ timeout: 30_000 });
 
   // expand the variant row -> credible-set detail table
   await page.getByLabel("Expand").first().click();
@@ -23,10 +23,11 @@ test("expanded credible set lazily loads its colocalizations", async ({ page }) 
     timeout: 15_000,
   });
 
-  // narrow the (large) inner detail table to a single GWAS credible set so there is exactly one
-  // inner row to expand. AD_LO_EXMORE is the late-onset Alzheimer's APOE-region trait.
+  // narrow the (large) inner detail table to the late-onset Alzheimer's APOE-region GWAS credible
+  // set. the trait column shows the resolved phenostring (not the phenocode), so filter by the
+  // human-readable substring "Late onset" (matches "Alzheimer's disease (Late onset) …").
   const innerTraitFilter = page.getByPlaceholder("trait").last();
-  await innerTraitFilter.fill("AD_LO_EXMORE");
+  await innerTraitFilter.fill("Late onset");
   await page.waitForTimeout(500);
 
   // the inner detail table carries its own expand column (the coloc panel). after the outer row is
@@ -36,7 +37,7 @@ test("expanded credible set lazily loads its colocalizations", async ({ page }) 
   await innerExpand.click();
 
   // open the lazy coloc fetch for that credible set
-  const showBtn = page.getByRole("button", { name: /show colocalizations/i }).first();
+  const showBtn = page.getByRole("button", { name: /show colocalization data/i }).first();
   await expect(showBtn).toBeVisible({ timeout: 15_000 });
   await showBtn.click();
 
@@ -44,7 +45,8 @@ test("expanded credible set lazily loads its colocalizations", async ({ page }) 
   // resolving to a populated table (real PP.H4 values), and the "<n> colocalizations" count line.
   await expect(page.getByText(/What this signal colocalizes with/i).first()).toBeVisible();
   await expect(page.getByText(/loading colocalizations/i)).toHaveCount(0, { timeout: 20_000 });
-  await expect(page.getByText(/\d+ colocalizations? \(PP\.H4/i).first()).toBeVisible({
+  // count line ("<n> colocalizations") + the PP.H4 partner-table column header
+  await expect(page.getByText(/\d+ colocalizations?/i).first()).toBeVisible({
     timeout: 15_000,
   });
   await expect(page.getByText("PP.H4").first()).toBeVisible();
