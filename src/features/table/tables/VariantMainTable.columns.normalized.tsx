@@ -60,6 +60,33 @@ const topMlog10p = (row: VariantResult): number =>
 const topBeta = (row: VariantResult): number =>
   topCredibleSet(row)?.beta ?? Number.NEGATIVE_INFINITY;
 
+/**
+ * p-value filter predicate: the user types a p-value threshold and rows with a SMALLER (more
+ * significant) p-value are kept. Values are stored as mlog10p (-log10 p), so
+ * p < threshold <=> mlog10p > -log10(threshold). Empty/invalid filter keeps everything; a row with
+ * no p-value drops out when the filter is active.
+ */
+const passesPValueFilter = (mlog10p: unknown, filterValue: unknown): boolean => {
+  const threshold = Number(filterValue);
+  if (filterValue == null || filterValue === "" || !Number.isFinite(threshold) || threshold <= 0) {
+    return true;
+  }
+  if (typeof mlog10p !== "number" || !Number.isFinite(mlog10p)) return false;
+  return mlog10p > -Math.log10(threshold);
+};
+
+/**
+ * beta filter predicate: the user types a magnitude and rows whose |beta| is GREATER are kept
+ * (direction-agnostic). Empty/invalid filter keeps everything; a row with no beta drops out when the
+ * filter is active.
+ */
+const passesAbsBetaFilter = (beta: unknown, filterValue: unknown): boolean => {
+  const threshold = Number(filterValue);
+  if (filterValue == null || filterValue === "" || !Number.isFinite(threshold)) return true;
+  if (typeof beta !== "number" || !Number.isFinite(beta)) return false;
+  return Math.abs(beta) > threshold;
+};
+
 // "top association" label: resolved trait name, with the caQTL cell type (whose p-value/beta are
 // shown) appended in parens after the peak.
 const topAssocLabel = (
@@ -289,7 +316,10 @@ export const getVariantMainTableColumnsNormalized = (
       accessorFn: (row) => topMlog10p(row),
       id: "top_pval",
       header: "p-value",
-      enableColumnFilter: false,
+      // filter keeps rows with a p-value smaller than the entered threshold (see passesPValueFilter)
+      filterFn: (row, id, filterValue) => passesPValueFilter(row.getValue(id), filterValue),
+      enableColumnFilterModes: false,
+      muiFilterTextFieldProps: { placeholder: "p <" },
       sortingFn: (a, b) => topMlog10p(a.original) - topMlog10p(b.original),
       sortDescFirst: true,
       size: 70,
@@ -303,7 +333,10 @@ export const getVariantMainTableColumnsNormalized = (
       accessorFn: (row) => topBeta(row),
       id: "top_beta",
       header: "beta",
-      enableColumnFilter: false,
+      // filter keeps rows whose |beta| is greater than the entered magnitude (see passesAbsBetaFilter)
+      filterFn: (row, id, filterValue) => passesAbsBetaFilter(row.getValue(id), filterValue),
+      enableColumnFilterModes: false,
+      muiFilterTextFieldProps: { placeholder: "|beta| >" },
       sortingFn: (a, b) => topBeta(a.original) - topBeta(b.original),
       sortDescFirst: true,
       size: 60,
@@ -323,12 +356,27 @@ export const getVariantMainTableColumnsNormalized = (
   if (hasBetas) {
     cols = cols.concat([
       {
-        accessorFn: (row) => (row.beta !== undefined ? row.beta.toFixed(2) : ""),
+        // numeric accessor (not the formatted string) so the |beta| filter and sort read the value
+        accessorFn: (row) => row.beta,
         header: "my beta",
         id: "beta",
-        filterFn: "contains",
-        muiFilterTextFieldProps: { placeholder: "my beta" },
-        size: 60,
+        // same magnitude filter as the data beta column
+        filterFn: (row, id, filterValue) => passesAbsBetaFilter(row.getValue(id), filterValue),
+        enableColumnFilterModes: false,
+        muiFilterTextFieldProps: { placeholder: "|beta| >" },
+        sortDescFirst: true,
+        size: 70,
+        // arrow + value, mirroring the data "beta" column
+        Cell: ({ row }) => {
+          const beta = row.original.beta;
+          if (beta === undefined) return "";
+          return (
+            <Box sx={{ display: "flex", alignItems: "center" }}>
+              <UpOrDownIcon value={beta} />
+              <span>{beta ? beta.toFixed(2) : ""}</span>
+            </Box>
+          );
+        },
       },
     ]);
   }

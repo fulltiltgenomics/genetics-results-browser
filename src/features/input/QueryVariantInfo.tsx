@@ -45,6 +45,16 @@ const QueryVariantInfo = () => {
     (v) => v.credibleSets.length > 0
   ).length;
 
+  // natural quantifier for the "<n> in at least one credible set" clause: none / both / all / the number
+  const inCredibleSetPhrase =
+    inCredibleSet === 0
+      ? "none"
+      : inCredibleSet === input.found.length
+        ? input.found.length === 2
+          ? "both"
+          : "all"
+        : inCredibleSet;
+
   let foundElem = <></>;
   if (input.found.length > 0) {
     foundElem =
@@ -55,7 +65,7 @@ const QueryVariantInfo = () => {
               ? "Both "
               : `All ${input.found.length} `
             : input.found.length}{" "}
-          variants found, {inCredibleSet} in at least one credible set across all datasets
+          variants found, {inCredibleSetPhrase} in at least one credible set across all datasets
         </Typography>
       ) : (
         <Typography variant="h6" gutterBottom>

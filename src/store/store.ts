@@ -341,7 +341,13 @@ export const useDataStore = create<DataState>()(
         const next = { ...state, resourceFilter: resources };
         return { resourceFilter: resources, filteredVariants: recomputeFilteredVariants(next) };
       }),
-    toggledCredibleSetDataTypes: {},
+    // GWAS / eQTL / pQTL are on by default (absent key = enabled); the rarer QTL layers start off.
+    toggledCredibleSetDataTypes: {
+      sQTL: false,
+      caQTL: false,
+      edQTL: false,
+      metaboQTL: false,
+    },
     toggleCredibleSetDataType: (dataType) =>
       set((state) => {
         // absent key means "enabled" (passesFilter only drops on === false), so the first toggle

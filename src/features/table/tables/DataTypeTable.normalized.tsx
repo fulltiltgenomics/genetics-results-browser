@@ -2,7 +2,7 @@ import { Box } from "@mui/material";
 import { MaterialReactTable, MRT_ColumnDef } from "material-react-table";
 import { useMemo, useState } from "react";
 import { DataTypeSummaryRow, CredibleSetDataType } from "../../../types/types.normalized";
-import { summarizeDataTypes } from "../../../store/munge.normalized";
+import { summarizeDataTypes, filterCredibleSets } from "../../../store/munge.normalized";
 import { useDataStore } from "../../../store/store";
 import { naInfSort, variantSort } from "../utils/sorting";
 import { cleanConsequence } from "../utils/tableutil";
@@ -127,8 +127,40 @@ const getColumns = (
 
 const DataTypeTable = (props: { enableTopToolbar: boolean }) => {
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 20 });
-  const filteredVariants = useDataStore((state) => state.filteredVariants);
   const selectedPopulation = useDataStore((state) => state.selectedPopulation);
+
+  // the data-type comparison deliberately IGNORES the global data-type toggles: its whole point is to
+  // show the per-data-type CS counts (e.g. how many pQTL CS a variant has) even when that type is
+  // toggled off elsewhere. so we re-derive from the raw variants applying every global filter EXCEPT
+  // dataTypes, rather than reading the store's filteredVariants (which already drops toggled-off types).
+  const normalizedData = useDataStore((state) => state.normalizedData);
+  const pipThreshold = useDataStore((state) => state.pipThreshold);
+  const csMinR2Threshold = useDataStore((state) => state.csMinR2Threshold);
+  const resourceFilter = useDataStore((state) => state.resourceFilter);
+  const includeAllQuantLevels = useDataStore((state) => state.includeAllQuantLevels);
+  const selectedPhenotype = useDataStore((state) => state.selectedPhenotype);
+
+  const filteredVariants = useMemo(
+    () =>
+      normalizedData
+        ? filterCredibleSets(normalizedData.variants, {
+            pipThreshold,
+            csMinR2Threshold,
+            resources: resourceFilter,
+            dataTypes: {}, // empty = every data type enabled, so toggles don't affect this tab
+            includeAllQuantLevels,
+            selectedPhenotype,
+          })
+        : [],
+    [
+      normalizedData,
+      pipThreshold,
+      csMinR2Threshold,
+      resourceFilter,
+      includeAllQuantLevels,
+      selectedPhenotype,
+    ]
+  );
 
   const data = useMemo(() => summarizeDataTypes(filteredVariants), [filteredVariants]);
   const columns = useMemo(() => getColumns(selectedPopulation), [selectedPopulation]);
