@@ -1,8 +1,20 @@
 import { Box, Divider, FormControlLabel, FormGroup, FormLabel, Switch } from "@mui/material";
-import { useMemo, ReactElement } from "react";
+import { useEffect, useMemo, ReactElement } from "react";
 import { useDataStore } from "../../store/store";
 import { CredibleSetDataType, NormalizedResponse } from "../../types/types.normalized";
 import { DataTypeIcon } from "../table/DataTypeIcon";
+
+// bare single-letter hotkey per data type. first letters collide (eQTL/edQTL both "e"), so the
+// mapping is explicit and unique. shown as a keycap on each toggle for discoverability.
+const DATA_TYPE_HOTKEYS: Record<CredibleSetDataType, string> = {
+  GWAS: "g",
+  eQTL: "e",
+  pQTL: "p",
+  sQTL: "s",
+  caQTL: "c",
+  edQTL: "d",
+  metaboQTL: "m",
+};
 
 /**
  * Lifted resource filter (refactor.md §4): moved out of the variant expanded table into the main
@@ -60,6 +72,37 @@ const ResourceFilter = (props: { isNotReadyYet: boolean }) => {
     return [...present].sort();
   }, [normalizedData]);
 
+  // bare-letter hotkeys toggle the matching data type (G -> GWAS, E -> eQTL, ...). only bound for the
+  // data types actually present, and deliberately ignored while a text box / select / menu is focused
+  // so it never fires while the user is typing in the paste box, a column filter, or the phenotype
+  // search. no modifier on purpose: Ctrl/Cmd+G is "find next" and Option+G types "©" on macOS.
+  useEffect(() => {
+    if (props.isNotReadyYet) return;
+    const keyToType = new Map<string, CredibleSetDataType>();
+    for (const dt of availableDataTypes) keyToType.set(DATA_TYPE_HOTKEYS[dt], dt);
+    if (keyToType.size === 0) return;
+
+    const handler = (e: KeyboardEvent) => {
+      if (e.ctrlKey || e.metaKey || e.altKey || e.repeat) return;
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName) ||
+          target.isContentEditable ||
+          target.closest('[role="combobox"], [role="listbox"], [role="option"]'))
+      ) {
+        return;
+      }
+      const dataType = keyToType.get(e.key.toLowerCase());
+      if (dataType) {
+        e.preventDefault();
+        toggleCredibleSetDataType(dataType);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [availableDataTypes, toggleCredibleSetDataType, props.isNotReadyYet]);
+
   // only offer the quant-level toggle when the data actually carries eQTL Catalogue rows with a
   // parsed level (quantLevel !== null) — otherwise the option would be a no-op and just clutter.
   const hasLeveledData: boolean = useMemo(() => {
@@ -105,6 +148,20 @@ const ResourceFilter = (props: { isNotReadyYet: boolean }) => {
           <Box sx={{ display: "flex", alignItems: "center", gap: "6px" }}>
             <DataTypeIcon dataType={dataType} />
             <span>{dataType}</span>
+            <Box
+              component="span"
+              title={`Press ${DATA_TYPE_HOTKEYS[dataType].toUpperCase()} to toggle`}
+              sx={{
+                px: "4px",
+                border: "1px solid",
+                borderColor: "divider",
+                borderRadius: "3px",
+                fontSize: "0.6rem",
+                lineHeight: 1.5,
+                color: "text.secondary",
+              }}>
+              {DATA_TYPE_HOTKEYS[dataType].toUpperCase()}
+            </Box>
           </Box>
         }
       />
