@@ -226,6 +226,10 @@ export interface DatasetMeta {
   cellType?: string | null;
   quantMethod?: string | null; // eQTL Catalogue "ge"/"exon"/...
   sampleSize?: number;
+  // products.summary_stats: whether this dataset exposes full per-variant summary stats. The
+  // phenotype-search handoff (summary_stats/{resource}/{data_type}) only works for capable
+  // (resource, data_type) pairs — e.g. open_targets/eqtl_catalogue have credible sets but no sumstats.
+  hasSummaryStats: boolean;
 }
 
 /**

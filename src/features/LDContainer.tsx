@@ -609,70 +609,70 @@ const LDContainer = () => {
                       : "rgba(0, 0, 0, 0.02)",
                   borderRadius: "4px",
                 }}>
-                <table style={{ borderCollapse: "collapse", fontSize: "0.875rem" }}>
+                <table style={{ borderCollapse: "collapse", fontSize: "0.75rem" }}>
                   <thead>
                     <tr>
-                      <th style={{ textAlign: "left", padding: "4px 8px", fontWeight: "bold" }}>
+                      <th style={{ textAlign: "left", padding: "2px 8px", fontWeight: "bold" }}>
                         r²
                       </th>
-                      <th style={{ textAlign: "left", padding: "4px 8px", fontWeight: "bold" }}>
+                      <th style={{ textAlign: "left", padding: "2px 8px", fontWeight: "bold" }}>
                         variants
                       </th>
-                      <th style={{ textAlign: "left", padding: "4px 8px", fontWeight: "bold" }}>
+                      <th style={{ textAlign: "left", padding: "2px 8px", fontWeight: "bold" }}>
                         MAF fin
                       </th>
-                      <th style={{ textAlign: "left", padding: "4px 8px", fontWeight: "bold" }}>
+                      <th style={{ textAlign: "left", padding: "2px 8px", fontWeight: "bold" }}>
                         coding
                       </th>
-                      <th style={{ textAlign: "left", padding: "4px 8px", fontWeight: "bold" }}>
+                      <th style={{ textAlign: "left", padding: "2px 8px", fontWeight: "bold" }}>
                         LoF
                       </th>
                     </tr>
                   </thead>
                   <tbody>
                     <tr>
-                      <td style={{ padding: "4px 8px" }}>&gt; 0.99</td>
-                      <td style={{ textAlign: "right", padding: "4px 8px" }}>
+                      <td style={{ padding: "2px 8px" }}>&gt; 0.99</td>
+                      <td style={{ textAlign: "right", padding: "2px 8px" }}>
                         {r2_099_variants.length}
                       </td>
-                      <td style={{ textAlign: "right", padding: "4px 8px" }}>
+                      <td style={{ textAlign: "right", padding: "2px 8px" }}>
                         {formatMafRange(mafFin099.mafMin, mafFin099.mafMax)}
                       </td>
-                      <td style={{ textAlign: "right", padding: "4px 8px" }}>{counts099.coding}</td>
-                      <td style={{ textAlign: "right", padding: "4px 8px" }}>{counts099.lof}</td>
+                      <td style={{ textAlign: "right", padding: "2px 8px" }}>{counts099.coding}</td>
+                      <td style={{ textAlign: "right", padding: "2px 8px" }}>{counts099.lof}</td>
                     </tr>
                     <tr>
-                      <td style={{ padding: "4px 8px" }}>&gt; 0.9</td>
-                      <td style={{ textAlign: "right", padding: "4px 8px" }}>
+                      <td style={{ padding: "2px 8px" }}>&gt; 0.9</td>
+                      <td style={{ textAlign: "right", padding: "2px 8px" }}>
                         {r2_09_variants.length}
                       </td>
-                      <td style={{ textAlign: "right", padding: "4px 8px" }}>
+                      <td style={{ textAlign: "right", padding: "2px 8px" }}>
                         {formatMafRange(mafFin09.mafMin, mafFin09.mafMax)}
                       </td>
-                      <td style={{ textAlign: "right", padding: "4px 8px" }}>{counts09.coding}</td>
-                      <td style={{ textAlign: "right", padding: "4px 8px" }}>{counts09.lof}</td>
+                      <td style={{ textAlign: "right", padding: "2px 8px" }}>{counts09.coding}</td>
+                      <td style={{ textAlign: "right", padding: "2px 8px" }}>{counts09.lof}</td>
                     </tr>
                     <tr>
-                      <td style={{ padding: "4px 8px" }}>&gt; 0.6</td>
-                      <td style={{ textAlign: "right", padding: "4px 8px" }}>
+                      <td style={{ padding: "2px 8px" }}>&gt; 0.6</td>
+                      <td style={{ textAlign: "right", padding: "2px 8px" }}>
                         {r2_06_variants.length}
                       </td>
-                      <td style={{ textAlign: "right", padding: "4px 8px" }}>
+                      <td style={{ textAlign: "right", padding: "2px 8px" }}>
                         {formatMafRange(mafFin06.mafMin, mafFin06.mafMax)}
                       </td>
-                      <td style={{ textAlign: "right", padding: "4px 8px" }}>{counts06.coding}</td>
-                      <td style={{ textAlign: "right", padding: "4px 8px" }}>{counts06.lof}</td>
+                      <td style={{ textAlign: "right", padding: "2px 8px" }}>{counts06.coding}</td>
+                      <td style={{ textAlign: "right", padding: "2px 8px" }}>{counts06.lof}</td>
                     </tr>
                     <tr>
-                      <td style={{ padding: "4px 8px" }}>&gt; 0.05</td>
-                      <td style={{ textAlign: "right", padding: "4px 8px" }}>
+                      <td style={{ padding: "2px 8px" }}>&gt; 0.05</td>
+                      <td style={{ textAlign: "right", padding: "2px 8px" }}>
                         {r2_005_variants.length}
                       </td>
-                      <td style={{ textAlign: "right", padding: "4px 8px" }}>
+                      <td style={{ textAlign: "right", padding: "2px 8px" }}>
                         {formatMafRange(mafFin005.mafMin, mafFin005.mafMax)}
                       </td>
-                      <td style={{ textAlign: "right", padding: "4px 8px" }}>{counts005.coding}</td>
-                      <td style={{ textAlign: "right", padding: "4px 8px" }}>{counts005.lof}</td>
+                      <td style={{ textAlign: "right", padding: "2px 8px" }}>{counts005.coding}</td>
+                      <td style={{ textAlign: "right", padding: "2px 8px" }}>{counts005.lof}</td>
                     </tr>
                   </tbody>
                 </table>
@@ -712,6 +712,7 @@ const LDContainer = () => {
                   showColumnFilters: true,
                   pagination: { pageSize: 20, pageIndex: 0 },
                 }}
+                muiTableBodyCellProps={{ sx: { fontSize: "0.75rem" } }}
               />
             </Box>
           );

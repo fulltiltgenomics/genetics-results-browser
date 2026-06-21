@@ -38,6 +38,7 @@ import GeneTooltip from "../tooltips/GeneToolTip";
  */
 
 // the chosen phenotype carries resource + data_type so we can hit summary_stats/{resource}/{data_type}.
+// `code` is the phenotype id summary_stats expects (see sumstatsPhenoId); `name` is for display only.
 interface ChosenPhenotype {
   resource: string;
   dataType: string;
@@ -45,9 +46,23 @@ interface ChosenPhenotype {
   name: string;
 }
 
+/**
+ * The phenotype id summary_stats keys on, which differs by layer (verified live against the API):
+ *   - GWAS: the phenocode, i.e. the credible-set `trait_original` (e.g. "AD_LO_EXMORE"). The
+ *     credible-set `trait` is now a harmonized human-readable name ("Alzheimer’s_disease_(Late…)")
+ *     which summary_stats 404s on.
+ *   - QTLs: the molecular trait symbol, i.e. the credible-set `trait` (e.g. "APOE"). Here it's
+ *     `trait_original` that 404s (it carries an assay suffix, "APOE_cross_batch_normalised_4118").
+ * /search (GWAS-only, has_summary_stats) returns this phenocode as its `code`, so the search box and
+ * the Phenotype-summary handoff resolve to the same id.
+ */
+const sumstatsPhenoId = (dataType: string, trait: string, traitOriginal: string): string =>
+  dataType.toLowerCase() === "gwas" ? traitOriginal : trait;
+
 const PhenotypeSearchContainer = () => {
   const normalizedData = useDataStore((state) => state.normalizedData);
-  const selectedPhenotype = useDataStore((state) => state.selectedPhenotype);
+  // handoff message from the Phenotype summary tab — preselect-only; it does NOT filter other tables.
+  const handoffSelection = useDataStore((state) => state.phenotypeSearchSelection);
 
   const inputVariants = normalizedData?.inputVariants.found ?? [];
 
@@ -64,25 +79,31 @@ const PhenotypeSearchContainer = () => {
   const { data: searchHits = [], isFetching: searchFetching } =
     usePhenotypeSearch(debouncedQuery);
 
-  // preselect from the Phenotype Summary handoff (store.selectedPhenotype). The handoff knows
-  // resource+trait but not data_type — phenotypes that flow through that tab are credible-set GWAS
-  // rows, so default the data_type to "gwas"; the phenostring is resolved from normalizedData.phenotypes.
-  // Since this is now a persistent tab (not a remounted page), react to *changes* in selectedPhenotype
-  // (tracked by a ref) so a second handoff re-runs, while a manual search-box pick is left untouched.
+  // preselect from the Phenotype Summary handoff (store.phenotypeSearchSelection). The handoff carries
+  // the resource + (display) trait + trait_original; the data_type comes from normalizedData.phenotypes
+  // (keyed by `${resource}|${trait}`), defaulting to GWAS. The summary_stats id is then resolved
+  // per-layer via sumstatsPhenoId. Since this is now a persistent tab (not a remounted page), react to
+  // *changes* in the handoff (tracked by a ref) so a second handoff re-runs, while a manual
+  // search-box pick is left untouched.
   const lastHandoffRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!selectedPhenotype) return;
-    const key = `${selectedPhenotype.resource}|${selectedPhenotype.trait}`;
+    if (!handoffSelection) return;
+    const key = `${handoffSelection.resource}|${handoffSelection.trait}`;
     if (lastHandoffRef.current === key) return;
     lastHandoffRef.current = key;
     const meta = normalizedData?.phenotypes?.[key];
+    const dataType = meta?.dataType ?? "GWAS";
     setChosen({
-      resource: selectedPhenotype.resource,
-      dataType: (meta?.dataType ?? "gwas").toLowerCase(),
-      code: selectedPhenotype.trait,
-      name: meta?.phenostring ?? selectedPhenotype.trait,
+      resource: handoffSelection.resource,
+      dataType: dataType.toLowerCase(),
+      code: sumstatsPhenoId(
+        dataType,
+        handoffSelection.trait,
+        handoffSelection.traitOriginal ?? handoffSelection.trait
+      ),
+      name: meta?.phenostring ?? handoffSelection.trait,
     });
-  }, [selectedPhenotype, normalizedData]);
+  }, [handoffSelection, normalizedData]);
 
   const {
     data: sumstatRows = [],
@@ -99,20 +120,16 @@ const PhenotypeSearchContainer = () => {
   // map each summary-stat row to a PhenoSearchRow, joining the CS-membership flag from the store.
   const rows = useMemo<PhenoSearchRow[]>(() => {
     if (!chosen) return [];
-    // index the store's per-variant credible sets for the chosen (resource, trait).
-    // genetics-results-browser-7rd: this join assumes the CS-membership `trait` (passed straight through
-    // bff/normalize.normalizeCsRow from the upstream credible-set `trait` field) equals the /search
-    // `code` (chosen.code) for the same phenotype. verified live (2026-06-01) for every sumstats-
-    // searchable GWAS resource the search box surfaces — finngen, pgc, gp2, covid_hgi — where
-    // code === trait === trait_original. QTL resources never appear in types=phenotypes search, and
-    // ibd_gwas has summary stats but no credible sets (so its flag is correctly always false). a focused
-    // alignment test (PhenotypeSearchContainer.test.tsx) pins this per resource; if a future resource's
-    // CS-trait vocabulary diverges from its /search code, harden the match here (normalize both sides /
-    // also accept cs.traitOriginal) and add a divergent-case test.
+    // index the store's per-variant credible sets for the chosen phenotype. chosen.code is the
+    // summary_stats id, which equals the CS-membership trait_original for GWAS and trait for QTLs
+    // (see sumstatsPhenoId), so match the same field per layer. The CS `trait` is now a harmonized
+    // display name for GWAS, so the old `cs.trait === chosen.code` match no longer holds there.
     const csByVariant = new Map<string, { csId: string; pip: number }>();
     for (const v of normalizedData?.variants ?? []) {
       const member = v.credibleSets.find(
-        (cs) => cs.resource === chosen.resource && cs.trait === chosen.code
+        (cs) =>
+          cs.resource === chosen.resource &&
+          sumstatsPhenoId(cs.dataType, cs.trait, cs.traitOriginal) === chosen.code
       );
       if (member) csByVariant.set(v.variant, { csId: member.csId, pip: member.pip });
     }
@@ -141,6 +158,11 @@ const PhenotypeSearchContainer = () => {
       };
     });
   }, [sumstatRows, normalizedData, chosen]);
+
+  // how many of the input variants the chosen phenotype's summary stats actually cover. The endpoint
+  // is queried with the input variants and returns a row only for those it has, so the distinct
+  // variant count here is the "found in sumstats" tally (often < inputVariants for sparse phenotypes).
+  const foundCount = useMemo(() => new Set(rows.map((r) => r.variant)).size, [rows]);
 
   // column order mirrors the Variant results table: variant, rsid, AF, most severe, most severe gene,
   // p-value, beta, se, then the per-phenotype in-credible-set flag.
@@ -311,6 +333,13 @@ const PhenotypeSearchContainer = () => {
       {chosen && (
         <Typography sx={{ mb: 1 }}>
           Showing <b>{chosen.name}</b> ({chosen.code}) — {chosen.resource} / {chosen.dataType}
+          {!sumstatsFetching && !sumstatsError && (
+            <>
+              {" "}
+              · <b>{foundCount.toLocaleString()}</b> of {inputVariants.length.toLocaleString()} input
+              variant{inputVariants.length === 1 ? "" : "s"} found in these summary statistics
+            </>
+          )}
         </Typography>
       )}
 
@@ -323,7 +352,11 @@ const PhenotypeSearchContainer = () => {
 
       {chosen && sumstatsError && (
         <Typography color="error" variant="body2">
-          failed to load summary statistics: {sumstatsErrorObj?.message}
+          {/* a 404 here means this phenotype has no full summary statistics (the upstream returns 404
+              for unknown resource/data_type/phenotype) — show a plain message, not the axios error. */}
+          {(sumstatsErrorObj as { response?: { status?: number } })?.response?.status === 404
+            ? "No full summary statistics available for this phenotype."
+            : `failed to load summary statistics: ${sumstatsErrorObj?.message}`}
         </Typography>
       )}
 

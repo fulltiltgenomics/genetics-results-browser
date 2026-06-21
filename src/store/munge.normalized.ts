@@ -40,11 +40,14 @@ import {
 
 /**
  * A single trait focus, keyed exactly like NormalizedResponse.phenotypes (`${resource}|${trait}`)
- * but split so callers don't have to re-parse. Matching is on resource + trait.
+ * but split so callers don't have to re-parse. Filter matching is on resource + trait (the harmonized
+ * display name). traitOriginal (the phenocode/molecular id) is carried for the phenotype-search handoff,
+ * which needs it to address summary_stats for GWAS layers; it is not used by passesFilter.
  */
 export interface SelectedPhenotype {
   resource: string;
   trait: string;
+  traitOriginal?: string;
 }
 
 export interface FilterState {

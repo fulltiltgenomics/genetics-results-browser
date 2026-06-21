@@ -189,6 +189,20 @@ describe("store normalized path", () => {
     expect(cs[0].trait).toBe("A");
   });
 
+  it("setPhenotypeSearchSelection does NOT narrow filteredVariants (handoff is search-tab-only)", () => {
+    const s = useDataStore.getState();
+    s.setNormalizedData(
+      makeResponse([
+        makeCS({ trait: "A", resource: "finngen" }),
+        makeCS({ trait: "B", resource: "finngen" }),
+        makeCS({ trait: "A", resource: "ukbb" }),
+      ])
+    );
+    // picking a phenotype for the search tab must leave the other tables' data fully intact
+    useDataStore.getState().setPhenotypeSearchSelection({ resource: "finngen", trait: "A" });
+    expect(useDataStore.getState().filteredVariants[0].credibleSets).toHaveLength(3);
+  });
+
   it("combines multiple active filters (pip + resource + data type)", () => {
     const s = useDataStore.getState();
     s.setNormalizedData(

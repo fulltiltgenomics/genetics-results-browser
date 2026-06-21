@@ -103,9 +103,15 @@ interface DataState {
   /** eQTL quant-level option; default false = gene-level (ge) only (refactor.md §4). */
   includeAllQuantLevels: boolean;
   setIncludeAllQuantLevels: (includeAllQuantLevels: boolean) => void;
-  /** normalized-path single-trait focus (resource+trait), mirrors legacy selectedPheno. */
+  /** normalized-path single-trait focus (resource+trait), mirrors legacy selectedPheno. Narrows the
+   * global filteredVariants (and thus every table) to one phenotype. */
   selectedPhenotype: SelectedPhenotype | undefined;
   setSelectedPhenotype: (pheno: SelectedPhenotype | undefined) => void;
+  /** the phenotype the Phenotype search tab should preselect, set by the Phenotype summary handoff.
+   * Distinct from selectedPhenotype: this is a handoff message ONLY and must NOT filter the global
+   * filteredVariants — the other tables stay unaffected by what's viewed in phenotype search. */
+  phenotypeSearchSelection: SelectedPhenotype | undefined;
+  setPhenotypeSearchSelection: (pheno: SelectedPhenotype | undefined) => void;
 }
 
 export const useDataStore = create<DataState>()(
@@ -359,5 +365,9 @@ export const useDataStore = create<DataState>()(
         const next = { ...state, selectedPhenotype: pheno };
         return { selectedPhenotype: pheno, filteredVariants: recomputeFilteredVariants(next) };
       }),
+    // handoff-only: does NOT recompute filteredVariants, so picking a phenotype in the search tab
+    // leaves the variant/data-type/summary/tissue tables untouched.
+    phenotypeSearchSelection: undefined,
+    setPhenotypeSearchSelection: (pheno) => set({ phenotypeSearchSelection: pheno }),
   }))
 );

@@ -327,6 +327,7 @@ const normalizeDatasets = (datasets: RawDataset[]): Record<string, DatasetMeta> 
       cellType: d.cell_type ?? null,
       quantMethod: d.quant_method ?? null,
       sampleSize: d.n_samples,
+      hasSummaryStats: d.products?.summary_stats === true,
     };
   }
   return out;

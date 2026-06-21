@@ -27,7 +27,7 @@ beforeEach(() => {
   const s = useDataStore.getState();
   s.setVariantInput("19:44908684:T:C");
   s.setPipThreshold(0);
-  s.setSelectedPhenotype(undefined);
+  s.setPhenotypeSearchSelection(undefined);
   s.setNormalizedData(fixture);
 });
 
@@ -38,9 +38,9 @@ describe("PhenotypeSearchContainer (phenotype search tab)", () => {
     expect(screen.getByText(/enter variants/i)).toBeInTheDocument();
   });
 
-  it("preselects from the selectedPhenotype handoff and renders a populated sumstats table", async () => {
+  it("preselects from the Phenotype summary handoff and renders a populated sumstats table", async () => {
     // trait 3000242 has a GWAS credible set for 19:44908684:T:C in the fixture, so inCredibleSet=true
-    useDataStore.getState().setSelectedPhenotype({ resource: "finngen", trait: "3000242" });
+    useDataStore.getState().setPhenotypeSearchSelection({ resource: "finngen", trait: "3000242" });
     render(<PhenotypeSearchContainer />, { wrapper: Wrapper });
 
     // the sumstats fixture row is for 19:44908684:T:C
@@ -52,35 +52,32 @@ describe("PhenotypeSearchContainer (phenotype search tab)", () => {
     expect(screen.getByText("yes")).toBeInTheDocument();
   });
 
-  // genetics-results-browser-7rd: the inCredibleSet join keys on `cs.resource === chosen.resource &&
-  // cs.trait === chosen.code`. chosen.code comes from /search; cs.trait passes straight through
-  // bff/normalize.normalizeCsRow from the upstream credible-set `trait` field. This was verified live
-  // (2026-06-01, :2000) to hold (code === trait === trait_original) for EVERY sumstats-searchable GWAS
-  // resource the phenotype-search box can surface: finngen, pgc, gp2, covid_hgi. QTL resources never
-  // appear in types=phenotypes search, and ibd_gwas has summary_stats but no credible sets (so its
-  // inCredibleSet is correctly always "no"). These cases pin that alignment per resource so a future
-  // resource whose CS-trait vocab diverges from its /search code fails here instead of silently
-  // false-negativing the flag.
-  const sumstatsCodeEqualsCsTrait: Array<{ resource: string; code: string }> = [
-    { resource: "finngen", code: "F5_SCHZPHR" },
-    { resource: "pgc", code: "SCZ" },
-    { resource: "gp2", code: "PD" },
-    { resource: "covid_hgi", code: "COVID_C2" },
+  // For GWAS the credible-set `trait` is now a harmonized display name while `trait_original` is the
+  // phenocode; summary_stats (and therefore the search box's /search `code`) keys on the phenocode.
+  // So the inCredibleSet join must match cs.trait_original (not cs.trait) for GWAS — the handoff carries
+  // trait_original alongside the display trait. These cases pin that: each CS has a display trait that
+  // DIFFERS from its phenocode, and only a join on trait_original yields the "yes" chip (a join on the
+  // display trait would read "no"). See sumstatsPhenoId in PhenotypeSearchContainer.
+  const gwasDisplayVsPhenocode: Array<{ resource: string; code: string; display: string }> = [
+    { resource: "finngen", code: "G6_ALZHEIMER", display: "Alzheimer_disease" },
+    { resource: "pgc", code: "SCZ", display: "Schizophrenia" },
+    { resource: "gp2", code: "PD", display: "Parkinson’s_disease" },
+    { resource: "covid_hgi", code: "COVID_C2", display: "COVID-19" },
   ];
 
-  it.each(sumstatsCodeEqualsCsTrait)(
-    "flags inCredibleSet when a store CS for $resource has trait === the /search code $code",
-    async ({ resource, code }) => {
-      // minimal normalized response: one input variant (matching the summary_stats fixture row at
-      // 19:44908684:T:C) whose single CS membership uses (resource, trait=code) exactly as the live
-      // API emits them. if the join broke or the vocab diverged, the chip would read "no".
+  it.each(gwasDisplayVsPhenocode)(
+    "flags inCredibleSet for $resource GWAS by matching trait_original ($code), not the display trait",
+    async ({ resource, code, display }) => {
+      // one input variant (matching the summary_stats fixture row at 19:44908684:T:C) whose single CS
+      // membership is a GWAS signal with a harmonized display trait != its phenocode trait_original.
       const csVariant: NormalizedResponse["variants"][number] = {
         ...fixture.variants[0],
         credibleSets: [
           {
             ...fixture.variants[0].credibleSets[0],
             resource,
-            trait: code,
+            dataType: "GWAS",
+            trait: display,
             traitOriginal: code,
             pip: 0.5,
           },
@@ -89,20 +86,31 @@ describe("PhenotypeSearchContainer (phenotype search tab)", () => {
       const seeded: NormalizedResponse = {
         ...fixture,
         variants: [csVariant],
-        inputVariants: {
-          ...fixture.inputVariants,
-          found: ["19:44908684:T:C"],
+        inputVariants: { ...fixture.inputVariants, found: ["19:44908684:T:C"] },
+        // the handoff reads data_type from phenotypes[`${resource}|${trait}`] (keyed by display trait)
+        phenotypes: {
+          ...fixture.phenotypes,
+          [`${resource}|${display}`]: {
+            resource,
+            dataType: "GWAS",
+            trait: display,
+            phenostring: display,
+          },
         },
       };
       useDataStore.getState().setNormalizedData(seeded);
-      useDataStore.getState().setSelectedPhenotype({ resource, trait: code });
+      // the handoff carries the display trait AND the phenocode (trait_original)
+      useDataStore
+        .getState()
+        .setPhenotypeSearchSelection({ resource, trait: display, traitOriginal: code });
 
       render(<PhenotypeSearchContainer />, { wrapper: Wrapper });
 
       await waitFor(() =>
         expect(screen.getByText("19:44908684:T:C")).toBeInTheDocument()
       );
-      // a "yes" chip proves cs.trait matched chosen.code for this resource (a broken join -> "no")
+      // a "yes" chip proves the join matched cs.trait_original against the phenocode (a join on the
+      // display trait, or a handoff that passed the display name to summary_stats, would read "no")
       expect(screen.getByText("yes")).toBeInTheDocument();
     }
   );

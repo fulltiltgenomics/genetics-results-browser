@@ -245,7 +245,8 @@
       "qtlTypes": [],
       "tissueLabel": null,
       "cellType": null,
-      "quantMethod": null
+      "quantMethod": null,
+      "hasSummaryStats": true
     },
     "finngen_pqtl": {
       "datasetId": "finngen_pqtl",
@@ -259,7 +260,8 @@
       "tissueLabel": null,
       "cellType": null,
       "quantMethod": null,
-      "sampleSize": 3561
+      "sampleSize": 3561,
+      "hasSummaryStats": true
     },
     "finngen_eqtl": {
       "datasetId": "finngen_eqtl",
@@ -273,7 +275,8 @@
       "tissueLabel": null,
       "cellType": null,
       "quantMethod": null,
-      "sampleSize": 1108
+      "sampleSize": 1108,
+      "hasSummaryStats": true
     },
     "finngen_caqtl": {
       "datasetId": "finngen_caqtl",
@@ -287,7 +290,8 @@
       "tissueLabel": null,
       "cellType": null,
       "quantMethod": null,
-      "sampleSize": 1108
+      "sampleSize": 1108,
+      "hasSummaryStats": false
     },
     "decode_asmqtl_cpg": {
       "datasetId": "decode_asmqtl_cpg",
@@ -298,7 +302,8 @@
       "qtlTypes": [],
       "tissueLabel": null,
       "cellType": null,
-      "quantMethod": null
+      "quantMethod": null,
+      "hasSummaryStats": true
     },
     "eqtl_catalogue": {
       "datasetId": "eqtl_catalogue",
@@ -313,7 +318,8 @@
       ],
       "tissueLabel": null,
       "cellType": null,
-      "quantMethod": null
+      "quantMethod": null,
+      "hasSummaryStats": false
     },
     "finngen_nmr": {
       "datasetId": "finngen_nmr",
@@ -327,7 +333,8 @@
       "tissueLabel": null,
       "cellType": null,
       "quantMethod": null,
-      "sampleSize": 34218
+      "sampleSize": 34218,
+      "hasSummaryStats": false
     },
     "genebass_exome": {
       "datasetId": "genebass_exome",
@@ -339,7 +346,8 @@
       "tissueLabel": null,
       "cellType": null,
       "quantMethod": null,
-      "sampleSize": 394841
+      "sampleSize": 394841,
+      "hasSummaryStats": false
     },
     "genebass_gene_based": {
       "datasetId": "genebass_gene_based",
@@ -351,7 +359,8 @@
       "tissueLabel": null,
       "cellType": null,
       "quantMethod": null,
-      "sampleSize": 394841
+      "sampleSize": 394841,
+      "hasSummaryStats": false
     },
     "gtex_expression": {
       "datasetId": "gtex_expression",
@@ -363,7 +372,8 @@
       "tissueLabel": null,
       "cellType": null,
       "quantMethod": null,
-      "sampleSize": 948
+      "sampleSize": 948,
+      "hasSummaryStats": false
     },
     "finngen_chromatin_peaks": {
       "datasetId": "finngen_chromatin_peaks",
@@ -375,7 +385,8 @@
       "tissueLabel": null,
       "cellType": null,
       "quantMethod": null,
-      "sampleSize": 1108
+      "sampleSize": 1108,
+      "hasSummaryStats": false
     },
     "gencc": {
       "datasetId": "gencc",
@@ -386,7 +397,8 @@
       "qtlTypes": [],
       "tissueLabel": null,
       "cellType": null,
-      "quantMethod": null
+      "quantMethod": null,
+      "hasSummaryStats": false
     }
   },
   "resources": [
