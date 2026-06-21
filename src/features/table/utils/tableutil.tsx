@@ -4,8 +4,9 @@ import { TableData } from "../../../types/types";
 // credible sets are approximate (LD + association based), not formal fine-mapping, so their PIPs are
 // heuristic. wording mirrors the genetics-mcp-server pseudo-CS definition.
 export const PSEUDO_CS_TOOLTIP =
-  "Pseudo credible set: an approximate set built from GWAS summary statistics and LD around the lead " +
-  "variant, not formal fine-mapping (e.g. SuSiE/FINEMAP). Its PIPs are heuristic — interpret with caution.";
+  "Pseudo credible sets: approximate sets built from GWAS summary statistics and FinnGen LD around " +
+  "the lead variant, not formal SuSiE fine-mapping. Their PIPs are heuristic and should be " +
+  "interpreted with caution.";
 
 export const pValRepr = (mlog10p: number): string => {
   // @ts-expect-error typed number

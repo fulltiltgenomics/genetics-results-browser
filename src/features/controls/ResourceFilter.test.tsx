@@ -189,6 +189,48 @@ describe("ResourceFilter", () => {
     expect(filter.has("pgc")).toBe(true);
   });
 
+  it("orders real CS resources first, then pseudo, each in preferred order with unknowns last", () => {
+    const response = makeResponse([makeCS({ resource: "finngen", trait: "A" })]);
+    // seeded scrambled; labels equal ids here so the accessible names are predictable.
+    const r = (id: string, pseudo: boolean) => ({
+      id,
+      resource: id,
+      dataTypes: ["gwas"] as const,
+      hasSummaryStats: false,
+      hasCredibleSets: true,
+      hasPseudoCredibleSets: pseudo,
+    });
+    response.resources = [
+      r("ukbb", false),
+      r("pgc", true),
+      r("finngen", false),
+      r("finngen_ukbb", true),
+      r("zzz_new_real", false),
+      r("eqtl_catalogue", false),
+      r("finngen_mvp_ukbb", true),
+      r("open_targets", false),
+    ];
+    useDataStore.getState().setNormalizedData(response);
+    render(<ResourceFilter isNotReadyYet={false} />);
+
+    // DOM order = real column (preferred ids, then unknowns alphabetically) then pseudo column.
+    // scope to the Resources section so the Data types toggles aren't picked up.
+    const resourcesSection = screen.getByText("Resources").parentElement!;
+    const order = within(resourcesSection)
+      .getAllByRole("checkbox")
+      .map((cb) => cb.closest("label")?.textContent?.replace("*", "").trim());
+    expect(order).toEqual([
+      "finngen",
+      "open_targets",
+      "eqtl_catalogue",
+      "ukbb",
+      "zzz_new_real",
+      "finngen_mvp_ukbb",
+      "finngen_ukbb",
+      "pgc",
+    ]);
+  });
+
   it("disables all switches when not ready", () => {
     useDataStore.getState().setNormalizedData(makeResponse([makeCS({ resource: "finngen" })]));
     render(<ResourceFilter isNotReadyYet={true} />);

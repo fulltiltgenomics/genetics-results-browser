@@ -17,6 +17,17 @@ const DATA_TYPE_HOTKEYS: Record<CredibleSetDataType, string> = {
   metaboQTL: "m",
 };
 
+// preferred display order for the resource toggles, by column. ids not listed fall AFTER these
+// (alphabetically), so resources added to the API later appear at the end without code changes.
+const REAL_RESOURCE_ORDER = ["finngen", "open_targets", "eqtl_catalogue", "ukbb"];
+const PSEUDO_RESOURCE_ORDER = ["finngen_mvp_ukbb", "finngen_ukbb"];
+
+const byPreferredOrder = (order: string[]) => (a: string, b: string): number => {
+  const ia = order.indexOf(a);
+  const ib = order.indexOf(b);
+  return (ia === -1 ? Infinity : ia) - (ib === -1 ? Infinity : ib) || a.localeCompare(b);
+};
+
 /**
  * Lifted resource filter (refactor.md §4): moved out of the variant expanded table into the main
  * options. Wired to store.resourceFilter/toggleResource so toggling reactively refilters the table
@@ -52,7 +63,7 @@ const ResourceFilter = (props: { isNotReadyYet: boolean }) => {
     for (const v of normalizedData?.variants ?? []) {
       for (const cs of v.credibleSets) present.add(cs.resource);
     }
-    return [...present].sort();
+    return [...present];
   }, [normalizedData]);
 
   // resource id -> friendly label, when ResourceMeta carries one. falls back to the id itself.
@@ -67,6 +78,19 @@ const ResourceFilter = (props: { isNotReadyYet: boolean }) => {
   const pseudoResources = useMemo(
     () => new Set((normalizedData?.resources ?? []).filter((r) => r.hasPseudoCredibleSets).map((r) => r.id)),
     [normalizedData]
+  );
+
+  // split into two columns: real fine-mapped CS resources first, pseudo CS resources second, each in
+  // its own preferred order (see *_RESOURCE_ORDER). keeps the heuristic pseudo resources visually apart.
+  const realResources = useMemo(
+    () =>
+      availableResources.filter((r) => !pseudoResources.has(r)).sort(byPreferredOrder(REAL_RESOURCE_ORDER)),
+    [availableResources, pseudoResources]
+  );
+  const pseudoResourceList = useMemo(
+    () =>
+      availableResources.filter((r) => pseudoResources.has(r)).sort(byPreferredOrder(PSEUDO_RESOURCE_ORDER)),
+    [availableResources, pseudoResources]
   );
 
   // distinct CS data types present in the raw data — same dynamic-derive pattern as resources.
@@ -120,7 +144,7 @@ const ResourceFilter = (props: { isNotReadyYet: boolean }) => {
     return false;
   }, [normalizedData]);
 
-  const switches: ReactElement[] = availableResources.map((resource) => {
+  const makeSwitch = (resource: string): ReactElement => {
     // undefined filter = no filter, everything on. otherwise on iff present in the set.
     const checked = resourceFilter === undefined || resourceFilter.has(resource);
     const isPseudo = pseudoResources.has(resource);
@@ -149,7 +173,7 @@ const ResourceFilter = (props: { isNotReadyYet: boolean }) => {
         label={label}
       />
     );
-  });
+  };
 
   const dataTypeSwitches: ReactElement[] = availableDataTypes.map((dataType) => {
     // absent key in toggledCredibleSetDataTypes means ENABLED (permissive default in passesFilter),
@@ -189,12 +213,14 @@ const ResourceFilter = (props: { isNotReadyYet: boolean }) => {
           paddingRight: "20px",
         }}>
         <FormLabel sx={{ fontSize: "0.75rem" }}>Resources</FormLabel>
-        {/* grid rather than a single column: the CS resource list can run ~10 entries, so stacking
-            them vertically made the controls panel very tall. two columns of max-content stay compact. */}
-        <FormGroup
-          sx={{ display: "grid", gridTemplateColumns: "repeat(2, max-content)", columnGap: "16px" }}>
-          {switches}
-        </FormGroup>
+        {/* two side-by-side columns: real fine-mapped CS resources first, pseudo CS resources (kept
+            apart since their PIPs are heuristic) in a second column shown only when any are present. */}
+        <Box sx={{ display: "flex", flexDirection: "row", columnGap: "16px" }}>
+          <FormGroup>{realResources.map(makeSwitch)}</FormGroup>
+          {pseudoResourceList.length > 0 && (
+            <FormGroup>{pseudoResourceList.map(makeSwitch)}</FormGroup>
+          )}
+        </Box>
       </Box>
       <Divider sx={{ margin: "auto" }} orientation="vertical" />
       <Box
