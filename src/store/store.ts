@@ -326,15 +326,21 @@ export const useDataStore = create<DataState>()(
       }),
     toggleResource: (resource) =>
       set((state) => {
-        // toggling out of the "no filter" (undefined) state seeds from the resources actually present,
-        // so the first click removes exactly the clicked resource rather than hiding everything else.
+        // toggling out of the "no filter" (undefined) state seeds the set to every resource the filter
+        // DISPLAYS — the union of ResourceMeta entries with credible sets and the resources present in
+        // the CS data (mirrors ResourceFilter.availableResources). seeding only from present-in-data
+        // resources dropped CS-capable-but-zero-row ones (e.g. pseudo gp2/covid_hgi/pgc), so the first
+        // untoggle appeared to switch several toggles off at once.
         const base =
           state.resourceFilter ??
-          new Set(
-            (state.normalizedData?.variants ?? []).flatMap((v) =>
+          new Set([
+            ...(state.normalizedData?.resources ?? [])
+              .filter((r) => r.hasCredibleSets)
+              .map((r) => r.id),
+            ...(state.normalizedData?.variants ?? []).flatMap((v) =>
               v.credibleSets.map((cs) => cs.resource)
-            )
-          );
+            ),
+          ]);
         const resources = new Set(base);
         if (resources.has(resource)) resources.delete(resource);
         else resources.add(resource);

@@ -164,6 +164,31 @@ describe("ResourceFilter", () => {
     expect(screen.queryByLabelText("GTEx")).not.toBeInTheDocument();
   });
 
+  it("first untoggle of a zero-row CS resource leaves the other displayed resources on", async () => {
+    // regression: gp2/covid_hgi/pgc have credible sets but no CS rows for the current variants, so
+    // seeding the filter only from present-in-data resources dropped them, untoggling several at once.
+    const user = userEvent.setup();
+    const response = makeResponse([makeCS({ resource: "finngen", trait: "A" })]);
+    response.resources = [
+      { id: "finngen", resource: "FinnGen", dataTypes: ["gwas"], hasSummaryStats: true, hasCredibleSets: true, hasPseudoCredibleSets: false },
+      { id: "gp2", resource: "gp2", dataTypes: ["gwas"], hasSummaryStats: false, hasCredibleSets: true, hasPseudoCredibleSets: true },
+      { id: "covid_hgi", resource: "covid_hgi", dataTypes: ["gwas"], hasSummaryStats: false, hasCredibleSets: true, hasPseudoCredibleSets: true },
+      { id: "pgc", resource: "pgc", dataTypes: ["gwas"], hasSummaryStats: false, hasCredibleSets: true, hasPseudoCredibleSets: true },
+    ];
+    useDataStore.getState().setNormalizedData(response);
+    render(<ResourceFilter isNotReadyYet={false} />);
+
+    // pseudo toggles share the "*" accessible-name suffix; scope each query to its FormControlLabel.
+    const gp2Toggle = screen.getByRole("checkbox", { name: /^gp2/ });
+    await user.click(gp2Toggle);
+
+    const filter = useDataStore.getState().resourceFilter!;
+    expect(filter.has("gp2")).toBe(false);
+    expect(filter.has("finngen")).toBe(true);
+    expect(filter.has("covid_hgi")).toBe(true);
+    expect(filter.has("pgc")).toBe(true);
+  });
+
   it("disables all switches when not ready", () => {
     useDataStore.getState().setNormalizedData(makeResponse([makeCS({ resource: "finngen" })]));
     render(<ResourceFilter isNotReadyYet={true} />);
