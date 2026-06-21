@@ -406,14 +406,16 @@
       "id": "finngen",
       "resource": "finngen",
       "dataTypes": [
-        "gwas",
-        "pqtl",
-        "eqtl",
         "caqtl",
+        "chromatin_peaks",
+        "eqtl",
+        "gwas",
         "metaboqtl",
-        "chromatin_peaks"
+        "pqtl"
       ],
-      "hasSummaryStats": true
+      "hasSummaryStats": true,
+      "hasCredibleSets": true,
+      "hasPseudoCredibleSets": false
     },
     {
       "id": "decode",
@@ -421,7 +423,9 @@
       "dataTypes": [
         "asmqtl"
       ],
-      "hasSummaryStats": true
+      "hasSummaryStats": true,
+      "hasCredibleSets": false,
+      "hasPseudoCredibleSets": false
     },
     {
       "id": "eqtl_catalogue",
@@ -429,7 +433,9 @@
       "dataTypes": [
         "mixed"
       ],
-      "hasSummaryStats": false
+      "hasSummaryStats": false,
+      "hasCredibleSets": true,
+      "hasPseudoCredibleSets": false
     },
     {
       "id": "genebass",
@@ -438,7 +444,9 @@
         "exome",
         "gene_based"
       ],
-      "hasSummaryStats": false
+      "hasSummaryStats": false,
+      "hasCredibleSets": false,
+      "hasPseudoCredibleSets": false
     },
     {
       "id": "gtex",
@@ -446,7 +454,9 @@
       "dataTypes": [
         "expression"
       ],
-      "hasSummaryStats": false
+      "hasSummaryStats": false,
+      "hasCredibleSets": false,
+      "hasPseudoCredibleSets": false
     },
     {
       "id": "gencc",
@@ -454,7 +464,19 @@
       "dataTypes": [
         "gene_disease"
       ],
-      "hasSummaryStats": false
+      "hasSummaryStats": false,
+      "hasCredibleSets": false,
+      "hasPseudoCredibleSets": false
+    },
+    {
+      "id": "finngen_mvp_ukbb",
+      "resource": "finngen_mvp_ukbb",
+      "dataTypes": [
+        "gwas"
+      ],
+      "hasSummaryStats": false,
+      "hasCredibleSets": true,
+      "hasPseudoCredibleSets": true
     }
   ],
   "hasBetas": false,

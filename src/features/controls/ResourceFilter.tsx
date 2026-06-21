@@ -1,8 +1,9 @@
-import { Box, Divider, FormControlLabel, FormGroup, FormLabel, Switch } from "@mui/material";
+import { Box, Divider, FormControlLabel, FormGroup, FormLabel, Switch, Tooltip } from "@mui/material";
 import { useEffect, useMemo, ReactElement } from "react";
 import { useDataStore } from "../../store/store";
 import { CredibleSetDataType, NormalizedResponse } from "../../types/types.normalized";
 import { DataTypeIcon } from "../table/DataTypeIcon";
+import { PSEUDO_CS_TOOLTIP } from "../table/utils/tableutil";
 
 // bare single-letter hotkey per data type. first letters collide (eQTL/edQTL both "e"), so the
 // mapping is explicit and unique. shown as a keycap on each toggle for discoverability.
@@ -21,13 +22,12 @@ const DATA_TYPE_HOTKEYS: Record<CredibleSetDataType, string> = {
  * options. Wired to store.resourceFilter/toggleResource so toggling reactively refilters the table
  * client-side (stage 2) WITHOUT a refetch.
  *
- * The available resources are derived DYNAMICALLY from the data, specifically the distinct
- * `resource` values present across every variant's RAW credibleSets. We deliberately use the CS
- * data rather than NormalizedResponse.resources because the filter in munge.normalized matches on
- * CredibleSetMembership.resource — and the two sets diverge: ResourceMeta lists resources with no CS
- * rows (e.g. gtex/gencc/genebass), while the CS data carries resources absent from ResourceMeta
- * (e.g. open_targets, ukbb). Listing only what the filter can actually act on keeps the control
- * honest. ResourceMeta is still consulted for a friendlier label when the id happens to be present.
+ * The available resources are restricted to those that actually HAVE credible sets — toggling a
+ * resource only acts on CredibleSetMembership.resource, so listing CS-less resources (gtex/gencc/
+ * genebass) would offer no-op switches. The list is the union of ResourceMeta entries flagged
+ * hasCredibleSets (so CS-capable resources still appear even when the current variants hit none) and
+ * any resource present in the raw CS data (e.g. open_targets/ukbb, which are absent from
+ * ResourceMeta). ResourceMeta also supplies a friendlier label and the pseudo-CS flag per resource.
  */
 const ResourceFilter = (props: { isNotReadyYet: boolean }) => {
   const normalizedData: NormalizedResponse | undefined = useDataStore(
@@ -40,15 +40,15 @@ const ResourceFilter = (props: { isNotReadyYet: boolean }) => {
   const includeAllQuantLevels = useDataStore((state) => state.includeAllQuantLevels);
   const setIncludeAllQuantLevels = useDataStore((state) => state.setIncludeAllQuantLevels);
 
-  // all resources the API serves, sorted for stable display: the union of the dataset-derived
-  // ResourceMeta (so resources with no CS for the current variants still appear) and any resource
-  // present in the CS data but missing from that metadata (e.g. open_targets). derived from the
-  // unfiltered data so toggling a resource OFF doesn't remove it from the list.
+  // resources that have credible sets, sorted for stable display: the union of ResourceMeta entries
+  // flagged hasCredibleSets (so CS-capable resources with no hit for the current variants still
+  // appear) and any resource present in the raw CS data (definitionally has CS; covers open_targets/
+  // ukbb, absent from ResourceMeta). derived from the unfiltered data so toggling OFF keeps the entry.
   const availableResources: string[] = useMemo(() => {
     const present = new Set<string>();
     // ResourceMeta.id is the resource identifier the filter matches on (cs.resource); .resource is a
     // friendlier display label handled by labelFor below.
-    for (const r of normalizedData?.resources ?? []) present.add(r.id);
+    for (const r of normalizedData?.resources ?? []) if (r.hasCredibleSets) present.add(r.id);
     for (const v of normalizedData?.variants ?? []) {
       for (const cs of v.credibleSets) present.add(cs.resource);
     }
@@ -60,6 +60,14 @@ const ResourceFilter = (props: { isNotReadyYet: boolean }) => {
     const byId = new Map((normalizedData?.resources ?? []).map((r) => [r.id, r.resource]));
     return (id: string) => byId.get(id) ?? id;
   }, [normalizedData]);
+
+  // resources whose credible sets are pseudo (approximate, LD-based) rather than formally fine-mapped.
+  // marked with a "*" on the toggle so the user knows the PIPs are heuristic — same flag greys the
+  // PIP column in the CS table.
+  const pseudoResources = useMemo(
+    () => new Set((normalizedData?.resources ?? []).filter((r) => r.hasPseudoCredibleSets).map((r) => r.id)),
+    [normalizedData]
+  );
 
   // distinct CS data types present in the raw data — same dynamic-derive pattern as resources.
   // these toggles drive the NEW credible-set filter path (toggledCredibleSetDataTypes), not the
@@ -115,6 +123,19 @@ const ResourceFilter = (props: { isNotReadyYet: boolean }) => {
   const switches: ReactElement[] = availableResources.map((resource) => {
     // undefined filter = no filter, everything on. otherwise on iff present in the set.
     const checked = resourceFilter === undefined || resourceFilter.has(resource);
+    const isPseudo = pseudoResources.has(resource);
+    const label = isPseudo ? (
+      <Box sx={{ display: "flex", alignItems: "center", gap: "2px" }}>
+        <span>{labelFor(resource)}</span>
+        <Tooltip title={PSEUDO_CS_TOOLTIP} arrow>
+          <Box component="span" sx={{ color: "text.secondary", cursor: "help" }}>
+            *
+          </Box>
+        </Tooltip>
+      </Box>
+    ) : (
+      labelFor(resource)
+    );
     return (
       <FormControlLabel
         key={resource}
@@ -125,7 +146,7 @@ const ResourceFilter = (props: { isNotReadyYet: boolean }) => {
             onChange={() => toggleResource(resource)}
           />
         }
-        label={labelFor(resource)}
+        label={label}
       />
     );
   });
@@ -168,7 +189,12 @@ const ResourceFilter = (props: { isNotReadyYet: boolean }) => {
           paddingRight: "20px",
         }}>
         <FormLabel sx={{ fontSize: "0.75rem" }}>Resources</FormLabel>
-        <FormGroup>{switches}</FormGroup>
+        {/* grid rather than a single column: the CS resource list can run ~10 entries, so stacking
+            them vertically made the controls panel very tall. two columns of max-content stay compact. */}
+        <FormGroup
+          sx={{ display: "grid", gridTemplateColumns: "repeat(2, max-content)", columnGap: "16px" }}>
+          {switches}
+        </FormGroup>
       </Box>
       <Divider sx={{ margin: "auto" }} orientation="vertical" />
       <Box

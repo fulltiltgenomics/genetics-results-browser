@@ -85,6 +85,10 @@ interface RawDataset {
     credible_sets?: boolean;
     colocalization?: unknown;
   };
+  // true when the dataset's credible sets are PSEUDO (approximate, LD-based) rather than formally
+  // fine-mapped (SuSiE/FINEMAP). set on meta-analysis datasets (finngen_mvp_ukbb, finngen_ukbb) and
+  // external GWAS (pgc/gp2/ibd_gwas/covid_hgi). always paired with products.credible_sets === true.
+  pseudo_credible_sets?: boolean;
 }
 
 // gnomad rows from POST variant_annotation/gnomad (JSON array body, like finngen). all fields are
@@ -295,21 +299,42 @@ const QTL_TOKENS: ReadonlySet<string> = new Set([
 // /datasets gives data_type + qtl_types per resource; cross-reference to derive ResourceMeta
 // (raw /resources has no data_types / has_summary_stats — see types.normalized.ts ResourceMeta).
 const deriveResources = (datasets: RawDataset[]): ResourceMeta[] => {
-  const byResource = new Map<string, { dataTypes: Set<DatasetDataType>; hasSummaryStats: boolean }>();
+  const byResource = new Map<
+    string,
+    {
+      dataTypes: Set<DatasetDataType>;
+      hasSummaryStats: boolean;
+      hasCredibleSets: boolean;
+      hasRealCs: boolean;
+      hasPseudoCs: boolean;
+    }
+  >();
   for (const d of datasets) {
-    const entry = byResource.get(d.resource) ?? { dataTypes: new Set(), hasSummaryStats: false };
+    const entry =
+      byResource.get(d.resource) ??
+      { dataTypes: new Set(), hasSummaryStats: false, hasCredibleSets: false, hasRealCs: false, hasPseudoCs: false };
     entry.dataTypes.add(d.data_type);
     // authoritative sumstats signal: a resource has summary stats iff ANY of its datasets declares
     // products.summary_stats === true (data_type is unreliable, e.g. eqtl_catalogue "mixed" has none).
     // the phenotype-search view later refines this per phenotype via /search has_summary_stats.
     if (d.products?.summary_stats === true) entry.hasSummaryStats = true;
+    // credible-set capability + whether those CS are pseudo (always paired with credible_sets === true).
+    if (d.products?.credible_sets === true) {
+      entry.hasCredibleSets = true;
+      if (d.pseudo_credible_sets === true) entry.hasPseudoCs = true;
+      else entry.hasRealCs = true;
+    }
     byResource.set(d.resource, entry);
   }
-  return [...byResource.entries()].map(([resource, { dataTypes, hasSummaryStats }]) => ({
+  return [...byResource.entries()].map(([resource, e]) => ({
     id: resource,
     resource,
-    dataTypes: [...dataTypes],
-    hasSummaryStats,
+    dataTypes: [...e.dataTypes],
+    hasSummaryStats: e.hasSummaryStats,
+    hasCredibleSets: e.hasCredibleSets,
+    // a resource is flagged pseudo only when it has pseudo CS and NO formally fine-mapped CS dataset
+    // (the pseudo resources — finngen_mvp_ukbb/finngen_ukbb/pgc/gp2/ibd_gwas/covid_hgi — never mix).
+    hasPseudoCredibleSets: e.hasPseudoCs && !e.hasRealCs,
   }));
 };
 

@@ -108,6 +108,17 @@ describe("POST /v1/results — variant list normalize", () => {
     expect(finngen.dataTypes).toEqual(expect.arrayContaining(["gwas", "pqtl", "eqtl"]));
     // finngen_gwas declares products.summary_stats true
     expect(finngen.hasSummaryStats).toBe(true);
+    // finngen has fine-mapped (real) credible sets, not pseudo
+    expect(finngen.hasCredibleSets).toBe(true);
+    expect(finngen.hasPseudoCredibleSets).toBe(false);
+
+    // finngen_mvp_ukbb declares products.credible_sets + pseudo_credible_sets -> flagged pseudo
+    const pseudo = res.body.resources.find(
+      (r: { resource: string }) => r.resource === "finngen_mvp_ukbb"
+    );
+    expect(pseudo).toBeDefined();
+    expect(pseudo.hasCredibleSets).toBe(true);
+    expect(pseudo.hasPseudoCredibleSets).toBe(true);
 
     // eqtl_catalogue is data_type "mixed" but has NO products.summary_stats -> false (regression pin)
     const eqtlCat = res.body.resources.find(

@@ -5,7 +5,7 @@ import type { MRT_ColumnDef } from "material-react-table";
 import { GroupedCredibleSet, VariantResult } from "../../../types/types.normalized";
 import { groupCredibleSets } from "../../../store/munge.normalized";
 import { useDataStore } from "../../../store/store";
-import { pValRepr, formatTissue, makeTraitNameResolver } from "../utils/tableutil";
+import { pValRepr, formatTissue, makeTraitNameResolver, PSEUDO_CS_TOOLTIP } from "../utils/tableutil";
 import { HtmlTooltip } from "../../tooltips/HtmlTooltip";
 import { UpOrDownIcon } from "../UpDownIcons";
 import { naInfSort } from "../utils/sorting";
@@ -98,7 +98,9 @@ const CellTypeRows = ({ stats }: { stats: CellTypeStat[] }) => (
 );
 
 const getColumns = (
-  traitName: (resource: string, trait: string) => string
+  traitName: (resource: string, trait: string) => string,
+  // resources whose credible sets are pseudo — their PIP cells render greyed with a caveat tooltip.
+  pseudoResources: Set<string>
 ): MRT_ColumnDef<GroupedCredibleSet>[] => [
   {
     accessorKey: "dataType",
@@ -236,6 +238,7 @@ const getColumns = (
   },
   {
     accessorFn: (row) => {
+      const isPseudo = pseudoResources.has(row.resource);
       const ttRows = row.phenocodes.map((phenocode, i) => (
         <tr key={`${phenocode}-${i}`}>
           <td>{phenocode}</td>
@@ -247,19 +250,25 @@ const getColumns = (
       return (
         <HtmlTooltip
           title={
-            <table>
-              <thead>
-                <tr>
-                  <th style={{ fontWeight: "bold", textAlign: "start" }}>trait</th>
-                  <th style={{ fontWeight: "bold", textAlign: "start" }}>cs size</th>
-                  <th style={{ fontWeight: "bold", textAlign: "start" }}>cs min r2</th>
-                  <th style={{ fontWeight: "bold", textAlign: "start" }}>PIP</th>
-                </tr>
-              </thead>
-              <tbody>{ttRows}</tbody>
-            </table>
+            <>
+              <table>
+                <thead>
+                  <tr>
+                    <th style={{ fontWeight: "bold", textAlign: "start" }}>trait</th>
+                    <th style={{ fontWeight: "bold", textAlign: "start" }}>cs size</th>
+                    <th style={{ fontWeight: "bold", textAlign: "start" }}>cs min r2</th>
+                    <th style={{ fontWeight: "bold", textAlign: "start" }}>PIP</th>
+                  </tr>
+                </thead>
+                <tbody>{ttRows}</tbody>
+              </table>
+              {isPseudo && <Box sx={{ marginTop: "6px", maxWidth: "320px" }}>{PSEUDO_CS_TOOLTIP}</Box>}
+            </>
           }>
-          <span>{Number.isNaN(row.maxPip) ? "-" : row.maxPip.toPrecision(3)}</span>
+          {/* pseudo CS PIPs are heuristic, so grey them (theme-aware) and lean on the tooltip caveat */}
+          <Box component="span" sx={isPseudo ? { color: "text.secondary" } : undefined}>
+            {Number.isNaN(row.maxPip) ? "-" : row.maxPip.toPrecision(3)}
+          </Box>
         </HtmlTooltip>
       );
     },
@@ -326,12 +335,17 @@ const VariantCredibleSetTable = (props: { data: VariantResult }) => {
   // comparison, phenotype summary) shows the same resolved name — no per-caller traitName prop to
   // forget (a missing prop is exactly why the data-type comparison detail showed raw codes).
   const phenotypes = useDataStore((state) => state.normalizedData?.phenotypes);
+  const resources = useDataStore((state) => state.normalizedData?.resources);
   const traitName = useMemo(() => makeTraitNameResolver(phenotypes), [phenotypes]);
+  const pseudoResources = useMemo(
+    () => new Set((resources ?? []).filter((r) => r.hasPseudoCredibleSets).map((r) => r.id)),
+    [resources]
+  );
   const grouped = useMemo(
     () => groupCredibleSets(props.data.credibleSets),
     [props.data.credibleSets]
   );
-  const columns = useMemo(() => getColumns(traitName), [traitName]);
+  const columns = useMemo(() => getColumns(traitName, pseudoResources), [traitName, pseudoResources]);
 
   // defer the heavy MaterialReactTable mount so the detail panel opens instantly with the skeleton
   // above; double rAF guarantees the skeleton paints before the MRT mount blocks the main thread.

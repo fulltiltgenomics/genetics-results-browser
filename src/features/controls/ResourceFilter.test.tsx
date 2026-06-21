@@ -47,7 +47,16 @@ const makeResponse = (credibleSets: CredibleSetMembership[]): NormalizedResponse
   ],
   phenotypes: {},
   datasets: {},
-  resources: [{ id: "finngen", resource: "FinnGen", dataTypes: ["gwas"], hasSummaryStats: true }],
+  resources: [
+    {
+      id: "finngen",
+      resource: "FinnGen",
+      dataTypes: ["gwas"],
+      hasSummaryStats: true,
+      hasCredibleSets: true,
+      hasPseudoCredibleSets: false,
+    },
+  ],
   hasBetas: false,
   hasCustomValues: false,
   meta: { apiVersions: {}, generatedAt: "2026-05-31" },
@@ -123,6 +132,36 @@ describe("ResourceFilter", () => {
       .getState()
       .filteredVariants[0].credibleSets.map((c) => c.dataType);
     expect(remaining).toEqual(["GWAS"]);
+  });
+
+  it("marks pseudo-credible-set resources with a '*' and leaves real ones unmarked", () => {
+    const response = makeResponse([
+      makeCS({ resource: "finngen", trait: "A" }),
+      makeCS({ resource: "pgc", trait: "B" }),
+    ]);
+    response.resources = [
+      { id: "finngen", resource: "FinnGen", dataTypes: ["gwas"], hasSummaryStats: true, hasCredibleSets: true, hasPseudoCredibleSets: false },
+      { id: "pgc", resource: "PGC", dataTypes: ["gwas"], hasSummaryStats: false, hasCredibleSets: true, hasPseudoCredibleSets: true },
+    ];
+    useDataStore.getState().setNormalizedData(response);
+    render(<ResourceFilter isNotReadyYet={false} />);
+
+    // the pseudo resource's toggle carries the "*" marker; the real one does not.
+    expect(screen.getByText("*")).toBeInTheDocument();
+    expect(screen.getByLabelText("FinnGen")).toBeInTheDocument();
+  });
+
+  it("omits resources that have no credible sets (a no-op toggle would only mislead)", () => {
+    const response = makeResponse([makeCS({ resource: "finngen", trait: "A" })]);
+    response.resources = [
+      { id: "finngen", resource: "FinnGen", dataTypes: ["gwas"], hasSummaryStats: true, hasCredibleSets: true, hasPseudoCredibleSets: false },
+      { id: "gtex", resource: "GTEx", dataTypes: ["expression"], hasSummaryStats: false, hasCredibleSets: false, hasPseudoCredibleSets: false },
+    ];
+    useDataStore.getState().setNormalizedData(response);
+    render(<ResourceFilter isNotReadyYet={false} />);
+
+    expect(screen.getByLabelText("FinnGen")).toBeInTheDocument();
+    expect(screen.queryByLabelText("GTEx")).not.toBeInTheDocument();
   });
 
   it("disables all switches when not ready", () => {

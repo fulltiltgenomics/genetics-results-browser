@@ -244,6 +244,10 @@ export interface ResourceMeta {
   resource: string;
   dataTypes: DatasetDataType[];
   hasSummaryStats: boolean; // for routing to the phenotype-search view
+  hasCredibleSets: boolean; // resource has fine-mapped/pseudo credible sets (drives the resource filter list)
+  // true when the resource's credible sets are PSEUDO (approximate, LD-based) rather than formally
+  // fine-mapped. drives the greyed PIP + tooltip in the CS table and the "*" marker in the filter.
+  hasPseudoCredibleSets: boolean;
 }
 
 /** Input parsing results (mirrors the legacy TableData.input_variants, camelCased). */

@@ -288,5 +288,20 @@
     "products": {
       "gene_disease": true
     }
+  },
+  {
+    "dataset_id": "finngen_mvp_ukbb",
+    "resource": "finngen_mvp_ukbb",
+    "version": "R13",
+    "description": "FinnGen R13 + MVP + UK Biobank meta-analysis (disease endpoints). For these data there are pseudo credible sets, no formal fine-mapping results.",
+    "author": "FinnGen Consortium",
+    "publication_date": "2025-12-19",
+    "trait_type": "mixed",
+    "data_type": "gwas",
+    "products": {
+      "credible_sets": true,
+      "summary_stats": false
+    },
+    "pseudo_credible_sets": true
   }
 ]
