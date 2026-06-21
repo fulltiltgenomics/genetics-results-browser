@@ -148,20 +148,6 @@ const ResourceFilter = (props: { isNotReadyYet: boolean }) => {
           <Box sx={{ display: "flex", alignItems: "center", gap: "6px" }}>
             <DataTypeIcon dataType={dataType} />
             <span>{dataType}</span>
-            <Box
-              component="span"
-              title={`Press ${DATA_TYPE_HOTKEYS[dataType].toUpperCase()} to toggle`}
-              sx={{
-                px: "4px",
-                border: "1px solid",
-                borderColor: "divider",
-                borderRadius: "3px",
-                fontSize: "0.6rem",
-                lineHeight: 1.5,
-                color: "text.secondary",
-              }}>
-              {DATA_TYPE_HOTKEYS[dataType].toUpperCase()}
-            </Box>
           </Box>
         }
       />
