@@ -10,6 +10,7 @@ import { useDataStore } from "../../../store/store";
 import { useNormalizedQuery } from "../../../store/serverQuery";
 import { useChatSeedStore } from "../../../store/store.chatSeed";
 import { cleanConsequence, makeTraitNameResolver } from "../utils/tableutil";
+import { VariantTableExportButtons } from "../ExportToolbar";
 
 // build a concise, context-rich chat prompt from a variant row for the annotation -> chat hand-off
 const buildVariantSeed = (row: VariantResult): string => {
@@ -89,9 +90,13 @@ const VariantMainTable = (props: {
       data={tableData}
       columns={columns}
       enableTopToolbar={props.enableTopToolbar}
-      // legacy ExportButtons (and its useServerQuery call) are intentionally not mounted here: the
-      // BFF /v1/results now returns NormalizedResponse and the legacy export path reads the old
-      // top-level data.data shape, so it always errors. csv/tsv export is migrated in its own task.
+      // TSV download toolbar, only on the standalone tab (not when this table is reused inside a
+      // detail panel with enableTopToolbar=false). builds straight from the typed VariantResult rows.
+      renderTopToolbarCustomActions={({ table }) =>
+        props.enableTopToolbar ? (
+          <VariantTableExportButtons table={table} showTraitCounts={props.showTraitCounts} />
+        ) : null
+      }
       enableColumnFilterModes
       // belt-and-suspenders against the reset-on-data-change loop above: never auto-reset the page
       // index when data/filters change (also nicer UX — expanding a row keeps your page/position).

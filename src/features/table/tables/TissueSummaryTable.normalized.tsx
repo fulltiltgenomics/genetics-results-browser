@@ -8,6 +8,7 @@ import { usePeakGenes } from "../../../store/serverQuery";
 import { naInfSort } from "../utils/sorting";
 import { formatTissue } from "../utils/tableutil";
 import GeneTooltip from "../../tooltips/GeneToolTip";
+import { TissueExportButtons } from "../ExportToolbar";
 
 /**
  * "linked genes" cell for the caQTL view: resolves the row's ATAC peaks to the union of genes they
@@ -97,11 +98,12 @@ const TissueSummaryTable = () => {
   const showCisQtl = useDataStore((state) => state.showCisQtl);
   const showTransQtl = useDataStore((state) => state.showTransQtl);
 
-  const data = useMemo(() => {
+  // re-filter the RAW variants ourselves with an EMPTY dataTypes map so the global data-type toggle
+  // is bypassed — this is the decoupling. all other thresholds still apply. kept separate from the
+  // summary so the "with variants" export can flatten the same filtered membership set.
+  const filteredVariants = useMemo(() => {
     if (!normalizedData) return [];
-    // re-filter the RAW variants ourselves with an EMPTY dataTypes map so the global data-type toggle
-    // is bypassed — this is the decoupling. all other thresholds still apply.
-    const filtered = filterCredibleSets(normalizedData.variants, {
+    return filterCredibleSets(normalizedData.variants, {
       pipThreshold,
       pValueThreshold,
       resources: resourceFilter,
@@ -111,7 +113,6 @@ const TissueSummaryTable = () => {
       showCis: showCisQtl,
       showTrans: showTransQtl,
     });
-    return summarizeTissues(filtered, dataType);
   }, [
     normalizedData,
     pipThreshold,
@@ -121,8 +122,12 @@ const TissueSummaryTable = () => {
     cisWindow,
     showCisQtl,
     showTransQtl,
-    dataType,
   ]);
+
+  const data = useMemo(
+    () => summarizeTissues(filteredVariants, dataType),
+    [filteredVariants, dataType]
+  );
 
   const columns = useMemo(() => getColumns(dataType), [dataType]);
 
@@ -151,6 +156,13 @@ const TissueSummaryTable = () => {
         data={data}
         columns={columns}
         enableTopToolbar={true}
+        renderTopToolbarCustomActions={() => (
+          <TissueExportButtons
+            summaryRows={data}
+            tissueVariants={filteredVariants}
+            dataType={dataType}
+          />
+        )}
         enableColumnFilters={true}
         initialState={{
           showColumnFilters: true,

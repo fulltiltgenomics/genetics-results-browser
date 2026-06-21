@@ -16,6 +16,7 @@ import { PhenoSearchRow, PhenotypeSearchHit } from "../../types/types.normalized
 import { naInfSort } from "../table/utils/sorting";
 import { pValRepr } from "../table/utils/tableutil";
 import GeneTooltip from "../tooltips/GeneToolTip";
+import { PhenotypeSearchExportButton } from "../table/ExportToolbar";
 
 /**
  * Phenotype search tab (refactor.md §5).
@@ -365,6 +366,13 @@ const PhenotypeSearchContainer = () => {
           data={rows}
           columns={columns}
           enableTopToolbar={true}
+          renderTopToolbarCustomActions={() => (
+            <PhenotypeSearchExportButton
+              rows={rows}
+              phenoCode={chosen.code}
+              phenoResource={chosen.resource}
+            />
+          )}
           enableColumnFilters={false}
           enablePagination={rows.length > 20}
           initialState={{

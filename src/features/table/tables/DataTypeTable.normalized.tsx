@@ -11,6 +11,7 @@ import { GnomadAfTooltip } from "../../tooltips/GnomadAfTooltip";
 import GeneTooltip from "../../tooltips/GeneToolTip";
 import { gnomadAf, afRepr } from "./VariantMainTable.columns.normalized";
 import VariantCredibleSetTable from "./VariantCredibleSetTable";
+import { DataTypeExportButtons } from "../ExportToolbar";
 
 /**
  * Data type comparison tab for the credible-set-only data model (refactor.md §4).
@@ -186,6 +187,9 @@ const DataTypeTable = (props: { enableTopToolbar: boolean }) => {
       data={data}
       columns={columns}
       enableTopToolbar={props.enableTopToolbar}
+      renderTopToolbarCustomActions={({ table }) =>
+        props.enableTopToolbar ? <DataTypeExportButtons table={table} /> : null
+      }
       enableColumnFilterModes
       initialState={{
         showColumnFilters: true,

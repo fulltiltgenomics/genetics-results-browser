@@ -12,6 +12,7 @@ import { formatTraitName } from "../utils/tableutil";
 import { naInfSort } from "../utils/sorting";
 import { PhenotypeTooltip } from "../../tooltips/PhenotypeTooltip";
 import VariantMainTable from "./VariantMainTable";
+import { PhenoSummaryExportButtons } from "../ExportToolbar";
 
 /**
  * Phenotype summary tab for the credible-set-only data model (refactor.md §4).
@@ -220,6 +221,7 @@ const PhenotypeSummaryTable = () => {
       data={data}
       columns={columns}
       enableTopToolbar={true}
+      renderTopToolbarCustomActions={({ table }) => <PhenoSummaryExportButtons table={table} />}
       enableColumnFilters={true}
       initialState={{
         showColumnFilters: true,
