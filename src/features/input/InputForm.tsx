@@ -176,7 +176,7 @@ const InputForm = () => {
         </Box>
       </form>
 
-      <Box sx={{ width: "360px", display: "flex", flexDirection: "column" }}>
+      <Box sx={{ width: "440px", display: "flex", flexDirection: "column" }}>
         <Divider sx={{ marginBottom: "10px" }}>or</Divider>
         <Autocomplete<PhenotypeSearchHit>
           options={phenoHits}
@@ -209,7 +209,7 @@ const InputForm = () => {
           renderInput={(params) => (
             <TextField
               {...params}
-              label="Search a phenotype to annotate its credible-set lead variants"
+              label="Search for a phenotype to annotate its credible set lead variants"
               placeholder="e.g. alzheimer, asthma"
               size="small"
               InputProps={{
@@ -224,18 +224,11 @@ const InputForm = () => {
             />
           )}
         />
-        <Typography
-          variant="caption"
-          color="text.secondary"
-          sx={{ display: "block", marginTop: "6px" }}>
-          The lead variant of each of the phenotype's credible sets is annotated.
-        </Typography>
       </Box>
 
       <Box sx={{ maxWidth: "420px", display: "flex", flexDirection: "column" }}>
         <Divider sx={{ marginBottom: "10px" }}>or</Divider>
         <Typography>
-          try <br />
           <Link
             sx={{ cursor: "pointer" }}
             onClick={() => {
