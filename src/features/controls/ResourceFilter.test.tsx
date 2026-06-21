@@ -67,7 +67,7 @@ beforeEach(() => {
     normalizedData: undefined,
     filteredVariants: [],
     pipThreshold: 0.01,
-    csMinR2Threshold: 0,
+    pValueThreshold: 1,
     resourceFilter: undefined,
     toggledCredibleSetDataTypes: {},
     includeAllQuantLevels: false,
@@ -192,10 +192,10 @@ describe("ResourceFilter", () => {
   it("orders real CS resources first, then pseudo, each in preferred order with unknowns last", () => {
     const response = makeResponse([makeCS({ resource: "finngen", trait: "A" })]);
     // seeded scrambled; labels equal ids here so the accessible names are predictable.
-    const r = (id: string, pseudo: boolean) => ({
+    const r = (id: string, pseudo: boolean): NormalizedResponse["resources"][number] => ({
       id,
       resource: id,
-      dataTypes: ["gwas"] as const,
+      dataTypes: ["gwas"],
       hasSummaryStats: false,
       hasCredibleSets: true,
       hasPseudoCredibleSets: pseudo,

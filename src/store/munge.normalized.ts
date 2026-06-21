@@ -31,7 +31,7 @@ import {
  * FilterState — the reactive control surface the store (.14) will hold.
  *
  * Field names are chosen to be self-describing and to map cleanly onto the new UI controls:
- *   - PIP + cs_min_r2 replace the old p-value slider (refactor.md §4 "Thresholds")
+ *   - PIP + p-value are the membership thresholds (refactor.md §4 "Thresholds")
  *   - resources is the lifted resource filter (refactor.md §4 "Resource filter to main options")
  *   - dataTypes is the dynamic data-type toggle (driven by /resources + /datasets)
  *   - includeAllQuantLevels is the eQTL quant-level option (default ge-only, refactor.md §4)
@@ -53,8 +53,11 @@ export interface SelectedPhenotype {
 export interface FilterState {
   /** keep memberships with pip >= pipThreshold (inclusive, mirrors legacy finemapped `pip >= pip`). */
   pipThreshold: number;
-  /** keep memberships with csMinR2 >= csMinR2Threshold (inclusive). 0 keeps everything. */
-  csMinR2Threshold: number;
+  /**
+   * keep memberships whose p-value is <= pValueThreshold (i.e. mlog10p >= -log10(threshold)).
+   * 1 keeps everything (every p-value <= 1). a null mlog10p can't be evaluated, so it always passes.
+   */
+  pValueThreshold: number;
   /**
    * enabled resources (e.g. "finngen", "ukbb", "eqtl_catalogue"). undefined = no resource filter
    * (keep all). an empty set means "nothing enabled" -> drops all rows.
@@ -85,7 +88,9 @@ const NON_GENE_QUANT_LEVELS: ReadonlySet<QuantLevel> = new Set([
 const passesFilter = (cs: CredibleSetMembership, f: FilterState): boolean => {
   // pip >= threshold: inclusive, matching legacy `a.pip >= pip` so the boundary behavior is unchanged.
   if (cs.pip < f.pipThreshold) return false;
-  if (cs.csMinR2 < f.csMinR2Threshold) return false;
+  // p-value <= threshold, expressed on the mlog10p the rows actually carry. null mlog10p (some
+  // open_targets rows) can't be compared, so it passes rather than being silently dropped.
+  if (cs.mlog10p !== null && cs.mlog10p < -Math.log10(f.pValueThreshold)) return false;
   if (f.resources && !f.resources.has(cs.resource)) return false;
   // a data type absent from the toggle map is treated as enabled (so a partial map never hides data
   // the store hasn't explicitly toggled off).

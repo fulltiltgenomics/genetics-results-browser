@@ -76,7 +76,7 @@ beforeEach(() => {
     normalizedData: undefined,
     filteredVariants: [],
     pipThreshold: 0.01,
-    csMinR2Threshold: 0,
+    pValueThreshold: 1,
     resourceFilter: undefined,
     toggledCredibleSetDataTypes: {},
     includeAllQuantLevels: false,
@@ -113,13 +113,14 @@ describe("store normalized path", () => {
     expect(useDataStore.getState().normalizedData).toBe(dataRef);
   });
 
-  it("changing csMinR2Threshold recomputes filteredVariants", () => {
+  it("changing pValueThreshold recomputes filteredVariants", () => {
     const s = useDataStore.getState();
     s.setNormalizedData(
-      makeResponse([makeCS({ trait: "HI", csMinR2: 0.8 }), makeCS({ trait: "LO", csMinR2: 0.2 })])
+      makeResponse([makeCS({ trait: "SIG", mlog10p: 8 }), makeCS({ trait: "NS", mlog10p: 1 })])
     );
-    useDataStore.getState().setCsMinR2Threshold(0.5);
-    expect(traits()).toEqual(["HI"]);
+    expect(traits().sort()).toEqual(["NS", "SIG"]); // both kept at default threshold 1
+    useDataStore.getState().setPValueThreshold(0.05);
+    expect(traits()).toEqual(["SIG"]); // NS (p=0.1) dropped
   });
 
   it("setResourceFilter recomputes; toggleResource flips a single resource", () => {

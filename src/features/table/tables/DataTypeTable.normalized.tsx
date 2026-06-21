@@ -135,7 +135,7 @@ const DataTypeTable = (props: { enableTopToolbar: boolean }) => {
   // dataTypes, rather than reading the store's filteredVariants (which already drops toggled-off types).
   const normalizedData = useDataStore((state) => state.normalizedData);
   const pipThreshold = useDataStore((state) => state.pipThreshold);
-  const csMinR2Threshold = useDataStore((state) => state.csMinR2Threshold);
+  const pValueThreshold = useDataStore((state) => state.pValueThreshold);
   const resourceFilter = useDataStore((state) => state.resourceFilter);
   const includeAllQuantLevels = useDataStore((state) => state.includeAllQuantLevels);
   const selectedPhenotype = useDataStore((state) => state.selectedPhenotype);
@@ -145,7 +145,7 @@ const DataTypeTable = (props: { enableTopToolbar: boolean }) => {
       normalizedData
         ? filterCredibleSets(normalizedData.variants, {
             pipThreshold,
-            csMinR2Threshold,
+            pValueThreshold,
             resources: resourceFilter,
             dataTypes: {}, // empty = every data type enabled, so toggles don't affect this tab
             includeAllQuantLevels,
@@ -155,7 +155,7 @@ const DataTypeTable = (props: { enableTopToolbar: boolean }) => {
     [
       normalizedData,
       pipThreshold,
-      csMinR2Threshold,
+      pValueThreshold,
       resourceFilter,
       includeAllQuantLevels,
       selectedPhenotype,

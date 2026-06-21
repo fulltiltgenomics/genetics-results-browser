@@ -72,7 +72,7 @@ const makePhenoMeta = (over: Partial<PhenotypeMeta> = {}): PhenotypeMeta => ({
 // "everything on" baseline so each test only overrides the dimension under test.
 const allOn: FilterState = {
   pipThreshold: 0,
-  csMinR2Threshold: 0,
+  pValueThreshold: 1,
   dataTypes: {},
   includeAllQuantLevels: true,
 };
@@ -99,20 +99,21 @@ describe("filterCredibleSets PIP threshold", () => {
 });
 
 // ---------------------------------------------------------------------------
-// filterCredibleSets — cs_min_r2
+// filterCredibleSets — p-value
 // ---------------------------------------------------------------------------
 
-describe("filterCredibleSets cs_min_r2 threshold", () => {
-  it("keeps memberships with csMinR2 >= threshold (inclusive)", () => {
+describe("filterCredibleSets p-value threshold", () => {
+  it("keeps memberships with p-value <= threshold (inclusive) and always keeps null mlog10p", () => {
     const v = makeVariant({
       credibleSets: [
-        makeCS({ trait: "HI", csMinR2: 0.6 }),
-        makeCS({ trait: "EDGE", csMinR2: 0.5 }), // exactly threshold -> kept
-        makeCS({ trait: "LO", csMinR2: 0.3 }), // below -> dropped
+        makeCS({ trait: "SIG", mlog10p: 8 }), //                p=1e-8 <= 0.05 -> kept
+        makeCS({ trait: "EDGE", mlog10p: -Math.log10(0.05) }), // p=0.05 exactly -> kept (<=)
+        makeCS({ trait: "NS", mlog10p: 1 }), //                  p=0.1 > 0.05 -> dropped
+        makeCS({ trait: "NULLP", mlog10p: null }), //           can't evaluate -> kept
       ],
     });
-    const out = filterCredibleSets([v], { ...allOn, csMinR2Threshold: 0.5 });
-    expect(traits(out).sort()).toEqual(["EDGE", "HI"]);
+    const out = filterCredibleSets([v], { ...allOn, pValueThreshold: 0.05 });
+    expect(traits(out).sort()).toEqual(["EDGE", "NULLP", "SIG"]);
   });
 });
 

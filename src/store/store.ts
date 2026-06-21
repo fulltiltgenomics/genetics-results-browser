@@ -21,7 +21,7 @@ import config from "@/config.json";
  */
 const buildFilterState = (state: DataState): FilterState => ({
   pipThreshold: state.pipThreshold,
-  csMinR2Threshold: state.csMinR2Threshold,
+  pValueThreshold: state.pValueThreshold,
   resources: state.resourceFilter,
   dataTypes: state.toggledCredibleSetDataTypes,
   includeAllQuantLevels: state.includeAllQuantLevels,
@@ -90,9 +90,9 @@ interface DataState {
    * which precomputed only the single shared clientData and let components derive the rest.
    */
   filteredVariants: VariantResult[];
-  /** keep memberships with csMinR2 >= threshold (refactor.md §4). 0 keeps everything. */
-  csMinR2Threshold: number;
-  setCsMinR2Threshold: (csMinR2Threshold: number) => void;
+  /** keep memberships whose p-value <= threshold (refactor.md §4). 1 keeps everything. default 0.05. */
+  pValueThreshold: number;
+  setPValueThreshold: (pValueThreshold: number) => void;
   /** enabled resources; undefined = no filter (keep all). lifted resource filter (refactor.md §4). */
   resourceFilter: Set<string> | undefined;
   setResourceFilter: (resources: Set<string> | undefined) => void;
@@ -312,11 +312,11 @@ export const useDataStore = create<DataState>()(
         return { normalizedData: data, filteredVariants: recomputeFilteredVariants(next) };
       }),
     filteredVariants: [],
-    csMinR2Threshold: 0,
-    setCsMinR2Threshold: (csMinR2Threshold) =>
+    pValueThreshold: 0.05,
+    setPValueThreshold: (pValueThreshold) =>
       set((state) => {
-        const next = { ...state, csMinR2Threshold };
-        return { csMinR2Threshold, filteredVariants: recomputeFilteredVariants(next) };
+        const next = { ...state, pValueThreshold };
+        return { pValueThreshold, filteredVariants: recomputeFilteredVariants(next) };
       }),
     resourceFilter: undefined,
     setResourceFilter: (resources) =>

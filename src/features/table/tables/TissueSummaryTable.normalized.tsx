@@ -90,7 +90,7 @@ const TissueSummaryTable = () => {
 
   const normalizedData = useDataStore((state) => state.normalizedData);
   const pipThreshold = useDataStore((state) => state.pipThreshold);
-  const csMinR2Threshold = useDataStore((state) => state.csMinR2Threshold);
+  const pValueThreshold = useDataStore((state) => state.pValueThreshold);
   const resourceFilter = useDataStore((state) => state.resourceFilter);
   const includeAllQuantLevels = useDataStore((state) => state.includeAllQuantLevels);
 
@@ -100,13 +100,13 @@ const TissueSummaryTable = () => {
     // is bypassed — this is the decoupling. all other thresholds still apply.
     const filtered = filterCredibleSets(normalizedData.variants, {
       pipThreshold,
-      csMinR2Threshold,
+      pValueThreshold,
       resources: resourceFilter,
       dataTypes: {},
       includeAllQuantLevels,
     });
     return summarizeTissues(filtered, dataType);
-  }, [normalizedData, pipThreshold, csMinR2Threshold, resourceFilter, includeAllQuantLevels, dataType]);
+  }, [normalizedData, pipThreshold, pValueThreshold, resourceFilter, includeAllQuantLevels, dataType]);
 
   const columns = useMemo(() => getColumns(dataType), [dataType]);
 
