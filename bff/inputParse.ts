@@ -140,6 +140,54 @@ export const resolveInput = async (text: string): Promise<ResolvedInput> => {
   return { rows, variantIds, rsidMap, notFound, unparsed, betaByVariant, valueByVariant };
 };
 
+// a single credible-set lead row from /v1/credible_sets_by_phenotype_leads (cs_header_schema subset)
+interface CsLeadRow {
+  chr: number;
+  pos: number;
+  ref: string;
+  alt: string;
+  beta?: number | null;
+  cs_id: string;
+}
+
+/**
+ * Expand a `pheno:{resource}:{code}` token into a variant<TAB>beta list: the lead variant of each
+ * of that phenotype's credible sets, with the data's effect size as the beta. The upstream
+ * /v1/credible_sets_by_phenotype_leads endpoint streams the per-phenotype file and returns one lead
+ * per cs_id (highest pip). The returned text feeds straight into resolveInput, so the betas land in
+ * betaByVariant exactly like a user-pasted beta column — no other parse changes needed.
+ *
+ * Returns null when the token isn't a `pheno:` token or the phenotype is unknown (404), so the
+ * caller falls back to the normal variant-list / named-set paths.
+ */
+export const maybeExpandPhenotypeLeads = async (text: string): Promise<string | null> => {
+  const trimmed = text.trim();
+  if (!trimmed.startsWith("pheno:") || /\s/.test(trimmed)) return null;
+  // pheno:{resource}:{code} — split on the first two colons; a code may itself contain colons
+  const parts = trimmed.split(":");
+  const resource = parts[1];
+  const code = parts.slice(2).join(":");
+  if (!resource || !code) return null;
+
+  try {
+    const rows = await upstreamJson<CsLeadRow[]>(
+      `/v1/credible_sets_by_phenotype_leads/${encodeURIComponent(resource)}/${encodeURIComponent(code)}`,
+      { query: { format: "json", interval: 95 } }
+    );
+    if (!rows?.length) return null;
+    return rows
+      .map((r) => {
+        const variant = `${r.chr}-${r.pos}-${r.ref}-${r.alt}`;
+        return r.beta != null ? `${variant}\t${r.beta}` : variant;
+      })
+      .join("\n");
+  } catch (err) {
+    // unknown phenotype -> 404 -> not a usable pheno token; any other failure is genuine
+    if (err instanceof UpstreamError && err.status === 404) return null;
+    throw err;
+  }
+};
+
 interface VariantSetResponse {
   name: string;
   variants: string[];

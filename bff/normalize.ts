@@ -16,7 +16,7 @@ import type {
   VariantResult,
 } from "../src/types/types.normalized.js";
 import { isCoding, isLoF } from "./coding.js";
-import { maybeExpandVariantSet, resolveInput } from "./inputParse.js";
+import { maybeExpandPhenotypeLeads, maybeExpandVariantSet, resolveInput } from "./inputParse.js";
 import { fetchBatched, Semaphore, withRetry } from "./batch.js";
 import { upstreamJson, UpstreamError } from "./upstream.js";
 
@@ -379,10 +379,12 @@ const derivePhenotypes = (
  * NO filtering/grouping/summarizing — that stays client-side (munge, later tasks).
  */
 export const normalizeVariantList = async (query: string): Promise<NormalizedResponse> => {
-  // a single named-set token (e.g. "FinnGen_enriched_202505") expands to its curated variant list
-  // upstream; everything else flows through unchanged as a normal variant/rsid list.
-  const expanded = await maybeExpandVariantSet(query);
-  const resolved = await resolveInput(expanded ?? query);
+  // a "pheno:{resource}:{code}" token expands to that phenotype's credible-set lead variants (with
+  // the data's betas); a single named-set token (e.g. "FinnGen_enriched_202505") expands to its
+  // curated variant list; everything else flows through unchanged as a normal variant/rsid list.
+  const expanded =
+    (await maybeExpandPhenotypeLeads(query)) ?? (await maybeExpandVariantSet(query)) ?? query;
+  const resolved = await resolveInput(expanded);
   const { variantIds, rsidMap, notFound, unparsed, betaByVariant, valueByVariant } = resolved;
 
   // the batch endpoints each do one upstream `tabix -R` over all requested variants — optimal per

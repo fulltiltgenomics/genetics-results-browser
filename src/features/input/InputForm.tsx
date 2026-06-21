@@ -1,8 +1,19 @@
-import { useEffect, useState } from "react";
-import { Box, Link, TextField, Typography } from "@mui/material";
+import { useEffect, useMemo, useState } from "react";
+import {
+  Autocomplete,
+  Box,
+  CircularProgress,
+  Divider,
+  Link,
+  TextField,
+  Typography,
+  debounce,
+} from "@mui/material";
 import Button from "@mui/material/Button";
 import CreateIcon from "@mui/icons-material/Create";
 import { useDataStore } from "../../store/store";
+import { usePhenotypeSearch } from "../../store/serverQuery";
+import { PhenotypeSearchHit } from "../../types/types.normalized";
 import config from "../../config.json";
 import { compressToEncodedURIComponent, decompressFromEncodedURIComponent } from "lz-string";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -13,6 +24,16 @@ const InputForm = () => {
   const setVariantInput = useDataStore((state) => state.setVariantInput);
   const setMessage = useDataStore((state) => state.setMessage);
   const navigate = useNavigate();
+
+  // phenotype-search entry point: debounced /search autocomplete; picking a phenotype annotates its
+  // credible-set lead variants (with the data's betas) via the "pheno:{resource}:{code}" token.
+  const [phenoInput, setPhenoInput] = useState("");
+  const [phenoQuery, setPhenoQuery] = useState("");
+  const setPhenoQueryDebounced = useMemo(
+    () => debounce((value: string) => setPhenoQuery(value), 300),
+    []
+  );
+  const { data: phenoHits = [], isFetching: phenoFetching } = usePhenotypeSearch(phenoQuery);
 
   // form has been submitted or the url has been changed
   useEffect(() => {
@@ -123,11 +144,19 @@ const InputForm = () => {
   };
 
   return (
-    <>
+    <Box
+      sx={{
+        display: "flex",
+        flexDirection: "row",
+        flexWrap: "wrap",
+        gap: "24px",
+        alignItems: "flex-start",
+        marginBottom: "10px",
+      }}>
       <form onSubmit={handleFormSubmit}>
-        <Box sx={{ display: "flex", flexDirection: "column", width: "260px" }}>
+        <Box sx={{ display: "flex", flexDirection: "column", width: "360px" }}>
           <TextField
-            sx={{ marginBottom: "10px", width: "360px" }}
+            sx={{ marginBottom: "10px" }}
             id="filled-multiline-flexible"
             name="variantInput"
             label="Paste GRCh38 variant ids or rsids, or enter a gene name"
@@ -138,44 +167,102 @@ const InputForm = () => {
             onChange={handleInputChange}
           />
           <Button
-            sx={{ marginBottom: "10px", width: "360px" }}
             size="small"
             startIcon={<CreateIcon />}
             variant="contained"
             type="submit">
             <span>annotate</span>
           </Button>
-          <Typography sx={{ marginBottom: "10px", width: "1000px" }}>
-            Or try <br />
-            <Link
-              sx={{ cursor: "pointer" }}
-              onClick={() => {
-                setExampleData("FinnGen_priority");
-              }}>
-              Finnish-enriched variants (genome-wide significant in FinnGen R12 core analysis,
-              LD-pruned, &gt; 5x enriched, &lt; 1 % AF in non-Finnish Europeans)
-            </Link>
-            <br />
-            <Link
-              sx={{ cursor: "pointer" }}
-              onClick={() => {
-                setExampleData("covid_severe_leads");
-              }}>
-              COVID-19 severity lead variants
-            </Link>
-            <br />
-            <Link
-              sx={{ cursor: "pointer" }}
-              onClick={() => {
-                setExampleData("covid_all");
-              }}>
-              COVID-19 all lead variants (with beta values and categories)
-            </Link>
-            <br />
-          </Typography>
         </Box>
       </form>
-    </>
+
+      <Box sx={{ width: "360px", display: "flex", flexDirection: "column" }}>
+        <Divider sx={{ marginBottom: "10px" }}>or</Divider>
+        <Autocomplete<PhenotypeSearchHit>
+          options={phenoHits}
+          loading={phenoFetching}
+          filterOptions={(x) => x}
+          getOptionLabel={(o) => `${o.name} (${o.code})`}
+          isOptionEqualToValue={(a, b) => a.resource === b.resource && a.code === b.code}
+          inputValue={phenoInput}
+          onInputChange={(_e, value) => {
+            setPhenoInput(value);
+            setPhenoQueryDebounced(value);
+          }}
+          onChange={(_e, value) => {
+            if (value) {
+              handleSubmit(`pheno:${value.resource}:${value.code}`);
+            }
+          }}
+          renderOption={(props, option) => (
+            <li {...props} key={`${option.resource}|${option.code}`}>
+              <Box>
+                <Typography variant="body2">{option.name}</Typography>
+                <Typography variant="caption" color="text.secondary">
+                  {option.code} · {option.resource} · {option.dataType}
+                  {option.sampleSize != null ? ` · n=${option.sampleSize.toLocaleString()}` : ""}
+                  {option.nCases != null ? ` · cases=${option.nCases.toLocaleString()}` : ""}
+                </Typography>
+              </Box>
+            </li>
+          )}
+          renderInput={(params) => (
+            <TextField
+              {...params}
+              label="Search a phenotype to annotate its credible-set lead variants"
+              placeholder="e.g. alzheimer, asthma"
+              size="small"
+              InputProps={{
+                ...params.InputProps,
+                endAdornment: (
+                  <>
+                    {phenoFetching ? <CircularProgress size={16} /> : null}
+                    {params.InputProps.endAdornment}
+                  </>
+                ),
+              }}
+            />
+          )}
+        />
+        <Typography
+          variant="caption"
+          color="text.secondary"
+          sx={{ display: "block", marginTop: "6px" }}>
+          The lead variant of each of the phenotype's credible sets is annotated, using the data's
+          effect sizes as betas.
+        </Typography>
+      </Box>
+
+      <Box sx={{ maxWidth: "420px" }}>
+        <Typography>
+          Or try <br />
+          <Link
+            sx={{ cursor: "pointer" }}
+            onClick={() => {
+              setExampleData("FinnGen_priority");
+            }}>
+            Finnish-enriched variants (genome-wide significant in FinnGen R12 core analysis,
+            LD-pruned, &gt; 5x enriched, &lt; 1 % AF in non-Finnish Europeans)
+          </Link>
+          <br />
+          <Link
+            sx={{ cursor: "pointer" }}
+            onClick={() => {
+              setExampleData("covid_severe_leads");
+            }}>
+            COVID-19 severity lead variants
+          </Link>
+          <br />
+          <Link
+            sx={{ cursor: "pointer" }}
+            onClick={() => {
+              setExampleData("covid_all");
+            }}>
+            COVID-19 all lead variants (with beta values and categories)
+          </Link>
+        </Typography>
+      </Box>
+    </Box>
   );
 };
 

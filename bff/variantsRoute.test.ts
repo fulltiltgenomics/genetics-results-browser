@@ -292,3 +292,65 @@ describe("POST /v1/results — named variant set expansion", () => {
     expect(calledSet).toBe(false);
   });
 });
+
+describe("POST /v1/results — phenotype credible-set lead expansion", () => {
+  // a "pheno:{resource}:{code}" token expands via /v1/credible_sets_by_phenotype_leads into the
+  // lead variant of each credible set, carrying the data beta, then flows through the normal fan-out.
+  const leadRows = [
+    { chr: 19, pos: 44908684, ref: "T", alt: "C", beta: 0.42, cs_id: "csX", pip: 0.9 },
+    { chr: 1, pos: 100, ref: "A", alt: "G", beta: -0.1, cs_id: "csY", pip: 0.8 },
+  ];
+  const routeWithLeads = (rows: unknown, status = 200) =>
+    vi.fn(async (url: string | URL) => {
+      const u = String(url);
+      if (u.includes("/v1/credible_sets_by_phenotype_leads/")) {
+        return status === 200 ? json(rows) : json({ detail: "not found" }, status);
+      }
+      if (u.includes("/v1/credible_sets_by_variant")) return json(csBatch);
+      if (u.includes("/v1/variant_annotation/gnomad")) return json(annoGnomad);
+      if (u.includes("/v1/variant_annotation/finngen")) return json(annoFinngen);
+      if (u.includes("/v1/nearest_genes")) return json(nearestGenes);
+      if (u.includes("/v1/datasets")) return json(datasets);
+      return json({}, 404);
+    });
+
+  it("expands a pheno token into lead variants and attaches the data betas", async () => {
+    const fetchMock = routeWithLeads(leadRows);
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await request(app).post("/api/v1/results").send({ query: "pheno:finngen:T2D_WIDE" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.inputVariants.found).toEqual(["19:44908684:T:C", "1:100:A:G"]);
+    expect(res.body.hasBetas).toBe(true);
+    const lead = res.body.variants.find((v: { variant: string }) => v.variant === "19:44908684:T:C");
+    expect(lead.beta).toBe(0.42);
+    // addressed by resource + code
+    const calledLeads = fetchMock.mock.calls.some((c) =>
+      String(c[0]).includes("/v1/credible_sets_by_phenotype_leads/finngen/T2D_WIDE")
+    );
+    expect(calledLeads).toBe(true);
+  });
+
+  it("falls back to the normal parse when the phenotype is unknown (404)", async () => {
+    vi.stubGlobal("fetch", routeWithLeads([], 404));
+
+    const res = await request(app).post("/api/v1/results").send({ query: "pheno:finngen:NOPE" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.inputVariants.unparsed).toEqual(["pheno:finngen:NOPE"]);
+    expect(res.body.inputVariants.found).toEqual([]);
+  });
+
+  it("does not attempt lead expansion for a normal variant list", async () => {
+    const fetchMock = routeWithLeads(leadRows);
+    vi.stubGlobal("fetch", fetchMock);
+
+    await request(app).post("/api/v1/results").send({ query: "19-44908684-T-C" });
+
+    const calledLeads = fetchMock.mock.calls.some((c) =>
+      String(c[0]).includes("/v1/credible_sets_by_phenotype_leads/")
+    );
+    expect(calledLeads).toBe(false);
+  });
+});
