@@ -3,7 +3,7 @@ import { Box, Chip, Skeleton, Typography } from "@mui/material";
 import { MaterialReactTable } from "material-react-table";
 import type { MRT_ColumnDef } from "material-react-table";
 import { GroupedCredibleSet, VariantResult } from "../../../types/types.normalized";
-import { groupCredibleSets } from "../../../store/munge.normalized";
+import { classifyCisTrans, groupCredibleSets } from "../../../store/munge.normalized";
 import { useDataStore } from "../../../store/store";
 import { pValRepr, formatTissue, makeTraitNameResolver, PSEUDO_CS_TOOLTIP } from "../utils/tableutil";
 import { HtmlTooltip } from "../../tooltips/HtmlTooltip";
@@ -100,8 +100,20 @@ const CellTypeRows = ({ stats }: { stats: CellTypeStat[] }) => (
 const getColumns = (
   traitName: (resource: string, trait: string) => string,
   // resources whose credible sets are pseudo — their PIP cells render greyed with a caveat tooltip.
-  pseudoResources: Set<string>
-): MRT_ColumnDef<GroupedCredibleSet>[] => [
+  pseudoResources: Set<string>,
+  // cis-window half-width (Mb) for the [cis]/[trans] label on QTL traits.
+  cisWindow: number
+): MRT_ColumnDef<GroupedCredibleSet>[] => {
+  // caQTL shows the peak's linked gene(s) (peak goes in a tooltip); other QTLs/GWAS show the resolved
+  // trait name. gene-based QTLs fall back to the gene symbol when no coords resolved.
+  const displayName = (g: GroupedCredibleSet): string => {
+    if (g.dataType === "caQTL") {
+      const genes = (g.geneTargets ?? []).map((t) => t.symbol);
+      return genes.length ? genes.join(", ") : g.trait;
+    }
+    return traitName(g.resource, g.trait);
+  };
+  return [
   {
     accessorKey: "dataType",
     header: "type",
@@ -155,24 +167,47 @@ const getColumns = (
     },
   },
   {
-    // resolved phenotype name (GWAS/ATC/study ids -> human-readable; QTL gene symbols pass through).
-    // for caQTL the peak spans cell types, so the representative cell type is shown in parens.
+    // trait display: GWAS/ATC/study ids -> human-readable; gene-based QTL -> gene symbol; caQTL ->
+    // the peak's linked gene(s). QTLs get a [cis]/[trans] suffix relative to the current cis window.
     accessorFn: (row) => {
-      const idx = repIndex(row);
-      const name = traitName(row.resource, row.trait);
-      const cell = row.dataType === "caQTL" ? row.cellTypes[idx] : null;
-      return cell ? `${name} (${formatTissue(cell)})` : name;
+      const ct = classifyCisTrans(row, cisWindow);
+      return ct ? `${displayName(row)} [${ct}]` : displayName(row);
     },
     id: "trait",
     header: "trait",
     Cell: ({ row }) => {
       const g = row.original;
-      const idx = repIndex(g);
-      const name = traitName(g.resource, g.trait);
-      const cell = g.dataType === "caQTL" ? g.cellTypes[idx] : null;
-      const label = cell ? `${name} (${formatTissue(cell)})` : name;
+      const name = displayName(g);
+      const ct = classifyCisTrans(g, cisWindow);
+      const suffix = ct ? (
+        <Box component="span" sx={{ color: "text.secondary", fontSize: "0.7rem", ml: "4px" }}>
+          [{ct}]
+        </Box>
+      ) : null;
+
+      // caQTL: the trait is an ATAC peak; show the regulated gene(s) and stash the peak (+ cell types)
+      // in a tooltip so every table reads as gene-centric.
+      if (g.dataType === "caQTL") {
+        const cells = distinctCellTypes(g);
+        return (
+          <HtmlTooltip
+            title={
+              <Box>
+                <div>ATAC peak: {g.trait}</div>
+                {cells.length > 0 && <div>cell types: {cells.map(formatTissue).join(", ")}</div>}
+                {(g.geneTargets ?? []).length === 0 && <div>no linked gene resolved</div>}
+              </Box>
+            }>
+            <Box component="span" sx={{ cursor: "help" }}>
+              <span style={{ textDecoration: "underline dotted" }}>{name}</span>
+              {suffix}
+            </Box>
+          </HtmlTooltip>
+        );
+      }
+
       const labelSpan = (
-        <span style={{ textDecoration: "underline dotted", cursor: "help" }}>{label}</span>
+        <span style={{ textDecoration: "underline dotted", cursor: "help" }}>{name}</span>
       );
       const inner =
         g.quantLevel && g.quantLevel !== "ge" ? (
@@ -184,9 +219,13 @@ const getColumns = (
               variant="outlined"
               sx={{ height: "16px", fontSize: "0.65rem", "& .MuiChip-label": { px: "5px" } }}
             />
+            {suffix}
           </Box>
         ) : (
-          labelSpan
+          <Box component="span">
+            {labelSpan}
+            {suffix}
+          </Box>
         );
       return (
         <PhenotypeTooltip
@@ -199,15 +238,10 @@ const getColumns = (
         />
       );
     },
-    // sort/filter on the resolved name; the accessorFn returns a ReactElement that MRT can't compare
-    sortingFn: (rowA, rowB) =>
-      traitName(rowA.original.resource, rowA.original.trait).localeCompare(
-        traitName(rowB.original.resource, rowB.original.trait)
-      ),
+    // sort/filter on the displayed name (gene symbol for QTLs, linked gene(s) for caQTL)
+    sortingFn: (rowA, rowB) => displayName(rowA.original).localeCompare(displayName(rowB.original)),
     filterFn: (row, _id, filterValue) =>
-      traitName(row.original.resource, row.original.trait)
-        .toLowerCase()
-        .includes(String(filterValue).toLowerCase()),
+      displayName(row.original).toLowerCase().includes(String(filterValue).toLowerCase()),
     muiFilterTextFieldProps: { placeholder: "trait" },
   },
   {
@@ -279,7 +313,8 @@ const getColumns = (
     sortDescFirst: true,
     size: 80,
   },
-];
+  ];
+};
 
 // expanded-row table of every cell type a group's credible set is fine-mapped in, with stats.
 // shown before the colocalization section when the group spans more than one cell type.
@@ -336,6 +371,7 @@ const VariantCredibleSetTable = (props: { data: VariantResult }) => {
   // forget (a missing prop is exactly why the data-type comparison detail showed raw codes).
   const phenotypes = useDataStore((state) => state.normalizedData?.phenotypes);
   const resources = useDataStore((state) => state.normalizedData?.resources);
+  const cisWindow = useDataStore((state) => state.cisWindow);
   const traitName = useMemo(() => makeTraitNameResolver(phenotypes), [phenotypes]);
   const pseudoResources = useMemo(
     () => new Set((resources ?? []).filter((r) => r.hasPseudoCredibleSets).map((r) => r.id)),
@@ -345,7 +381,10 @@ const VariantCredibleSetTable = (props: { data: VariantResult }) => {
     () => groupCredibleSets(props.data.credibleSets),
     [props.data.credibleSets]
   );
-  const columns = useMemo(() => getColumns(traitName, pseudoResources), [traitName, pseudoResources]);
+  const columns = useMemo(
+    () => getColumns(traitName, pseudoResources, cisWindow),
+    [traitName, pseudoResources, cisWindow]
+  );
 
   // defer the heavy MaterialReactTable mount so the detail panel opens instantly with the skeleton
   // above; double rAF guarantees the skeleton paints before the MRT mount blocks the main thread.
