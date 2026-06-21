@@ -228,14 +228,14 @@ const InputForm = () => {
           variant="caption"
           color="text.secondary"
           sx={{ display: "block", marginTop: "6px" }}>
-          The lead variant of each of the phenotype's credible sets is annotated, using the data's
-          effect sizes as betas.
+          The lead variant of each of the phenotype's credible sets is annotated.
         </Typography>
       </Box>
 
-      <Box sx={{ maxWidth: "420px" }}>
+      <Box sx={{ maxWidth: "420px", display: "flex", flexDirection: "column" }}>
+        <Divider sx={{ marginBottom: "10px" }}>or</Divider>
         <Typography>
-          Or try <br />
+          try <br />
           <Link
             sx={{ cursor: "pointer" }}
             onClick={() => {
