@@ -1,6 +1,5 @@
 import { Box, useTheme } from "@mui/material";
 import { MaterialReactTable, MRT_SortingState } from "material-react-table";
-import { useNavigate } from "react-router-dom";
 import { naInfSort, variantSort } from "../utils/sorting";
 import VariantCredibleSetTable from "./VariantCredibleSetTable";
 import { VariantResult } from "../../../types/types.normalized";
@@ -8,19 +7,8 @@ import { useMemo, useState } from "react";
 import { getVariantMainTableColumnsNormalized } from "./VariantMainTable.columns.normalized";
 import { useDataStore } from "../../../store/store";
 import { useNormalizedQuery } from "../../../store/serverQuery";
-import { useChatSeedStore } from "../../../store/store.chatSeed";
-import { cleanConsequence, makeTraitNameResolver } from "../utils/tableutil";
+import { makeTraitNameResolver } from "../utils/tableutil";
 import { VariantTableExportButtons } from "../ExportToolbar";
-
-// build a concise, context-rich chat prompt from a variant row for the annotation -> chat hand-off
-const buildVariantSeed = (row: VariantResult): string => {
-  const rsid = row.annotation?.rsid;
-  const gene = row.annotation?.gene;
-  const consequence = cleanConsequence(row.annotation?.consequence ?? "");
-  const descriptors = [rsid, gene, consequence].filter(Boolean).join(", ");
-  const suffix = descriptors ? ` (${descriptors})` : "";
-  return `Explain variant ${row.variant}${suffix}. What credible sets and colocalizations involve it?`;
-};
 
 /**
  * Credible-set-native main results table (refactor.md §4). Renders the store's reactive
@@ -33,8 +21,6 @@ const VariantMainTable = (props: {
   enableTopToolbar: boolean;
 }) => {
   const theme = useTheme();
-  const navigate = useNavigate();
-  const setChatSeed = useChatSeedStore((state) => state.setChatSeed);
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 20 });
 
   const variantInput = useDataStore((state) => state.variantInput)!;
@@ -45,13 +31,6 @@ const VariantMainTable = (props: {
   const { error, isError, isFetching, isLoading } = useNormalizedQuery(variantInput);
 
   const [sorting, setSorting] = useState<MRT_SortingState>([]);
-
-  // seed the assistant chat from a variant row and route to /chat (triggered by the inline speech
-  // bubble in the variant column — replaces the former row-actions menu).
-  const askAssistant = (row: VariantResult) => {
-    setChatSeed(buildVariantSeed(row));
-    navigate("/chat");
-  };
 
   // resolve a credible set's resource+trait to its human-readable phenostring (BFF-populated from
   // trait_name_mapping); falls back to the raw trait id for QTL gene symbols / unmapped codes.
@@ -68,7 +47,6 @@ const VariantMainTable = (props: {
         props.showTraitCounts,
         normalizedData?.hasBetas ?? false,
         normalizedData?.hasCustomValues ?? false,
-        askAssistant,
         traitName
       ),
     [selectedPopulation, props.showTraitCounts, normalizedData?.hasBetas, normalizedData?.hasCustomValues, phenotypes]

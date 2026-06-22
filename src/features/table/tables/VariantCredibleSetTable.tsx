@@ -12,7 +12,6 @@ import { naInfSort } from "../utils/sorting";
 import { DataTypeIcon } from "../DataTypeIcon";
 import { PhenotypeTooltip } from "../../tooltips/PhenotypeTooltip";
 import { PhenoSumstatsArrow } from "../PhenoSumstatsLink";
-import ColocSection from "./ColocSection";
 
 // numeric comparator that pushes NaN to the bottom regardless of sort direction
 const numDescNaNLast = (a: number, b: number): number => {
@@ -28,7 +27,8 @@ const numDescNaNLast = (a: number, b: number): number => {
  * several credible-set memberships (e.g. a caQTL peak fine-mapped in many cell types) into one row;
  * the displayed p-value / beta / PIP come from the group's REPRESENTATIVE membership (the one with the
  * highest PIP), and when a group spans multiple cell types the dataset cell gets a per-cell-type
- * tooltip and the expanded row shows a per-cell-type stats table.
+ * tooltip. Rows are not expandable for now (the per-cell-type stats table + colocalization section
+ * were removed; see the note by the MaterialReactTable).
  */
 
 // guard: grouped arrays coerce a null mlog10p to NaN, and a missing/grouped value can be undefined.
@@ -366,42 +366,6 @@ const getColumns = (
   ];
 };
 
-// expanded-row table of every cell type a group's credible set is fine-mapped in, with stats.
-// shown before the colocalization section when the group spans more than one cell type.
-const CellTypeStatsTable = ({ group }: { group: GroupedCredibleSet }) => (
-  <Box sx={{ marginBottom: "16px" }}>
-    <Typography sx={{ marginBottom: "6px", fontWeight: "bold" }}>
-      Cell types ({distinctCellTypes(group).length})
-    </Typography>
-    <table style={{ borderCollapse: "collapse", fontSize: "0.75rem" }}>
-      <thead>
-        <tr>
-          <th style={th}>cell type</th>
-          <th style={th}>p-value</th>
-          <th style={th}>beta</th>
-          <th style={th}>PIP</th>
-          <th style={th}>cs size</th>
-          <th style={{ ...th, paddingRight: 0 }}>cs min r2</th>
-        </tr>
-      </thead>
-      <tbody>
-        {cellTypeStats(group).map((s, i) => (
-          <tr key={`${s.cellType}-${i}`}>
-            <td style={td}>{s.cellType ? formatTissue(s.cellType) : "-"}</td>
-            <td style={td}>{Number.isNaN(s.mlog10p) ? "-" : pValRepr(s.mlog10p)}</td>
-            <td style={td}>
-              <UpOrDownIcon value={s.beta} withValue precision={3} />
-            </td>
-            <td style={td}>{pipRepr(s.pip)}</td>
-            <td style={td}>{num(s.csSize)}</td>
-            <td>{num(s.csMinR2)}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  </Box>
-);
-
 // cheap skeleton shown the instant a row expands. Rendering the real interactive MaterialReactTable
 // is the slow part of an expand (it builds dozens of MUI Tooltip/Box/Chip components, heavily
 // amplified by dev-mode + StrictMode) — not data, the rows are already in memory. This is a handful
@@ -485,19 +449,9 @@ const VariantCredibleSetTable = (props: { data: VariantResult }) => {
         muiTableProps={{ sx: { tableLayout: "fixed" } }}
         muiTableBodyCellProps={{ sx: { fontSize: "0.75rem" } }}
         sortingFns={{ naInfSort }}
-        // stable row id so MRT keeps the coloc detail-panel expanded across re-renders (the lazy
-        // coloc query resolving would otherwise reset index-keyed expansion state)
-        getRowId={(row) => row.id}
-        // per-CS colocalization is fetched lazily only when a row's detail panel is expanded; the
-        // per-cell-type stats table (for multi-cell-type groups) precedes the colocalization section
-        renderDetailPanel={({ row }) => (
-          <>
-            {distinctCellTypes(row.original).length > 1 && (
-              <CellTypeStatsTable group={row.original} />
-            )}
-            <ColocSection row={row.original} variant={props.data.variant} />
-          </>
-        )}
+        // row expansion is intentionally disabled for now: it previously revealed a per-cell-type
+        // stats table and the "colocalizes with" section (ColocSection, kept on disk). Re-add a
+        // renderDetailPanel (and a stable getRowId) to bring it back.
       />
       )}
     </Box>

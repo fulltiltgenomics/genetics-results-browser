@@ -1,6 +1,5 @@
 import { MRT_ColumnDef } from "material-react-table";
-import { Box, IconButton, Tooltip } from "@mui/material";
-import ChatIcon from "@mui/icons-material/ChatBubbleOutline";
+import { Box } from "@mui/material";
 import {
   VariantResult,
   GnomadFreq,
@@ -126,7 +125,6 @@ export const getVariantMainTableColumnsNormalized = (
   showTraitCounts: boolean,
   hasBetas: boolean,
   hasCustomValues: boolean,
-  onAskAssistant?: (row: VariantResult) => void,
   // resolve a credible set's resource+trait to a human-readable name (falls back to the raw trait)
   traitName: (resource: string, trait: string) => string = (_r, t) => t
 ): MRT_ColumnDef<VariantResult>[] => {
@@ -139,26 +137,6 @@ export const getVariantMainTableColumnsNormalized = (
       sortingFn: "variantSort",
       muiFilterTextFieldProps: { placeholder: "variant" },
       size: 150,
-      // speech-bubble hand-off to the assistant, inline in front of the variant id (replaces the
-      // former row-actions column). seeds the chat with a variant-context prompt and routes to /chat.
-      Cell: ({ row }) => (
-        <Box sx={{ display: "flex", alignItems: "center", gap: "2px" }}>
-          {onAskAssistant && (
-            <Tooltip title="Ask the assistant about this variant">
-              <IconButton
-                size="small"
-                sx={{ p: "2px" }}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onAskAssistant(row.original);
-                }}>
-                <ChatIcon sx={{ fontSize: "0.9rem" }} />
-              </IconButton>
-            </Tooltip>
-          )}
-          <span>{row.original.variant}</span>
-        </Box>
-      ),
     },
     {
       accessorFn: (row) => row.annotation.rsid ?? "",
