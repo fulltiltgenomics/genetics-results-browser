@@ -23,10 +23,12 @@ const LinkedGenesCell = ({ peaks }: { peaks: string[] }) => {
   return (
     <Box sx={{ display: "flex", flexWrap: "wrap", gap: "2px 6px" }}>
       {genes.map((g, i) => (
-        <span key={g}>
+        // inline-flex so the comma stays on the gene's line — GeneTooltip renders a block <div>, which
+        // in a plain flex-item span pushes the trailing comma onto its own line (the stray-dots bug).
+        <Box key={g} component="span" sx={{ display: "inline-flex", alignItems: "baseline" }}>
           <GeneTooltip geneName={g} content={<span>{g}</span>} />
           {i < genes.length - 1 ? "," : ""}
-        </span>
+        </Box>
       ))}
     </Box>
   );
