@@ -1049,9 +1049,14 @@ interface PhenotypeSearchApiRow {
   has_summary_stats?: boolean;
   has_credible_sets?: boolean;
   sample_size?: number;
-  n_cases?: number | null;
-  n_controls?: number | null;
+  // the API sends the literal string "NA" (not null) for quantitative traits with no case/control split
+  n_cases?: number | string | null;
+  n_controls?: number | string | null;
 }
+
+// a /search count cell -> number, or null for the "NA" string / any non-finite value (mirrors metaNum).
+const metaCount = (v: number | string | null | undefined): number | null =>
+  typeof v === "number" && Number.isFinite(v) ? v : null;
 
 interface PhenotypeSearchOptions {
   /** drop phenotypes without full summary stats (phenotype-search tab). */
@@ -1098,8 +1103,10 @@ export const usePhenotypeSearch = (
         hasSummaryStats: row.has_summary_stats ?? false,
         hasCredibleSets: row.has_credible_sets ?? false,
         sampleSize: row.sample_size,
-        nCases: row.n_cases,
-        nControls: row.n_controls,
+        // quantitative traits (e.g. BMI) carry the literal "NA" string here, not null — coerce to
+        // null so the counts line falls back to "N samples" instead of rendering "NA cases".
+        nCases: metaCount(row.n_cases),
+        nControls: metaCount(row.n_controls),
       }));
     },
     // require at least 2 chars so we don't spam /search on the first keystroke
