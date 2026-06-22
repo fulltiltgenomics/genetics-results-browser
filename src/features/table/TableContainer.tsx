@@ -189,9 +189,8 @@ const TableContainer = () => {
                   Single phenotype sumstats
                 </Typography>
                 <Typography sx={{ marginBottom: "10px", paddingLeft: "20px" }}>
-                  Look up the full summary statistics of your input variants for any one phenotype
-                  with summary stats, and see which variants are in a credible set for it. Hand off
-                  from the arrow before a trait in the other tables, or search here directly.
+                  Look up full summary statistics for your input variants for any one phenotype
+                  with summary stats available, and see which variants are in a credible set for it.
                 </Typography>
                 <Suspense fallback={tabFallback}>
                   <Box sx={{ paddingLeft: "20px", paddingRight: "20px" }}>

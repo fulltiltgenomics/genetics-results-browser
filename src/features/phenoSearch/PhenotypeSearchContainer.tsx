@@ -272,14 +272,7 @@ const PhenotypeSearchContainer = () => {
   }
 
   return (
-    <Box sx={{ p: 2 }}>
-      <Typography sx={{ mb: 2 }}>
-        Full summary statistics for your {inputVariants.length} input variant
-        {inputVariants.length === 1 ? "" : "s"} for a chosen phenotype, plus whether each variant is
-        in a credible set for that phenotype. Only phenotypes with full summary statistics are
-        searchable.
-      </Typography>
-
+    <Box sx={{ py: 2 }}>
       <Autocomplete<PhenotypeSearchHit>
         sx={{ maxWidth: 600, mb: 2 }}
         options={searchHits}
@@ -320,7 +313,7 @@ const PhenotypeSearchContainer = () => {
         renderInput={(params) => (
           <TextField
             {...params}
-            label="search phenotype"
+            label="search for a phenotype"
             placeholder="e.g. alzheimer, asthma"
             size="small"
             InputProps={{
@@ -401,11 +394,6 @@ const PhenotypeSearchContainer = () => {
         />
       )}
 
-      {!chosen && (
-        <Typography variant="body2" color="text.secondary">
-          search for a phenotype above to see results.
-        </Typography>
-      )}
     </Box>
   );
 };
