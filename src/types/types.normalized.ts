@@ -245,6 +245,10 @@ export interface DatasetMeta {
   tissueLabel?: string | null;
   cellType?: string | null;
   quantMethod?: string | null; // eQTL Catalogue "ge"/"exon"/...
+  // eQTL Catalogue sub-datasets (QTD…) are enriched from /resource_metadata/eqtl_catalogue: the study
+  // (author) and the experimental condition, alongside tissueLabel, so the table can show a human name.
+  study?: string | null; //     e.g. "Fairfax_2014", "BLUEPRINT", "GTEx"
+  condition?: string | null; //  e.g. "naive", "IFNg_24h"
   sampleSize?: number;
   // products.summary_stats: whether this dataset exposes full per-variant summary stats. The
   // phenotype-search handoff (summary_stats/{resource}/{data_type}) only works for capable

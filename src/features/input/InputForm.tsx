@@ -13,6 +13,7 @@ import Button from "@mui/material/Button";
 import CreateIcon from "@mui/icons-material/Create";
 import { useDataStore } from "../../store/store";
 import { usePhenotypeSearch } from "../../store/serverQuery";
+import { HIDDEN_RESOURCES } from "../../store/munge.normalized";
 import { PhenotypeSearchHit } from "../../types/types.normalized";
 import { formatPhenotypeCounts } from "../table/utils/tableutil";
 import config from "../../config.json";
@@ -36,9 +37,14 @@ const InputForm = () => {
   );
   // the annotation search needs phenotypes with CREDIBLE SETS (it annotates their lead variants), not
   // summary stats — so it must include e.g. Open Targets, which has credible sets but no full sumstats.
-  const { data: phenoHits = [], isFetching: phenoFetching } = usePhenotypeSearch(phenoQuery, {
+  const { data: phenoHitsRaw = [], isFetching: phenoFetching } = usePhenotypeSearch(phenoQuery, {
     requireCredibleSets: true,
   });
+  // drop resources temporarily hidden from the frontend (see HIDDEN_RESOURCES) so they can't be searched.
+  const phenoHits = useMemo(
+    () => phenoHitsRaw.filter((h) => !HIDDEN_RESOURCES.has(h.resource)),
+    [phenoHitsRaw]
+  );
 
   // form has been submitted or the url has been changed
   useEffect(() => {

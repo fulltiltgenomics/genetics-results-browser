@@ -138,8 +138,16 @@ const NON_GENE_QUANT_LEVELS: ReadonlySet<QuantLevel> = new Set([
   "majiq",
 ]);
 
+/**
+ * Resources hidden from the frontend for now (to be re-added later). Dropped here so they disappear
+ * from every table, summary and filter at once; the backend still serves them, so re-enabling is just
+ * removing the id from this set.
+ */
+export const HIDDEN_RESOURCES: ReadonlySet<string> = new Set(["gp2", "ibd_gwas", "pgc"]);
+
 /** a single membership passes the current filters. pure, no allocation per call beyond comparisons. */
 const passesFilter = (cs: CredibleSetMembership, f: FilterState): boolean => {
+  if (HIDDEN_RESOURCES.has(cs.resource)) return false;
   // pip >= threshold: inclusive, matching legacy `a.pip >= pip` so the boundary behavior is unchanged.
   if (cs.pip < f.pipThreshold) return false;
   // p-value <= threshold, expressed on the mlog10p the rows actually carry. null mlog10p (some

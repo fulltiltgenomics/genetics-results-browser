@@ -265,7 +265,7 @@ const PhenotypeSearchContainer = () => {
         <Typography>
           This tab shows full summary statistics for your input variants. Enter variants in the input
           box above (or the Variant results tab) first, then search for a phenotype here or use the
-          search button in the Phenotype summary tab.
+          arrow before a trait in the Phenotype summary or Variant results tabs.
         </Typography>
       </Box>
     );

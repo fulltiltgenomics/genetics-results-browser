@@ -2,6 +2,7 @@ import { Box, Divider, FormControlLabel, FormGroup, FormLabel, Switch, Tooltip }
 import { useEffect, useMemo, ReactElement } from "react";
 import { useDataStore } from "../../store/store";
 import { CredibleSetDataType, NormalizedResponse } from "../../types/types.normalized";
+import { HIDDEN_RESOURCES } from "../../store/munge.normalized";
 import { DataTypeIcon } from "../table/DataTypeIcon";
 import { PSEUDO_CS_TOOLTIP } from "../table/utils/tableutil";
 
@@ -63,6 +64,8 @@ const ResourceFilter = (props: { isNotReadyYet: boolean }) => {
     for (const v of normalizedData?.variants ?? []) {
       for (const cs of v.credibleSets) present.add(cs.resource);
     }
+    // resources hidden from the frontend (see HIDDEN_RESOURCES) never get a toggle
+    for (const r of HIDDEN_RESOURCES) present.delete(r);
     return [...present];
   }, [normalizedData]);
 

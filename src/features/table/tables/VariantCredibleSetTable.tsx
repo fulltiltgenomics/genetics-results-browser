@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Box, Chip, Skeleton, Typography } from "@mui/material";
 import { MaterialReactTable } from "material-react-table";
 import type { MRT_ColumnDef } from "material-react-table";
-import { GroupedCredibleSet, VariantResult } from "../../../types/types.normalized";
+import { DatasetMeta, GroupedCredibleSet, VariantResult } from "../../../types/types.normalized";
 import { classifyCisTrans, groupCredibleSets } from "../../../store/munge.normalized";
 import { useDataStore } from "../../../store/store";
 import { pValRepr, formatTissue, makeTraitNameResolver, PSEUDO_CS_TOOLTIP } from "../utils/tableutil";
@@ -11,6 +11,7 @@ import { UpOrDownIcon } from "../UpDownIcons";
 import { naInfSort } from "../utils/sorting";
 import { DataTypeIcon } from "../DataTypeIcon";
 import { PhenotypeTooltip } from "../../tooltips/PhenotypeTooltip";
+import { PhenoSumstatsArrow } from "../PhenoSumstatsLink";
 import ColocSection from "./ColocSection";
 
 // numeric comparator that pushes NaN to the bottom regardless of sort direction
@@ -97,12 +98,33 @@ const CellTypeRows = ({ stats }: { stats: CellTypeStat[] }) => (
   </>
 );
 
+// human-readable dataset label. eQTL Catalogue sub-datasets (QTD…) are enriched (BFF) with their
+// study + tissue + condition, shown in place of the bare QTD id; everything else just spaces out the
+// dataset id. a multi-membership group appends its count.
+const datasetLabel = (g: GroupedCredibleSet, datasets: Record<string, DatasetMeta>): string => {
+  const meta = datasets[g.dataset];
+  let base: string;
+  if (g.resource === "eqtl_catalogue" && meta?.study) {
+    const study = meta.study.replace(/_/g, " ");
+    const tissue = (meta.tissueLabel ?? "").replace(/_/g, " ");
+    // "naive" is the uninformative default condition — omit it, show only real perturbations.
+    const cond =
+      meta.condition && meta.condition !== "naive" ? `, ${meta.condition.replace(/_/g, " ")}` : "";
+    base = `${study}: ${tissue}${cond}`;
+  } else {
+    base = g.dataset.replace(/_/g, " ");
+  }
+  return g.count === 1 ? base : `${base} (${g.count})`;
+};
+
 const getColumns = (
   traitName: (resource: string, trait: string) => string,
   // resources whose credible sets are pseudo — their PIP cells render greyed with a caveat tooltip.
   pseudoResources: Set<string>,
   // cis-window half-width (Mb) for the [cis]/[trans] label on QTL traits.
-  cisWindow: number
+  cisWindow: number,
+  // dataset metadata map (keyed by dataset id) for resolving eQTL Catalogue QTD ids to human names.
+  datasets: Record<string, DatasetMeta>
 ): MRT_ColumnDef<GroupedCredibleSet>[] => {
   // caQTL shows the peak's linked gene(s), or the peak id when none resolved, with the cell type(s) in
   // parens (the peak itself goes in a tooltip); other QTLs/GWAS show the resolved trait name.
@@ -131,10 +153,7 @@ const getColumns = (
     ),
   },
   {
-    accessorFn: (row) =>
-      row.count === 1
-        ? row.dataset.replace(/_/g, " ")
-        : `${row.dataset.replace(/_/g, " ")} (${row.count})`,
+    accessorFn: (row) => datasetLabel(row, datasets),
     id: "dataset",
     header: "dataset",
     filterFn: "contains",
@@ -143,8 +162,27 @@ const getColumns = (
     // when a group spans multiple cell types, list each cell type's p-value / beta in a tooltip
     Cell: ({ row }) => {
       const g = row.original;
-      const label =
-        g.count === 1 ? g.dataset.replace(/_/g, " ") : `${g.dataset.replace(/_/g, " ")} (${g.count})`;
+      const label = datasetLabel(g, datasets);
+      const meta = datasets[g.dataset];
+      // eQTL Catalogue: the human name hides the QTD id, so surface it (plus provenance) in a tooltip.
+      if (g.resource === "eqtl_catalogue" && meta?.study) {
+        return (
+          <HtmlTooltip
+            title={
+              <Box>
+                <div>{g.dataset}</div>
+                <div>{meta.study.replace(/_/g, " ")}</div>
+                <div>
+                  {(meta.tissueLabel ?? "").replace(/_/g, " ")}
+                  {meta.condition ? ` / ${meta.condition.replace(/_/g, " ")}` : ""}
+                </div>
+                {meta.sampleSize ? <div>n = {meta.sampleSize}</div> : null}
+              </Box>
+            }>
+            <span style={{ textDecoration: "underline dotted" }}>{label}</span>
+          </HtmlTooltip>
+        );
+      }
       if (distinctCellTypes(g).length <= 1) return label;
       return (
         <HtmlTooltip
@@ -186,6 +224,15 @@ const getColumns = (
           [{ct}]
         </Box>
       ) : null;
+      // right-arrow handoff to the sumstats tab, before the trait name (null unless sumstats-capable)
+      const arrow = (
+        <PhenoSumstatsArrow
+          resource={g.resource}
+          trait={g.trait}
+          traitOriginal={g.traitOriginal}
+          dataType={g.dataType}
+        />
+      );
 
       // caQTL: the trait is an ATAC peak; the gene(s)/cell type(s) render inline, the peak goes in a
       // tooltip so every table reads as gene-centric.
@@ -228,14 +275,17 @@ const getColumns = (
           </Box>
         );
       return (
-        <PhenotypeTooltip
-          resource={g.resource}
-          phenocode={g.traitOriginal}
-          phenostring={name}
-          dataType={g.dataType}
-          dataset={g.dataset}
-          content={inner}
-        />
+        <Box sx={{ display: "flex", alignItems: "center" }}>
+          {arrow}
+          <PhenotypeTooltip
+            resource={g.resource}
+            phenocode={g.traitOriginal}
+            phenostring={name}
+            dataType={g.dataType}
+            dataset={g.dataset}
+            content={inner}
+          />
+        </Box>
       );
     },
     // sort/filter on the displayed name (gene symbol for QTLs, linked gene(s) for caQTL)
@@ -371,6 +421,7 @@ const VariantCredibleSetTable = (props: { data: VariantResult }) => {
   // forget (a missing prop is exactly why the data-type comparison detail showed raw codes).
   const phenotypes = useDataStore((state) => state.normalizedData?.phenotypes);
   const resources = useDataStore((state) => state.normalizedData?.resources);
+  const datasets = useDataStore((state) => state.normalizedData?.datasets);
   const cisWindow = useDataStore((state) => state.cisWindow);
   const traitName = useMemo(() => makeTraitNameResolver(phenotypes), [phenotypes]);
   const pseudoResources = useMemo(
@@ -382,8 +433,8 @@ const VariantCredibleSetTable = (props: { data: VariantResult }) => {
     [props.data.credibleSets]
   );
   const columns = useMemo(
-    () => getColumns(traitName, pseudoResources, cisWindow),
-    [traitName, pseudoResources, cisWindow]
+    () => getColumns(traitName, pseudoResources, cisWindow, datasets ?? {}),
+    [traitName, pseudoResources, cisWindow, datasets]
   );
 
   // defer the heavy MaterialReactTable mount so the detail panel opens instantly with the skeleton

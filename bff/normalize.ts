@@ -379,6 +379,90 @@ const getTraitNameMap = async (): Promise<Record<string, string>> => {
   }
 };
 
+/**
+ * eQTL Catalogue sub-dataset metadata, keyed by QTD id. The /datasets list carries only one aggregate
+ * "eqtl_catalogue" entry, so the per-QTD study/tissue/condition (shown in the tables in place of the
+ * bare QTD id) comes from /resource_metadata/eqtl_catalogue — a ~840-row TSV whose phenotype_string is
+ * "<label> - <tissue> - <condition>". Static, so cache process-wide like the trait-name map; a fetch
+ * failure falls back to an empty map (callers then keep showing the raw QTD id).
+ */
+interface EqtlSubdatasetMeta {
+  study: string | null; //     author column, e.g. "Fairfax_2014"
+  tissue: string | null;
+  condition: string | null;
+  phenotypeString: string; //  the full "<label> - <tissue> - <condition>" string
+  sampleSize?: number;
+}
+interface RawEqtlMetaRow {
+  phenotype_code: string | null;
+  phenotype_string: string | null;
+  author: string | null;
+  n_samples: string | null;
+}
+let eqtlCatalogueMetaCache: Record<string, EqtlSubdatasetMeta> | null = null;
+const getEqtlCatalogueMeta = async (): Promise<Record<string, EqtlSubdatasetMeta>> => {
+  if (eqtlCatalogueMetaCache) return eqtlCatalogueMetaCache;
+  try {
+    const rows = await upstreamTsv<RawEqtlMetaRow>("/v1/resource_metadata/eqtl_catalogue");
+    const out: Record<string, EqtlSubdatasetMeta> = {};
+    for (const r of rows) {
+      if (!r.phenotype_code) continue;
+      const ps = r.phenotype_string ?? "";
+      // "<label> - <tissue> - <condition>"; tissue/condition are the 2nd/3rd " - "-separated parts.
+      const parts = ps.split(" - ");
+      const n = r.n_samples != null ? Number(r.n_samples) : NaN;
+      out[r.phenotype_code] = {
+        study: r.author,
+        tissue: parts.length >= 2 ? parts[1] : null,
+        condition: parts.length >= 3 ? parts[2] : null,
+        phenotypeString: ps,
+        sampleSize: Number.isNaN(n) ? undefined : n,
+      };
+    }
+    eqtlCatalogueMetaCache = out;
+    return out;
+  } catch {
+    return {};
+  }
+};
+
+/**
+ * Enrich the datasets map with a per-QTD DatasetMeta for every eQTL Catalogue sub-dataset referenced
+ * by the result, so the client can show the study + tissue + condition instead of the bare QTD id.
+ * No-op (and no fetch) when the result has no eQTL Catalogue rows.
+ */
+const enrichEqtlCatalogueDatasets = async (
+  datasetsMap: Record<string, DatasetMeta>,
+  variants: VariantResult[]
+): Promise<void> => {
+  const qtds = new Set<string>();
+  for (const v of variants) {
+    for (const cs of v.credibleSets) {
+      if (cs.resource === "eqtl_catalogue") qtds.add(cs.dataset);
+    }
+  }
+  if (qtds.size === 0) return;
+  const meta = await getEqtlCatalogueMeta();
+  const agg = datasetsMap["eqtl_catalogue"]; // aggregate entry supplies dataType/version fallbacks
+  for (const qtd of qtds) {
+    const m = meta[qtd];
+    if (!m) continue;
+    datasetsMap[qtd] = {
+      datasetId: qtd,
+      resource: "eqtl_catalogue",
+      dataType: agg?.dataType ?? "mixed",
+      version: agg?.version,
+      description: m.phenotypeString,
+      tissueLabel: m.tissue,
+      cellType: null,
+      study: m.study,
+      condition: m.condition,
+      sampleSize: m.sampleSize,
+      hasSummaryStats: false, // eQTL Catalogue exposes no full summary stats
+    };
+  }
+};
+
 // PhenotypeMeta keyed by `${resource}|${trait}`. phenostring (the display name) is resolved by the
 // trait IDENTIFIER, trait_original — the trait_name_mapping is keyed by the identifier (finngen
 // phenocodes like I9_AF, Open Targets GCST ids, ATC codes, lab/OMOP ids), NOT the harmonized `trait`
@@ -429,9 +513,9 @@ interface RawGeneRegionRow {
 }
 interface RawPeakGeneRow {
   symbol: string;
-  gene_chrom: string; // "chr19"
-  gene_start: number;
-  gene_end: number;
+  gene_chrom: string | null; // "chr19"; null when the gene's coordinates are unresolved upstream
+  gene_start: number | null;
+  gene_end: number | null;
 }
 
 // "chr19" | 19 | "X" -> numeric chromosome matching the CS rows' numeric chr.
@@ -517,6 +601,9 @@ const attachGeneTargets = async (variants: VariantResult[]): Promise<void> => {
         const targets: GeneTarget[] = [];
         for (const r of rows ?? []) {
           if (!r.symbol || seen.has(r.symbol)) continue;
+          // a peak gene without resolved coordinates can't be cis/trans-classified — skip it (don't
+          // mark it seen, so a later row carrying coords for the same symbol can still win)
+          if (r.gene_chrom == null || r.gene_start == null || r.gene_end == null) continue;
           seen.add(r.symbol);
           targets.push({
             symbol: r.symbol,
@@ -652,6 +739,9 @@ export const normalizeVariantList = async (query: string): Promise<NormalizedRes
   // resolve QTL cis/trans target genes after the CS rows are assembled (needs the loci + traits).
   await attachGeneTargets(variants);
 
+  const datasetsMap = normalizeDatasets(datasets);
+  await enrichEqtlCatalogueDatasets(datasetsMap, variants);
+
   return {
     queryType: "variant",
     inputVariants: {
@@ -663,7 +753,7 @@ export const normalizeVariantList = async (query: string): Promise<NormalizedRes
     },
     variants,
     phenotypes: derivePhenotypes(csRows, traitNameMap),
-    datasets: normalizeDatasets(datasets),
+    datasets: datasetsMap,
     resources: deriveResources(datasets),
     hasBetas: Object.keys(betaByVariant).length > 0,
     hasCustomValues: Object.keys(valueByVariant).length > 0,
@@ -733,6 +823,9 @@ export const normalizeGene = async (
 
   await attachGeneTargets(variants);
 
+  const datasetsMap = normalizeDatasets(datasets);
+  await enrichEqtlCatalogueDatasets(datasetsMap, variants);
+
   return {
     queryType: "gene",
     // a gene query has no parsed variant input; the "found" variants are the discovered CS members
@@ -745,7 +838,7 @@ export const normalizeGene = async (
     },
     variants,
     phenotypes: derivePhenotypes(csRows, traitNameMap),
-    datasets: normalizeDatasets(datasets),
+    datasets: datasetsMap,
     resources: deriveResources(datasets),
     hasBetas: false, // gene queries carry no user-supplied betas/values
     hasCustomValues: false,

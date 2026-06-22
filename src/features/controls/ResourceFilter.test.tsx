@@ -137,11 +137,11 @@ describe("ResourceFilter", () => {
   it("marks pseudo-credible-set resources with a '*' and leaves real ones unmarked", () => {
     const response = makeResponse([
       makeCS({ resource: "finngen", trait: "A" }),
-      makeCS({ resource: "pgc", trait: "B" }),
+      makeCS({ resource: "covid_hgi", trait: "B" }),
     ]);
     response.resources = [
       { id: "finngen", resource: "FinnGen", dataTypes: ["gwas"], hasSummaryStats: true, hasCredibleSets: true, hasPseudoCredibleSets: false },
-      { id: "pgc", resource: "PGC", dataTypes: ["gwas"], hasSummaryStats: false, hasCredibleSets: true, hasPseudoCredibleSets: true },
+      { id: "covid_hgi", resource: "COVID HGI", dataTypes: ["gwas"], hasSummaryStats: false, hasCredibleSets: true, hasPseudoCredibleSets: true },
     ];
     useDataStore.getState().setNormalizedData(response);
     render(<ResourceFilter isNotReadyYet={false} />);
@@ -149,6 +149,25 @@ describe("ResourceFilter", () => {
     // the pseudo resource's toggle carries the "*" marker; the real one does not.
     expect(screen.getByText("*")).toBeInTheDocument();
     expect(screen.getByLabelText("FinnGen")).toBeInTheDocument();
+  });
+
+  it("hides the temporarily-removed resources (gp2 / ibd_gwas / pgc) from the filter", () => {
+    const response = makeResponse([
+      makeCS({ resource: "finngen", trait: "A" }),
+      makeCS({ resource: "pgc", trait: "B" }),
+      makeCS({ resource: "gp2", trait: "C" }),
+    ]);
+    response.resources = [
+      { id: "finngen", resource: "FinnGen", dataTypes: ["gwas"], hasSummaryStats: true, hasCredibleSets: true, hasPseudoCredibleSets: false },
+      { id: "pgc", resource: "PGC", dataTypes: ["gwas"], hasSummaryStats: false, hasCredibleSets: true, hasPseudoCredibleSets: true },
+      { id: "gp2", resource: "GP2", dataTypes: ["gwas"], hasSummaryStats: false, hasCredibleSets: true, hasPseudoCredibleSets: true },
+    ];
+    useDataStore.getState().setNormalizedData(response);
+    render(<ResourceFilter isNotReadyYet={false} />);
+
+    expect(screen.getByLabelText("FinnGen")).toBeInTheDocument();
+    expect(screen.queryByText("PGC")).not.toBeInTheDocument();
+    expect(screen.queryByText("GP2")).not.toBeInTheDocument();
   });
 
   it("omits resources that have no credible sets (a no-op toggle would only mislead)", () => {
@@ -165,28 +184,28 @@ describe("ResourceFilter", () => {
   });
 
   it("first untoggle of a zero-row CS resource leaves the other displayed resources on", async () => {
-    // regression: gp2/covid_hgi/pgc have credible sets but no CS rows for the current variants, so
+    // regression: pseudo resources have credible sets but no CS rows for the current variants, so
     // seeding the filter only from present-in-data resources dropped them, untoggling several at once.
     const user = userEvent.setup();
     const response = makeResponse([makeCS({ resource: "finngen", trait: "A" })]);
     response.resources = [
       { id: "finngen", resource: "FinnGen", dataTypes: ["gwas"], hasSummaryStats: true, hasCredibleSets: true, hasPseudoCredibleSets: false },
-      { id: "gp2", resource: "gp2", dataTypes: ["gwas"], hasSummaryStats: false, hasCredibleSets: true, hasPseudoCredibleSets: true },
       { id: "covid_hgi", resource: "covid_hgi", dataTypes: ["gwas"], hasSummaryStats: false, hasCredibleSets: true, hasPseudoCredibleSets: true },
-      { id: "pgc", resource: "pgc", dataTypes: ["gwas"], hasSummaryStats: false, hasCredibleSets: true, hasPseudoCredibleSets: true },
+      { id: "finngen_ukbb", resource: "finngen_ukbb", dataTypes: ["gwas"], hasSummaryStats: false, hasCredibleSets: true, hasPseudoCredibleSets: true },
+      { id: "finngen_mvp_ukbb", resource: "finngen_mvp_ukbb", dataTypes: ["gwas"], hasSummaryStats: false, hasCredibleSets: true, hasPseudoCredibleSets: true },
     ];
     useDataStore.getState().setNormalizedData(response);
     render(<ResourceFilter isNotReadyYet={false} />);
 
     // pseudo toggles share the "*" accessible-name suffix; scope each query to its FormControlLabel.
-    const gp2Toggle = screen.getByRole("checkbox", { name: /^gp2/ });
-    await user.click(gp2Toggle);
+    const covidToggle = screen.getByRole("checkbox", { name: /^covid_hgi/ });
+    await user.click(covidToggle);
 
     const filter = useDataStore.getState().resourceFilter!;
-    expect(filter.has("gp2")).toBe(false);
+    expect(filter.has("covid_hgi")).toBe(false);
     expect(filter.has("finngen")).toBe(true);
-    expect(filter.has("covid_hgi")).toBe(true);
-    expect(filter.has("pgc")).toBe(true);
+    expect(filter.has("finngen_ukbb")).toBe(true);
+    expect(filter.has("finngen_mvp_ukbb")).toBe(true);
   });
 
   it("orders real CS resources first, then pseudo, each in preferred order with unknowns last", () => {
@@ -202,7 +221,7 @@ describe("ResourceFilter", () => {
     });
     response.resources = [
       r("ukbb", false),
-      r("pgc", true),
+      r("covid_hgi", true),
       r("finngen", false),
       r("finngen_ukbb", true),
       r("zzz_new_real", false),
@@ -227,7 +246,7 @@ describe("ResourceFilter", () => {
       "zzz_new_real",
       "finngen_mvp_ukbb",
       "finngen_ukbb",
-      "pgc",
+      "covid_hgi",
     ]);
   });
 

@@ -14,6 +14,7 @@ import { GnomadAfTooltip } from "../../tooltips/GnomadAfTooltip";
 import { GnomadConsequenceTooltip } from "../../tooltips/GnomadConsequenceTooltip";
 import GeneTooltip from "../../tooltips/GeneToolTip";
 import { PhenotypeTooltip } from "../../tooltips/PhenotypeTooltip";
+import { PhenoSumstatsArrow } from "../PhenoSumstatsLink";
 
 /**
  * Columns for the credible-set-native main variant table (refactor.md §4).
@@ -296,6 +297,12 @@ export const getVariantMainTableColumnsNormalized = (
         return (
           <Box sx={{ display: "flex", alignItems: "center", gap: "4px" }}>
             <DataTypeIcon dataType={cs.dataType} />
+            <PhenoSumstatsArrow
+              resource={cs.resource}
+              trait={cs.trait}
+              traitOriginal={cs.traitOriginal}
+              dataType={cs.dataType}
+            />
             <PhenotypeTooltip
               resource={cs.resource}
               phenocode={cs.traitOriginal}

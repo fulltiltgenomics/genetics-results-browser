@@ -115,7 +115,11 @@ const TableContainer = () => {
                 label="tissue and cell type summary"
                 disabled={!hasData}
               />
-              <Tab value="phenotype_search" label="phenotype search" disabled={!hasData} />
+              <Tab
+                value="phenotype_search"
+                label="single phenotype sumstats"
+                disabled={!hasData}
+              />
             </Tabs>
             <TabPanel value="variants" sx={{ padding: 0 }}>
               <Box display="flex" flexDirection="column" sx={{ paddingTop: "10px" }}>
@@ -155,8 +159,8 @@ const TableContainer = () => {
                 </Typography>
                 <Typography sx={{ marginBottom: "10px", paddingLeft: "20px" }}>
                   Traits ranked by how many of your input variants are in a credible set for them.
-                  Expand a row to see those variants, or use the search button to look up full
-                  summary statistics for the trait across all your variants.
+                  Expand a row to see those variants, or use the arrow before a trait to look up its
+                  full summary statistics across all your variants.
                 </Typography>
                 <Suspense fallback={tabFallback}>
                   <PhenotypeSummaryTable />
@@ -182,12 +186,12 @@ const TableContainer = () => {
             <TabPanel value="phenotype_search" sx={{ padding: 0 }}>
               <Box display="flex" flexDirection="column" sx={{ paddingTop: "10px" }}>
                 <Typography sx={{ marginBottom: "10px", paddingLeft: "20px", fontWeight: "bold" }}>
-                  Phenotype search
+                  Single phenotype sumstats
                 </Typography>
                 <Typography sx={{ marginBottom: "10px", paddingLeft: "20px" }}>
                   Look up the full summary statistics of your input variants for any one phenotype
                   with summary stats, and see which variants are in a credible set for it. Hand off
-                  from a row's search button in the Phenotype summary tab, or search here directly.
+                  from the arrow before a trait in the other tables, or search here directly.
                 </Typography>
                 <Suspense fallback={tabFallback}>
                   <Box sx={{ paddingLeft: "20px", paddingRight: "20px" }}>
