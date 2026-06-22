@@ -52,6 +52,10 @@ const fetchUpstreamText = async (path: string, opts: UpstreamOpts): Promise<stri
 
   const isString = typeof body === "string";
   const headers: Record<string, string> = {};
+  // authenticate these server-to-server calls when an API token is configured (prod: REQUIRE_AUTH).
+  // the API accepts the shared internal secret as a bearer token; in dev the token is unset and the
+  // dev API runs without auth, so the header is simply omitted.
+  if (config.apiToken) headers["authorization"] = `Bearer ${config.apiToken}`;
   let serialized: string | undefined;
   if (body !== undefined) {
     headers["content-type"] = contentType ?? (isString ? "text/plain" : "application/json");
