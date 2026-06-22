@@ -33,7 +33,11 @@ const InputForm = () => {
     () => debounce((value: string) => setPhenoQuery(value), 300),
     []
   );
-  const { data: phenoHits = [], isFetching: phenoFetching } = usePhenotypeSearch(phenoQuery);
+  // the annotation search needs phenotypes with CREDIBLE SETS (it annotates their lead variants), not
+  // summary stats — so it must include e.g. Open Targets, which has credible sets but no full sumstats.
+  const { data: phenoHits = [], isFetching: phenoFetching } = usePhenotypeSearch(phenoQuery, {
+    requireCredibleSets: true,
+  });
 
   // form has been submitted or the url has been changed
   useEffect(() => {

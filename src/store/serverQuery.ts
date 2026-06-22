@@ -1047,26 +1047,48 @@ interface PhenotypeSearchApiRow {
   resource: string;
   data_type: string;
   has_summary_stats?: boolean;
+  has_credible_sets?: boolean;
   sample_size?: number;
   n_cases?: number | null;
   n_controls?: number | null;
 }
 
+interface PhenotypeSearchOptions {
+  /** drop phenotypes without full summary stats (phenotype-search tab). */
+  requireSummaryStats?: boolean;
+  /** drop phenotypes without credible sets (main annotation search). */
+  requireCredibleSets?: boolean;
+}
+
 /**
- * Fuzzy phenotype autocomplete restricted to phenotypes that have full summary stats (refactor.md §5).
- * Debouncing is the caller's concern (it owns the input); this hook only gates on a usable query.
+ * Fuzzy phenotype autocomplete. Two use cases (refactor.md §5):
+ *   - main annotation search ({ requireCredibleSets: true }): annotates a phenotype's credible-set
+ *     lead variants, so it must offer every phenotype WITH CREDIBLE SETS — including Open Targets,
+ *     which has credible sets but no full summary stats.
+ *   - phenotype-search tab ({ requireSummaryStats: true }): looks up per-variant summary stats, so it
+ *     restricts to phenotypes that actually have them.
+ * Both flags map to the matching /search query params (a phenotype's capability is a per-(resource,
+ * data_type) fact the API precomputes). Debouncing is the caller's concern (it owns the input).
  */
 export const usePhenotypeSearch = (
-  query: string | undefined
+  query: string | undefined,
+  { requireSummaryStats = false, requireCredibleSets = false }: PhenotypeSearchOptions = {}
 ): UseQueryResult<PhenotypeSearchHit[], Error> => {
   return useQuery<PhenotypeSearchHit[]>({
-    queryKey: ["phenotype-search", query],
+    queryKey: ["phenotype-search", query, requireSummaryStats, requireCredibleSets],
     queryFn: async (): Promise<PhenotypeSearchHit[]> => {
       const { data } = await api.get<PhenotypeSearchApiRow[]>("/v1/search", {
         // limit defaults to 10 upstream; a phenotype word (e.g. "asthma") can match dozens of
-        // endpoints, so ask for the max (100). NOTE: has_summary_stats is applied AFTER the index
-        // takes its top-`limit`, so a high limit also yields more *with* summary stats.
-        params: { q: query, types: "phenotypes", has_summary_stats: true, limit: 100, format: "json" },
+        // endpoints, so ask for the max (100). NOTE: the capability filters are applied AFTER the
+        // index takes its top-`limit`, so a high limit also yields more matching rows.
+        params: {
+          q: query,
+          types: "phenotypes",
+          ...(requireSummaryStats ? { has_summary_stats: true } : {}),
+          ...(requireCredibleSets ? { has_credible_sets: true } : {}),
+          limit: 100,
+          format: "json",
+        },
       });
       return data.map((row) => ({
         code: row.code,
@@ -1074,6 +1096,7 @@ export const usePhenotypeSearch = (
         resource: row.resource,
         dataType: row.data_type as DatasetDataType,
         hasSummaryStats: row.has_summary_stats ?? false,
+        hasCredibleSets: row.has_credible_sets ?? false,
         sampleSize: row.sample_size,
         nCases: row.n_cases,
         nControls: row.n_controls,

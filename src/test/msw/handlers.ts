@@ -52,11 +52,23 @@ export const handlers = [
 
   // /search is shared by phenotype autocomplete and gene-coordinate lookup; branch on types=
   http.get(api("search"), ({ request }) => {
-    const types = new URL(request.url).searchParams.get("types");
-    if (types === "genes") {
+    const params = new URL(request.url).searchParams;
+    if (params.get("types") === "genes") {
       return HttpResponse.json(searchGenes);
     }
-    return HttpResponse.json(searchPhenotypes);
+    // mirror the API's has_summary_stats / has_credible_sets gates so the tab vs main search
+    // behaviors are exercised (tab requires sumstats; main requires credible sets)
+    let phenos = searchPhenotypes as Array<{
+      has_summary_stats?: boolean;
+      has_credible_sets?: boolean;
+    }>;
+    if (params.get("has_summary_stats") === "true") {
+      phenos = phenos.filter((p) => p.has_summary_stats);
+    }
+    if (params.get("has_credible_sets") === "true") {
+      phenos = phenos.filter((p) => p.has_credible_sets);
+    }
+    return HttpResponse.json(phenos);
   }),
 
   http.get(api("summary_stats/:resource/:dataType"), () => HttpResponse.json(summaryStats)),

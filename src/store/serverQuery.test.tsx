@@ -146,7 +146,7 @@ describe("useTraitNameMapping (GWAS phenocode -> phenostring map)", () => {
   });
 });
 
-describe("usePhenotypeSearch (phenotype autocomplete, has_summary_stats)", () => {
+describe("usePhenotypeSearch (phenotype autocomplete capability filters)", () => {
   it("stays idle for queries shorter than 2 chars", () => {
     const { result } = renderHook(() => usePhenotypeSearch("a"), { wrapper: makeWrapper() });
     expect(result.current.fetchStatus).toBe("idle");
@@ -164,8 +164,35 @@ describe("usePhenotypeSearch (phenotype autocomplete, has_summary_stats)", () =>
       resource: "finngen",
       dataType: "gwas",
       hasSummaryStats: true,
+      hasCredibleSets: true,
     });
     expect(hits[0].sampleSize).toBe(455643);
+  });
+
+  // main annotation search annotates credible-set lead variants: keep Open Targets (credible sets,
+  // no full sumstats), drop a sumstats-only phenotype (no credible sets to annotate).
+  it("requireCredibleSets=true keeps Open Targets but drops sumstats-only phenotypes", async () => {
+    const { result } = renderHook(() => usePhenotypeSearch("asthma", { requireCredibleSets: true }), {
+      wrapper: makeWrapper(),
+    });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    const hits = result.current.data!;
+    expect(hits.length).toBeGreaterThan(0);
+    expect(hits.every((h) => h.hasCredibleSets)).toBe(true);
+    expect(hits.some((h) => h.resource === "open_targets")).toBe(true);
+    expect(hits.some((h) => h.code === "SUMSTATS_ONLY_ASTHMA")).toBe(false);
+  });
+
+  // the phenotype-search tab needs summary stats, so it opts into that filter and Open Targets drops out.
+  it("requireSummaryStats=true restricts to phenotypes that have summary stats", async () => {
+    const { result } = renderHook(() => usePhenotypeSearch("asthma", { requireSummaryStats: true }), {
+      wrapper: makeWrapper(),
+    });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    const hits = result.current.data!;
+    expect(hits.length).toBeGreaterThan(0);
+    expect(hits.every((h) => h.hasSummaryStats)).toBe(true);
+    expect(hits.some((h) => h.resource === "open_targets")).toBe(false);
   });
 });
 

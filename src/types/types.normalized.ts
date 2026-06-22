@@ -409,6 +409,7 @@ export interface PhenotypeSearchHit {
   resource: string;
   dataType: DatasetDataType;
   hasSummaryStats: boolean;
+  hasCredibleSets: boolean;
   sampleSize?: number;
   nCases?: number | null;
   nControls?: number | null;

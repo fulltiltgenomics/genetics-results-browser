@@ -77,8 +77,11 @@ const PhenotypeSearchContainer = () => {
     []
   );
 
-  const { data: searchHits = [], isFetching: searchFetching } =
-    usePhenotypeSearch(debouncedQuery);
+  // this tab looks up per-variant summary stats, so restrict the autocomplete to phenotypes that have
+  // them (the main annotation search, by contrast, offers every credible-set phenotype).
+  const { data: searchHits = [], isFetching: searchFetching } = usePhenotypeSearch(debouncedQuery, {
+    requireSummaryStats: true,
+  });
 
   // preselect from the Phenotype Summary handoff (store.phenotypeSearchSelection). The handoff carries
   // the resource + (display) trait + trait_original; the data_type comes from normalizedData.phenotypes
