@@ -14,7 +14,7 @@ import { useDataStore } from "../../store/store";
 import { usePhenotypeSearch, useSummaryStats } from "../../store/serverQuery";
 import { PhenoSearchRow, PhenotypeSearchHit } from "../../types/types.normalized";
 import { naInfSort } from "../table/utils/sorting";
-import { pValRepr } from "../table/utils/tableutil";
+import { formatPhenotypeCounts, pValRepr } from "../table/utils/tableutil";
 import GeneTooltip from "../tooltips/GeneToolTip";
 import { PhenotypeSearchExportButton } from "../table/ExportToolbar";
 
@@ -303,18 +303,20 @@ const PhenotypeSearchContainer = () => {
             });
           }
         }}
-        renderOption={(props, option) => (
-          <li {...props} key={`${option.resource}|${option.code}`}>
-            <Box>
-              <Typography variant="body2">{option.name}</Typography>
-              <Typography variant="caption" color="text.secondary">
-                {option.code} · {option.resource} · {option.dataType}
-                {option.sampleSize != null ? ` · n=${option.sampleSize.toLocaleString()}` : ""}
-                {option.nCases != null ? ` · cases=${option.nCases.toLocaleString()}` : ""}
-              </Typography>
-            </Box>
-          </li>
-        )}
+        renderOption={(props, option) => {
+          const counts = formatPhenotypeCounts(option);
+          return (
+            <li {...props} key={`${option.resource}|${option.code}`}>
+              <Box>
+                <Typography variant="body2">{option.name}</Typography>
+                <Typography variant="caption" color="text.secondary">
+                  {option.code} · {option.resource} · {option.dataType}
+                  {counts ? ` · ${counts}` : ""}
+                </Typography>
+              </Box>
+            </li>
+          );
+        }}
         renderInput={(params) => (
           <TextField
             {...params}

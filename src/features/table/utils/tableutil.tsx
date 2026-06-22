@@ -1,4 +1,5 @@
 import { TableData } from "../../../types/types";
+import { PhenotypeSearchHit } from "../../../types/types.normalized";
 
 // shown on the "*" marker in the resource filter and the greyed PIP cells in the CS table. pseudo
 // credible sets are approximate (LD + association based), not formal fine-mapping, so their PIPs are
@@ -65,6 +66,18 @@ export const makeTraitNameResolver =
 // separator -> ", " (e.g. "tibial_nerve|naive" -> "tibial nerve, naive"). display-only.
 export const formatTissue = (label: string): string =>
   label.replace(/_/g, " ").replace(/\|/g, ", ");
+
+// counts line for a phenotype-search option: "12,345 cases, 67,890 controls" when both are known
+// (case/control study), else "100,000 samples" (continuous trait / no control count), else "".
+export const formatPhenotypeCounts = (
+  hit: Pick<PhenotypeSearchHit, "sampleSize" | "nCases" | "nControls">
+): string => {
+  if (hit.nCases != null && hit.nControls != null) {
+    return `${hit.nCases.toLocaleString()} cases, ${hit.nControls.toLocaleString()} controls`;
+  }
+  if (hit.sampleSize != null) return `${hit.sampleSize.toLocaleString()} samples`;
+  return "";
+};
 
 // TODO if the threshold is the same across resources, just show the number
 export const renderPThreshold = (clientData: TableData, thres: number): string => {

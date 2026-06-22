@@ -14,6 +14,7 @@ import CreateIcon from "@mui/icons-material/Create";
 import { useDataStore } from "../../store/store";
 import { usePhenotypeSearch } from "../../store/serverQuery";
 import { PhenotypeSearchHit } from "../../types/types.normalized";
+import { formatPhenotypeCounts } from "../table/utils/tableutil";
 import config from "../../config.json";
 import { compressToEncodedURIComponent, decompressFromEncodedURIComponent } from "lz-string";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -198,18 +199,20 @@ const InputForm = () => {
               handleSubmit(`pheno:${value.resource}:${value.code}`);
             }
           }}
-          renderOption={(props, option) => (
-            <li {...props} key={`${option.resource}|${option.code}`}>
-              <Box>
-                <Typography variant="body2">{option.name}</Typography>
-                <Typography variant="caption" color="text.secondary">
-                  {option.code} · {option.resource} · {option.dataType}
-                  {option.sampleSize != null ? ` · n=${option.sampleSize.toLocaleString()}` : ""}
-                  {option.nCases != null ? ` · cases=${option.nCases.toLocaleString()}` : ""}
-                </Typography>
-              </Box>
-            </li>
-          )}
+          renderOption={(props, option) => {
+            const counts = formatPhenotypeCounts(option);
+            return (
+              <li {...props} key={`${option.resource}|${option.code}`}>
+                <Box>
+                  <Typography variant="body2">{option.name}</Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {option.code} · {option.resource} · {option.dataType}
+                    {counts ? ` · ${counts}` : ""}
+                  </Typography>
+                </Box>
+              </li>
+            );
+          }}
           renderInput={(params) => (
             <TextField
               {...params}
