@@ -37,6 +37,10 @@ export type ExportRow = Record<string, Cell>;
 
 const shortHash = (s: string): string => SHA256(s).toString().substring(0, 7);
 
+// internal variant ids are "chr:pos:ref:alt"; the legacy downloads used "chr-pos-ref-alt", so emit
+// dash form everywhere a variant id reaches a TSV (kept for backward-compatible parsers).
+const toDashVariant = (v: string): string => v.replace(/:/g, "-");
+
 const tsvConfig = (filename: string) =>
   mkConfig({
     fieldSeparator: "\t",
@@ -71,7 +75,7 @@ const afKey = (pop: string | undefined): string => `${pop || "global"}_af`;
 
 // the five variant-identity columns shared by the variant-level and the flattened detail exports.
 const variantIdentity = (v: VariantResult, pop: string | undefined): ExportRow => ({
-  variant: v.variant,
+  variant: toDashVariant(v.variant),
   rsid: v.annotation.rsid ?? NA,
   [afKey(pop)]: afValue(v.gnomad, pop),
   most_severe: cleanConsequence(v.annotation.consequence ?? "") || NA,
@@ -244,7 +248,7 @@ export const buildDataTypeRows = (
 ): ExportRow[] =>
   rows.map((r) => {
     const row: ExportRow = {
-      variant: r.variant,
+      variant: toDashVariant(r.variant),
       rsid: r.rsid ?? NA,
       [afKey(selectedPopulation)]: afValue(r.gnomad, selectedPopulation),
       most_severe: cleanConsequence(r.consequence ?? "") || NA,
@@ -342,10 +346,12 @@ export const buildPhenoBetaGridRows = (
       let nonNA = 0;
       for (const vid of variantIds) {
         const beta = a.betas.get(vid);
+        // colon `vid` indexes the betas map; the emitted column header is the legacy dash form.
+        const col = toDashVariant(vid);
         if (beta === undefined) {
-          row[vid] = NA;
+          row[col] = NA;
         } else {
-          row[vid] = beta;
+          row[col] = beta;
           nonNA += 1;
         }
       }
@@ -439,7 +445,7 @@ export const exportTissueWithVariants = (
 
 export const buildPhenotypeSearchRows = (rows: PhenoSearchRow[]): ExportRow[] =>
   rows.map((r) => ({
-    variant: r.variant,
+    variant: toDashVariant(r.variant),
     rsid: r.rsid ?? NA,
     af: r.af === null || Number.isNaN(r.af) ? NA : r.af,
     most_severe: cleanConsequence(r.consequence ?? "") || NA,

@@ -40,7 +40,9 @@ export const afRepr = (af: string): string => {
 };
 
 export const cleanConsequence = (consequence: string): string => {
-  return consequence.replace(/_variant/g, "").replace(/_/g, " ");
+  // strip the "variant" suffix whether the source separates words with "_" or " "
+  // (the credible-set data is space-separated, e.g. "missense variant" -> "missense")
+  return consequence.replace(/[ _]variant/g, "").replace(/_/g, " ");
 };
 
 // display formatter for trait / phenotype names: underscores -> spaces across the whole UI

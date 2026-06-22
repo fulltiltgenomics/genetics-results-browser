@@ -89,7 +89,7 @@ test.describe("annotation table downloads", () => {
       "beta",
     ]);
     expect(variants.rows).toHaveLength(1);
-    expect(variants.cell(0, "variant")).toBe("19:44908684:T:C");
+    expect(variants.cell(0, "variant")).toBe("19-44908684-T-C");
     expect(variants.cell(0, "rsid")).toBe("rs429358");
     expect(variants.cell(0, "most_severe_gene")).toBe("APOE");
     // traits column is a positive integer; up + down <= total distinct traits
@@ -119,7 +119,7 @@ test.describe("annotation table downloads", () => {
     ]);
     expect(cs.rows.length).toBeGreaterThan(0);
     // every row is for the queried variant, and the type is from the credible-set vocabulary
-    expect(new Set(column(cs, "variant"))).toEqual(new Set(["19:44908684:T:C"]));
+    expect(new Set(column(cs, "variant"))).toEqual(new Set(["19-44908684-T-C"]));
     const validTypes = new Set(["GWAS", "eQTL", "pQTL", "sQTL", "caQTL", "edQTL", "metaboQTL"]);
     for (const t of column(cs, "type")) expect(validTypes.has(t)).toBe(true);
     for (const p of column(cs, "pip")) if (p !== "NA") expect(Number(p)).not.toBeNaN();
@@ -188,7 +188,7 @@ test.describe("annotation table downloads", () => {
       "pip",
     ]);
     expect(tissueCWith.rows.length).toBeGreaterThan(0);
-    expect(new Set(column(tissueCWith, "variant"))).toEqual(new Set(["19:44908684:T:C"]));
+    expect(new Set(column(tissueCWith, "variant"))).toEqual(new Set(["19-44908684-T-C"]));
 
     // ── Phenotype search: pick Alzheimer's (finngen GWAS, sumstats-capable) ─────
     await page.getByRole("tab", { name: /phenotype search/i }).click();
@@ -215,7 +215,7 @@ test.describe("annotation table downloads", () => {
     expect(ps.rows.length).toBeGreaterThan(0);
     for (const v of column(ps, "in_credible_set")) expect(["yes", "no"]).toContain(v);
     // APOE is THE Alzheimer's variant -> its summary-stat row must be present
-    expect(column(ps, "variant")).toContain("19:44908684:T:C");
+    expect(column(ps, "variant")).toContain("19-44908684-T-C");
   });
 
   test("filter reflected in download: PIP threshold shrinks the credible-set export", async ({
@@ -301,10 +301,10 @@ test.describe("annotation table downloads", () => {
     // beta grid: one column per input variant, values are beta or NA
     const grid = await download(page, "download variant/phenotype beta grid");
     expect(grid.headers[0]).toBe("phenotype");
-    expect(grid.headers).toContain("19:44908684:T:C");
-    expect(grid.headers).toContain("19:45869791:ATT:A");
+    expect(grid.headers).toContain("19-44908684-T-C");
+    expect(grid.headers).toContain("19-45869791-ATT-A");
     expect(grid.rows.length).toBeGreaterThan(0);
-    for (const v of column(grid, "19:44908684:T:C"))
+    for (const v of column(grid, "19-44908684-T-C"))
       expect(v === "NA" || !Number.isNaN(Number(v))).toBe(true);
   });
 });

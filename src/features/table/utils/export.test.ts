@@ -91,7 +91,7 @@ describe("buildVariantMainRows", () => {
     const rows = buildVariantMainRows([makeVariant()], undefined, traitName, true, false, false);
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({
-      variant: "19:44908684:T:C",
+      variant: "19-44908684-T-C",
       rsid: "rs429358",
       global_af: 0.18,
       most_severe: "missense",
@@ -132,7 +132,7 @@ describe("buildVariantMainRows", () => {
       "p-value",
       "beta",
     ]);
-    expect(lines[1].split("\t")[0]).toBe("19:44908684:T:C");
+    expect(lines[1].split("\t")[0]).toBe("19-44908684-T-C");
   });
 });
 
@@ -147,7 +147,7 @@ describe("buildCredibleSetRows", () => {
     const rows = buildCredibleSetRows([v], undefined, traitName, 1.5);
     expect(rows).toHaveLength(2);
     expect(rows[0]).toMatchObject({
-      variant: "19:44908684:T:C",
+      variant: "19-44908684-T-C",
       type: "GWAS",
       resource: "finngen",
       dataset: "FinnGen_kanta",
@@ -186,7 +186,7 @@ describe("buildDataTypeRows", () => {
     ];
     const rows = buildDataTypeRows(summary, undefined);
     expect(rows[0]).toMatchObject({
-      variant: "19:44908684:T:C",
+      variant: "19-44908684-T-C",
       most_severe: "missense",
       GWAS_CS: 2,
       eQTL_CS: 1,
@@ -262,10 +262,10 @@ describe("buildPhenoBetaGridRows", () => {
     );
     // T2D covers both variants -> sorts first; LDL covers one
     expect(rows[0].phenotype).toBe("finngen:T2D_ORIG:Type 2 diabetes");
-    expect(rows[0]["19:1:A:T"]).toBe(0.5);
-    expect(rows[0]["19:2:A:T"]).toBe(-0.3);
-    expect(rows[1]["19:1:A:T"]).toBe("NA");
-    expect(rows[1]["19:2:A:T"]).toBe(0.7);
+    expect(rows[0]["19-1-A-T"]).toBe(0.5);
+    expect(rows[0]["19-2-A-T"]).toBe(-0.3);
+    expect(rows[1]["19-1-A-T"]).toBe("NA");
+    expect(rows[1]["19-2-A-T"]).toBe(0.7);
   });
 });
 
@@ -293,7 +293,7 @@ describe("tissue exports", () => {
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({
       tissue: "blood",
-      variant: "19:44908684:T:C",
+      variant: "19-44908684-T-C",
       type: "eQTL",
       dataset: "QTD1",
       trait: "APOE",
@@ -334,7 +334,7 @@ describe("buildPhenotypeSearchRows", () => {
     ];
     const rows = buildPhenotypeSearchRows(searchRows);
     expect(rows[0]).toMatchObject({
-      variant: "19:1:A:T",
+      variant: "19-1-A-T",
       most_severe: "missense",
       in_credible_set: "yes",
       pip: 0.95,
