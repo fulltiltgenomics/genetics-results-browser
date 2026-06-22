@@ -1,13 +1,12 @@
 import QueryVariantInfo from "../input/QueryVariantInfo";
 import InputForm from "../input/InputForm";
 import { useDataStore } from "../../store/store";
-import { Box, CircularProgress, Tab, Tabs, Typography, useTheme } from "@mui/material";
+import { Box, CircularProgress, Tab, Tabs, Tooltip, Typography } from "@mui/material";
 import TabPanel from "@mui/lab/TabPanel";
 import { TabContext } from "@mui/lab";
 import GlobalControlContainer from "../controls/GlobalControlContainer";
 import { useNormalizedQuery } from "../../store/serverQuery";
 import { lazy, Suspense, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
 
 // import factories kept named so we can BOTH lazy() them and preload the chunks (see the preload
 // effect): warming the chunks means the first switch to a tab doesn't flash the Suspense fallback,
@@ -30,8 +29,6 @@ const TableContainer = () => {
   const setNormalizedData = useDataStore((state) => state.setNormalizedData);
   const normalizedData = useDataStore((state) => state.normalizedData);
   const variantInput = useDataStore((state) => state.variantInput);
-  const navigate = useNavigate();
-  const theme = useTheme();
   // stage-1 fetch from the BFF; stage-2 filtering happens client-side in the store (refactor.md §1)
   const { data } = useNormalizedQuery(variantInput);
   useEffect(() => {
@@ -71,13 +68,15 @@ const TableContainer = () => {
   return (
     <>
       {isVariantPage && (
-        // top-level nav menu: the current section in bold, the other views as menu links
+        // top-level nav menu: the current section in bold, the other views as menu links. Gene view
+        // and LD lookup are not ready yet — greyed out and disabled with a "coming soon" tooltip.
         <Box
           sx={{
             display: "flex",
             flexDirection: "row",
             alignItems: "center",
             gap: 2.5,
+            mt: 3,
             mb: "20px",
             pb: 1,
             borderBottom: 1,
@@ -87,21 +86,17 @@ const TableContainer = () => {
             Variant table
           </Typography>
           {[
-            { label: "Gene view", to: "/gene" },
-            { label: "LD lookup", to: "/ld" },
-            { label: "About", to: "/about" },
+            { label: "Gene view" },
+            { label: "LD lookup" },
           ].map((item) => (
-            <Typography
-              key={item.to}
-              variant="h6"
-              onClick={() => navigate(item.to)}
-              sx={{
-                cursor: "pointer",
-                color: theme.palette.primary.main,
-                "&:hover": { textDecoration: "underline" },
-              }}>
-              {item.label}
-            </Typography>
+            <Tooltip key={item.label} title="Coming soon">
+              <Typography
+                variant="h6"
+                aria-disabled="true"
+                sx={{ color: "text.disabled", cursor: "not-allowed" }}>
+                {item.label}
+              </Typography>
+            </Tooltip>
           ))}
         </Box>
       )}
