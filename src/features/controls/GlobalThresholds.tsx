@@ -51,7 +51,10 @@ const GlobalThresholds = (props: { isNotReadyYet: boolean }) => {
         flexDirection: "column",
         paddingLeft: "20px",
         paddingRight: "20px",
-        justifyContent: "space-between",
+        // keep the two thresholds stacked adjacently at the top, not spread to the column's full
+        // (sibling-stretched) height — so p-value sits right below PIP.
+        justifyContent: "flex-start",
+        gap: "8px",
       }}>
       <TextField
         id="pip_thres"
