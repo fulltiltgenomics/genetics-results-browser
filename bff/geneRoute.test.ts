@@ -10,11 +10,24 @@ const app = createApp();
 const json = (body: unknown, status = 200): Response =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 
+// credible_sets_by_gene is now requested as format=tsv, so the stub serves TSV (serialized from the
+// JSON fixture the way the API does: header from the first row, NA for null). datasets stays JSON.
+const toTsv = (rows: Array<Record<string, unknown>>): string => {
+  if (rows.length === 0) return "";
+  const header = Object.keys(rows[0]);
+  const body = rows.map((r) =>
+    header.map((h) => (r[h] === null || r[h] === undefined ? "NA" : String(r[h]))).join("\t")
+  );
+  return [header.join("\t"), ...body].join("\n") + "\n";
+};
+const tsv = (rows: Array<Record<string, unknown>>, status = 200): Response =>
+  new Response(toTsv(rows), { status, headers: { "content-type": "text/tab-separated-values" } });
+
 // route the stubbed fetch by upstream path: the gene path fans out to credible_sets_by_gene + datasets
 const routeFetch = () =>
   vi.fn(async (url: string | URL, _init?: RequestInit) => {
     const u = String(url);
-    if (u.includes("/v1/credible_sets_by_gene")) return json(csByGene);
+    if (u.includes("/v1/credible_sets_by_gene")) return tsv(csByGene);
     if (u.includes("/v1/datasets")) return json(datasets);
     return json({}, 404);
   });

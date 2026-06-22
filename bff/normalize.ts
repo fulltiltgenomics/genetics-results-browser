@@ -19,9 +19,13 @@ import type {
 import { isCoding, isLoF } from "./coding.js";
 import { maybeExpandPhenotypeLeads, maybeExpandVariantSet, resolveInput } from "./inputParse.js";
 import { fetchBatched, Semaphore, withRetry } from "./batch.js";
-import { upstreamJson, UpstreamError } from "./upstream.js";
+import { upstreamJson, upstreamTsv, UpstreamError } from "./upstream.js";
 
-/* ── raw upstream row shapes (snake_case, as captured in src/test/fixtures/*.json) ── */
+/* ── raw upstream row shapes ──
+ * These come from the API's native TSV (format=tsv), so every cell is a string (or null for an "NA"
+ * cell / absent column). Numeric fields are coerced where consumed (toNum / Number); see normalizeCsRow
+ * etc. /datasets and /trait_name_mapping stay JSON (nested / dict-shaped) and keep their typed shapes.
+ */
 
 interface RawCsRow {
   resource: string;
@@ -31,18 +35,18 @@ interface RawCsRow {
   trait: string;
   trait_original: string;
   cell_type: string | null;
-  chr: number;
-  pos: number;
+  chr: string;
+  pos: string;
   ref: string;
   alt: string;
-  mlog10p: number | null;
-  beta: number | null;
-  se: number | null;
-  pip: number;
+  mlog10p: string | null;
+  beta: string | null;
+  se: string | null;
+  pip: string | null;
   cs_id: string;
-  cs_size: number;
-  cs_min_r2: number;
-  aaf: number;
+  cs_size: string | null;
+  cs_min_r2: string | null;
+  aaf: string | null;
   most_severe: string;
   gene_most_severe: string | null;
   variant?: string; // sometimes present; otherwise derive from chr/pos/ref/alt
@@ -61,9 +65,9 @@ interface RawAnnotationRow {
 
 interface RawNearestGene {
   gene_name: string;
-  distance: number;
-  gene_start: number;
-  gene_end: number;
+  distance: string;
+  gene_start: string;
+  gene_end: string;
   gene_strand: "+" | "-";
   variant: string; // dash form, e.g. "19-44908684-T-C"
 }
@@ -157,13 +161,13 @@ const normalizeCsRow = (r: RawCsRow): CredibleSetMembership => ({
   traitOriginal: r.trait_original,
   quantLevel: parseQuantLevel(r.trait_original),
   cellType: r.cell_type,
-  chr: r.chr,
-  pos: r.pos,
+  chr: Number(r.chr),
+  pos: Number(r.pos),
   ref: r.ref,
   alt: r.alt,
   csId: r.cs_id,
-  csSize: r.cs_size,
-  csMinR2: r.cs_min_r2,
+  csSize: toNum(r.cs_size) ?? 0,
+  csMinR2: toNum(r.cs_min_r2) ?? 0,
   // keep se/mlog10p null where upstream sends null (open_targets rows); coerce beta to a number
   mlog10p: toNum(r.mlog10p),
   beta: toNum(r.beta) ?? 0,
@@ -194,9 +198,9 @@ const normalizeAnnotation = (r: RawAnnotationRow | undefined, fallbackFromCs?: R
 
 const normalizeNearestGene = (r: RawNearestGene): NearestGene => ({
   geneName: r.gene_name,
-  distance: r.distance,
-  geneStart: r.gene_start,
-  geneEnd: r.gene_end,
+  distance: Number(r.distance),
+  geneStart: Number(r.gene_start),
+  geneEnd: Number(r.gene_end),
   geneStrand: r.gene_strand,
 });
 
@@ -416,9 +420,9 @@ const PEAK_RESOLVE_CAP = 200; // bound peak_to_genes fan-out on pathological caQ
 
 interface RawGeneRegionRow {
   gene_name: string;
-  chrom: number;
-  gene_start: number;
-  gene_end: number;
+  chrom: string;
+  gene_start: string;
+  gene_end: string;
   gene_strand: "+" | "-";
   hgnc_symbol?: string | null;
   hgnc_prev_symbol?: string | null;
@@ -484,16 +488,15 @@ const attachGeneTargets = async (variants: VariantResult[]): Promise<void> => {
   await Promise.all([
     ...intervals.map((iv) =>
       sem.run(async () => {
-        const rows = await upstreamJson<RawGeneRegionRow[]>(
-          `/v1/genes_in_region/${iv.chrom}/${Math.max(1, Math.floor(iv.start))}/${Math.ceil(iv.end)}`,
-          { query: { format: "json" } }
+        const rows = await upstreamTsv<RawGeneRegionRow>(
+          `/v1/genes_in_region/${iv.chrom}/${Math.max(1, Math.floor(iv.start))}/${Math.ceil(iv.end)}`
         ).catch(() => null);
         for (const g of rows ?? []) {
           const target: GeneTarget = {
             symbol: g.gene_name,
-            chrom: g.chrom,
-            start: g.gene_start,
-            end: g.gene_end,
+            chrom: Number(g.chrom),
+            start: Number(g.gene_start),
+            end: Number(g.gene_end),
             strand: g.gene_strand,
           };
           // index by gene_name plus HGNC current/previous symbols so a QTL trait symbol from any
@@ -574,35 +577,34 @@ export const normalizeVariantList = async (query: string): Promise<NormalizedRes
     fetchBatched(variantIds, CHUNK_SIZE, sem, (c) => withRetry(() => call(c), 3, 400, retryServerErrors));
 
   // independent fan-out runs concurrently; datasets/resources are query-independent metadata.
+  // batch fan-out responses come back as the API's native TSV (format=tsv) — see upstreamTsv. only the
+  // request BODY stays JSON (the API's POST endpoints take a JSON body); the RESPONSE is TSV.
   const [csRows, annoRows, gnomadRows, genesRows, datasetsRaw, traitNameMap] = await Promise.all([
     batched((c) =>
-      upstreamJson<RawCsRow[]>("/v1/credible_sets_by_variant", {
+      upstreamTsv<RawCsRow>("/v1/credible_sets_by_variant", {
         method: "POST",
-        query: { format: "json" },
         body: { variants: c.join("\n") }, // newline STRING body
         timeoutMs: batchTimeoutMs,
       })
     ),
     batched((c) =>
-      upstreamJson<RawAnnotationRow[]>("/v1/variant_annotation/finngen", {
+      upstreamTsv<RawAnnotationRow>("/v1/variant_annotation/finngen", {
         method: "POST",
-        query: { format: "json" },
         body: { variants: c }, // JSON ARRAY exception
         timeoutMs: batchTimeoutMs,
       })
     ),
     batched((c) =>
-      upstreamJson<RawGnomadRow[]>("/v1/variant_annotation/gnomad", {
+      upstreamTsv<RawGnomadRow>("/v1/variant_annotation/gnomad", {
         method: "POST",
-        query: { format: "json" },
         body: { variants: c }, // JSON ARRAY body, same as the finngen source
         timeoutMs: batchTimeoutMs,
       })
     ),
     batched((c) =>
-      upstreamJson<RawNearestGene[]>("/v1/nearest_genes", {
+      upstreamTsv<RawNearestGene>("/v1/nearest_genes", {
         method: "POST",
-        query: { format: "json", n: 1 },
+        query: { n: 1 },
         body: { variants: c.join("\n") }, // newline STRING body
         timeoutMs: batchTimeoutMs,
       })
@@ -705,8 +707,8 @@ export const normalizeGene = async (
   window?: number
 ): Promise<NormalizedResponse> => {
   const [csRaw, datasetsRaw, traitNameMap] = await Promise.all([
-    upstreamJson<RawCsRow[]>(`/v1/credible_sets_by_gene/${encodeURIComponent(gene)}`, {
-      query: { format: "json", window },
+    upstreamTsv<RawCsRow>(`/v1/credible_sets_by_gene/${encodeURIComponent(gene)}`, {
+      query: { window },
     }),
     upstreamJson<RawDataset[]>("/v1/datasets"),
     getTraitNameMap(),

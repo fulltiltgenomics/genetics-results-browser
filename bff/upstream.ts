@@ -38,12 +38,13 @@ const buildUrl = (path: string, query?: UpstreamOpts["query"]): string => {
 };
 
 /**
- * Typed upstream call used by the stage-1 normalize routes. Unlike the generic passthrough this
+ * Shared upstream fetch used by the stage-1 normalize routes. Unlike the generic passthrough this
  * does NOT fold request cookies/headers from the browser hop — these are server-to-server calls
  * with their own lifecycle, so we avoid the multi-cookie header-folding bug from the .8 review.
- * Adds an AbortController timeout and explicit empty/non-JSON body handling.
+ * Adds an AbortController timeout. Returns the raw response text, or null for an empty body
+ * (a 200 with no body or an HTML error page) so callers can default sensibly.
  */
-export const upstreamJson = async <T>(path: string, opts: UpstreamOpts = {}): Promise<T> => {
+const fetchUpstreamText = async (path: string, opts: UpstreamOpts): Promise<string | null> => {
   const { method = "GET", body, query, timeoutMs = DEFAULT_TIMEOUT_MS, contentType } = opts;
 
   const controller = new AbortController();
@@ -77,13 +78,59 @@ export const upstreamJson = async <T>(path: string, opts: UpstreamOpts = {}): Pr
     throw new UpstreamError(`upstream ${res.status} for ${path}`, res.status, path);
   }
 
-  // explicit empty/non-JSON handling: a 200 with an empty body (or HTML error page) must not
-  // throw a raw SyntaxError — return null so callers can default sensibly
   const text = await res.text();
-  if (text.trim() === "") return null as T;
+  return text.trim() === "" ? null : text;
+};
+
+/** Typed JSON upstream call. Used for non-tabular endpoints (/datasets, /trait_name_mapping). */
+export const upstreamJson = async <T>(path: string, opts: UpstreamOpts = {}): Promise<T> => {
+  const text = await fetchUpstreamText(path, opts);
+  if (text === null) return null as T;
   try {
     return JSON.parse(text) as T;
   } catch {
     throw new UpstreamError(`upstream returned non-JSON for ${path}`, 502, path);
   }
+};
+
+/**
+ * Tabular upstream call: requests the API's native TSV (format=tsv) and parses it into row objects
+ * keyed by the header columns. The genetics-results-api serves tabix output natively as TSV, so
+ * format=tsv lets the API stream the bytes straight through, skipping the per-row dict-building +
+ * JSON serialization the format=json path does (see range_response / tsv_stream_to_list in the API)
+ * — and this side parses with a tab split instead of JSON.parse. A present-but-"NA" cell becomes
+ * null (matching the JSON path's None -> null); a column absent from the header is simply absent.
+ */
+export const upstreamTsv = async <T = Record<string, string | null>>(
+  path: string,
+  opts: UpstreamOpts = {}
+): Promise<T[]> => {
+  const text = await fetchUpstreamText(path, {
+    ...opts,
+    query: { ...opts.query, format: "tsv" },
+  });
+  if (text === null) return [];
+  return parseTsv(text) as unknown as T[];
+};
+
+/** Parse a TSV body (header line + rows) into row objects keyed by column name; "NA" -> null. */
+export const parseTsv = (text: string): Array<Record<string, string | null>> => {
+  const lines = text.split("\n");
+  let i = 0;
+  while (i < lines.length && lines[i].trim() === "") i++;
+  if (i >= lines.length) return [];
+  const header = lines[i].split("\t").map((h) => (h.startsWith("#") ? h.slice(1) : h));
+  const rows: Array<Record<string, string | null>> = [];
+  for (let j = i + 1; j < lines.length; j++) {
+    if (lines[j].length === 0) continue;
+    const fields = lines[j].split("\t");
+    const row: Record<string, string | null> = {};
+    for (let k = 0; k < header.length; k++) {
+      const v = fields[k];
+      // present-but-NA -> null (mirrors the API JSON path); missing trailing field -> null too
+      row[header[k]] = v === undefined || v === "NA" ? null : v;
+    }
+    rows.push(row);
+  }
+  return rows;
 };

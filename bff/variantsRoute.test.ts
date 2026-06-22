@@ -13,16 +13,30 @@ const app = createApp();
 const json = (body: unknown, status = 200): Response =>
   new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 
+// the BFF now requests format=tsv for the batch fan-out endpoints, so the stubbed upstream must serve
+// TSV for those. serialize a JSON fixture array the way the API does (header from the first row, NA for
+// null) so the fixtures stay single-sourced and round-trip back through the BFF's parseTsv.
+const toTsv = (rows: Array<Record<string, unknown>>): string => {
+  if (rows.length === 0) return "";
+  const header = Object.keys(rows[0]);
+  const body = rows.map((r) =>
+    header.map((h) => (r[h] === null || r[h] === undefined ? "NA" : String(r[h]))).join("\t")
+  );
+  return [header.join("\t"), ...body].join("\n") + "\n";
+};
+const tsv = (rows: Array<Record<string, unknown>>, status = 200): Response =>
+  new Response(toTsv(rows), { status, headers: { "content-type": "text/tab-separated-values" } });
+
 // route the stubbed fetch by upstream path so each fan-out call gets its matching fixture
 const routeFetch = (overrides: Record<string, () => Response> = {}) =>
   vi.fn(async (url: string | URL, _init?: RequestInit) => {
     const u = String(url);
     if (overrides.rsid && u.includes("/v1/rsid/variants")) return overrides.rsid();
     if (u.includes("/v1/rsid/variants")) return json([]);
-    if (u.includes("/v1/credible_sets_by_variant")) return json(csBatch);
-    if (u.includes("/v1/variant_annotation/gnomad")) return json(annoGnomad);
-    if (u.includes("/v1/variant_annotation/finngen")) return json(annoFinngen);
-    if (u.includes("/v1/nearest_genes")) return json(nearestGenes);
+    if (u.includes("/v1/credible_sets_by_variant")) return tsv(csBatch);
+    if (u.includes("/v1/variant_annotation/gnomad")) return tsv(annoGnomad);
+    if (u.includes("/v1/variant_annotation/finngen")) return tsv(annoFinngen);
+    if (u.includes("/v1/nearest_genes")) return tsv(nearestGenes);
     if (u.includes("/v1/datasets")) return json(datasets);
     return json({}, 404);
   });
@@ -259,10 +273,10 @@ describe("POST /v1/results — named variant set expansion", () => {
           ? json({ name: "ExampleSet", variants })
           : json({ detail: "Unknown variant set" }, status);
       }
-      if (u.includes("/v1/credible_sets_by_variant")) return json(csBatch);
-      if (u.includes("/v1/variant_annotation/gnomad")) return json(annoGnomad);
-      if (u.includes("/v1/variant_annotation/finngen")) return json(annoFinngen);
-      if (u.includes("/v1/nearest_genes")) return json(nearestGenes);
+      if (u.includes("/v1/credible_sets_by_variant")) return tsv(csBatch);
+      if (u.includes("/v1/variant_annotation/gnomad")) return tsv(annoGnomad);
+      if (u.includes("/v1/variant_annotation/finngen")) return tsv(annoFinngen);
+      if (u.includes("/v1/nearest_genes")) return tsv(nearestGenes);
       if (u.includes("/v1/datasets")) return json(datasets);
       return json({}, 404);
     });
@@ -317,10 +331,10 @@ describe("POST /v1/results — phenotype credible-set lead expansion", () => {
       if (u.includes("/v1/credible_sets_by_phenotype_leads/")) {
         return status === 200 ? json(rows) : json({ detail: "not found" }, status);
       }
-      if (u.includes("/v1/credible_sets_by_variant")) return json(csBatch);
-      if (u.includes("/v1/variant_annotation/gnomad")) return json(annoGnomad);
-      if (u.includes("/v1/variant_annotation/finngen")) return json(annoFinngen);
-      if (u.includes("/v1/nearest_genes")) return json(nearestGenes);
+      if (u.includes("/v1/credible_sets_by_variant")) return tsv(csBatch);
+      if (u.includes("/v1/variant_annotation/gnomad")) return tsv(annoGnomad);
+      if (u.includes("/v1/variant_annotation/finngen")) return tsv(annoFinngen);
+      if (u.includes("/v1/nearest_genes")) return tsv(nearestGenes);
       if (u.includes("/v1/datasets")) return json(datasets);
       return json({}, 404);
     });
