@@ -153,6 +153,33 @@ describe("classifyCisTrans", () => {
     expect(classifyCisTrans(cs, 1.5)).toBe("trans");
     expect(classifyCisTrans(cs, 6)).toBe("cis"); // 5.09 Mb away -> within ±6 Mb
   });
+
+  // caQTL is classified against the PEAK (parsed from the trait), not the linked genes — a variant
+  // near the peak is cis even when peak_to_genes resolved no gene (the original bug).
+  it("caQTL: cis when the variant is near the peak even with no resolved gene", () => {
+    // variant chr19:44908684; peak ~1.9 kb upstream -> cis at any sane window
+    const cs = makeCS({ dataType: "caQTL", trait: "chr19-44906317-44906816", geneTargets: undefined });
+    expect(classifyCisTrans(cs, 1.5)).toBe("cis");
+  });
+
+  it("caQTL: trans when the peak is beyond the window or on another chromosome", () => {
+    expect(
+      classifyCisTrans(makeCS({ dataType: "caQTL", trait: "chr19-50000000-50001000" }), 1.5)
+    ).toBe("trans"); // ~5.09 Mb away
+    expect(classifyCisTrans(makeCS({ dataType: "caQTL", trait: "chr7-44908000-44909000" }), 1.5)).toBe(
+      "trans"
+    ); // wrong chromosome
+  });
+
+  it("caQTL: linked genes do NOT drive cis/trans (peak position wins)", () => {
+    // a far linked gene must not flip a near-peak caQTL to trans
+    const cs = makeCS({ dataType: "caQTL", trait: "chr19-44906317-44906816", geneTargets: [far] });
+    expect(classifyCisTrans(cs, 1.5)).toBe("cis");
+  });
+
+  it("caQTL: an unparseable peak id is trans", () => {
+    expect(classifyCisTrans(makeCS({ dataType: "caQTL", trait: "CAQTL" }), 1.5)).toBe("trans");
+  });
 });
 
 describe("filterCredibleSets cis/trans toggles", () => {

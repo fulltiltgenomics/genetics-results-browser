@@ -104,12 +104,14 @@ const getColumns = (
   // cis-window half-width (Mb) for the [cis]/[trans] label on QTL traits.
   cisWindow: number
 ): MRT_ColumnDef<GroupedCredibleSet>[] => {
-  // caQTL shows the peak's linked gene(s) (peak goes in a tooltip); other QTLs/GWAS show the resolved
-  // trait name. gene-based QTLs fall back to the gene symbol when no coords resolved.
+  // caQTL shows the peak's linked gene(s), or the peak id when none resolved, with the cell type(s) in
+  // parens (the peak itself goes in a tooltip); other QTLs/GWAS show the resolved trait name.
   const displayName = (g: GroupedCredibleSet): string => {
     if (g.dataType === "caQTL") {
       const genes = (g.geneTargets ?? []).map((t) => t.symbol);
-      return genes.length ? genes.join(", ") : g.trait;
+      const base = genes.length ? genes.join(", ") : g.trait;
+      const cells = distinctCellTypes(g);
+      return cells.length ? `${base} (${cells.map(formatTissue).join(", ")})` : base;
     }
     return traitName(g.resource, g.trait);
   };
@@ -185,16 +187,14 @@ const getColumns = (
         </Box>
       ) : null;
 
-      // caQTL: the trait is an ATAC peak; show the regulated gene(s) and stash the peak (+ cell types)
-      // in a tooltip so every table reads as gene-centric.
+      // caQTL: the trait is an ATAC peak; the gene(s)/cell type(s) render inline, the peak goes in a
+      // tooltip so every table reads as gene-centric.
       if (g.dataType === "caQTL") {
-        const cells = distinctCellTypes(g);
         return (
           <HtmlTooltip
             title={
               <Box>
                 <div>ATAC peak: {g.trait}</div>
-                {cells.length > 0 && <div>cell types: {cells.map(formatTissue).join(", ")}</div>}
                 {(g.geneTargets ?? []).length === 0 && <div>no linked gene resolved</div>}
               </Box>
             }>

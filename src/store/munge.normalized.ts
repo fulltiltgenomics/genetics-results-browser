@@ -90,18 +90,37 @@ const CIS_TRANS_TYPES: ReadonlySet<CredibleSetDataType> = new Set([
   "caQTL",
 ]);
 
+/** caQTL peak id "chr1-168833404-168834159" -> {chrom,start,end}; null if it doesn't parse. */
+const parsePeak = (peak: string): { chrom: number; start: number; end: number } | null => {
+  const m = /^chr([0-9]+|X|Y|MT?|M)-(\d+)-(\d+)$/i.exec(peak);
+  if (!m) return null;
+  const tok = m[1].toUpperCase();
+  const chrom = tok === "X" ? 23 : tok === "Y" ? 24 : tok === "MT" || tok === "M" ? 25 : Number(tok);
+  return { chrom, start: Number(m[2]), end: Number(m[3]) };
+};
+
 /**
  * Classify a QTL membership as "cis" or "trans" relative to the queried variant, or null when it is
- * not cis/trans-classifiable (GWAS, metaboQTL, which have no gene target). cis = the variant is within
- * ±cisWindow Mb of any target gene's TSS (strand-anchored; start when strand unknown, e.g. caQTL).
- * A classifiable QTL with no resolved target gene is "trans" (it lies beyond the BFF's fetch window).
+ * not cis/trans-classifiable (GWAS, metaboQTL, which have no molecular feature).
+ *   - caQTL: the molecular feature IS the ATAC peak, so cis = the variant is within ±cisWindow Mb of the
+ *     peak interval (linked genes from peak_to_genes are a display concern, NOT what defines cis/trans).
+ *   - gene-based QTL (eQTL/pQTL/sQTL/edQTL): cis = the variant is within ±cisWindow Mb of any target
+ *     gene's TSS (strand-anchored; start when strand unknown). No resolved gene -> "trans" (the gene
+ *     lies beyond the BFF's fetch window).
  */
 export const classifyCisTrans = (
-  cs: Pick<CredibleSetMembership, "dataType" | "chr" | "pos" | "geneTargets">,
+  cs: Pick<CredibleSetMembership, "dataType" | "chr" | "pos" | "geneTargets" | "trait">,
   cisWindowMb: number
 ): "cis" | "trans" | null => {
   if (!CIS_TRANS_TYPES.has(cs.dataType)) return null;
   const win = cisWindowMb * 1e6;
+  if (cs.dataType === "caQTL") {
+    const peak = parsePeak(cs.trait);
+    if (!peak || peak.chrom !== cs.chr) return "trans";
+    // distance from the variant to the peak interval (0 when the variant sits inside the peak)
+    const dist = cs.pos < peak.start ? peak.start - cs.pos : cs.pos > peak.end ? cs.pos - peak.end : 0;
+    return dist <= win ? "cis" : "trans";
+  }
   for (const g of cs.geneTargets ?? []) {
     if (g.chrom !== cs.chr) continue;
     const tss = g.strand === "-" ? g.end : g.start;
