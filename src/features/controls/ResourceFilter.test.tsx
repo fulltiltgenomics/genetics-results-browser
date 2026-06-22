@@ -243,8 +243,9 @@ describe("ResourceFilter", () => {
     expect(screen.queryByText("eQTL quantification")).not.toBeInTheDocument();
   });
 
-  it("shows the quant-level toggle and reactively reveals non-ge levels when turned on", async () => {
-    const user = userEvent.setup();
+  // the UI toggle is hidden for now (re-enabled later), so drive the store directly to cover the
+  // ge-only default and the all-levels filtering behaviour.
+  it("hides the quant-level toggle but still filters non-ge levels via the store flag", () => {
     useDataStore.getState().setNormalizedData(
       makeResponse([
         makeCS({ resource: "eqtl_catalogue", trait: "CLASRP", dataType: "eQTL", quantLevel: "ge" }),
@@ -259,17 +260,19 @@ describe("ResourceFilter", () => {
     );
     render(<ResourceFilter isNotReadyYet={false} />);
 
+    // toggle is hidden even though leveled eQTL data is present
+    expect(
+      screen.queryByLabelText(
+        "Show all eQTL Catalogue quantification levels (exon/tx/txrev/leafcutter/majiq)"
+      )
+    ).not.toBeInTheDocument();
+
     // default off = ge-level only: the exon row is filtered out (refactor.md §4).
     expect(
       useDataStore.getState().filteredVariants[0].credibleSets.map((c) => c.quantLevel)
     ).toEqual(["ge"]);
 
-    const toggle = screen.getByLabelText(
-      "Show all eQTL Catalogue quantification levels (exon/tx/txrev/leafcutter/majiq)"
-    );
-    await user.click(toggle);
-
-    expect(useDataStore.getState().includeAllQuantLevels).toBe(true);
+    useDataStore.getState().setIncludeAllQuantLevels(true);
     expect(
       useDataStore.getState().filteredVariants[0].credibleSets.map((c) => c.quantLevel).sort()
     ).toEqual(["exon", "ge"]);

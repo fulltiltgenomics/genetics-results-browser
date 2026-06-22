@@ -35,7 +35,7 @@ const GlobalControlContainer = () => {
           and are intentionally no longer mounted here */}
         <GlobalThresholds isNotReadyYet={isNotReadyYet} />
         <Divider sx={{ margin: "auto" }} orientation="vertical" />
-        {/* QTL cis/trans toggles re-added from the pre-refactor controls; window lives in thresholds. */}
+        {/* QTL cis/trans toggles re-added from the pre-refactor controls; cis-window field lives here too. */}
         <CisTransToggles isNotReadyYet={isNotReadyYet} />
         <Divider sx={{ margin: "auto" }} orientation="vertical" />
         {/* lifted resource filter (refactor.md §4); dynamic from the data, reactive via the store. */}

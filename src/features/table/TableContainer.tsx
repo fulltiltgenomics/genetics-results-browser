@@ -131,8 +131,8 @@ const TableContainer = () => {
                   This table shows annotations and the credible sets each of your input variants is
                   a member of, across all phenotypes and QTLs.
                   <br />
-                  Use the arrows on the left of each variant to expand it and see all of its
-                  credible-set / fine-mapping results.
+                  Use the arrows on the left of each variant to expand it and see all credible sets
+                  it's in.
                 </Typography>
                 <Suspense fallback={tabFallback}>
                   <VariantMainTable enableTopToolbar={true} showTraitCounts={true} />

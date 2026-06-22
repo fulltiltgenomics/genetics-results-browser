@@ -233,7 +233,8 @@ const ResourceFilter = (props: { isNotReadyYet: boolean }) => {
         <FormLabel sx={{ fontSize: "0.75rem" }}>Data types</FormLabel>
         <FormGroup>{dataTypeSwitches}</FormGroup>
       </Box>
-      {hasLeveledData && (
+      {/* hidden for now — defaults off; to be re-enabled later (see store.includeAllQuantLevels) */}
+      {false && hasLeveledData && (
         <>
           <Divider sx={{ margin: "auto" }} orientation="vertical" />
           <Box

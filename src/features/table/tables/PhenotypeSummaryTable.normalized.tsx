@@ -199,12 +199,17 @@ const PhenotypeSummaryTable = () => {
               variant="outlined"
               disabled={!hasSumstats}
               startIcon={<SearchIcon fontSize="small" />}
-              onClick={() => handoff(row.original)}>
+              onClick={() => handoff(row.original)}
+              // collapse the button's vertical footprint so it doesn't force the compact row taller
+              sx={{ py: 0, minHeight: 0, fontSize: "0.7rem", lineHeight: 1.2 }}>
               search
             </Button>
           </Tooltip>
           <Tooltip title="Ask the assistant about this trait across the input variants">
-            <IconButton size="small" onClick={() => askAssistant(row.original)}>
+            <IconButton
+              size="small"
+              onClick={() => askAssistant(row.original)}
+              sx={{ p: 0.25 }}>
               <ChatIcon fontSize="small" />
             </IconButton>
           </Tooltip>

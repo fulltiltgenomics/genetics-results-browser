@@ -82,7 +82,7 @@ export const VariantTableExportButtons = ({
   return (
     <Box sx={toolbarSx}>
       <DownloadButton
-        label="download variants table"
+        label="DOWNLOAD VARIANTS TABLE"
         disabled={empty}
         onClick={() =>
           exportVariantMainTable(
@@ -97,7 +97,7 @@ export const VariantTableExportButtons = ({
         }
       />
       <DownloadButton
-        label="download credible-set results"
+        label="DOWNLOAD FULL RESULTS"
         disabled={empty}
         onClick={() =>
           exportCredibleSets(
@@ -125,7 +125,7 @@ export const DataTypeExportButtons = ({
   return (
     <Box sx={toolbarSx}>
       <DownloadButton
-        label="download data type comparison"
+        label="DOWNLOAD DATA TYPE COMPARISON"
         disabled={empty}
         onClick={() => exportDataTypeComparison(variantInput, visibleRows(table), selectedPopulation)}
       />
@@ -147,12 +147,12 @@ export const PhenoSummaryExportButtons = ({
   return (
     <Box sx={toolbarSx}>
       <DownloadButton
-        label="download phenotype summary table"
+        label="DOWNLOAD PHENOTYPE SUMMARY TABLE"
         disabled={empty}
         onClick={() => exportPhenotypeSummaryTable(variantInput, visibleRows(table), hasBetas)}
       />
       <DownloadButton
-        label="download variant/phenotype beta grid"
+        label="DOWNLOAD VARIANT/PHENOTYPE BETA GRID"
         disabled={empty}
         onClick={() => exportPhenoBetaGrid(variantInput, filteredVariants, phenotypes)}
       />
@@ -179,12 +179,12 @@ export const TissueExportButtons = ({
   return (
     <Box sx={toolbarSx}>
       <DownloadButton
-        label="download tissue summary table"
+        label="DOWNLOAD TISSUE SUMMARY TABLE"
         disabled={empty}
         onClick={() => exportTissueSummaryTable(variantInput, summaryRows, dataType)}
       />
       <DownloadButton
-        label="download tissue table with variants"
+        label="DOWNLOAD TISSUE TABLE WITH VARIANTS"
         disabled={empty}
         onClick={() =>
           exportTissueWithVariants(
@@ -211,7 +211,7 @@ export const PhenotypeSearchExportButton = ({
 }) => (
   <Box sx={toolbarSx}>
     <DownloadButton
-      label="download search results"
+      label="DOWNLOAD SEARCH RESULTS"
       disabled={rows.length === 0}
       onClick={() => exportPhenotypeSearch(rows, phenoCode, phenoResource)}
     />
