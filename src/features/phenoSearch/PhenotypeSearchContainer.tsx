@@ -4,8 +4,6 @@ import {
   Box,
   Chip,
   CircularProgress,
-  FormControlLabel,
-  Switch,
   TextField,
   Typography,
   debounce,
@@ -13,7 +11,6 @@ import {
 import { alpha } from "@mui/material/styles";
 import { MaterialReactTable, MRT_ColumnDef } from "material-react-table";
 import { useDataStore } from "../../store/store";
-import { usePhenoFilterStore } from "../../store/store.phenoFilter";
 import { usePhenotypeSearch, useSummaryStats } from "../../store/serverQuery";
 import { PhenoSearchRow, PhenotypeSearchHit } from "../../types/types.normalized";
 import { naInfSort } from "../table/utils/sorting";
@@ -82,19 +79,9 @@ const PhenotypeSearchContainer = () => {
 
   // this tab looks up per-variant summary stats, so restrict the autocomplete to phenotypes that have
   // them (the main annotation search, by contrast, offers every credible-set phenotype).
-  const { data: searchHitsRaw = [], isFetching: searchFetching } = usePhenotypeSearch(
-    debouncedQuery,
-    {
-      requireSummaryStats: true,
-    }
-  );
-  // persisted toggle: when on, restrict results to FinnGen-resource phenotypes.
-  const onlyFinnGen = usePhenoFilterStore((state) => state.onlyFinnGen);
-  const setOnlyFinnGen = usePhenoFilterStore((state) => state.setOnlyFinnGen);
-  const searchHits = useMemo(
-    () => (onlyFinnGen ? searchHitsRaw.filter((h) => h.resource === "finngen") : searchHitsRaw),
-    [searchHitsRaw, onlyFinnGen]
-  );
+  const { data: searchHits = [], isFetching: searchFetching } = usePhenotypeSearch(debouncedQuery, {
+    requireSummaryStats: true,
+  });
 
   // preselect from the Phenotype Summary handoff (store.phenotypeSearchSelection). The handoff carries
   // the resource + (display) trait + trait_original; the data_type comes from normalizedData.phenotypes
@@ -340,21 +327,6 @@ const PhenotypeSearchContainer = () => {
             }}
           />
         )}
-      />
-      <FormControlLabel
-        sx={{ mb: 2, mt: -1 }}
-        control={
-          <Switch
-            size="small"
-            checked={onlyFinnGen}
-            onChange={(e) => setOnlyFinnGen(e.target.checked)}
-          />
-        }
-        label={
-          <Typography variant="body2" color="text.secondary">
-            only FinnGen phenotypes
-          </Typography>
-        }
       />
 
       {chosen && (
