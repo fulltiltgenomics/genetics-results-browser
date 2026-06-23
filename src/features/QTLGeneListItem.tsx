@@ -1,6 +1,6 @@
 import CleanTableCell, { StyledLink } from "@/style";
 import { Box, IconButton, Table, TableBody, TableRow, Tooltip, Typography } from "@mui/material";
-import { pValRepr, afRepr } from "./table/utils/tableutil";
+import { pValRepr, afRepr, datasetDisplayName } from "./table/utils/tableutil";
 import { CSDatum } from "@/types/types.gene";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 
@@ -83,7 +83,7 @@ const QTLGeneListItem = ({
                   return (
                     <TableRow key={`${cs.traitCSId}-${cs.variant[topPipIndex]}`}>
                       <CleanTableCell style={{ paddingRight: 20, color: "white" }}>
-                        {cs.dataset.split("_").slice(0, 2).join(" ")}
+                        {datasetDisplayName(cs.dataset)}
                       </CleanTableCell>
                       <CleanTableCell style={{ paddingRight: 20, color: "white" }}>
                         {cs.csSize}

@@ -309,16 +309,21 @@ const CisView = ({ geneName }: { geneName: string }) => {
         // traitName/resourceShortName fall back to the row's own trait code/gene symbol and the
         // config resource label now that trait/dataset metadata enrichment is gone (see above).
         if (d.dataType === "pQTL") {
-          if (d.resource === "FinnGen_pQTL") {
-            traitName += ` ${d.dataset.match(/FinnGen_(.*?)_/)?.[1]}`;
-          } else {
-            traitName += " Olink"; // UKBB
-          }
+          // append the proteomics platform/panel, kept consistent with the dataset name shown in the
+          // anno tables (see datasetDisplayName): UKB-PPP is the Olink 3K panel; FinnGen carries its
+          // platform inline in the dataset id (e.g. FinnGen_Olink, FinnGen_Olink_5K).
+          traitName +=
+            d.resource === "FinnGen_pQTL"
+              ? ` ${d.dataset.replace(/^FinnGen_/, "").replace(/_/g, " ")}`
+              : " Olink 3K"; // UKB-PPP
         }
         resourceShortName = resource.label;
         if (d.dataType === "eQTL") {
           if (d.resource === "FinnGen_eQTL") {
-            traitName += ` ${d.dataset.match(/FinnGen_(.*?)_/)?.[1]}`;
+            // FinnGen carries its assay inline in the dataset id (e.g. FinnGen_snRNAseq); strip the
+            // resource prefix rather than the old /FinnGen_(.*?)_/ regex, which returned undefined on
+            // ids without a trailing token.
+            traitName += ` ${d.dataset.replace(/^FinnGen_/, "").replace(/_/g, " ")}`;
           } else {
             traitName = `${d.trait} ${traitName}`;
           }

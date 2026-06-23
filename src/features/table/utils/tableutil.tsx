@@ -50,6 +50,20 @@ export const cleanConsequence = (consequence: string): string => {
 // still used unchanged for API matching / navigation; this is display-only.
 export const formatTraitName = (name: string): string => name.replace(/_/g, " ");
 
+// frontend display overrides for dataset ids whose raw name (a column value baked into the credible-set
+// data) lacks the proteomics platform that FinnGen's dataset names carry inline. UKB-PPP is Olink
+// Explore 3072 (3K), so surfacing the panel explains why a protein may have a FinnGen pQTL but no UKBB
+// one (e.g. only on the 5K panel). Remove once the API can rename datasets (genetics-results-api issue).
+const DATASET_LABEL_OVERRIDES: Record<string, string> = {
+  UKB_PPP: "UKBB PPP (Olink 3K)",
+};
+
+// canonical dataset display name, shared by every view so the same dataset reads identically in the
+// anno tables and the gene view. eQTL Catalogue sub-datasets (QTD ids) are enriched separately by their
+// callers; this just applies the override map and spaces out the raw id.
+export const datasetDisplayName = (dataset: string): string =>
+  DATASET_LABEL_OVERRIDES[dataset] ?? dataset.replace(/_/g, " ");
+
 /**
  * Build the canonical trait display-name resolver from the BFF-populated phenotypes map. The map is
  * keyed by `${resource}|${trait}` and its phenostring is already resolved by the trait IDENTIFIER

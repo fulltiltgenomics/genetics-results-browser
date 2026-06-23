@@ -5,7 +5,13 @@ import type { MRT_ColumnDef } from "material-react-table";
 import { DatasetMeta, GroupedCredibleSet, VariantResult } from "../../../types/types.normalized";
 import { classifyCisTrans, groupCredibleSets } from "../../../store/munge.normalized";
 import { useDataStore } from "../../../store/store";
-import { pValRepr, formatTissue, makeTraitNameResolver, PSEUDO_CS_TOOLTIP } from "../utils/tableutil";
+import {
+  pValRepr,
+  formatTissue,
+  makeTraitNameResolver,
+  datasetDisplayName,
+  PSEUDO_CS_TOOLTIP,
+} from "../utils/tableutil";
 import { HtmlTooltip } from "../../tooltips/HtmlTooltip";
 import { UpOrDownIcon } from "../UpDownIcons";
 import { naInfSort } from "../utils/sorting";
@@ -99,8 +105,8 @@ const CellTypeRows = ({ stats }: { stats: CellTypeStat[] }) => (
 );
 
 // human-readable dataset label. eQTL Catalogue sub-datasets (QTD…) are enriched (BFF) with their
-// study + tissue + condition, shown in place of the bare QTD id; everything else just spaces out the
-// dataset id. a multi-membership group appends its count.
+// study + tissue + condition, shown in place of the bare QTD id; everything else uses the shared
+// datasetDisplayName (so the name matches the gene view). a multi-membership group appends its count.
 const datasetLabel = (g: GroupedCredibleSet, datasets: Record<string, DatasetMeta>): string => {
   const meta = datasets[g.dataset];
   let base: string;
@@ -112,7 +118,7 @@ const datasetLabel = (g: GroupedCredibleSet, datasets: Record<string, DatasetMet
       meta.condition && meta.condition !== "naive" ? `, ${meta.condition.replace(/_/g, " ")}` : "";
     base = `${study}: ${tissue}${cond}`;
   } else {
-    base = g.dataset.replace(/_/g, " ");
+    base = datasetDisplayName(g.dataset);
   }
   return g.count === 1 ? base : `${base} (${g.count})`;
 };
