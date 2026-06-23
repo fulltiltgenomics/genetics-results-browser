@@ -4,7 +4,9 @@ import {
   Box,
   CircularProgress,
   Divider,
+  FormControlLabel,
   Link,
+  Switch,
   TextField,
   Typography,
   debounce,
@@ -12,6 +14,7 @@ import {
 import Button from "@mui/material/Button";
 import CreateIcon from "@mui/icons-material/Create";
 import { useDataStore } from "../../store/store";
+import { usePhenoFilterStore } from "../../store/store.phenoFilter";
 import { usePhenotypeSearch } from "../../store/serverQuery";
 import { HIDDEN_RESOURCES } from "../../store/munge.normalized";
 import { PhenotypeSearchHit } from "../../types/types.normalized";
@@ -40,10 +43,16 @@ const InputForm = () => {
   const { data: phenoHitsRaw = [], isFetching: phenoFetching } = usePhenotypeSearch(phenoQuery, {
     requireCredibleSets: true,
   });
+  // persisted toggle: when on, restrict results to FinnGen-resource phenotypes.
+  const onlyFinnGen = usePhenoFilterStore((state) => state.onlyFinnGen);
+  const setOnlyFinnGen = usePhenoFilterStore((state) => state.setOnlyFinnGen);
   // drop resources temporarily hidden from the frontend (see HIDDEN_RESOURCES) so they can't be searched.
   const phenoHits = useMemo(
-    () => phenoHitsRaw.filter((h) => !HIDDEN_RESOURCES.has(h.resource)),
-    [phenoHitsRaw]
+    () =>
+      phenoHitsRaw.filter(
+        (h) => !HIDDEN_RESOURCES.has(h.resource) && (!onlyFinnGen || h.resource === "finngen")
+      ),
+    [phenoHitsRaw, onlyFinnGen]
   );
 
   // form has been submitted or the url has been changed
@@ -236,6 +245,21 @@ const InputForm = () => {
               }}
             />
           )}
+        />
+        <FormControlLabel
+          sx={{ mt: 0.5 }}
+          control={
+            <Switch
+              size="small"
+              checked={onlyFinnGen}
+              onChange={(e) => setOnlyFinnGen(e.target.checked)}
+            />
+          }
+          label={
+            <Typography variant="body2" color="text.secondary">
+              only FinnGen phenotypes
+            </Typography>
+          }
         />
       </Box>
 
