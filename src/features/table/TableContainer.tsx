@@ -83,7 +83,7 @@ const TableContainer = () => {
             borderColor: "divider",
           }}>
           <Typography variant="h6" sx={{ fontWeight: 700 }}>
-            Variant table
+            Variant tables
           </Typography>
           {[
             { label: "Gene view" },

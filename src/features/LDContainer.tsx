@@ -430,7 +430,7 @@ const LDContainer = () => {
               variant="h6"
               style={{ cursor: "pointer", color: theme.palette.primary.main }}
               onClick={() => navigate("/")}>
-              Variant table
+              Variant tables
             </Typography>
             <Typography
               variant="h6"
