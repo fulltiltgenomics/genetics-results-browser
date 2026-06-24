@@ -54,6 +54,10 @@ const FALLBACK_VIEW_NAMES = [
 // regex to match image markers: [IMAGE:format:alt:base64data]
 const IMAGE_MARKER_REGEX = /\[IMAGE:([^:]+):([^:]+):([^\]]+)\]/g;
 
+// per-message limits (mirror the backend MAX_MESSAGE_CHARS / MAX_ATTACHMENTS_PER_MESSAGE)
+const MAX_MESSAGE_CHARS = 50000;
+const MAX_ATTACHMENTS_PER_MESSAGE = 10;
+
 /**
  * Renders message content, handling embedded images separately from markdown.
  * Images are stored as [IMAGE:format:alt:base64data] markers.
@@ -409,6 +413,21 @@ export const LLMChat = ({
   const sendMessage = useCallback(
     async (userMessage: string, attachments?: PendingAttachment[]) => {
       if ((!userMessage.trim() && (!attachments || attachments.length === 0)) || isLoading) return;
+
+      // enforce per-message limits before sending (typed text only; attachments exempt)
+      if (userMessage.length > MAX_MESSAGE_CHARS) {
+        setError(
+          `Message too long (${userMessage.length.toLocaleString()} characters, limit ${MAX_MESSAGE_CHARS.toLocaleString()}). For large data, attach a TSV/CSV file instead.`
+        );
+        return;
+      }
+      if (attachments && attachments.length > MAX_ATTACHMENTS_PER_MESSAGE) {
+        setError(
+          `Too many attachments (${attachments.length}, limit ${MAX_ATTACHMENTS_PER_MESSAGE} per message).`
+        );
+        return;
+      }
+
       setWasStopped(false);
 
       // convert pending attachments to file attachments for the message
