@@ -1135,7 +1135,7 @@ export interface SummaryStatApiRow {
   af_controls?: number | null;
 }
 
-/** "19:44908684:T:C" (internal) -> "19-44908684-T-C" (the API's variants= query format). */
+/** "19:44908684:T:C" (internal) -> "19-44908684-T-C" (the API's dash variant format). */
 const toDashVariant = (v: string): string => v.replace(/:/g, "-");
 
 /**
@@ -1153,15 +1153,15 @@ export const useSummaryStats = (
   return useQuery<SummaryStatApiRow[]>({
     queryKey: ["summary-stats", resource, dataType, phenotype, sorted],
     queryFn: async (): Promise<SummaryStatApiRow[]> => {
-      const { data } = await api.get<SummaryStatApiRow[]>(
+      // POST (variants in body) rather than GET: the variant list is unbounded and a long enough
+      // ?variants= query string overflows nginx's request-line limit (8k default) and 414s upstream.
+      const { data } = await api.post<SummaryStatApiRow[]>(
         `/v1/summary_stats/${encodeURIComponent(resource!)}/${encodeURIComponent(dataType!)}`,
         {
-          params: {
-            variants: sorted.map(toDashVariant).join(","),
-            phenotypes: phenotype,
-            format: "json",
-          },
-        }
+          variants: sorted.map(toDashVariant),
+          phenotypes: [phenotype!],
+        },
+        { params: { format: "json" } }
       );
       return data;
     },

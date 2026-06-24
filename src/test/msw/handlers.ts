@@ -71,7 +71,7 @@ export const handlers = [
     return HttpResponse.json(phenos);
   }),
 
-  http.get(api("summary_stats/:resource/:dataType"), () => HttpResponse.json(summaryStats)),
+  http.post(api("summary_stats/:resource/:dataType"), () => HttpResponse.json(summaryStats)),
 
   http.get(api("colocalization_by_credible_set_id/:resource/:phenotype/:csId"), () =>
     HttpResponse.json(colocalizationByCsId)
