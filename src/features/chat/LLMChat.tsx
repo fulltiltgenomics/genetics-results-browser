@@ -39,6 +39,7 @@ import { MessageRating } from "./MessageRating";
 import { APP_NAME } from "../../config/appName";
 import { PendingAttachments, MessageAttachments } from "./FileAttachments";
 import { getAttachmentType, isValidAttachmentType } from "./chatHistoryApi";
+import { excelFileToTsv } from "./excelToTsv";
 import { useSchema } from "./schemaApi";
 import { linkifyViewsPlugin } from "./linkifyViews";
 
@@ -510,9 +511,13 @@ export const LLMChat = ({
               },
             });
           } else {
-            // for TSV/Excel, read file content and include as text
+            // for data files, inline as text; Excel is binary so parse it to TSV
+            // first (reading it as text would yield garbage)
             try {
-              const text = await attachment.file.text();
+              const text =
+                attachment.type === "excel"
+                  ? await excelFileToTsv(attachment.file)
+                  : await attachment.file.text();
               userContent.push({
                 type: "text",
                 text: `[File: ${attachment.name}]\n${text}`,
