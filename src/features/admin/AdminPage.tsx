@@ -66,6 +66,7 @@ import {
 import { fillUsageGaps, formatRelativeTime } from "./utils";
 import { fetchQualitySeries, type QualityRow } from "./adminApi";
 import { buildAllSeries, type SeriesPanel } from "./qualitySeries";
+import { useLineHighlight, type HighlightHandlers } from "./lineHighlight";
 
 ChartJS.register(
   CategoryScale,
@@ -147,8 +148,8 @@ function successIcon(label: string | null) {
 }
 
 // stable colour palette for the multi-line quality plots; a label always maps to
-// the same colour across charts so a series is recognisable. task .11 will add
-// hover dim/highlight on top of these base colours.
+// the same colour across charts so a series is recognisable. hover dim/highlight
+// (see lineHighlight.ts) derives its dimmed variants from these base colours.
 const QUALITY_PALETTE = [
   "#e6194b", "#3cb44b", "#4363d8", "#f58231", "#911eb4",
   "#42d4f4", "#f032e6", "#bfef45", "#fabed4", "#469990",
@@ -174,16 +175,24 @@ function panelDatasets(panel: SeriesPanel) {
 }
 
 // shared options for the quality line charts. spanGaps:false so the min_n null
-// gaps break the line instead of interpolating across them.
-function qualityChartOptions(title: string, yMax?: number) {
+// gaps break the line instead of interpolating across them. `hl` wires the
+// hover-highlight (line onHover + legend onHover/onLeave); the matching dataset
+// styling comes from hl.styleDataset applied where the datasets are built.
+function qualityChartOptions(title: string, hl: HighlightHandlers, yMax?: number) {
   return {
     responsive: true,
     maintainAspectRatio: false,
     animation: false as const,
     spanGaps: false,
     interaction: { mode: "nearest" as const, intersect: false },
+    onHover: hl.onHover,
     plugins: {
-      legend: { position: "bottom" as const, labels: { boxWidth: 12, font: { size: 10 } } },
+      legend: {
+        position: "bottom" as const,
+        labels: { boxWidth: 12, font: { size: 10 } },
+        onHover: hl.legendOnHover,
+        onLeave: hl.legendOnLeave,
+      },
       title: { display: true, text: title },
     },
     scales: {
@@ -449,17 +458,32 @@ export default function AdminPage() {
   // mirroring analysis_timeseries.build_all_series (centered 7-day window, min_n 3)
   const quality = useMemo(() => buildAllSeries(qualityRows, { window: 7, minN: 3 }), [qualityRows]);
 
+  // one highlight instance per chart so each tracks its own hovered series.
+  const scoreShareHl = useLineHighlight();
+  const meanVolumeHl = useLineHighlight();
+  const dispositionHl = useLineHighlight();
+  const issueMixHl = useLineHighlight();
+
   const scoreShareData = useMemo(
-    () => ({ labels: quality.scoreShare.dates, datasets: panelDatasets(quality.scoreShare) }),
-    [quality]
+    () => ({
+      labels: quality.scoreShare.dates,
+      datasets: panelDatasets(quality.scoreShare).map(scoreShareHl.styleDataset),
+    }),
+    [quality, scoreShareHl]
   );
   const dispositionMixData = useMemo(
-    () => ({ labels: quality.dispositionMix.dates, datasets: panelDatasets(quality.dispositionMix) }),
-    [quality]
+    () => ({
+      labels: quality.dispositionMix.dates,
+      datasets: panelDatasets(quality.dispositionMix).map(dispositionHl.styleDataset),
+    }),
+    [quality, dispositionHl]
   );
   const issueMixData = useMemo(
-    () => ({ labels: quality.issueCategoryMix.dates, datasets: panelDatasets(quality.issueCategoryMix) }),
-    [quality]
+    () => ({
+      labels: quality.issueCategoryMix.dates,
+      datasets: panelDatasets(quality.issueCategoryMix).map(issueMixHl.styleDataset),
+    }),
+    [quality, issueMixHl]
   );
   // mean+volume: mean line on the primary axis, volume as a faint second line on a
   // right axis so the trend and sample size are both visible.
@@ -488,9 +512,9 @@ export default function AdminPage() {
           borderDash: [4, 3],
           yAxisID: "yVolume",
         },
-      ],
+      ].map(meanVolumeHl.styleDataset),
     }),
-    [quality]
+    [quality, meanVolumeHl]
   );
   const meanVolumeOptions = useMemo(
     () => ({
@@ -499,8 +523,14 @@ export default function AdminPage() {
       animation: false as const,
       spanGaps: false,
       interaction: { mode: "nearest" as const, intersect: false },
+      onHover: meanVolumeHl.onHover,
       plugins: {
-        legend: { position: "bottom" as const, labels: { boxWidth: 12, font: { size: 10 } } },
+        legend: {
+          position: "bottom" as const,
+          labels: { boxWidth: 12, font: { size: 10 } },
+          onHover: meanVolumeHl.legendOnHover,
+          onLeave: meanVolumeHl.legendOnLeave,
+        },
         title: { display: true, text: "Rolling mean quality score & volume" },
       },
       scales: {
@@ -514,7 +544,7 @@ export default function AdminPage() {
         },
       },
     }),
-    []
+    [meanVolumeHl]
   );
 
   // tab label with relative time for feedback
@@ -1026,7 +1056,7 @@ export default function AdminPage() {
               >
                 <Paper sx={{ p: 2 }}>
                   <Box sx={{ height: { xs: 260, md: 300 } }}>
-                    <Line data={scoreShareData} options={qualityChartOptions("Score share (% of scored conversations)", 100)} />
+                    <Line data={scoreShareData} options={qualityChartOptions("Score share (% of scored conversations)", scoreShareHl, 100)} />
                   </Box>
                 </Paper>
                 <Paper sx={{ p: 2 }}>
@@ -1036,12 +1066,12 @@ export default function AdminPage() {
                 </Paper>
                 <Paper sx={{ p: 2 }}>
                   <Box sx={{ height: { xs: 260, md: 300 } }}>
-                    <Line data={dispositionMixData} options={qualityChartOptions("Disposition mix (% of all conversations)", 100)} />
+                    <Line data={dispositionMixData} options={qualityChartOptions("Disposition mix (% of all conversations)", dispositionHl, 100)} />
                   </Box>
                 </Paper>
                 <Paper sx={{ p: 2 }}>
                   <Box sx={{ height: { xs: 260, md: 300 } }}>
-                    <Line data={issueMixData} options={qualityChartOptions("Issue-category mix (% of issue instances)", 100)} />
+                    <Line data={issueMixData} options={qualityChartOptions("Issue-category mix (% of issue instances)", issueMixHl, 100)} />
                   </Box>
                 </Paper>
               </Box>
