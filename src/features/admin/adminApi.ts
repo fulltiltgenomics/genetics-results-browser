@@ -11,6 +11,11 @@ export interface AdminSession {
   phenotypeCode: string | null;
   messageCount: number;
   preview: string | null;
+  disposition: string | null;
+  issueCount: number;
+  issueCategories: string[];
+  llmRating: number | null;
+  successLabel: string | null;
 }
 
 export interface AdminSessionListResponse {
@@ -51,6 +56,17 @@ export interface UsageAnalyticsResponse {
   data: UsageDataPoint[];
 }
 
+// raw per-conversation row from /admin/analytics/quality; aggregated client-side
+// into plot series in the Quality plots tab (task .10)
+export interface QualityRow {
+  sessionId: string;
+  createdAt: string;
+  llmQualityScore: number | null;
+  llmDisposition: string | null;
+  successLabel: string | null;
+  issueCategories: string[];
+}
+
 export interface FeedbackItem {
   user: string;
   comment: string;
@@ -73,6 +89,11 @@ export interface AdminSessionFilters {
   dateFrom?: string;
   dateTo?: string;
   sessionId?: string;
+  disposition?: string;
+  successLabel?: string;
+  minIssues?: number;
+  // string so 'NA' (unrated) and '1'..'5' can both be expressed
+  rating?: string;
   limit?: number;
   offset?: number;
 }
@@ -85,6 +106,10 @@ export async function fetchAdminSessions(
   if (filters.dateFrom) params.set("date_from", filters.dateFrom);
   if (filters.dateTo) params.set("date_to", filters.dateTo);
   if (filters.sessionId) params.set("session_id", filters.sessionId);
+  if (filters.disposition) params.set("disposition", filters.disposition);
+  if (filters.successLabel) params.set("success_label", filters.successLabel);
+  if (filters.minIssues != null) params.set("min_issues", String(filters.minIssues));
+  if (filters.rating) params.set("rating", filters.rating);
   if (filters.limit) params.set("limit", String(filters.limit));
   if (filters.offset) params.set("offset", String(filters.offset));
 
@@ -138,6 +163,26 @@ export async function fetchUsageAnalytics(
   return response.json();
 }
 
+export async function fetchQualitySeries(): Promise<QualityRow[]> {
+  const response = await fetch(`${chatUrl}/v1/admin/analytics/quality`, {
+    credentials: "include",
+  });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  const data = await response.json();
+  return (data.rows ?? []).map(mapQualityRow);
+}
+
+function mapQualityRow(data: any): QualityRow {
+  return {
+    sessionId: data.session_id,
+    createdAt: data.created_at,
+    llmQualityScore: data.llm_quality_score ?? null,
+    llmDisposition: data.llm_disposition ?? null,
+    successLabel: data.success_label ?? null,
+    issueCategories: data.issue_categories ?? [],
+  };
+}
+
 export async function fetchAdminFeedback(
   params: { limit?: number; offset?: number } = {}
 ): Promise<FeedbackListResponse> {
@@ -182,5 +227,10 @@ function mapSession(data: any): AdminSession {
     phenotypeCode: data.phenotype_code,
     messageCount: data.message_count,
     preview: data.preview,
+    disposition: data.disposition ?? null,
+    issueCount: data.issue_count ?? 0,
+    issueCategories: data.issue_categories ?? [],
+    llmRating: data.llm_rating ?? null,
+    successLabel: data.success_label ?? null,
   };
 }
