@@ -20,6 +20,9 @@ import {
   Tab,
   Tabs,
   Chip,
+  FormControl,
+  InputLabel,
+  Select,
   List,
   ListItem,
   ListItemButton,
@@ -31,6 +34,10 @@ import CloseIcon from "@mui/icons-material/Close";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import DownloadIcon from "@mui/icons-material/Download";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import CancelIcon from "@mui/icons-material/Cancel";
+import RemoveCircleIcon from "@mui/icons-material/RemoveCircle";
+import HelpIcon from "@mui/icons-material/Help";
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -88,6 +95,46 @@ function escapeHtml(text: string): string {
   return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 }
 
+// known disposition / success_label option sets for the server-side filter dropdowns
+const DISPOSITION_OPTIONS = [
+  "good_answer",
+  "agent_failure",
+  "technical_failure",
+  "out_of_scope",
+  "unfinished",
+  "weird_or_unclear",
+];
+const SUCCESS_LABEL_OPTIONS = [
+  "successful",
+  "neutral",
+  "unsuccessful",
+  "technical_failure",
+  "out_of_scope",
+  "unfinished",
+  "weird_or_unclear",
+  "unknown",
+];
+
+// map a success_label to an icon + colour; success-ish -> green check, error-ish -> red cancel,
+// the in-between labels -> grey neutral circle, unknown/unmapped -> grey help
+function successIcon(label: string | null) {
+  const fontSize = 18;
+  switch (label) {
+    case "successful":
+      return <CheckCircleIcon sx={{ fontSize, color: "success.main" }} />;
+    case "unsuccessful":
+    case "technical_failure":
+      return <CancelIcon sx={{ fontSize, color: "error.main" }} />;
+    case "neutral":
+    case "out_of_scope":
+    case "unfinished":
+    case "weird_or_unclear":
+      return <RemoveCircleIcon sx={{ fontSize, color: "text.disabled" }} />;
+    default:
+      return <HelpIcon sx={{ fontSize, color: "text.disabled" }} />;
+  }
+}
+
 export default function AdminPage() {
   const navigate = useNavigate();
   const theme = useTheme();
@@ -106,6 +153,11 @@ export default function AdminPage() {
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [sessionIdFilter, setSessionIdFilter] = useState("");
+  // analysis filters (server-side)
+  const [dispositionFilter, setDispositionFilter] = useState("");
+  const [successLabelFilter, setSuccessLabelFilter] = useState("");
+  const [ratingFilter, setRatingFilter] = useState(""); // '', 'NA', or '1'..'5'
+  const [hasIssuesFilter, setHasIssuesFilter] = useState(false);
 
   // detail dialog
   const [selectedSession, setSelectedSession] = useState<AdminSessionDetail | null>(null);
@@ -136,6 +188,10 @@ export default function AdminPage() {
         dateFrom: dateFrom || undefined,
         dateTo: dateTo || undefined,
         sessionId: sessionIdFilter || undefined,
+        disposition: dispositionFilter || undefined,
+        successLabel: successLabelFilter || undefined,
+        rating: ratingFilter || undefined,
+        minIssues: hasIssuesFilter ? 1 : undefined,
         limit: PAGE_SIZE,
         offset: (page - 1) * PAGE_SIZE,
       });
@@ -146,7 +202,17 @@ export default function AdminPage() {
     } finally {
       setLoading(false);
     }
-  }, [userFilter, dateFrom, dateTo, sessionIdFilter, page]);
+  }, [
+    userFilter,
+    dateFrom,
+    dateTo,
+    sessionIdFilter,
+    dispositionFilter,
+    successLabelFilter,
+    ratingFilter,
+    hasIssuesFilter,
+    page,
+  ]);
 
   const loadAnalytics = useCallback(async () => {
     setAnalyticsLoading(true);
@@ -208,6 +274,10 @@ export default function AdminPage() {
     setDateFrom("");
     setDateTo("");
     setSessionIdFilter("");
+    setDispositionFilter("");
+    setSuccessLabelFilter("");
+    setRatingFilter("");
+    setHasIssuesFilter(false);
     setPage(1);
   };
 
@@ -389,6 +459,71 @@ export default function AdminPage() {
                 onChange={(e) => setSessionIdFilter(e.target.value)}
                 sx={{ width: { xs: "100%", sm: 200 } }}
               />
+              <FormControl size="small" sx={{ width: { xs: "100%", sm: 180 } }}>
+                <InputLabel>Disposition</InputLabel>
+                <Select
+                  label="Disposition"
+                  value={dispositionFilter}
+                  onChange={(e) => setDispositionFilter(e.target.value)}
+                >
+                  <MenuItem value="">
+                    <em>Any</em>
+                  </MenuItem>
+                  {DISPOSITION_OPTIONS.map((d) => (
+                    <MenuItem key={d} value={d}>
+                      {d}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              <FormControl size="small" sx={{ width: { xs: "100%", sm: 180 } }}>
+                <InputLabel>Success</InputLabel>
+                <Select
+                  label="Success"
+                  value={successLabelFilter}
+                  onChange={(e) => setSuccessLabelFilter(e.target.value)}
+                >
+                  <MenuItem value="">
+                    <em>Any</em>
+                  </MenuItem>
+                  {SUCCESS_LABEL_OPTIONS.map((s) => (
+                    <MenuItem key={s} value={s}>
+                      {s}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              <FormControl size="small" sx={{ width: { xs: "100%", sm: 110 } }}>
+                <InputLabel>Rating</InputLabel>
+                <Select
+                  label="Rating"
+                  value={ratingFilter}
+                  onChange={(e) => setRatingFilter(e.target.value)}
+                >
+                  <MenuItem value="">
+                    <em>Any</em>
+                  </MenuItem>
+                  <MenuItem value="NA">NA</MenuItem>
+                  {["1", "2", "3", "4", "5"].map((r) => (
+                    <MenuItem key={r} value={r}>
+                      {r}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+              <FormControl size="small" sx={{ width: { xs: "100%", sm: 130 } }}>
+                <InputLabel>Issues</InputLabel>
+                <Select
+                  label="Issues"
+                  value={hasIssuesFilter ? "1" : ""}
+                  onChange={(e) => setHasIssuesFilter(e.target.value === "1")}
+                >
+                  <MenuItem value="">
+                    <em>Any</em>
+                  </MenuItem>
+                  <MenuItem value="1">Has issues</MenuItem>
+                </Select>
+              </FormControl>
               <Button variant="contained" size="small" onClick={handleSearch} fullWidth={isXs}>
                 Search
               </Button>
@@ -413,13 +548,23 @@ export default function AdminPage() {
                         {idx > 0 && <Divider component="li" />}
                         <ListItem disablePadding>
                           <ListItemButton onClick={() => openSessionDetail(s.id)} sx={{ flexDirection: "column", alignItems: "stretch", py: 1.25 }}>
-                            <Typography variant="body2" sx={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                              {s.title || s.preview || <em>No content</em>}
-                            </Typography>
+                            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                              <Tooltip title={s.successLabel || "unknown"}>
+                                <Box component="span" sx={{ display: "inline-flex", flexShrink: 0 }}>
+                                  {successIcon(s.successLabel)}
+                                </Box>
+                              </Tooltip>
+                              <Typography variant="body2" sx={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                                {s.title || s.preview || <em>No content</em>}
+                              </Typography>
+                            </Box>
                             <Typography variant="caption" color="text.secondary" sx={{ mt: 0.25 }}>
                               {s.userId} &middot; {s.messageCount} msg{s.messageCount !== 1 ? "s" : ""} &middot;{" "}
                               {new Date(s.updatedAt).toLocaleDateString()}
                               {s.rating != null && ` · rating ${s.rating}`}
+                              {` · LLM ${s.llmRating ?? "NA"}`}
+                              {s.disposition && ` · ${s.disposition}`}
+                              {s.issueCount > 0 && ` · ${s.issueCount} issue${s.issueCount !== 1 ? "s" : ""}`}
                             </Typography>
                           </ListItemButton>
                         </ListItem>
@@ -437,7 +582,7 @@ export default function AdminPage() {
                 <Box component="table" sx={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
                   <thead>
                     <tr>
-                      {["User", "Title / Preview", "Messages", "Created", "Updated", "Rating"].map(
+                      {["User", "Title / Preview", "Messages", "Created", "Updated", "Rating", "Disposition", "Issues", "LLM rating", "Success"].map(
                         (h) => (
                           <Box
                             component="th"
@@ -503,11 +648,42 @@ export default function AdminPage() {
                         >
                           {s.rating ?? "-"}
                         </Box>
+                        <Box component="td" sx={{ p: 1, borderBottom: 1, borderColor: "divider", whiteSpace: "nowrap" }}>
+                          {s.disposition || "-"}
+                        </Box>
+                        <Box
+                          component="td"
+                          sx={{ p: 1, borderBottom: 1, borderColor: "divider", textAlign: "center" }}
+                        >
+                          {s.issueCount > 0 ? (
+                            <Tooltip title={s.issueCategories.join(", ") || "no categories"}>
+                              <span>{s.issueCount}</span>
+                            </Tooltip>
+                          ) : (
+                            "-"
+                          )}
+                        </Box>
+                        <Box
+                          component="td"
+                          sx={{ p: 1, borderBottom: 1, borderColor: "divider", textAlign: "center" }}
+                        >
+                          {s.llmRating ?? "NA"}
+                        </Box>
+                        <Box
+                          component="td"
+                          sx={{ p: 1, borderBottom: 1, borderColor: "divider", textAlign: "center" }}
+                        >
+                          <Tooltip title={s.successLabel || "unknown"}>
+                            <Box component="span" sx={{ display: "inline-flex", verticalAlign: "middle" }}>
+                              {successIcon(s.successLabel)}
+                            </Box>
+                          </Tooltip>
+                        </Box>
                       </Box>
                     ))}
                     {sessions.length === 0 && (
                       <tr>
-                        <Box component="td" colSpan={6} sx={{ p: 3, textAlign: "center" }}>
+                        <Box component="td" colSpan={10} sx={{ p: 3, textAlign: "center" }}>
                           No sessions found
                         </Box>
                       </tr>
