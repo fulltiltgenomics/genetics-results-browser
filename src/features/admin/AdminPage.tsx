@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, Fragment } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo, Fragment } from "react";
 import {
   Box,
   Typography,
@@ -46,6 +46,7 @@ import {
   LineElement,
   Tooltip as ChartTooltip,
   Legend,
+  Title as ChartTitle,
 } from "chart.js";
 import { Line } from "react-chartjs-2";
 import ReactMarkdown from "react-markdown";
@@ -63,8 +64,18 @@ import {
   type FeedbackItem,
 } from "./adminApi";
 import { fillUsageGaps, formatRelativeTime } from "./utils";
+import { fetchQualitySeries, type QualityRow } from "./adminApi";
+import { buildAllSeries, type SeriesPanel } from "./qualitySeries";
 
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, ChartTooltip, Legend);
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  ChartTooltip,
+  Legend,
+  ChartTitle
+);
 
 const PAGE_SIZE = 25;
 const FEEDBACK_PAGE_SIZE = 25;
@@ -135,6 +146,53 @@ function successIcon(label: string | null) {
   }
 }
 
+// stable colour palette for the multi-line quality plots; a label always maps to
+// the same colour across charts so a series is recognisable. task .11 will add
+// hover dim/highlight on top of these base colours.
+const QUALITY_PALETTE = [
+  "#e6194b", "#3cb44b", "#4363d8", "#f58231", "#911eb4",
+  "#42d4f4", "#f032e6", "#bfef45", "#fabed4", "#469990",
+  "#9a6324", "#800000", "#808000", "#000075", "#a9a9a9",
+];
+
+function colorForIndex(i: number): string {
+  return QUALITY_PALETTE[i % QUALITY_PALETTE.length];
+}
+
+// build chart.js datasets from a SeriesPanel: one line per series key, stable
+// colour by order, null gaps left intact (spanGaps:false on the chart).
+function panelDatasets(panel: SeriesPanel) {
+  return Object.keys(panel.series).map((label, i) => ({
+    label,
+    data: panel.series[label],
+    borderColor: colorForIndex(i),
+    backgroundColor: colorForIndex(i),
+    tension: 0.2,
+    pointRadius: 0,
+    borderWidth: 1.5,
+  }));
+}
+
+// shared options for the quality line charts. spanGaps:false so the min_n null
+// gaps break the line instead of interpolating across them.
+function qualityChartOptions(title: string, yMax?: number) {
+  return {
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: false as const,
+    spanGaps: false,
+    interaction: { mode: "nearest" as const, intersect: false },
+    plugins: {
+      legend: { position: "bottom" as const, labels: { boxWidth: 12, font: { size: 10 } } },
+      title: { display: true, text: title },
+    },
+    scales: {
+      x: { ticks: { maxTicksLimit: 8, font: { size: 10 } } },
+      y: { beginAtZero: true, ...(yMax != null ? { max: yMax } : {}) },
+    },
+  };
+}
+
 export default function AdminPage() {
   const navigate = useNavigate();
   const theme = useTheme();
@@ -178,6 +236,12 @@ export default function AdminPage() {
   const [feedbackLatestAt, setFeedbackLatestAt] = useState<string | null>(null);
   const [selectedFeedback, setSelectedFeedback] = useState<FeedbackItem | null>(null);
   const feedbackLoaded = useRef(false);
+
+  // quality plots state (lazy-loaded when the tab is first activated)
+  const [qualityRows, setQualityRows] = useState<QualityRow[]>([]);
+  const [qualityLoading, setQualityLoading] = useState(false);
+  const [qualityError, setQualityError] = useState<string | null>(null);
+  const qualityLoaded = useRef(false);
 
   const loadSessions = useCallback(async () => {
     setLoading(true);
@@ -243,6 +307,19 @@ export default function AdminPage() {
     }
   }, [feedbackPage]);
 
+  const loadQuality = useCallback(async () => {
+    setQualityLoading(true);
+    setQualityError(null);
+    try {
+      const rows = await fetchQualitySeries();
+      setQualityRows(rows);
+    } catch (e: any) {
+      setQualityError(e.message);
+    } finally {
+      setQualityLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     loadSessions();
   }, [loadSessions]);
@@ -263,6 +340,14 @@ export default function AdminPage() {
       loadFeedback();
     }
   }, [activeTab, loadFeedback]);
+
+  // lazy-load quality rows the first time the Quality plots tab is opened
+  useEffect(() => {
+    if (activeTab === 2 && !qualityLoaded.current) {
+      qualityLoaded.current = true;
+      loadQuality();
+    }
+  }, [activeTab, loadQuality]);
 
   const handleSearch = () => {
     setPage(1);
@@ -360,6 +445,78 @@ export default function AdminPage() {
     },
   };
 
+  // aggregate the raw quality rows into the four plot panels client-side,
+  // mirroring analysis_timeseries.build_all_series (centered 7-day window, min_n 3)
+  const quality = useMemo(() => buildAllSeries(qualityRows, { window: 7, minN: 3 }), [qualityRows]);
+
+  const scoreShareData = useMemo(
+    () => ({ labels: quality.scoreShare.dates, datasets: panelDatasets(quality.scoreShare) }),
+    [quality]
+  );
+  const dispositionMixData = useMemo(
+    () => ({ labels: quality.dispositionMix.dates, datasets: panelDatasets(quality.dispositionMix) }),
+    [quality]
+  );
+  const issueMixData = useMemo(
+    () => ({ labels: quality.issueCategoryMix.dates, datasets: panelDatasets(quality.issueCategoryMix) }),
+    [quality]
+  );
+  // mean+volume: mean line on the primary axis, volume as a faint second line on a
+  // right axis so the trend and sample size are both visible.
+  const meanVolumeData = useMemo(
+    () => ({
+      labels: quality.meanAndVolume.dates,
+      datasets: [
+        {
+          label: "mean score",
+          data: quality.meanAndVolume.series.mean,
+          borderColor: "#4363d8",
+          backgroundColor: "#4363d8",
+          tension: 0.2,
+          pointRadius: 0,
+          borderWidth: 2,
+          yAxisID: "y",
+        },
+        {
+          label: "volume",
+          data: quality.meanAndVolume.volume,
+          borderColor: "#a9a9a9",
+          backgroundColor: "#a9a9a9",
+          tension: 0.2,
+          pointRadius: 0,
+          borderWidth: 1,
+          borderDash: [4, 3],
+          yAxisID: "yVolume",
+        },
+      ],
+    }),
+    [quality]
+  );
+  const meanVolumeOptions = useMemo(
+    () => ({
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false as const,
+      spanGaps: false,
+      interaction: { mode: "nearest" as const, intersect: false },
+      plugins: {
+        legend: { position: "bottom" as const, labels: { boxWidth: 12, font: { size: 10 } } },
+        title: { display: true, text: "Rolling mean quality score & volume" },
+      },
+      scales: {
+        x: { ticks: { maxTicksLimit: 8, font: { size: 10 } } },
+        y: { min: 1, max: 5, title: { display: true, text: "mean score" } },
+        yVolume: {
+          position: "right" as const,
+          beginAtZero: true,
+          grid: { drawOnChartArea: false },
+          title: { display: true, text: "volume" },
+        },
+      },
+    }),
+    []
+  );
+
   // tab label with relative time for feedback
   const feedbackLabel = feedbackLatestAt
     ? `Feedback (${formatRelativeTime(feedbackLatestAt)})`
@@ -388,6 +545,7 @@ export default function AdminPage() {
       >
         <Tab label="Conversations" />
         <Tab label={feedbackLabel} />
+        <Tab label="Quality plots" />
       </Tabs>
 
       {error && (
@@ -831,6 +989,65 @@ export default function AdminPage() {
             </>
           )}
         </Paper>
+      )}
+
+      {/* Tab 2: Quality plots */}
+      {activeTab === 2 && (
+        <>
+          {qualityError && (
+            <Alert severity="error" sx={{ mb: 2 }} onClose={() => setQualityError(null)}>
+              {qualityError}
+            </Alert>
+          )}
+          {qualityLoading ? (
+            <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
+              <CircularProgress />
+            </Box>
+          ) : quality.meta.empty ? (
+            <Paper sx={{ p: 3 }}>
+              <Typography variant="body2" color="text.secondary" sx={{ textAlign: "center" }}>
+                No analyzed conversations to plot
+              </Typography>
+            </Paper>
+          ) : (
+            <>
+              <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1 }}>
+                {quality.meta.total} conversations ({quality.meta.scored} scored),{" "}
+                {quality.meta.dateMin} – {quality.meta.dateMax}. Rolling centered{" "}
+                {quality.meta.window}-day window, min {quality.meta.minN} per window
+                (gaps where below).
+              </Typography>
+              <Box
+                sx={{
+                  display: "grid",
+                  gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
+                  gap: 2,
+                }}
+              >
+                <Paper sx={{ p: 2 }}>
+                  <Box sx={{ height: { xs: 260, md: 300 } }}>
+                    <Line data={scoreShareData} options={qualityChartOptions("Score share (% of scored conversations)", 100)} />
+                  </Box>
+                </Paper>
+                <Paper sx={{ p: 2 }}>
+                  <Box sx={{ height: { xs: 260, md: 300 } }}>
+                    <Line data={meanVolumeData} options={meanVolumeOptions} />
+                  </Box>
+                </Paper>
+                <Paper sx={{ p: 2 }}>
+                  <Box sx={{ height: { xs: 260, md: 300 } }}>
+                    <Line data={dispositionMixData} options={qualityChartOptions("Disposition mix (% of all conversations)", 100)} />
+                  </Box>
+                </Paper>
+                <Paper sx={{ p: 2 }}>
+                  <Box sx={{ height: { xs: 260, md: 300 } }}>
+                    <Line data={issueMixData} options={qualityChartOptions("Issue-category mix (% of issue instances)", 100)} />
+                  </Box>
+                </Paper>
+              </Box>
+            </>
+          )}
+        </>
       )}
 
       {/* Feedback detail dialog */}
