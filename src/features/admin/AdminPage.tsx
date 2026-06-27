@@ -251,6 +251,8 @@ export default function AdminPage() {
   const [qualityLoading, setQualityLoading] = useState(false);
   const [qualityError, setQualityError] = useState<string | null>(null);
   const qualityLoaded = useRef(false);
+  // earliest conversation date to include in the quality plots (YYYY-MM-DD)
+  const [qualityStartDate, setQualityStartDate] = useState("2026-01-01");
 
   const loadSessions = useCallback(async () => {
     setLoading(true);
@@ -454,9 +456,23 @@ export default function AdminPage() {
     },
   };
 
+  // filter to conversations on/after the configurable start date before
+  // aggregating. createdAt is "YYYY-MM-DD ..."; its leading 10 chars sort
+  // lexicographically the same as calendar order.
+  const filteredQualityRows = useMemo(
+    () =>
+      qualityStartDate
+        ? qualityRows.filter((r) => (r.createdAt ?? "").slice(0, 10) >= qualityStartDate)
+        : qualityRows,
+    [qualityRows, qualityStartDate]
+  );
+
   // aggregate the raw quality rows into the four plot panels client-side,
   // mirroring analysis_timeseries.build_all_series (centered 7-day window, min_n 3)
-  const quality = useMemo(() => buildAllSeries(qualityRows, { window: 7, minN: 3 }), [qualityRows]);
+  const quality = useMemo(
+    () => buildAllSeries(filteredQualityRows, { window: 7, minN: 3 }),
+    [filteredQualityRows]
+  );
 
   // one highlight instance per chart so each tracks its own hovered series.
   const scoreShareHl = useLineHighlight();
@@ -531,7 +547,7 @@ export default function AdminPage() {
           onHover: meanVolumeHl.legendOnHover,
           onLeave: meanVolumeHl.legendOnLeave,
         },
-        title: { display: true, text: "Rolling mean quality score & volume" },
+        title: { display: true, text: "Rolling mean quality score and conversation volume" },
       },
       scales: {
         x: { ticks: { maxTicksLimit: 8, font: { size: 10 } } },
@@ -1033,48 +1049,71 @@ export default function AdminPage() {
             <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
               <CircularProgress />
             </Box>
-          ) : quality.meta.empty ? (
-            <Paper sx={{ p: 3 }}>
-              <Typography variant="body2" color="text.secondary" sx={{ textAlign: "center" }}>
-                No analyzed conversations to plot
-              </Typography>
-            </Paper>
           ) : (
             <>
-              <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1 }}>
-                {quality.meta.total} conversations ({quality.meta.scored} scored),{" "}
-                {quality.meta.dateMin} – {quality.meta.dateMax}. Rolling centered{" "}
-                {quality.meta.window}-day window, min {quality.meta.minN} per window
-                (gaps where below).
-              </Typography>
-              <Box
-                sx={{
-                  display: "grid",
-                  gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
-                  gap: 2,
-                }}
-              >
-                <Paper sx={{ p: 2 }}>
-                  <Box sx={{ height: { xs: 260, md: 300 } }}>
-                    <Line data={scoreShareData} options={qualityChartOptions("Score share (% of scored conversations)", scoreShareHl, 100)} />
-                  </Box>
+              <Paper sx={{ p: 2, mb: 2 }}>
+                <Box sx={{ display: "flex", gap: 2, alignItems: "center", flexWrap: "wrap" }}>
+                  <TextField
+                    size="small"
+                    label="Start date"
+                    type="date"
+                    value={qualityStartDate}
+                    onChange={(e) => setQualityStartDate(e.target.value)}
+                    slotProps={{ inputLabel: { shrink: true } }}
+                    sx={{ width: { xs: "100%", sm: 180 } }}
+                  />
+                  <Typography variant="body2" color="text.secondary" sx={{ flex: 1, minWidth: 240 }}>
+                    Conversations are scored 1–5 for agent quality by the LLM evaluator.
+                    Only conversations with a real answer get a quality score; those
+                    classified as technical failures, out of scope, unfinished, or
+                    weird/unclear are excluded from the score-share and mean-score plots
+                    (they still appear in the disposition mix).
+                  </Typography>
+                </Box>
+              </Paper>
+              {quality.meta.empty ? (
+                <Paper sx={{ p: 3 }}>
+                  <Typography variant="body2" color="text.secondary" sx={{ textAlign: "center" }}>
+                    No analyzed conversations to plot
+                  </Typography>
                 </Paper>
-                <Paper sx={{ p: 2 }}>
-                  <Box sx={{ height: { xs: 260, md: 300 } }}>
-                    <Line data={meanVolumeData} options={meanVolumeOptions} />
+              ) : (
+                <>
+                  <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1 }}>
+                    {quality.meta.total} conversations ({quality.meta.scored} scored),{" "}
+                    {quality.meta.dateMin} – {quality.meta.dateMax}. Rolling centered{" "}
+                    {quality.meta.window}-day window.
+                  </Typography>
+                  <Box
+                    sx={{
+                      display: "grid",
+                      gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" },
+                      gap: 2,
+                    }}
+                  >
+                    <Paper sx={{ p: 2 }}>
+                      <Box sx={{ height: { xs: 260, md: 300 } }} onMouseLeave={scoreShareHl.onContainerLeave}>
+                        <Line data={scoreShareData} options={qualityChartOptions("Score share (% of scored conversations)", scoreShareHl, 100)} />
+                      </Box>
+                    </Paper>
+                    <Paper sx={{ p: 2 }}>
+                      <Box sx={{ height: { xs: 260, md: 300 } }} onMouseLeave={meanVolumeHl.onContainerLeave}>
+                        <Line data={meanVolumeData} options={meanVolumeOptions} />
+                      </Box>
+                    </Paper>
+                    <Paper sx={{ p: 2 }}>
+                      <Box sx={{ height: { xs: 260, md: 300 } }} onMouseLeave={dispositionHl.onContainerLeave}>
+                        <Line data={dispositionMixData} options={qualityChartOptions("Disposition mix (% of all conversations)", dispositionHl, 100)} />
+                      </Box>
+                    </Paper>
+                    <Paper sx={{ p: 2 }}>
+                      <Box sx={{ height: { xs: 260, md: 300 } }} onMouseLeave={issueMixHl.onContainerLeave}>
+                        <Line data={issueMixData} options={qualityChartOptions("Issue category mix (% of issue instances)", issueMixHl, 100)} />
+                      </Box>
+                    </Paper>
                   </Box>
-                </Paper>
-                <Paper sx={{ p: 2 }}>
-                  <Box sx={{ height: { xs: 260, md: 300 } }}>
-                    <Line data={dispositionMixData} options={qualityChartOptions("Disposition mix (% of all conversations)", dispositionHl, 100)} />
-                  </Box>
-                </Paper>
-                <Paper sx={{ p: 2 }}>
-                  <Box sx={{ height: { xs: 260, md: 300 } }}>
-                    <Line data={issueMixData} options={qualityChartOptions("Issue-category mix (% of issue instances)", issueMixHl, 100)} />
-                  </Box>
-                </Paper>
-              </Box>
+                </>
+              )}
             </>
           )}
         </>

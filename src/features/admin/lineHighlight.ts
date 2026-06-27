@@ -61,12 +61,18 @@ export interface HighlightHandlers {
   onHover: (event: ChartEvent, _active: unknown[], chart: Chart) => void;
   legendOnHover: (event: ChartEvent, item: LegendItem, legend: LegendElement<"line">) => void;
   legendOnLeave: (event: ChartEvent, item: LegendItem, legend: LegendElement<"line">) => void;
+  // reset the highlight when the cursor leaves the chart area. chart.js onHover
+  // doesn't fire on mouseout, so wire this to the container's onMouseLeave.
+  onContainerLeave: () => void;
 }
 
 // shared hook: returns dataset stylers + hover handlers backed by a per-chart
 // ref. call it once per chart (each instance gets its own highlighted ref).
 export function useLineHighlight(): HighlightHandlers {
   const highlightedRef = useRef<number | null>(null);
+  // last chart seen via onHover, so onContainerLeave can reset it without the
+  // chart instance being passed through the DOM mouseleave event.
+  const chartRef = useRef<Chart | null>(null);
 
   return useMemo<HighlightHandlers>(() => {
     const setHighlighted = (chart: Chart, index: number | null): void => {
@@ -93,6 +99,7 @@ export function useLineHighlight(): HighlightHandlers {
       },
 
       onHover: (event, _active, chart) => {
+        chartRef.current = chart;
         // "dataset" mode finds the nearest line under the cursor regardless of
         // which point we're over, which is what "follow this line" needs.
         const elements = chart.getElementsAtEventForMode(
@@ -105,10 +112,14 @@ export function useLineHighlight(): HighlightHandlers {
       },
 
       legendOnHover: (_event, item, legend) => {
+        chartRef.current = legend.chart;
         if (item.datasetIndex != null) setHighlighted(legend.chart, item.datasetIndex);
       },
       legendOnLeave: (_event, _item, legend) => {
         setHighlighted(legend.chart, null);
+      },
+      onContainerLeave: () => {
+        if (chartRef.current) setHighlighted(chartRef.current, null);
       },
     };
   }, []);
