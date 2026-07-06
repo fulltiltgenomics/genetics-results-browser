@@ -783,27 +783,38 @@ export default function AdminPage() {
                     )}
                   </List>
                 ) : (
-                <Box component="table" sx={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                <Box component="table" sx={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
                   <thead>
                     <tr>
-                      {["User", "Title / Preview", "Messages", "Created", "Updated", "Rating", "Disposition", "Issues", "LLM rating", "Success"].map(
-                        (h) => (
-                          <Box
-                            component="th"
-                            key={h}
-                            sx={{
-                              textAlign: "left",
-                              p: 1,
-                              borderBottom: 1,
-                              borderColor: "divider",
-                              fontWeight: 600,
-                              whiteSpace: "nowrap",
-                            }}
-                          >
-                            {h}
-                          </Box>
-                        )
-                      )}
+                      {[
+                        { key: "user", label: "User" },
+                        { key: "title", label: "Title / Preview" },
+                        { key: "messages", label: "Messages" },
+                        { key: "created", label: "Created" },
+                        { key: "updated", label: "Updated" },
+                        { key: "disposition", label: "Disposition" },
+                        { key: "issues", label: "Issues" },
+                        { key: "userRating", label: <>User<br />rating</> },
+                        { key: "llmRating", label: <>LLM<br />rating</> },
+                        { key: "success", label: "Success" },
+                      ].map(({ key, label }) => (
+                        <Box
+                          component="th"
+                          key={key}
+                          sx={{
+                            textAlign: "left",
+                            px: 0.75,
+                            py: 0.75,
+                            borderBottom: 1,
+                            borderColor: "divider",
+                            fontWeight: 600,
+                            whiteSpace: "nowrap",
+                            verticalAlign: "bottom",
+                          }}
+                        >
+                          {label}
+                        </Box>
+                      ))}
                     </tr>
                   </thead>
                   <tbody>
@@ -817,16 +828,19 @@ export default function AdminPage() {
                           "&:hover": { bgcolor: "action.hover" },
                         }}
                       >
-                        <Box component="td" sx={{ p: 1, borderBottom: 1, borderColor: "divider" }}>
-                          {s.userId}
+                        <Box component="td" sx={{ px: 0.75, py: 0.75, borderBottom: 1, borderColor: "divider", whiteSpace: "nowrap" }}>
+                          <Tooltip title={s.userId}>
+                            <span>{s.userId.split("@")[0]}</span>
+                          </Tooltip>
                         </Box>
                         <Box
                           component="td"
                           sx={{
-                            p: 1,
+                            px: 0.75,
+                            py: 0.75,
                             borderBottom: 1,
                             borderColor: "divider",
-                            maxWidth: 400,
+                            maxWidth: 280,
                             overflow: "hidden",
                             textOverflow: "ellipsis",
                             whiteSpace: "nowrap",
@@ -836,28 +850,22 @@ export default function AdminPage() {
                         </Box>
                         <Box
                           component="td"
-                          sx={{ p: 1, borderBottom: 1, borderColor: "divider", textAlign: "center" }}
+                          sx={{ px: 0.75, py: 0.75, borderBottom: 1, borderColor: "divider", textAlign: "center" }}
                         >
                           {s.messageCount}
                         </Box>
-                        <Box component="td" sx={{ p: 1, borderBottom: 1, borderColor: "divider", whiteSpace: "nowrap" }}>
+                        <Box component="td" sx={{ px: 0.75, py: 0.75, borderBottom: 1, borderColor: "divider", whiteSpace: "nowrap" }}>
                           {new Date(s.createdAt).toLocaleDateString()}
                         </Box>
-                        <Box component="td" sx={{ p: 1, borderBottom: 1, borderColor: "divider", whiteSpace: "nowrap" }}>
+                        <Box component="td" sx={{ px: 0.75, py: 0.75, borderBottom: 1, borderColor: "divider", whiteSpace: "nowrap" }}>
                           {new Date(s.updatedAt).toLocaleDateString()}
                         </Box>
-                        <Box
-                          component="td"
-                          sx={{ p: 1, borderBottom: 1, borderColor: "divider", textAlign: "center" }}
-                        >
-                          {s.rating ?? "-"}
-                        </Box>
-                        <Box component="td" sx={{ p: 1, borderBottom: 1, borderColor: "divider", whiteSpace: "nowrap" }}>
-                          {s.disposition || "-"}
+                        <Box component="td" sx={{ px: 0.75, py: 0.75, borderBottom: 1, borderColor: "divider", whiteSpace: "nowrap" }}>
+                          {s.disposition ? s.disposition.replace(/_/g, " ") : "-"}
                         </Box>
                         <Box
                           component="td"
-                          sx={{ p: 1, borderBottom: 1, borderColor: "divider", textAlign: "center" }}
+                          sx={{ px: 0.75, py: 0.75, borderBottom: 1, borderColor: "divider", textAlign: "center" }}
                         >
                           {s.issueCount > 0 ? (
                             <Tooltip title={s.issueCategories.join(", ") || "no categories"}>
@@ -869,13 +877,19 @@ export default function AdminPage() {
                         </Box>
                         <Box
                           component="td"
-                          sx={{ p: 1, borderBottom: 1, borderColor: "divider", textAlign: "center" }}
+                          sx={{ px: 0.75, py: 0.75, borderBottom: 1, borderColor: "divider", textAlign: "center" }}
+                        >
+                          {s.rating ?? "-"}
+                        </Box>
+                        <Box
+                          component="td"
+                          sx={{ px: 0.75, py: 0.75, borderBottom: 1, borderColor: "divider", textAlign: "center" }}
                         >
                           {s.llmRating ?? "NA"}
                         </Box>
                         <Box
                           component="td"
-                          sx={{ p: 1, borderBottom: 1, borderColor: "divider", textAlign: "center" }}
+                          sx={{ px: 0.75, py: 0.75, borderBottom: 1, borderColor: "divider", textAlign: "center" }}
                         >
                           <Tooltip title={s.successLabel || "unknown"}>
                             <Box component="span" sx={{ display: "inline-flex", verticalAlign: "middle" }}>
