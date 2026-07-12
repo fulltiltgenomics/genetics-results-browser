@@ -19,7 +19,7 @@ shapes match production 1:1 so MSW mocks reflect real responses.
 | `datasets.json` | `GET /api/v1/datasets` | one dataset per data_type (gwas/pqtl/eqtl/caqtl/asmqtl/mixed/metaboqtl/exome/gene_based/expression/chromatin_peaks/gene_disease) |
 | `resources.json` | `GET /api/v1/resources` | object keyed by product category; each list trimmed to 3 entries |
 | `search_phenotypes.json` | `GET /api/v1/search?q=asthma&types=phenotypes` | already carries `data_type` + `has_summary_stats` (backend additions are live) |
-| `summary_stats.json` | `GET /api/v1/summary_stats/finngen/gwas?variants=19-44908684-T-C&phenotypes=ASTHMA_OBESITY&format=json` | per-variant per-phenotype sumstat row |
+| `summary_stats.json` | `POST /api/v1/summary_stats/finngen/gwas?format=json` body `{"variants":["19-44908684-T-C"],"phenotypes":["ASTHMA_OBESITY"]}` | per-variant per-phenotype sumstat row |
 | `colocalization_by_credible_set_id.json` | `GET /api/v1/colocalization_by_credible_set_id/finngen/3000242/chr19%3A43408684-46408684_1?format=json` | cs_id urlencoded; trimmed from 96 rows to 3 |
 
 ## Request-shape gotchas discovered during capture
@@ -31,6 +31,8 @@ shapes match production 1:1 so MSW mocks reflect real responses.
   `{"variants": ["19-44908684-T-C", ...]}` (per refactor.backend.md §1), unlike the
   newline-separated string used by credible_sets_by_variant and nearest_genes. gnomAD uses this
   same array body and may return TWO rows per variant (genomes + exomes); the BFF merges them.
-- `summary_stats` requires both `variants` and `phenotypes` query params (both required).
+- `summary_stats` is **POST** with body `{"variants": [...], "phenotypes": [...]}` (both required,
+  arrays of dash variants / phenotype codes); `format` stays a query param. Switched from GET because a
+  long `?variants=` list overflowed nginx's request-line limit and 414'd.
 - `/search` phenotype results already include `data_type` and `has_summary_stats`
   (the two planned backend additions in refactor.backend.md are deployed).
