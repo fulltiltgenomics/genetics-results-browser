@@ -357,6 +357,7 @@ const normalizeDatasets = (datasets: RawDataset[]): Record<string, DatasetMeta> 
       cellType: d.cell_type ?? null,
       quantMethod: d.quant_method ?? null,
       sampleSize: d.n_samples,
+      hasCredibleSets: d.products?.credible_sets === true,
       hasSummaryStats: d.products?.summary_stats === true,
     };
   }
@@ -458,6 +459,7 @@ const enrichEqtlCatalogueDatasets = async (
       study: m.study,
       condition: m.condition,
       sampleSize: m.sampleSize,
+      hasCredibleSets: true, // these QTD entries are only added for eQTL Catalogue CS rows present in the results
       hasSummaryStats: false, // eQTL Catalogue exposes no full summary stats
     };
   }

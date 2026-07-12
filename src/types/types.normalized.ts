@@ -250,6 +250,11 @@ export interface DatasetMeta {
   study?: string | null; //     e.g. "Fairfax_2014", "BLUEPRINT", "GTEx"
   condition?: string | null; //  e.g. "naive", "IFNg_24h"
   sampleSize?: number;
+  // products.credible_sets: whether THIS dataset has fine-mapped/pseudo credible sets. Per-dataset,
+  // unlike ResourceMeta.hasCredibleSets which is OR-ed across a resource — needed because a resource
+  // can mix CS datasets with coloc-only ones (e.g. finngen's finngen_nmr metaboQTL has only
+  // colocalization), and the data-type toggles must not offer a type that has no credible sets.
+  hasCredibleSets: boolean;
   // products.summary_stats: whether this dataset exposes full per-variant summary stats. The
   // phenotype-search handoff (summary_stats/{resource}/{data_type}) only works for capable
   // (resource, data_type) pairs — e.g. open_targets/eqtl_catalogue have credible sets but no sumstats.

@@ -111,16 +111,14 @@ const ResourceFilter = (props: { isNotReadyYet: boolean }) => {
   // data types the loaded catalog can produce credible sets for, even when the current input variants
   // hit none. mirrors availableResources: without this a data-type toggle (e.g. pQTL) VANISHES when a
   // query has zero CS of that type, instead of showing greyed. derived from the full /datasets catalog
-  // (query-independent) gated on the resource having credible sets, so sumstats-only resources don't
-  // add a no-op toggle. dataset qtlTypes are already in CredibleSetDataType casing; GWAS comes from the
-  // raw data_type.
+  // (query-independent), gated PER DATASET on hasCredibleSets — a resource can mix CS datasets with
+  // coloc-only ones (e.g. finngen's finngen_nmr metaboQTL has only colocalization), so a resource-level
+  // gate would wrongly offer metaboQTL. dataset qtlTypes are already in CredibleSetDataType casing;
+  // GWAS comes from the raw data_type.
   const capableDataTypes: CredibleSetDataType[] = useMemo(() => {
-    const csResources = new Set(
-      (normalizedData?.resources ?? []).filter((r) => r.hasCredibleSets).map((r) => r.id)
-    );
     const capable = new Set<CredibleSetDataType>();
     for (const ds of Object.values(normalizedData?.datasets ?? {})) {
-      if (!csResources.has(ds.resource)) continue;
+      if (!ds.hasCredibleSets) continue;
       if (ds.dataType === "gwas") capable.add("GWAS");
       for (const qt of ds.qtlTypes ?? []) capable.add(qt);
     }

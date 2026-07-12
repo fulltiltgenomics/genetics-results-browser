@@ -139,14 +139,15 @@ describe("ResourceFilter", () => {
     // entirely. now the catalog (datasets) advertises pQTL capability, so it renders greyed/disabled.
     const response = makeResponse([makeCS({ resource: "finngen", trait: "A", dataType: "GWAS" })]);
     response.datasets = {
-      FinnGen_Olink: {
-        datasetId: "FinnGen_Olink",
+      finngen_pqtl: {
+        datasetId: "finngen_pqtl",
         resource: "finngen",
         dataType: "pqtl",
         qtlTypes: ["pQTL"],
         tissueLabel: null,
         cellType: null,
         quantMethod: null,
+        hasCredibleSets: true,
         hasSummaryStats: false,
       },
     };
@@ -157,6 +158,41 @@ describe("ResourceFilter", () => {
     // GWAS is present and enabled; pQTL is capable-but-empty, so it appears but is disabled.
     expect(within(dataTypeGroup).getByRole("checkbox", { name: /GWAS/ })).toBeEnabled();
     expect(within(dataTypeGroup).getByRole("checkbox", { name: /pQTL/ })).toBeDisabled();
+  });
+
+  it("does not offer a toggle for a coloc-only data type on a CS-capable resource", () => {
+    // regression: finngen has credible sets, but its finngen_nmr metaboQTL dataset has ONLY
+    // colocalization (hasCredibleSets=false). the per-dataset gate must keep metaboQTL out entirely.
+    const response = makeResponse([makeCS({ resource: "finngen", trait: "A", dataType: "GWAS" })]);
+    response.datasets = {
+      finngen_gwas: {
+        datasetId: "finngen_gwas",
+        resource: "finngen",
+        dataType: "gwas",
+        qtlTypes: [],
+        tissueLabel: null,
+        cellType: null,
+        quantMethod: null,
+        hasCredibleSets: true,
+        hasSummaryStats: true,
+      },
+      finngen_nmr: {
+        datasetId: "finngen_nmr",
+        resource: "finngen",
+        dataType: "metaboqtl",
+        qtlTypes: ["metaboQTL"],
+        tissueLabel: null,
+        cellType: null,
+        quantMethod: null,
+        hasCredibleSets: false, // colocalization only, no credible sets
+        hasSummaryStats: false,
+      },
+    };
+    useDataStore.getState().setNormalizedData(response);
+    render(<ResourceFilter isNotReadyYet={false} />);
+
+    const dataTypeGroup = screen.getByText("Data types").closest("div")!;
+    expect(within(dataTypeGroup).queryByRole("checkbox", { name: /metaboQTL/ })).not.toBeInTheDocument();
   });
 
   it("does not show a data-type toggle for a type the catalog cannot produce", () => {
