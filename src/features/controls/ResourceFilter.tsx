@@ -96,7 +96,8 @@ const ResourceFilter = (props: { isNotReadyYet: boolean }) => {
     [availableResources, pseudoResources]
   );
 
-  // distinct CS data types present in the raw data — same dynamic-derive pattern as resources.
+  // distinct CS data types present in the current results. drives the checked/enabled state and the
+  // hotkeys (a type with no data gets a greyed, non-hotkeyed toggle — see capableDataTypes below).
   // these toggles drive the NEW credible-set filter path (toggledCredibleSetDataTypes), not the
   // legacy DataType switches in GlobalDataTypeSwitches.tsx, which still feed the legacy clientData.
   const availableDataTypes: CredibleSetDataType[] = useMemo(() => {
@@ -106,6 +107,32 @@ const ResourceFilter = (props: { isNotReadyYet: boolean }) => {
     }
     return [...present].sort();
   }, [normalizedData]);
+
+  // data types the loaded catalog can produce credible sets for, even when the current input variants
+  // hit none. mirrors availableResources: without this a data-type toggle (e.g. pQTL) VANISHES when a
+  // query has zero CS of that type, instead of showing greyed. derived from the full /datasets catalog
+  // (query-independent) gated on the resource having credible sets, so sumstats-only resources don't
+  // add a no-op toggle. dataset qtlTypes are already in CredibleSetDataType casing; GWAS comes from the
+  // raw data_type.
+  const capableDataTypes: CredibleSetDataType[] = useMemo(() => {
+    const csResources = new Set(
+      (normalizedData?.resources ?? []).filter((r) => r.hasCredibleSets).map((r) => r.id)
+    );
+    const capable = new Set<CredibleSetDataType>();
+    for (const ds of Object.values(normalizedData?.datasets ?? {})) {
+      if (!csResources.has(ds.resource)) continue;
+      if (ds.dataType === "gwas") capable.add("GWAS");
+      for (const qt of ds.qtlTypes ?? []) capable.add(qt);
+    }
+    return [...capable];
+  }, [normalizedData]);
+
+  // toggles to render: present-in-data types plus catalog-capable types (rendered greyed when absent).
+  const displayedDataTypes: CredibleSetDataType[] = useMemo(
+    () => [...new Set([...availableDataTypes, ...capableDataTypes])].sort(),
+    [availableDataTypes, capableDataTypes]
+  );
+  const availableDataTypeSet = useMemo(() => new Set(availableDataTypes), [availableDataTypes]);
 
   // bare-letter hotkeys toggle the matching data type (G -> GWAS, E -> eQTL, ...). only bound for the
   // data types actually present, and deliberately ignored while a text box / select / menu is focused
@@ -178,27 +205,41 @@ const ResourceFilter = (props: { isNotReadyYet: boolean }) => {
     );
   };
 
-  const dataTypeSwitches: ReactElement[] = availableDataTypes.map((dataType) => {
+  const dataTypeSwitches: ReactElement[] = displayedDataTypes.map((dataType) => {
     // absent key in toggledCredibleSetDataTypes means ENABLED (permissive default in passesFilter),
     // so only an explicit === false renders unchecked.
     const checked = toggledCredibleSetDataTypes[dataType] !== false;
-    return (
+    // catalog-capable but no CS for the current variants: grey the toggle (off + disabled) and explain
+    // via tooltip, rather than hiding it — so users see the data type exists but returned nothing here.
+    const hasData = availableDataTypeSet.has(dataType);
+    const control = (
       <FormControlLabel
-        key={dataType}
         control={
           <Switch
-            checked={checked}
-            disabled={props.isNotReadyYet}
+            checked={hasData && checked}
+            disabled={props.isNotReadyYet || !hasData}
             onChange={() => toggleCredibleSetDataType(dataType)}
           />
         }
         label={
-          <Box sx={{ display: "flex", alignItems: "center", gap: "6px" }}>
+          <Box
+            sx={{ display: "flex", alignItems: "center", gap: "6px", opacity: hasData ? 1 : 0.5 }}
+          >
             <DataTypeIcon dataType={dataType} />
             <span>{dataType}</span>
           </Box>
         }
       />
+    );
+    return hasData ? (
+      <Box key={dataType} component="span">
+        {control}
+      </Box>
+    ) : (
+      // span wrapper so the tooltip still fires over the disabled switch (disabled controls emit no events)
+      <Tooltip key={dataType} title={`No ${dataType} credible sets for these variants`} arrow>
+        <span>{control}</span>
+      </Tooltip>
     );
   });
 

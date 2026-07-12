@@ -134,6 +134,41 @@ describe("ResourceFilter", () => {
     expect(remaining).toEqual(["GWAS"]);
   });
 
+  it("shows a greyed, disabled toggle for a catalog-capable data type with no CS in the results", () => {
+    // regression: when the input variants have no pQTL credible sets, the pQTL toggle used to vanish
+    // entirely. now the catalog (datasets) advertises pQTL capability, so it renders greyed/disabled.
+    const response = makeResponse([makeCS({ resource: "finngen", trait: "A", dataType: "GWAS" })]);
+    response.datasets = {
+      FinnGen_Olink: {
+        datasetId: "FinnGen_Olink",
+        resource: "finngen",
+        dataType: "pqtl",
+        qtlTypes: ["pQTL"],
+        tissueLabel: null,
+        cellType: null,
+        quantMethod: null,
+        hasSummaryStats: false,
+      },
+    };
+    useDataStore.getState().setNormalizedData(response);
+    render(<ResourceFilter isNotReadyYet={false} />);
+
+    const dataTypeGroup = screen.getByText("Data types").closest("div")!;
+    // GWAS is present and enabled; pQTL is capable-but-empty, so it appears but is disabled.
+    expect(within(dataTypeGroup).getByRole("checkbox", { name: /GWAS/ })).toBeEnabled();
+    expect(within(dataTypeGroup).getByRole("checkbox", { name: /pQTL/ })).toBeDisabled();
+  });
+
+  it("does not show a data-type toggle for a type the catalog cannot produce", () => {
+    // eQTL is neither present in the CS data nor advertised by any dataset -> no toggle at all.
+    const response = makeResponse([makeCS({ resource: "finngen", trait: "A", dataType: "GWAS" })]);
+    useDataStore.getState().setNormalizedData(response);
+    render(<ResourceFilter isNotReadyYet={false} />);
+
+    const dataTypeGroup = screen.getByText("Data types").closest("div")!;
+    expect(within(dataTypeGroup).queryByLabelText("eQTL")).not.toBeInTheDocument();
+  });
+
   it("marks pseudo-credible-set resources with a '*' and leaves real ones unmarked", () => {
     const response = makeResponse([
       makeCS({ resource: "finngen", trait: "A" }),
