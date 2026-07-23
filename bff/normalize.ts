@@ -20,6 +20,9 @@ import { isCoding, isLoF } from "./coding.js";
 import { maybeExpandPhenotypeLeads, maybeExpandVariantSet, resolveInput } from "./inputParse.js";
 import { fetchBatched, Semaphore, withRetry } from "./batch.js";
 import { upstreamJson, upstreamTsv, UpstreamError } from "./upstream.js";
+import { createHash } from "node:crypto";
+import { TtlLruCache } from "./cache.js";
+import { config } from "./config.js";
 
 /* ── raw upstream row shapes ──
  * These come from the API's native TSV (format=tsv), so every cell is a string (or null for an "NA"
@@ -638,7 +641,28 @@ const attachGeneTargets = async (variants: VariantResult[]): Promise<void> => {
  * per input variant plus annotation, nearest gene, and dataset/resource/phenotype metadata.
  * NO filtering/grouping/summarizing — that stays client-side (munge, later tasks).
  */
+// cache assembled variant-list responses keyed by a hash of the raw query. the whole pipeline below is
+// deterministic in `query` (expansion, resolution and fan-out all derive from it), and the slow
+// named-set queries repeat with a byte-identical token, so keying on the query in front of the fan-out
+// is both correct and captures exactly the repeated-heavy-query case. gnomAD betas/custom values are
+// part of the query text, so identical text implies an identical response — no risk of returning the
+// wrong betas for a different input that happens to resolve to the same variants.
+const resultsCache = new TtlLruCache<NormalizedResponse>(
+  config.resultsCacheMax,
+  config.resultsCacheTtlMs
+);
+const resultsCacheKey = (query: string): string =>
+  createHash("sha256").update(query).digest("hex");
+
+// test seam: the cache is a process-wide singleton, so tests that reuse the same query across cases
+// (some expecting success, some a fresh upstream error) must start from an empty cache.
+export const clearResultsCache = (): void => resultsCache.clear();
+
 export const normalizeVariantList = async (query: string): Promise<NormalizedResponse> => {
+  const cacheKey = resultsCacheKey(query);
+  const cached = resultsCache.get(cacheKey);
+  if (cached) return cached;
+
   // a "pheno:{resource}:{code}" token expands to that phenotype's credible-set lead variants (with
   // the data's betas); a single named-set token (e.g. "FinnGen_enriched_202505") expands to its
   // curated variant list; everything else flows through unchanged as a normal variant/rsid list.
@@ -744,7 +768,7 @@ export const normalizeVariantList = async (query: string): Promise<NormalizedRes
   const datasetsMap = normalizeDatasets(datasets);
   await enrichEqtlCatalogueDatasets(datasetsMap, variants);
 
-  return {
+  const response: NormalizedResponse = {
     queryType: "variant",
     inputVariants: {
       found: variantIds,
@@ -764,6 +788,8 @@ export const normalizeVariantList = async (query: string): Promise<NormalizedRes
       generatedAt: new Date().toISOString(),
     },
   };
+  resultsCache.set(cacheKey, response);
+  return response;
 };
 
 /**

@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import request from "supertest";
 import { createApp } from "./app.js";
+import { clearResultsCache } from "./normalize.js";
 
 import csBatch from "../src/test/fixtures/credible_sets_by_variant_batch.json" with { type: "json" };
 import annoFinngen from "../src/test/fixtures/variant_annotation_finngen.json" with { type: "json" };
@@ -43,6 +44,9 @@ const routeFetch = (overrides: Record<string, () => Response> = {}) =>
 
 afterEach(() => {
   vi.restoreAllMocks();
+  // the /v1/results cache is a process-wide singleton; reset it so cases that reuse a query stay
+  // independent (e.g. the 502-on-upstream-failure case must not see an earlier success cached)
+  clearResultsCache();
 });
 
 describe("POST /v1/results — variant list normalize", () => {
@@ -377,5 +381,34 @@ describe("POST /v1/results — phenotype credible-set lead expansion", () => {
       String(c[0]).includes("/v1/credible_sets_by_phenotype_leads/")
     );
     expect(calledLeads).toBe(false);
+  });
+});
+
+describe("POST /v1/results — server-side response cache", () => {
+  it("serves a repeated identical query from cache without re-hitting the upstream", async () => {
+    const fetchMock = routeFetch();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const first = await request(app).post("/api/v1/results").send({ query: "19-44908684-T-C" });
+    expect(first.status).toBe(200);
+    const callsAfterFirst = fetchMock.mock.calls.length;
+    expect(callsAfterFirst).toBeGreaterThan(0);
+
+    const second = await request(app).post("/api/v1/results").send({ query: "19-44908684-T-C" });
+    expect(second.status).toBe(200);
+    // a cache hit assembles nothing upstream, so no further fetches
+    expect(fetchMock.mock.calls.length).toBe(callsAfterFirst);
+    // and returns the identical assembled response
+    expect(second.body).toEqual(first.body);
+  });
+
+  it("does not let one query's cached response answer a different query", async () => {
+    vi.stubGlobal("fetch", routeFetch());
+
+    const a = await request(app).post("/api/v1/results").send({ query: "19-44908684-T-C" });
+    const b = await request(app).post("/api/v1/results").send({ query: "17-7676154-G-A" });
+
+    expect(a.body.inputVariants.found).toEqual(["19:44908684:T:C"]);
+    expect(b.body.inputVariants.found).toEqual(["17:7676154:G:A"]);
   });
 });
