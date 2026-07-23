@@ -383,6 +383,24 @@ const getTraitNameMap = async (): Promise<Record<string, string>> => {
   }
 };
 
+// per-dataset metadata (capability flags, data/qtl types) from GET /v1/datasets. it's query-independent
+// and changes only between deploys, yet it's fetched on every /v1/results (both the variant and gene
+// paths), so cache it process-wide like getTraitNameMap. an upstream error propagates (unlike the
+// best-effort trait names, dataset metadata drives resource/capability derivation), and an empty result
+// is returned WITHOUT caching so a transient failure is retried on the next request rather than pinned.
+let datasetsCache: RawDataset[] | null = null;
+const getDatasets = async (): Promise<RawDataset[]> => {
+  if (datasetsCache) return datasetsCache;
+  const d = (await upstreamJson<RawDataset[]>("/v1/datasets")) ?? [];
+  if (d.length > 0) datasetsCache = d;
+  return d;
+};
+
+// test seam: the datasets cache is a process-wide singleton, so tests must be able to start empty.
+export const clearDatasetsCache = (): void => {
+  datasetsCache = null;
+};
+
 /**
  * eQTL Catalogue sub-dataset metadata, keyed by QTD id. The /datasets list carries only one aggregate
  * "eqtl_catalogue" entry, so the per-QTD study/tissue/condition (shown in the tables in place of the
@@ -692,7 +710,7 @@ export const normalizeVariantList = async (query: string): Promise<NormalizedRes
   // independent fan-out runs concurrently; datasets/resources are query-independent metadata.
   // batch fan-out responses come back as the API's native TSV (format=tsv) — see upstreamTsv. only the
   // request BODY stays JSON (the API's POST endpoints take a JSON body); the RESPONSE is TSV.
-  const [csRows, annoRows, gnomadRows, genesRows, datasetsRaw, traitNameMap] = await Promise.all([
+  const [csRows, annoRows, gnomadRows, genesRows, datasets, traitNameMap] = await Promise.all([
     batched((c) =>
       upstreamTsv<RawCsRow>("/v1/credible_sets_by_variant", {
         method: "POST",
@@ -722,11 +740,9 @@ export const normalizeVariantList = async (query: string): Promise<NormalizedRes
         timeoutMs: batchTimeoutMs,
       })
     ),
-    upstreamJson<RawDataset[]>("/v1/datasets"),
+    getDatasets(),
     getTraitNameMap(),
   ]);
-
-  const datasets = datasetsRaw ?? [];
 
   // index raw rows by canonical variant id
   const csByVariant = new Map<string, RawCsRow[]>();
@@ -824,16 +840,15 @@ export const normalizeGene = async (
   gene: string,
   window?: number
 ): Promise<NormalizedResponse> => {
-  const [csRaw, datasetsRaw, traitNameMap] = await Promise.all([
+  const [csRaw, datasets, traitNameMap] = await Promise.all([
     upstreamTsv<RawCsRow>(`/v1/credible_sets_by_gene/${encodeURIComponent(gene)}`, {
       query: { window },
     }),
-    upstreamJson<RawDataset[]>("/v1/datasets"),
+    getDatasets(),
     getTraitNameMap(),
   ]);
 
   const csRows = csRaw ?? [];
-  const datasets = datasetsRaw ?? [];
 
   // group rows by canonical variant id, preserving first-seen order so the member list is stable
   const csByVariant = new Map<string, RawCsRow[]>();
