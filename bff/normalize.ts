@@ -293,6 +293,49 @@ const indexGnomad = (rows: RawGnomadRow[]): Map<string, GnomadFreq> => {
   return out;
 };
 
+/* ── deferred gnomAD fan-out (lazy per-page on the variant path) ──────────────
+ * gnomAD is the slowest upstream fan-out — a large list is hundreds of GCS random-access range seeks
+ * (>290s for ~900 variants). The variant path therefore no longer fetches it up front with the rest of
+ * the assembly; the client loads it lazily instead — for the currently visible table page, and in full
+ * only when a whole-result-set feature (sort / filter / export by the AF column) needs every row — via
+ * POST /v1/gnomad, which calls fetchGnomad below. Same chunked-concurrent pattern as the main fan-out.
+ */
+const GNOMAD_CHUNK_SIZE = 100;
+const GNOMAD_FANOUT_CONCURRENCY = 8;
+const GNOMAD_BATCH_TIMEOUT_MS = 120_000;
+
+// many concurrent chunks multiply exposure to TRANSIENT upstream tabix/GCS errors (e.g. a sporadic
+// "Invalid BGZF header" mid-stream read); retry a chunk on a 5xx/connection error (a fresh tabix
+// attempt clears it), never on a 4xx. shared by the main fan-out and the gnomAD-by-variant fetch.
+const retryServerErrors = (err: unknown): boolean =>
+  !(err instanceof UpstreamError) || err.status >= 500;
+
+// fetch + assemble GnomadFreq for an arbitrary variant-id subset (colon form, "chr:pos:ref:alt").
+// used by POST /v1/gnomad for both the per-page and the full "ensure all rows" client requests.
+export const fetchGnomad = async (variantIds: string[]): Promise<Map<string, GnomadFreq>> => {
+  if (variantIds.length === 0) return new Map();
+  const sem = new Semaphore(GNOMAD_FANOUT_CONCURRENCY);
+  const rows = await fetchBatched(variantIds, GNOMAD_CHUNK_SIZE, sem, (c) =>
+    withRetry(
+      () =>
+        upstreamTsv<RawGnomadRow>("/v1/variant_annotation/gnomad", {
+          method: "POST",
+          body: { variants: c }, // JSON ARRAY body, same as the finngen source
+          timeoutMs: GNOMAD_BATCH_TIMEOUT_MS,
+        }),
+      3,
+      400,
+      retryServerErrors
+    )
+  );
+  return indexGnomad(rows);
+};
+
+// plain-object form of fetchGnomad for the POST /v1/gnomad JSON response body.
+export const gnomadForVariants = async (
+  variantIds: string[]
+): Promise<Record<string, GnomadFreq>> => Object.fromEntries(await fetchGnomad(variantIds));
+
 /* ── fan-out + assembly ── */
 
 const QTL_TOKENS: ReadonlySet<string> = new Set([
@@ -699,18 +742,15 @@ export const normalizeVariantList = async (query: string): Promise<NormalizedRes
   const batchTimeoutMs = 120_000;
   const sem = new Semaphore(FANOUT_CONCURRENCY);
 
-  // many concurrent chunks multiply exposure to TRANSIENT upstream tabix/GCS errors (e.g. a sporadic
-  // "Invalid BGZF header" mid-stream read), and Promise.all would fail the whole request on one. retry
-  // each chunk on a 5xx/connection error (a fresh tabix attempt clears it); don't retry 4xx.
-  const retryServerErrors = (err: unknown): boolean =>
-    !(err instanceof UpstreamError) || err.status >= 500;
   const batched = <T>(call: (c: string[]) => Promise<T[] | null>): Promise<T[]> =>
     fetchBatched(variantIds, CHUNK_SIZE, sem, (c) => withRetry(() => call(c), 3, 400, retryServerErrors));
 
   // independent fan-out runs concurrently; datasets/resources are query-independent metadata.
   // batch fan-out responses come back as the API's native TSV (format=tsv) — see upstreamTsv. only the
   // request BODY stays JSON (the API's POST endpoints take a JSON body); the RESPONSE is TSV.
-  const [csRows, annoRows, gnomadRows, genesRows, datasets, traitNameMap] = await Promise.all([
+  // gnomAD is intentionally EXCLUDED here — it's the slowest fan-out and is loaded lazily per page by
+  // the client (POST /v1/gnomad), so variants come back without a gnomad field until then.
+  const [csRows, annoRows, genesRows, datasets, traitNameMap] = await Promise.all([
     batched((c) =>
       upstreamTsv<RawCsRow>("/v1/credible_sets_by_variant", {
         method: "POST",
@@ -722,13 +762,6 @@ export const normalizeVariantList = async (query: string): Promise<NormalizedRes
       upstreamTsv<RawAnnotationRow>("/v1/variant_annotation/finngen", {
         method: "POST",
         body: { variants: c }, // JSON ARRAY exception
-        timeoutMs: batchTimeoutMs,
-      })
-    ),
-    batched((c) =>
-      upstreamTsv<RawGnomadRow>("/v1/variant_annotation/gnomad", {
-        method: "POST",
-        body: { variants: c }, // JSON ARRAY body, same as the finngen source
         timeoutMs: batchTimeoutMs,
       })
     ),
@@ -752,7 +785,6 @@ export const normalizeVariantList = async (query: string): Promise<NormalizedRes
   }
   const annoByVariant = new Map<string, RawAnnotationRow>();
   for (const r of annoRows) annoByVariant.set(toColon(r.variant), r);
-  const gnomadByVariant = indexGnomad(gnomadRows);
   const nearestByVariant = new Map<string, NearestGene[]>();
   for (const r of genesRows) {
     const vid = toColon(r.variant);
@@ -770,9 +802,7 @@ export const normalizeVariantList = async (query: string): Promise<NormalizedRes
     };
     const nearest = nearestByVariant.get(vid);
     if (nearest?.length) result.nearestGenes = nearest;
-    // variants absent from gnomad get no gnomad field (don't fabricate)
-    const gnomad = gnomadByVariant.get(vid);
-    if (gnomad) result.gnomad = gnomad;
+    // gnomad is deferred (loaded lazily per page via POST /v1/gnomad); no gnomad field is set here.
     if (betaByVariant[vid] !== undefined) result.beta = betaByVariant[vid];
     if (valueByVariant[vid] !== undefined) result.value = valueByVariant[vid];
     return result;

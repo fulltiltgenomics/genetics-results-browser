@@ -1,5 +1,5 @@
 import { Router, type Request, type Response } from "express";
-import { normalizeGene, normalizeVariantList } from "./normalize.js";
+import { gnomadForVariants, normalizeGene, normalizeVariantList } from "./normalize.js";
 import { UpstreamError } from "./upstream.js";
 
 // shared upstream-error -> HTTP mapping for the stage-1 normalize routes: pass through a 4xx upstream
@@ -74,6 +74,34 @@ export const createVariantsRoute = (): Router => {
       res.json(normalized);
     } catch (err) {
       sendError(res, err, "/v1/gene_results");
+    }
+  });
+
+  /**
+   * Deferred gnomAD enrichment for a variant subset (genetics-results-browser-3lu.1).
+   *
+   * POST /v1/gnomad  body { variants: string[] }   (canonical "chr:pos:ref:alt" ids)
+   * Returns { gnomad: Record<variantId, GnomadFreq> } — only the variants gnomAD actually has a row
+   * for are present (absent ones are simply omitted, as before the deferral). The variant path no
+   * longer fetches gnomAD up front (it's the slowest fan-out); the client calls this lazily for the
+   * currently visible table page, and for ALL variants when sort/filter/export by the AF column needs
+   * every row. A single endpoint serves both — the client just sends whichever id subset it needs.
+   */
+  router.post("/v1/gnomad", async (req: Request, res: Response) => {
+    const body = req.body as { variants?: unknown } | undefined;
+    const raw = Array.isArray(body?.variants) ? body.variants : undefined;
+    if (!raw) {
+      res.status(400).json({ error: "bad_request", message: "missing 'variants' array" });
+      return;
+    }
+    // keep only non-empty string ids; an empty/all-junk list yields an empty map (no upstream call).
+    const variants = raw.filter((v): v is string => typeof v === "string" && v.trim() !== "");
+
+    try {
+      const gnomad = await gnomadForVariants(variants);
+      res.json({ gnomad });
+    } catch (err) {
+      sendError(res, err, "/v1/gnomad");
     }
   });
 

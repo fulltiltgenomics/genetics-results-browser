@@ -32,6 +32,19 @@ export const handlers = [
   // the upstream calls the BFF itself fans out to (used by the bff-side tests, not the browser hook).
   http.post(api("results"), () => HttpResponse.json(normalizedResponse)),
 
+  // deferred gnomAD enrichment (3lu.1): the variant path loads gnomAD lazily per page via this BFF
+  // endpoint. serve the requested subset from the normalized fixture's per-variant gnomad so rendered
+  // tables still show AF; unknown variants are simply omitted (matches the real endpoint).
+  http.post(api("gnomad"), async ({ request }) => {
+    const { variants } = (await request.json()) as { variants: string[] };
+    const requested = new Set(variants);
+    const gnomad: Record<string, unknown> = {};
+    for (const v of normalizedResponse.variants as Array<{ variant: string; gnomad?: unknown }>) {
+      if (v.gnomad && requested.has(v.variant)) gnomad[v.variant] = v.gnomad;
+    }
+    return HttpResponse.json({ gnomad });
+  }),
+
   http.get(api("credible_sets_by_variant/:variant"), () => HttpResponse.json(credibleSetsByVariant)),
   http.post(api("credible_sets_by_variant"), () => HttpResponse.json(credibleSetsByVariantBatch)),
 

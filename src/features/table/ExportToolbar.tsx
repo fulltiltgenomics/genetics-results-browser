@@ -3,6 +3,7 @@ import FileDownloadIcon from "@mui/icons-material/FileDownload";
 import { MRT_RowData, MRT_TableInstance } from "material-react-table";
 import {
   DataTypeSummaryRow,
+  GnomadFreq,
   PhenoSearchRow,
   PhenoSummaryRow,
   TissueSummaryRow,
@@ -19,8 +20,16 @@ import {
   exportTissueSummaryTable,
   exportTissueWithVariants,
   exportVariantMainTable,
+  withLatestGnomad,
 } from "./utils/export";
 import { useMemo } from "react";
+
+// freshest gnomAD per variant from the store — read AFTER awaiting ensureAllGnomadLoaded so an export
+// that emits the AF column carries the fully-loaded values regardless of React re-render timing.
+const latestGnomadByVariant = (): Map<string, GnomadFreq | undefined> =>
+  new Map(
+    (useDataStore.getState().normalizedData?.variants ?? []).map((v) => [v.variant, v.gnomad])
+  );
 
 /**
  * Per-table TSV download toolbars, mounted via each table's renderTopToolbarCustomActions. They
@@ -75,39 +84,43 @@ export const VariantTableExportButtons = ({
   const phenotypes = useDataStore((state) => state.normalizedData?.phenotypes);
   const hasBetas = useDataStore((state) => state.normalizedData?.hasBetas ?? false);
   const hasCustomValues = useDataStore((state) => state.normalizedData?.hasCustomValues ?? false);
+  const ensureAllGnomadLoaded = useDataStore((state) => state.ensureAllGnomadLoaded);
   const traitName = useMemo(() => makeTraitNameResolver(phenotypes), [phenotypes]);
 
   const empty = table.getPrePaginationRowModel().rows.length === 0;
 
+  // both exports emit the gnomAD AF column, so ensure gnomAD is loaded for EVERY row first, then
+  // re-read it from the store onto the visible (whole filtered/sorted) rows.
+  const onDownloadVariants = async () => {
+    await ensureAllGnomadLoaded();
+    exportVariantMainTable(
+      variantInput,
+      withLatestGnomad(visibleRows(table), latestGnomadByVariant()),
+      selectedPopulation,
+      traitName,
+      showTraitCounts,
+      hasBetas,
+      hasCustomValues
+    );
+  };
+  const onDownloadFullResults = async () => {
+    await ensureAllGnomadLoaded();
+    exportCredibleSets(
+      variantInput,
+      withLatestGnomad(visibleRows(table), latestGnomadByVariant()),
+      selectedPopulation,
+      traitName,
+      cisWindow
+    );
+  };
+
   return (
     <Box sx={toolbarSx}>
-      <DownloadButton
-        label="DOWNLOAD VARIANTS TABLE"
-        disabled={empty}
-        onClick={() =>
-          exportVariantMainTable(
-            variantInput,
-            visibleRows(table),
-            selectedPopulation,
-            traitName,
-            showTraitCounts,
-            hasBetas,
-            hasCustomValues
-          )
-        }
-      />
+      <DownloadButton label="DOWNLOAD VARIANTS TABLE" disabled={empty} onClick={onDownloadVariants} />
       <DownloadButton
         label="DOWNLOAD FULL RESULTS"
         disabled={empty}
-        onClick={() =>
-          exportCredibleSets(
-            variantInput,
-            visibleRows(table),
-            selectedPopulation,
-            traitName,
-            cisWindow
-          )
-        }
+        onClick={onDownloadFullResults}
       />
     </Box>
   );
@@ -120,15 +133,22 @@ export const DataTypeExportButtons = ({
 }) => {
   const variantInput = useDataStore((state) => state.variantInput) ?? "";
   const selectedPopulation = useDataStore((state) => state.selectedPopulation);
+  const ensureAllGnomadLoaded = useDataStore((state) => state.ensureAllGnomadLoaded);
   const empty = table.getPrePaginationRowModel().rows.length === 0;
+
+  // this export emits the gnomAD AF column too, so load gnomAD for every row before building it.
+  const onDownload = async () => {
+    await ensureAllGnomadLoaded();
+    exportDataTypeComparison(
+      variantInput,
+      withLatestGnomad(visibleRows(table), latestGnomadByVariant()),
+      selectedPopulation
+    );
+  };
 
   return (
     <Box sx={toolbarSx}>
-      <DownloadButton
-        label="DOWNLOAD DATA TYPE COMPARISON"
-        disabled={empty}
-        onClick={() => exportDataTypeComparison(variantInput, visibleRows(table), selectedPopulation)}
-      />
+      <DownloadButton label="DOWNLOAD DATA TYPE COMPARISON" disabled={empty} onClick={onDownload} />
     </Box>
   );
 };
@@ -173,8 +193,22 @@ export const TissueExportButtons = ({
   const variantInput = useDataStore((state) => state.variantInput) ?? "";
   const selectedPopulation = useDataStore((state) => state.selectedPopulation);
   const phenotypes = useDataStore((state) => state.normalizedData?.phenotypes);
+  const ensureAllGnomadLoaded = useDataStore((state) => state.ensureAllGnomadLoaded);
   const traitName = useMemo(() => makeTraitNameResolver(phenotypes), [phenotypes]);
   const empty = summaryRows.length === 0;
+
+  // the summary export carries no gnomAD; the with-variants export emits the AF column, so that one
+  // ensures gnomAD is loaded for every row first and re-reads it from the store.
+  const onDownloadWithVariants = async () => {
+    await ensureAllGnomadLoaded();
+    exportTissueWithVariants(
+      variantInput,
+      withLatestGnomad(tissueVariants, latestGnomadByVariant()),
+      dataType,
+      selectedPopulation,
+      traitName
+    );
+  };
 
   return (
     <Box sx={toolbarSx}>
@@ -186,15 +220,7 @@ export const TissueExportButtons = ({
       <DownloadButton
         label="DOWNLOAD TISSUE TABLE WITH VARIANTS"
         disabled={empty}
-        onClick={() =>
-          exportTissueWithVariants(
-            variantInput,
-            tissueVariants,
-            dataType,
-            selectedPopulation,
-            traitName
-          )
-        }
+        onClick={onDownloadWithVariants}
       />
     </Box>
   );

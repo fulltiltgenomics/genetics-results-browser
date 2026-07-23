@@ -1,14 +1,26 @@
 import { Box, useTheme } from "@mui/material";
-import { MaterialReactTable, MRT_SortingState } from "material-react-table";
+import {
+  MaterialReactTable,
+  MRT_ColumnFiltersState,
+  MRT_SortingState,
+  MRT_Updater,
+  useMaterialReactTable,
+} from "material-react-table";
 import { naInfSort, variantSort } from "../utils/sorting";
 import VariantCredibleSetTable from "./VariantCredibleSetTable";
 import { VariantResult } from "../../../types/types.normalized";
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { getVariantMainTableColumnsNormalized } from "./VariantMainTable.columns.normalized";
 import { useDataStore } from "../../../store/store";
 import { useNormalizedQuery } from "../../../store/serverQuery";
 import { makeTraitNameResolver } from "../utils/tableutil";
 import { VariantTableExportButtons } from "../ExportToolbar";
+
+// the gnomAD AF column id; sorting or filtering by it needs gnomAD loaded for the WHOLE result set,
+// not just the visible page (genetics-results-browser-3lu.1).
+const GNOMAD_AF_COLUMN = "gnomad_af";
+const resolveUpdater = <T,>(updater: MRT_Updater<T>, prev: T): T =>
+  typeof updater === "function" ? (updater as (p: T) => T)(prev) : updater;
 
 /**
  * Credible-set-native main results table (refactor.md §4). Renders the store's reactive
@@ -27,10 +39,36 @@ const VariantMainTable = (props: {
   const filteredVariants = useDataStore((state) => state.filteredVariants);
   const normalizedData = useDataStore((state) => state.normalizedData);
   const selectedPopulation = useDataStore((state) => state.selectedPopulation);
+  const gnomadLoading = useDataStore((state) => state.gnomadLoading);
+  const gnomadFullyLoaded = useDataStore((state) => state.gnomadFullyLoaded);
+  const loadGnomadForVariants = useDataStore((state) => state.loadGnomadForVariants);
+  const ensureAllGnomadLoaded = useDataStore((state) => state.ensureAllGnomadLoaded);
 
   const { error, isError, isFetching, isLoading } = useNormalizedQuery(variantInput);
 
   const [sorting, setSorting] = useState<MRT_SortingState>([]);
+  const [columnFilters, setColumnFilters] = useState<MRT_ColumnFiltersState>([]);
+
+  // sorting or filtering by the gnomAD AF column reads gnomAD for the whole (pre-pagination) result,
+  // so force the full lazy load before applying it — otherwise the order/filter would be computed from
+  // only the pages loaded so far. It's the SAME shared "ensure all" path the export await uses.
+  const onSortingChange = useCallback(
+    (updater: MRT_Updater<MRT_SortingState>) => {
+      const next = resolveUpdater(updater, sorting);
+      setSorting(next);
+      if (next.some((s) => s.id === GNOMAD_AF_COLUMN)) void ensureAllGnomadLoaded();
+    },
+    [sorting, ensureAllGnomadLoaded]
+  );
+  const onColumnFiltersChange = useCallback(
+    (updater: MRT_Updater<MRT_ColumnFiltersState>) => {
+      const next = resolveUpdater(updater, columnFilters);
+      setColumnFilters(next);
+      const afFilter = next.find((f) => f.id === GNOMAD_AF_COLUMN);
+      if (afFilter && afFilter.value !== "" && afFilter.value != null) void ensureAllGnomadLoaded();
+    },
+    [columnFilters, ensureAllGnomadLoaded]
+  );
 
   // resolve a credible set's resource+trait to its human-readable phenostring (BFF-populated from
   // trait_name_mapping); falls back to the raw trait id for QTL gene symbols / unmapped codes.
@@ -63,71 +101,91 @@ const VariantMainTable = (props: {
     [props.data, filteredVariants]
   );
 
-  return (
-    <MaterialReactTable
-      data={tableData}
-      columns={columns}
-      enableTopToolbar={props.enableTopToolbar}
-      // TSV download toolbar, only on the standalone tab (not when this table is reused inside a
-      // detail panel with enableTopToolbar=false). builds straight from the typed VariantResult rows.
-      renderTopToolbarCustomActions={({ table }) =>
-        props.enableTopToolbar ? (
-          <VariantTableExportButtons table={table} showTraitCounts={props.showTraitCounts} />
-        ) : null
-      }
-      enableColumnFilterModes
-      // belt-and-suspenders against the reset-on-data-change loop above: never auto-reset the page
-      // index when data/filters change (also nicer UX — expanding a row keeps your page/position).
-      autoResetPageIndex={false}
-      // the detail panel cell carries the default 1px row-separator border; during MUI's Collapse
-      // open animation it briefly shows as a full-width line under the row before content fills in.
-      // drop the border (and its padding when collapsed) so no line flashes on expand.
-      muiDetailPanelProps={{ sx: { borderBottom: "none", borderTop: "none" } }}
-      initialState={{
-        showColumnFilters: true,
-        density: "compact",
-        columnOrder: ["mrt-row-expand"].concat(columns.map((c) => c.id!)),
-      }}
-      state={{
-        isLoading,
-        showAlertBanner: isError,
-        showProgressBars: isFetching,
-        pagination,
-        columnOrder: ["mrt-row-expand"].concat(columns.map((c) => c.id!)),
-        sorting,
-      }}
-      onSortingChange={setSorting}
-      onPaginationChange={setPagination}
-      // stable row id keyed on the variant so the expanded credible-set detail (and the lazy coloc
-      // panel nested inside it) survives re-renders triggered by the per-CS coloc query resolving
-      getRowId={(row) => row.variant}
-      renderDetailPanel={({ row }) => (
-        <Box sx={{ margin: "auto", width: "100%" }}>
-          <VariantCredibleSetTable data={row.original} />
-        </Box>
-      )}
-      muiTableProps={{ sx: { tableLayout: "fixed" } }}
-      muiTableBodyCellProps={{ sx: { fontSize: "0.75rem" } }}
-      muiToolbarAlertBannerProps={
-        isError
-          ? {
-              color: "error",
-              // @ts-ignore axios error shape
-              children: error?.response?.data?.message || error?.message,
-            }
-          : undefined
-      }
-      muiPaginationProps={{ rowsPerPageOptions: [10, 20, 100, 1000] }}
-      muiTableBodyRowProps={({ row }) => ({
-        sx: {
-          backgroundColor:
-            Number(row.original.value) % 2 == 1 ? theme.palette.background.default : "inherit",
-        },
-      })}
-      sortingFns={{ naInfSort, variantSort }}
-      enableGlobalFilter={false}
-    />
-  );
+  const table = useMaterialReactTable({
+    data: tableData,
+    columns,
+    enableTopToolbar: props.enableTopToolbar,
+    // TSV download toolbar, only on the standalone tab (not when this table is reused inside a
+    // detail panel with enableTopToolbar=false). builds straight from the typed VariantResult rows.
+    renderTopToolbarCustomActions: ({ table }) =>
+      props.enableTopToolbar ? (
+        <VariantTableExportButtons table={table} showTraitCounts={props.showTraitCounts} />
+      ) : null,
+    enableColumnFilterModes: true,
+    // belt-and-suspenders against the reset-on-data-change loop above: never auto-reset the page
+    // index when data/filters change (also nicer UX — expanding a row keeps your page/position).
+    autoResetPageIndex: false,
+    // the detail panel cell carries the default 1px row-separator border; during MUI's Collapse
+    // open animation it briefly shows as a full-width line under the row before content fills in.
+    // drop the border (and its padding when collapsed) so no line flashes on expand.
+    muiDetailPanelProps: { sx: { borderBottom: "none", borderTop: "none" } },
+    initialState: {
+      showColumnFilters: true,
+      density: "compact",
+      columnOrder: ["mrt-row-expand"].concat(columns.map((c) => c.id!)),
+    },
+    state: {
+      isLoading,
+      showAlertBanner: isError,
+      // gnomAD loads lazily per page (and in full for AF sort/filter/export); surface that fetch as a
+      // progress bar too, so the table shows activity while the visible page's AF fills in.
+      showProgressBars: isFetching || gnomadLoading,
+      pagination,
+      columnOrder: ["mrt-row-expand"].concat(columns.map((c) => c.id!)),
+      sorting,
+      columnFilters,
+    },
+    onSortingChange,
+    onColumnFiltersChange,
+    onPaginationChange: setPagination,
+    // stable row id keyed on the variant so the expanded credible-set detail (and the lazy coloc
+    // panel nested inside it) survives re-renders triggered by the per-CS coloc query resolving
+    getRowId: (row) => row.variant,
+    renderDetailPanel: ({ row }) => (
+      <Box sx={{ margin: "auto", width: "100%" }}>
+        <VariantCredibleSetTable data={row.original} />
+      </Box>
+    ),
+    muiTableProps: { sx: { tableLayout: "fixed" } },
+    muiTableBodyCellProps: { sx: { fontSize: "0.75rem" } },
+    muiToolbarAlertBannerProps: isError
+      ? {
+          color: "error",
+          // @ts-ignore axios error shape
+          children: error?.response?.data?.message || error?.message,
+        }
+      : undefined,
+    muiPaginationProps: { rowsPerPageOptions: [10, 20, 100, 1000] },
+    muiTableBodyRowProps: ({ row }) => ({
+      sx: {
+        backgroundColor:
+          Number(row.original.value) % 2 == 1 ? theme.palette.background.default : "inherit",
+      },
+    }),
+    sortingFns: { naInfSort, variantSort },
+    enableGlobalFilter: false,
+  });
+
+  // lazily load gnomAD for the variants on the CURRENTLY VISIBLE page (after column filters + sorting +
+  // pagination), merging into the store. runs on any change that alters the visible page. de-duped in
+  // the store so an already-loaded page is a no-op (and it stops once everything is loaded). only the
+  // variant path defers gnomAD; the gene path never sets it here.
+  useEffect(() => {
+    if (normalizedData?.queryType !== "variant" || gnomadFullyLoaded) return;
+    const pageVariantIds = table.getRowModel().rows.map((r) => r.original.variant);
+    if (pageVariantIds.length > 0) void loadGnomadForVariants(pageVariantIds);
+  }, [
+    table,
+    normalizedData,
+    gnomadFullyLoaded,
+    tableData,
+    pagination,
+    sorting,
+    columnFilters,
+    loadGnomadForVariants,
+  ]);
+
+  return <MaterialReactTable table={table} />;
 };
 
 export default VariantMainTable;

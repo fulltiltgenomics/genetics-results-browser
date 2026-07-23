@@ -9,10 +9,18 @@ import {
 } from "./munge.normalized";
 import {
   CredibleSetDataType,
+  GnomadFreq,
   NormalizedResponse,
   VariantResult,
 } from "../types/types.normalized";
+import { fetchGnomadForVariants } from "./gnomad";
 import config from "@/config.json";
+
+// per-variant in-flight gnomAD fetches (genetics-results-browser-3lu.1). gnomAD is loaded lazily —
+// per visible page, and in full only when sort/filter/export by the AF column needs every row — so
+// concurrent callers (a page load racing the "ensure all" path) must never double-fetch a variant.
+// module scope because the store is a process-wide singleton; cleared when a new query is ingested.
+const gnomadInflight = new Map<string, Promise<void>>();
 
 /**
  * assemble the munge.normalized FilterState from the store's normalized-path fields.
@@ -91,6 +99,20 @@ interface DataState {
   /** raw stage-1 payload from useNormalizedQuery; stage-2 filtering happens client-side. */
   normalizedData: NormalizedResponse | undefined;
   setNormalizedData: (data: NormalizedResponse | undefined) => void;
+
+  // ── deferred gnomAD enrichment (genetics-results-browser-3lu.1) ────────────
+  /** variant ids whose gnomAD has been fetched (present OR confirmed absent), so they aren't refetched. */
+  gnomadLoaded: Set<string>;
+  /** true once every result variant's gnomAD is loaded — the state the whole-result AF features need. */
+  gnomadFullyLoaded: boolean;
+  /** true while any gnomAD fetch is in flight (drives the table's progress indicator). */
+  gnomadLoading: boolean;
+  /** merge a fetched gnomAD subset into normalizedData + mark the requested ids loaded; recomputes. */
+  mergeGnomad: (requested: string[], gnomadByVariant: Record<string, GnomadFreq>) => void;
+  /** lazily load gnomAD for a variant subset (the current table page). de-dupes in-flight/loaded ids. */
+  loadGnomadForVariants: (variantIds: string[]) => Promise<void>;
+  /** the single shared "ensure gnomAD for ALL rows" path sort/filter/export await before proceeding. */
+  ensureAllGnomadLoaded: () => Promise<void>;
   /**
    * reactive stage-2 result: normalizedData.variants with each variant's credibleSets filtered by
    * the current FilterState. recomputed on every relevant change WITHOUT refetching. grouping and
@@ -125,7 +147,7 @@ interface DataState {
 }
 
 export const useDataStore = create<DataState>()(
-  subscribeWithSelector((set) => ({
+  subscribeWithSelector((set, get) => ({
     message: undefined,
     setMessage: (message) => set({ message }),
     variantInput: undefined,
@@ -338,9 +360,82 @@ export const useDataStore = create<DataState>()(
     normalizedData: undefined,
     setNormalizedData: (data) =>
       set((state) => {
-        const next = { ...state, normalizedData: data };
-        return { normalizedData: data, filteredVariants: recomputeFilteredVariants(next) };
+        // a new query invalidates any pending lazy gnomAD fetches and the loaded set.
+        gnomadInflight.clear();
+        const next = { ...state, normalizedData: data, gnomadLoaded: new Set<string>() };
+        return {
+          normalizedData: data,
+          filteredVariants: recomputeFilteredVariants(next),
+          gnomadLoaded: new Set<string>(),
+          // only the variant path defers gnomAD (loaded lazily per page); nothing else needs tracking.
+          gnomadFullyLoaded: data?.queryType !== "variant",
+          gnomadLoading: false,
+        };
       }),
+
+    // ── deferred gnomAD enrichment (genetics-results-browser-3lu.1) ──────────
+    gnomadLoaded: new Set<string>(),
+    gnomadFullyLoaded: true,
+    gnomadLoading: false,
+    mergeGnomad: (requested, gnomadByVariant) =>
+      set((state) => {
+        if (!state.normalizedData) return {};
+        const req = new Set(requested);
+        // attach gnomAD only to the requested variants (fresh copies so React/the table re-render);
+        // an id gnomAD had no row for stays without a gnomad field — still marked loaded so we don't refetch.
+        const variants = state.normalizedData.variants.map((v) =>
+          req.has(v.variant) ? { ...v, gnomad: gnomadByVariant[v.variant] } : v
+        );
+        const normalizedData = { ...state.normalizedData, variants };
+        const gnomadLoaded = new Set(state.gnomadLoaded);
+        for (const v of requested) gnomadLoaded.add(v);
+        const gnomadFullyLoaded = normalizedData.variants.every((v) => gnomadLoaded.has(v.variant));
+        const next = { ...state, normalizedData, gnomadLoaded };
+        return {
+          normalizedData,
+          gnomadLoaded,
+          gnomadFullyLoaded,
+          filteredVariants: recomputeFilteredVariants(next),
+        };
+      }),
+    loadGnomadForVariants: async (variantIds) => {
+      const state = get();
+      const data = state.normalizedData;
+      if (!data) return;
+      const known = new Set(data.variants.map((v) => v.variant));
+      const loaded = state.gnomadLoaded;
+      // ids present in the result, not yet loaded, and not already being fetched by another caller.
+      const toFetch = variantIds.filter(
+        (v) => known.has(v) && !loaded.has(v) && !gnomadInflight.has(v)
+      );
+      // in-flight fetches (started elsewhere) that also cover ids we need — await those too.
+      const awaiting = variantIds
+        .filter((v) => gnomadInflight.has(v))
+        .map((v) => gnomadInflight.get(v)!);
+
+      if (toFetch.length > 0) {
+        set({ gnomadLoading: true });
+        const p = fetchGnomadForVariants(toFetch)
+          .then((gnomadByVariant) => get().mergeGnomad(toFetch, gnomadByVariant))
+          // best-effort: a failed lazy load leaves those variants unmarked so a later page/ensure
+          // retries them; never crash the table over a gnomAD blip.
+          .catch(() => {})
+          .finally(() => {
+            for (const v of toFetch) gnomadInflight.delete(v);
+            if (gnomadInflight.size === 0) set({ gnomadLoading: false });
+          });
+        // register synchronously (before any await) so a concurrent caller sees these as in-flight.
+        for (const v of toFetch) gnomadInflight.set(v, p);
+        awaiting.push(p);
+      }
+      await Promise.all(awaiting);
+    },
+    ensureAllGnomadLoaded: async () => {
+      const data = get().normalizedData;
+      if (!data) return;
+      await get().loadGnomadForVariants(data.variants.map((v) => v.variant));
+    },
+
     filteredVariants: [],
     pValueThreshold: 0.05,
     setPValueThreshold: (pValueThreshold) =>

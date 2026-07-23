@@ -146,51 +146,20 @@ describe("POST /v1/results — variant list normalize", () => {
     expect(eqtlCat.hasSummaryStats).toBe(false);
   });
 
-  it("attaches a merged GnomadFreq, preferring the larger-AN row, with byPop + popmax", async () => {
-    vi.stubGlobal("fetch", routeFetch());
+  it("defers gnomAD: /v1/results never attaches gnomad and never calls the gnomad upstream", async () => {
+    const fetchMock = routeFetch();
+    vi.stubGlobal("fetch", fetchMock);
 
     const res = await request(app).post("/api/v1/results").send({ query: "19-44908684-T-C" });
 
-    const gnomad = res.body.variants[0].gnomad;
-    expect(gnomad).toBeDefined();
-    // 19-44908684 has two rows: e (AN 1415800) + g (AN 152092). merge picks the larger-AN exome row.
-    expect(gnomad.genomeOrExome).toBe("e");
-    expect(gnomad.variant).toBe("19:44908684:T:C");
-    // afOverall + byPop parsed from the e row's scientific-notation strings
-    expect(gnomad.afOverall).toBeCloseTo(0.14757);
-    expect(gnomad.byPop.afr).toBeCloseTo(0.22661);
-    expect(gnomad.byPop.nfe).toBeCloseTo(0.15142);
-    expect(gnomad.byPop.mid).toBeCloseTo(0.068061);
-    expect(Object.keys(gnomad.byPop).sort()).toEqual(
-      ["afr", "amr", "asj", "eas", "fin", "mid", "nfe", "remaining", "sas"].sort()
+    expect(res.status).toBe(200);
+    // gnomAD is loaded lazily per page now, so the assembled variant carries no gnomad field...
+    expect(res.body.variants[0].gnomad).toBeUndefined();
+    // ...and the slow gnomAD fan-out is NOT on the /v1/results critical path.
+    const calledGnomad = fetchMock.mock.calls.some((c) =>
+      String(c[0]).includes("/v1/variant_annotation/gnomad")
     );
-    // popmax is the max over byPop -> afr in the e row (0.22661)
-    expect(gnomad.popmaxPop).toBe("afr");
-    expect(gnomad.popmaxAf).toBeCloseTo(0.22661);
-  });
-
-  it("handles a single-row gnomAD variant (no g/e merge) and an absent variant", async () => {
-    // 17-7676154-G-A returns one exome row; the gnomad fixture has no row for 1-55039974-G-T
-    vi.stubGlobal("fetch", routeFetch());
-
-    const res = await request(app)
-      .post("/api/v1/results")
-      .send({ query: "17-7676154-G-A\n1-55039974-G-T" });
-
-    const byId: Record<string, { gnomad?: Record<string, unknown> }> = {};
-    for (const v of res.body.variants as Array<{ variant: string }>) {
-      byId[v.variant] = v as { gnomad?: Record<string, unknown> };
-    }
-
-    const tp53 = byId["17:7676154:G:A"].gnomad!;
-    expect(tp53.genomeOrExome).toBe("e");
-    expect(tp53.afOverall).toBeCloseTo(6.842e-7);
-    // only nfe is nonzero; popmax = nfe even though every pop is present
-    expect(tp53.popmaxPop).toBe("nfe");
-    expect(tp53.popmaxAf).toBeCloseTo(8.9928e-7);
-
-    // variant absent from gnomad -> no gnomad field fabricated
-    expect(byId["1:55039974:G:T"].gnomad).toBeUndefined();
+    expect(calledGnomad).toBe(false);
   });
 
   it("returns a clean JSON 400 for a malformed JSON body", async () => {
@@ -261,6 +230,96 @@ describe("POST /v1/results — variant list normalize", () => {
     );
 
     const res = await request(app).post("/api/v1/results").send({ query: "19-44908684-T-C" });
+    expect(res.status).toBe(502);
+    expect(res.body.error).toBe("upstream_error");
+  });
+});
+
+describe("POST /v1/gnomad — deferred per-page/full gnomAD enrichment", () => {
+  it("returns a merged GnomadFreq map, preferring the larger-AN row, with byPop + popmax", async () => {
+    vi.stubGlobal("fetch", routeFetch());
+
+    const res = await request(app)
+      .post("/api/v1/gnomad")
+      .send({ variants: ["19:44908684:T:C"] });
+
+    expect(res.status).toBe(200);
+    const gnomad = res.body.gnomad["19:44908684:T:C"];
+    expect(gnomad).toBeDefined();
+    // 19-44908684 has two rows: e (AN 1415800) + g (AN 152092). merge picks the larger-AN exome row.
+    expect(gnomad.genomeOrExome).toBe("e");
+    expect(gnomad.variant).toBe("19:44908684:T:C");
+    // afOverall + byPop parsed from the e row's scientific-notation strings
+    expect(gnomad.afOverall).toBeCloseTo(0.14757);
+    expect(gnomad.byPop.afr).toBeCloseTo(0.22661);
+    expect(gnomad.byPop.nfe).toBeCloseTo(0.15142);
+    expect(gnomad.byPop.mid).toBeCloseTo(0.068061);
+    expect(Object.keys(gnomad.byPop).sort()).toEqual(
+      ["afr", "amr", "asj", "eas", "fin", "mid", "nfe", "remaining", "sas"].sort()
+    );
+    // popmax is the max over byPop -> afr in the e row (0.22661)
+    expect(gnomad.popmaxPop).toBe("afr");
+    expect(gnomad.popmaxAf).toBeCloseTo(0.22661);
+  });
+
+  it("merges a single-row variant and omits a variant gnomAD has no row for", async () => {
+    // 17-7676154-G-A returns one exome row; the gnomad fixture has no row for 1-55039974-G-T
+    vi.stubGlobal("fetch", routeFetch());
+
+    const res = await request(app)
+      .post("/api/v1/gnomad")
+      .send({ variants: ["17:7676154:G:A", "1:55039974:G:T"] });
+
+    expect(res.status).toBe(200);
+    const tp53 = res.body.gnomad["17:7676154:G:A"];
+    expect(tp53.genomeOrExome).toBe("e");
+    expect(tp53.afOverall).toBeCloseTo(6.842e-7);
+    // only nfe is nonzero; popmax = nfe even though every pop is present
+    expect(tp53.popmaxPop).toBe("nfe");
+    expect(tp53.popmaxAf).toBeCloseTo(8.9928e-7);
+
+    // variant absent from gnomad -> simply omitted from the map (not fabricated)
+    expect(res.body.gnomad["1:55039974:G:T"]).toBeUndefined();
+  });
+
+  it("returns an empty map without hitting the upstream for an empty variant list", async () => {
+    const fetchMock = routeFetch();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await request(app).post("/api/v1/gnomad").send({ variants: [] });
+
+    expect(res.status).toBe(200);
+    expect(res.body.gnomad).toEqual({});
+    const calledGnomad = fetchMock.mock.calls.some((c) =>
+      String(c[0]).includes("/v1/variant_annotation/gnomad")
+    );
+    expect(calledGnomad).toBe(false);
+  });
+
+  it("rejects a body without a variants array with 400", async () => {
+    const fetchMock = routeFetch();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await request(app).post("/api/v1/gnomad").send({});
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe("bad_request");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("maps an upstream gnomAD failure to 502", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string | URL) => {
+        if (String(url).includes("/v1/variant_annotation/gnomad")) throw new Error("ECONNREFUSED");
+        return json([]);
+      })
+    );
+
+    const res = await request(app)
+      .post("/api/v1/gnomad")
+      .send({ variants: ["19:44908684:T:C"] });
+
     expect(res.status).toBe(502);
     expect(res.body.error).toBe("upstream_error");
   });

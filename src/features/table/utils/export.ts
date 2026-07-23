@@ -37,6 +37,17 @@ export type ExportRow = Record<string, Cell>;
 
 const shortHash = (s: string): string => SHA256(s).toString().substring(0, 7);
 
+/**
+ * Overwrite each row's gnomAD with the freshest value from the store, keyed by variant id
+ * (genetics-results-browser-3lu.1). gnomAD is loaded lazily, so an export MUST first await the shared
+ * "ensure all rows loaded" path and then re-read gnomAD from the store here — this avoids depending on
+ * a React re-render having flushed the merged gnomAD into the table's row objects before the download.
+ */
+export const withLatestGnomad = <T extends { variant: string; gnomad?: GnomadFreq }>(
+  rows: T[],
+  byVariant: Map<string, GnomadFreq | undefined>
+): T[] => rows.map((r) => ({ ...r, gnomad: byVariant.get(r.variant) ?? r.gnomad }));
+
 // internal variant ids are "chr:pos:ref:alt"; the legacy downloads used "chr-pos-ref-alt", so emit
 // dash form everywhere a variant id reaches a TSV (kept for backward-compatible parsers).
 const toDashVariant = (v: string): string => v.replace(/:/g, "-");
