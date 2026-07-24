@@ -108,4 +108,13 @@ export interface LLMChatProps {
   /** prefilled draft for the input textarea on mount (e.g. an annotation-side "ask the assistant"
    *  seed). does NOT auto-send — the user reviews and submits. */
   initialInput?: string;
+
+  /** pending attachments restored on mount (draft preservation across conversation switches).
+   *  the File objects live in memory only, so this works within a page session but not across
+   *  reloads. */
+  initialAttachments?: PendingAttachment[];
+
+  /** notifies the parent whenever the unsent draft (input text or pending attachments) changes,
+   *  so it can be restored via initialInput/initialAttachments after a remount */
+  onDraftChange?: (input: string, attachments: PendingAttachment[]) => void;
 }

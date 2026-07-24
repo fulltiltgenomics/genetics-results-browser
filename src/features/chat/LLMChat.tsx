@@ -164,6 +164,8 @@ export const LLMChat = ({
   isSecretChat,
   readOnly,
   initialInput,
+  initialAttachments,
+  onDraftChange,
 }: LLMChatProps) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
@@ -195,8 +197,18 @@ export const LLMChat = ({
   const [toolProfile, setToolProfile] = useState<ToolProfile | null>(null);
   const [optionsOpen, setOptionsOpen] = useState(false);
   const hasTriggeredFirstExchange = useRef(false);
-  const [pendingAttachments, setPendingAttachments] = useState<PendingAttachment[]>([]);
+  // unlike initialInput, initialAttachments needs no async-seed effect: the parent restores drafts
+  // synchronously from a ref when remounting on conversation switch
+  const [pendingAttachments, setPendingAttachments] = useState<PendingAttachment[]>(
+    initialAttachments ?? [],
+  );
   const [wasStopped, setWasStopped] = useState(false);
+
+  // report the unsent draft so the parent can restore it after a conversation-switch remount.
+  // also fires when the draft empties on send, correctly clearing the stored draft
+  useEffect(() => {
+    onDraftChange?.(input, pendingAttachments);
+  }, [input, pendingAttachments, onDraftChange]);
   const [isDragging, setIsDragging] = useState(false);
   const [contextUsage, setContextUsage] = useState<ContextUsage | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);

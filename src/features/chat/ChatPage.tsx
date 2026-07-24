@@ -33,7 +33,7 @@ import {
   type SessionDetail,
   type ChatMessageRecord,
 } from "./chatHistoryApi";
-import type { ChatMessage, FileAttachment } from "./chat.types";
+import type { ChatMessage, FileAttachment, PendingAttachment } from "./chat.types";
 import { exportChatAsHtml, exportChatAsMarkdown } from "./exportChat";
 import { useChatSeedStore } from "../../store/store.chatSeed";
 
@@ -102,6 +102,35 @@ const ChatPage = () => {
   useEffect(() => {
     setSeedInput(useChatSeedStore.getState().consumeChatSeed());
   }, []);
+
+  // per-conversation unsent drafts (text + attachments), so switching conversations doesn't lose
+  // what the user typed. keyed by session id, with all not-yet-persisted new chats sharing the
+  // logical key "new". kept in a ref because it changes on every keystroke and only needs to be
+  // read when a chatKey change remounts LLMChat. attachment File objects live in memory only, so
+  // drafts survive conversation switches but not page reloads. secret chats are excluded so their
+  // drafts leave no trace after switching away.
+  const draftsRef = useRef<Map<string, { text: string; attachments: PendingAttachment[] }>>(
+    new Map(),
+  );
+  const draftKey = chatKey.startsWith("secret")
+    ? null
+    : chatKey.startsWith("new")
+      ? "new"
+      : chatKey;
+  const handleDraftChange = useCallback(
+    (text: string, attachments: PendingAttachment[]) => {
+      if (!draftKey) return;
+      if (!text && attachments.length === 0) {
+        draftsRef.current.delete(draftKey);
+      } else {
+        draftsRef.current.set(draftKey, { text, attachments });
+      }
+    },
+    [draftKey],
+  );
+  // reading the ref during render is safe here: the map only matters at LLMChat mount time, and
+  // every mount is triggered by a chatKey state change, which re-renders with the current map
+  const storedDraft = draftKey ? draftsRef.current.get(draftKey) : undefined;
 
   // load sessions on mount
   useEffect(() => {
@@ -905,7 +934,9 @@ const ChatPage = () => {
                 ]}
                 isSecretChat={isSecretChat}
                 readOnly={activeSession ? !activeSession.isOwner : false}
-                initialInput={seedInput}
+                initialInput={seedInput ?? storedDraft?.text}
+                initialAttachments={storedDraft?.attachments}
+                onDraftChange={handleDraftChange}
               />
             </Box>
           )}
