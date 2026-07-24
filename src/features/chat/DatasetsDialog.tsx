@@ -97,6 +97,10 @@ const categories: Category[] = [
     label: "Chromatin peaks",
     filter: (d) => d.data_type === "chromatin_peaks",
   },
+  {
+    label: "Open chromatin",
+    filter: (d) => d.data_type === "open_chromatin",
+  },
 ];
 
 const hasSumstats = (d: Dataset) => (d.products as Record<string, unknown>)?.summary_stats === true;
