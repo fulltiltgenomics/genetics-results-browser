@@ -900,7 +900,7 @@ export const LLMChat = ({
                     Which MCP tools to use?{"\n"}
                     All - includes all tools and automatically determines the ones to use (most times this is the best choice){"\n"}
                     API - includes tools tied to the genetics results API (can be used when strictly getting data for variants/genes/phenotypes){"\n"}
-                    BigQuery - includes access to a BigQuery database that contains credible set and colocalization data (good when computations across all data is needed instead of a specific variant, gene or phenotype)
+                    Database - includes access to a database that contains credible set and colocalization data (good when computations across all data is needed instead of a specific variant, gene or phenotype)
                   </span>
                 }
                 arrow
@@ -936,7 +936,7 @@ export const LLMChat = ({
               <FormControlLabel
                 value="bigquery"
                 control={<Radio size="small" />}
-                label="BigQuery"
+                label="Database"
                 sx={{ "& .MuiFormControlLabel-label": { fontSize: "0.75rem" } }}
               />
             </RadioGroup>
