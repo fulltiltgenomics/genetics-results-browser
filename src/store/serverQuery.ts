@@ -721,7 +721,6 @@ export const useVariantAnnotationQuery = (
   return useQuery<{ [key: string]: { [key: string]: string | boolean | undefined } }>({
     queryKey: ["variant-annotation", variants, withRange],
     queryFn: () => {
-      console.time("variant annotation");
       const sortedVariants = variants.slice().sort((a, b) => {
         const aPos = parseInt(a.split(":")[1]);
         const bPos = parseInt(b.split(":")[1]);
@@ -736,7 +735,8 @@ export const useVariantAnnotationQuery = (
           variants
         )
         .then((response) => {
-          // console.time("variant annotation parsing");
+          // time only the TSV parse (the CPU work), not the network round-trip above
+          const parseStart = performance.now();
           const rows = response.data.split("\n");
           const header = rows[0].split("\t");
           const headerIndex = header.reduce((acc, field) => {
@@ -770,10 +770,13 @@ export const useVariantAnnotationQuery = (
               gene: gene,
             };
           }
-          // console.timeEnd("variant annotation parsing");
+          console.info(
+            `variant annotation TSV parse: ${(performance.now() - parseStart).toFixed(1)}ms for ${
+              Object.keys(var2anno).length
+            } variants`
+          );
           return var2anno;
         });
-      console.timeEnd("variant annotation");
       return response;
     },
     enabled: !!variants && variants.length > 0,
