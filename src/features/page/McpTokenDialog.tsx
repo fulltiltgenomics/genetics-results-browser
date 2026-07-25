@@ -143,6 +143,7 @@ const McpTokenDialog = ({ open, onClose }: McpTokenDialogProps) => {
                     <>
                       Created {formatDate(t.createdAt)}
                       {t.lastUsedAt && ` · Last used ${formatDate(t.lastUsedAt)}`}
+                      {t.expiresAt && ` · Expires ${formatDate(t.expiresAt)} if unused`}
                     </>
                   }
                 />
@@ -167,6 +168,7 @@ const McpTokenDialog = ({ open, onClose }: McpTokenDialogProps) => {
         {activeTokens.length > 0 && (
           <Typography variant="body2" color="text.secondary" sx={{ py: 1 }}>
             Keys are personal and provide access to embargoed FinnGen data. Do not share your keys.
+            A key expires after 90 days without use; each use extends it by another 90 days.
           </Typography>
         )}
 
@@ -203,23 +205,12 @@ const McpTokenDialog = ({ open, onClose }: McpTokenDialogProps) => {
 }`}
           </Box>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>
-            If your MCP client doesn't support custom headers, you can pass the token in the URL instead:
+            The key must be sent in the <code>Authorization</code> header. Passing it in the URL
+            (<code>?token=…</code>) is no longer accepted: a key in a URL is recorded by load
+            balancer request logs and browser history, and leaks to other sites via the{" "}
+            <code>Referer</code> header. If your client cannot set headers, contact us rather
+            than putting the key in the URL.
           </Typography>
-          <Box
-            component="pre"
-            sx={{
-              mt: 1,
-              p: 1.5,
-              bgcolor: "background.paper",
-              borderRadius: 1,
-              fontSize: "0.8rem",
-              fontFamily: "monospace",
-              overflow: "auto",
-              whiteSpace: "pre-wrap",
-            }}
-          >
-            {`${origin}/mcp?token=<TOKEN>`}
-          </Box>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>
             You can also use a Google ID token (in terminal: <code>gcloud auth print-identity-token</code>) but it recycles once an hour.
           </Typography>

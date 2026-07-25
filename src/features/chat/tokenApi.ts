@@ -7,6 +7,8 @@ export interface TokenInfo {
   createdAt: string;
   lastUsedAt: string | null;
   isActive: boolean;
+  // rolling deadline: moves forward on every use, null when expiry is disabled server-side
+  expiresAt: string | null;
 }
 
 export interface TokenCreateResult {
@@ -52,6 +54,7 @@ export async function listTokens(): Promise<TokenInfo[]> {
     createdAt: t.created_at,
     lastUsedAt: t.last_used_at,
     isActive: t.is_active,
+    expiresAt: t.expires_at ?? null,
   }));
 }
 
