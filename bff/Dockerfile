@@ -22,6 +22,11 @@ ENV NODE_ENV=production
 ENV BFF_PORT=5000
 EXPOSE 5000
 
+# drop root: the BFF holds no state on disk. /app is chowned so tsx can write its transform
+# cache under node_modules; the base image ships the `node` user at uid 1000.
+RUN chown -R node:node /app
+USER node
+
 # run tsx directly rather than via npx: npx as PID 1 doesn't forward SIGTERM to node, so a
 # rollout SIGKILLs the server at the grace-period deadline and npm prints an "npm error
 # signal SIGTERM" epilogue that the log monitor reads as a crash
