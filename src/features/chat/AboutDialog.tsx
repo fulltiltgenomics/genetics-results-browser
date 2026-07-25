@@ -9,11 +9,12 @@ interface AboutDialogProps {
 }
 
 const formatModelName = (modelId: string): string => {
-  // "claude-sonnet-4-6" -> "Claude Sonnet 4.6", "claude-opus-4-7" -> "Claude Opus 4.7"
-  const match = modelId.match(/^claude-(\w+)-(\d+)-(\d+)/);
+  // "claude-sonnet-4-6" -> "Claude Sonnet 4.6", "claude-opus-5" -> "Claude Opus 5"
+  const match = modelId.match(/^claude-([a-z]+)-(\d+)(?:-(\d+))?/);
   if (!match) return modelId;
   const [, variant, major, minor] = match;
-  return `Claude ${variant.charAt(0).toUpperCase() + variant.slice(1)} ${major}.${minor}`;
+  const version = minor ? `${major}.${minor}` : major;
+  return `Claude ${variant.charAt(0).toUpperCase() + variant.slice(1)} ${version}`;
 };
 
 export const AboutDialog = ({ open, onClose }: AboutDialogProps) => {
