@@ -42,11 +42,12 @@ describe("CORS", () => {
 
 describe("passthrough", () => {
   it("forwards GET to the upstream with the path and returns its body", async () => {
-    const fetchMock = vi.fn(async () =>
-      new Response(JSON.stringify({ resources: ["finngen"] }), {
-        status: 200,
-        headers: { "content-type": "application/json" },
-      })
+    const fetchMock = vi.fn(
+      async (_url: string | URL | Request, _init?: RequestInit) =>
+        new Response(JSON.stringify({ resources: ["finngen"] }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        })
     );
     vi.stubGlobal("fetch", fetchMock);
 
@@ -63,11 +64,12 @@ describe("passthrough", () => {
   it("does not forward content-encoding (node fetch already decoded the body)", async () => {
     // the upstream advertises gzip; node's fetch transparently decompresses, so re-forwarding
     // "gzip" would make the browser try to gunzip plain JSON -> ERR_CONTENT_DECODING_FAILED.
-    const fetchMock = vi.fn(async () =>
-      new Response(JSON.stringify({ ok: true }), {
-        status: 200,
-        headers: { "content-type": "application/json", "content-encoding": "gzip" },
-      })
+    const fetchMock = vi.fn(
+      async (_url: string | URL | Request, _init?: RequestInit) =>
+        new Response(JSON.stringify({ ok: true }), {
+          status: 200,
+          headers: { "content-type": "application/json", "content-encoding": "gzip" },
+        })
     );
     vi.stubGlobal("fetch", fetchMock);
 
@@ -79,11 +81,12 @@ describe("passthrough", () => {
   });
 
   it("forwards POST bodies to the upstream", async () => {
-    const fetchMock = vi.fn(async () =>
-      new Response(JSON.stringify({ ok: true }), {
-        status: 200,
-        headers: { "content-type": "application/json" },
-      })
+    const fetchMock = vi.fn(
+      async (_url: string | URL | Request, _init?: RequestInit) =>
+        new Response(JSON.stringify({ ok: true }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        })
     );
     vi.stubGlobal("fetch", fetchMock);
 
@@ -97,9 +100,12 @@ describe("passthrough", () => {
   });
 
   it("returns 502 when the upstream is unreachable", async () => {
-    vi.stubGlobal("fetch", vi.fn(async () => {
-      throw new Error("ECONNREFUSED");
-    }));
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (_url: string | URL | Request, _init?: RequestInit): Promise<Response> => {
+        throw new Error("ECONNREFUSED");
+      })
+    );
 
     const res = await request(app).get("/api/v1/resources");
     expect(res.status).toBe(502);

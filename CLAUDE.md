@@ -57,25 +57,25 @@ npm install
 npm run dev        # vite dev server on :3000
 npm run bff:dev    # BFF on :5000 (watch mode); `npm run bff` for one-shot
 npm run build      # production bundle into static/
-npm run typecheck  # tsc --noEmit over src/ (see the caveat below)
+npm run typecheck  # tsc --noEmit over src/
+npm run bff:typecheck # tsc -p bff/tsconfig.json over bff/ (sources + tests)
 npm test           # vitest unit/component tests under src/ (jsdom, MSW-mocked API)
 npm run bff:test   # vitest tests for the BFF
 npm run e2e        # Playwright specs in e2e/ (headless chromium)
 ```
 
 There is no lint script; `tsc` settings live in `tsconfig.json` (strict). `npm run build`
-is `vite build`, which strips types via rolldown *without* checking them, so `npm run
-typecheck` is the only thing that actually type-checks. CI runs it on pull requests,
-before the build.
+is `vite build`, which strips types via rolldown *without* checking them, so the
+`typecheck` scripts are the only things that actually type-check. CI runs both on pull
+requests, before the build.
 
-**`typecheck` does not cover `bff/`.** The root `tsconfig.json` has `include: ["./src/"]`,
-so the BFF is type-checked by nothing — `tsx` and vitest both transpile without checking,
-and `bff/tsconfig.json` is referenced by no tooling today (the BFF image copies only the
-root one). BFF *sources* do pass, but `tsc -p bff/tsconfig.json` reports 6 errors in
-`bff/app.test.ts` (`vi.fn(async () => …)` mocks declared with no parameters, then asserted
-on via `fetchMock.mock.calls[0][0]`), so it is deliberately not wired up. Extending
-coverage also needs `@types/node` promoted to an explicit devDependency — it is only
-present transitively today.
+Type checking is split across two projects because the root `tsconfig.json` has
+`include: ["./src/"]` and so cannot see the BFF: `typecheck` covers `src/`, and
+`bff:typecheck` covers `bff/` via `bff/tsconfig.json`. Both must stay green — `tsx` and
+vitest transpile without checking, so neither `npm run bff` nor `npm run bff:test` will
+catch a BFF type error. `bff/tsconfig.json` sets `"types": ["node"]`, which is why
+`@types/node` is an explicit devDependency rather than a transitive one (npm hoisting is
+not guaranteed under `npm ci`).
 
 See `README.md` for the full dev startup sequence and environment variables.
 

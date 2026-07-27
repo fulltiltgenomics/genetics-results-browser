@@ -71,14 +71,16 @@ the port `VITE_CHAT_URL` names) is a fourth process needed for a fully working a
 
 ```
 npm run typecheck # tsc --noEmit over src/
+npm run bff:typecheck # tsc -p bff/tsconfig.json over bff/ (sources + tests)
 npm test          # vitest unit/component tests under src/ (jsdom, MSW-mocked API)
 npm run bff:test  # vitest tests for the BFF
 npm run e2e       # Playwright end-to-end specs in e2e/ (headless chromium)
 ```
 
-`npm run build` does not check types — Vite strips them during the build — so `npm run
-typecheck` is what catches type errors. Pull requests run it in CI before the build. It
-covers `src/` only; `bff/` is not type-checked (see `CLAUDE.md` for why).
+`npm run build` does not check types — Vite strips them during the build — so the
+`typecheck` scripts are what catch type errors. Two are needed because the root
+`tsconfig.json` only includes `src/`: `typecheck` covers the frontend and
+`bff:typecheck` covers the BFF. Pull requests run both in CI before the build.
 
 `npm run e2e` reuses an already-running dev server, or starts one in `dev.public` mode; specs that
 need real data still require the API and the BFF to be up.

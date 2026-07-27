@@ -16,4 +16,5 @@ jobs:
     # before the build: vite/rolldown strips types without checking them, so a type
     # error would otherwise sail through a green build
     - run: npm run typecheck
+    - run: npm run bff:typecheck
     - run: npm run build
