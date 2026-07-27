@@ -1,5 +1,14 @@
 # BACKEND ENDPOINT SPECS — `genetics-results-api`
 
+> **Status: done — all three additions are implemented and deployed**, and this repo consumes them:
+> per-source `cpra_cols` plus the `gnomad` annotation source (`app/services/variant_annotation_service.py`,
+> profile `common.py`), `has_summary_stats` + `data_type` on `/search` (`app/routers/search.py`), and
+> `app/routers/variant_set.py` serving `/v1/variant_sets`. On the frontend side: `bff/normalize.ts`
+> calls `POST /v1/variant_annotation/gnomad`, `bff/inputParse.ts` expands named sets via
+> `GET /v1/variant_sets/{name}`, and `src/store/serverQuery.ts` passes `has_summary_stats=true`.
+> Kept as the spec/rationale record. One detail has drifted: the gnomAD file now lives under
+> `gs://<bucket>/results_api_data/gnomad/`, not the `gs://finngen-commons/gnomad/` path written below.
+
 Three targeted additions the annotation-tool refactor needs from `../genetics-results-api`
 (see `refactor.md` §2). File references point into that repo.
 

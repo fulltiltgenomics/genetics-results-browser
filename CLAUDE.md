@@ -52,18 +52,62 @@ bd close <id>         # Complete work
 
 ## Build & Test
 
-_Add your build and test commands here_
-
 ```bash
-# Example:
-# npm install
-# npm test
+npm install
+npm run dev        # vite dev server on :3000
+npm run bff:dev    # BFF on :5000 (watch mode); `npm run bff` for one-shot
+npm run build      # production bundle into static/
+npm test           # vitest unit/component tests under src/ (jsdom, MSW-mocked API)
+npm run bff:test   # vitest tests for the BFF
+npm run e2e        # Playwright specs in e2e/ (headless chromium)
 ```
+
+There is no lint script; `tsc` settings live in `tsconfig.json` (strict).
+
+See `README.md` for the full dev startup sequence and environment variables.
 
 ## Architecture Overview
 
-_Add a brief overview of your project architecture_
+React 19 + TypeScript SPA (Vite, MUI v6, material-react-table, zustand, react-router,
+@tanstack/react-query) plus a small Express BFF in `bff/`.
+
+Data flow: browser → vite dev server or nginx → BFF (`:5000`) → `genetics-results-api` (`:2000`).
+The chat views are the exception — they talk directly to the chat backend
+(`../genetics-mcp-server`) at `VITE_CHAT_URL`.
+
+The annotation path is split in two stages so that changing a UI control never re-hits the API:
+
+- **stage 1, in the BFF** — `POST /api/v1/results` (variant list) and `GET /api/v1/gene_results/:gene`
+  fan out over the API's granular endpoints (credible sets, variant annotation, nearest genes,
+  datasets/resources) and return one raw, unfiltered `NormalizedResponse`; the variant-list path is
+  cached in-process by query hash. `POST /api/v1/gnomad` serves the lazy per-page gnomAD enrichment.
+  Everything else under `/api` falls through `bff/passthrough.ts` to the API unchanged.
+- **stage 2, in the browser** — pure filter/group/summarize functions in `src/store/munge.normalized.ts`
+  recompute reactively from the normalized records held in the zustand store.
+
+Layout:
+
+- `src/features/**` — views, grouped by feature (`table`, `gene`, `phenoSearch`, `chat`, `controls`,
+  `admin`, `input`, `page`)
+- `src/store/**` — zustand store, server queries, munging
+- `src/types/**` — `types.normalized.ts` is the current credible-set-primary contract; `types.ts` and
+  `types.gene.ts` still hold legacy pre-refactor types
+- `src/test/**` — vitest setup, MSW handlers, API fixtures (see `src/test/fixtures/README.md`)
+- `bff/**` — BFF sources and their vitest suite
+- `e2e/**` — Playwright specs
+
+`refactor.md` and `refactor.backend.md` document the credible-set-only rewrite that produced this
+architecture; they are historical design records, not a to-do list.
 
 ## Conventions & Patterns
 
-_Add your project-specific conventions here_
+- comments start lowercase (unless a proper noun) and explain *why*, not *what*; no comments that
+  restate the code
+- import from `src/` via the `@/*` path alias
+- tests are colocated next to the code they cover, `*.test.ts(x)`
+- `*.normalized.*` file/type suffixes mark the post-refactor credible-set data path; unsuffixed
+  siblings are the legacy path being retired
+- deployment differences (FinnGen vs public, dev vs prod) come from build-time config only —
+  `.env.<mode>` files and `src/config.<data source>.json`, never branching on hostname
+- documentation lives in markdown files at the repo root (`README.md`, `refactor*.md`); there is
+  currently no `docs/` directory

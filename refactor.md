@@ -1,5 +1,20 @@
 # REFACTORING OF VARIANT ANNOTATION TOOL
 
+> **Status: done — this plan has landed on `master`.** All ten sections' work shipped: test infra
+> (§8), the stage-1 BFF in `bff/` (§1), the credible-set-primary types, the variant-table cutover
+> (§4), colocalization / phenotype-search / gene-evidence (§4–6), the affected/affecting gene-list
+> simplification (§6) and the chat handoff (§9). Both `llm` and `refactor-credible-sets` are now
+> ancestors of `master`, so the branch framing below is historical. Kept as the design record for
+> *why* the architecture looks the way it does — not as a to-do list. Where the shipped code
+> deviates from the plan:
+>
+> - **§4 thresholds:** the plan was to replace the p-value threshold with PIP and keep `cs_min_r2`.
+>   Shipped instead: *both* a PIP and a p-value threshold, and `cs_min_r2` dropped entirely.
+> - **§3 taxonomy:** Gene view, LD lookup and About still have routes but were removed from the
+>   header nav, which now offers only the chat and the variant tables.
+> - Legacy pre-refactor code (`types/types.ts`, the `assoc` paths in `store/munge.ts`) still exists
+>   alongside the `*.normalized.*` path rather than having been deleted.
+
 This repo contains a legacy variant annotation tool and a new chat interface built on top of
 that. The original variant annotation tool is in `master` and the chat interface is in this
 `llm` branch built on top of `master`.
