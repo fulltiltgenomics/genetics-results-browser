@@ -176,6 +176,10 @@ e2e/.output/
 .playwright/
 ms-playwright/
 
+# Chrome DevTools performance traces (tens of MB each), incl. the macOS resource-fork sibling
+Trace-*.json.gz
+._Trace-*.json.gz
+
 # Beads / Dolt files (added by bd init)
 .dolt/
 *.db
