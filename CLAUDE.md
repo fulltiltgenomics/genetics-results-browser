@@ -111,3 +111,30 @@ architecture; they are historical design records, not a to-do list.
   `.env.<mode>` files and `src/config.<data source>.json`, never branching on hostname
 - documentation lives in markdown files at the repo root (`README.md`, `refactor*.md`); there is
   currently no `docs/` directory
+
+## Documentation ownership
+
+Changing a path on the left makes the doc on the right wrong until it is updated in
+the same commit. `scripts/check-doc-drift.sh` warns (never blocks) on commits that
+violate this; it runs from the `pre-commit` hook.
+
+| changed path | doc to update | what to check |
+|---|---|---|
+| `bff/**` | `CLAUDE.md`, `README.md` | architecture overview (stage-1/stage-2 split, BFF routes), BFF env vars, dev startup sequence |
+| `.env.dev*`, `.env.prod*` | `README.md` | the `VITE_*` variable table, the list of available modes |
+| `package.json` | `README.md`, `CLAUDE.md` | documented dev/build/test commands |
+| `Dockerfile`, `bff/Dockerfile`, `nginx.*.conf` | `README.md` | docker build args, `DEPLOY_ENV`/`DATA_SOURCE` selection |
+
+`refactor.md` and `refactor.backend.md` are deliberately *not* drift targets — they are
+historical records of a completed rewrite, not living documentation.
+
+A doc is stale the moment it *enumerates* something the code no longer matches.
+Counts and lists rot silently — env-var tables, route lists, npm script lists — so
+re-derive them from the code rather than trusting them.
+
+## Cross-repo documentation
+
+`genetics-results-suite` is the spec of record for the suite as a whole; this repo
+documents only itself. When a change here alters the contract with the backing API
+or the BFF's shape of it, check whether that repo's `docs/project-spec.md` needs
+updating too — do not assume this repo's docs cover it.
