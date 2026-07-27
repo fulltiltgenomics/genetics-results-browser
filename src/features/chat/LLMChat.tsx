@@ -684,19 +684,25 @@ export const LLMChat = ({
         if (err.name === "AbortError") {
           if (isTimeoutAbortRef.current) {
             setError("Server stopped responding. Please try again.");
-            setMessages((prev) => prev.filter((m) => m.id !== assistantMsgId || m.content));
-          } else if (accumulatedContent) {
-            // user-initiated stop with partial content — keep it and save
-            const stoppedMsg: ChatMessage = {
+          }
+          if (accumulatedContent) {
+            // partial content is worth saving however the stream ended — a timeout
+            // abort used to leave it on screen but unsaved, so it vanished on reload.
+            const partialMsg: ChatMessage = {
               id: assistantMsgId,
               role: "assistant",
               content: accumulatedContent,
             };
-            onStreamingComplete?.(userMsg, stoppedMsg, messageContent, literatureBackend, toolProfile, toolResults);
+            onStreamingComplete?.(userMsg, partialMsg, messageContent, literatureBackend, toolProfile, toolResults);
             if (!hasTriggeredFirstExchange.current) {
               hasTriggeredFirstExchange.current = true;
               onFirstExchange?.(literatureBackend, toolProfile);
             }
+            // a timed-out turn is resumable for the same reason a stopped one is
+            setWasStopped(true);
+          } else {
+            // nothing to keep — drop the empty assistant placeholder
+            setMessages((prev) => prev.filter((m) => m.id !== assistantMsgId || m.content));
           }
           return;
         }
