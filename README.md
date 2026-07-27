@@ -67,13 +67,18 @@ The chat views do not go through the BFF — they call the chat backend directly
 Since the landing page (`/`) is the chat, that backend (from `../genetics-mcp-server`, listening on
 the port `VITE_CHAT_URL` names) is a fourth process needed for a fully working app.
 
-### Tests
+### Type checking and tests
 
 ```
+npm run typecheck # tsc --noEmit over src/
 npm test          # vitest unit/component tests under src/ (jsdom, MSW-mocked API)
 npm run bff:test  # vitest tests for the BFF
 npm run e2e       # Playwright end-to-end specs in e2e/ (headless chromium)
 ```
+
+`npm run build` does not check types — Vite strips them during the build — so `npm run
+typecheck` is what catches type errors. Pull requests run it in CI before the build. It
+covers `src/` only; `bff/` is not type-checked (see `CLAUDE.md` for why).
 
 `npm run e2e` reuses an already-running dev server, or starts one in `dev.public` mode; specs that
 need real data still require the API and the BFF to be up.
