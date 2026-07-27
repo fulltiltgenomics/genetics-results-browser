@@ -187,6 +187,9 @@ export const LLMChat = ({
   }, [initialInput]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  // driven by the backend's thinking keepalive, so a reasoning pause between tool
+  // calls is visible rather than looking like a stall
+  const [isThinking, setIsThinking] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const isTimeoutAbortRef = useRef(false);
@@ -615,7 +618,11 @@ export const LLMChat = ({
             } catch {
               return; // ignore unparseable SSE chunks
             }
-            if (data.type === "content" && data.content) {
+            if (data.type === "thinking") {
+              // reasoning keepalive: carries no content, so it only drives the indicator
+              setIsThinking(true);
+            } else if (data.type === "content" && data.content) {
+              setIsThinking(false);
               accumulatedContent += data.content;
               const newContent = accumulatedContent;
               setMessages((prev) =>
@@ -712,6 +719,7 @@ export const LLMChat = ({
       } finally {
         if (inactivityTimer) clearTimeout(inactivityTimer);
         setIsLoading(false);
+        setIsThinking(false);
       }
     },
     [
@@ -1297,7 +1305,9 @@ export const LLMChat = ({
           </Box>
         ))}
 
-        {isLoading && messages[messages.length - 1]?.content === "" && (
+        {/* before the first token, and again whenever the model goes back to reasoning
+            mid-response — the latter is otherwise a silent gap */}
+        {isLoading && (isThinking || messages[messages.length - 1]?.content === "") && (
           <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 2 }}>
             <CircularProgress size={20} />
             <Typography variant="body2" color="text.secondary">
