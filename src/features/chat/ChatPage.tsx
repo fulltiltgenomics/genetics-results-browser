@@ -755,7 +755,6 @@ const ChatPage = () => {
                   icon?: ReactNode;
                   tooltip?: string;
                   onClick: (e: ReactMouseEvent<HTMLElement>) => void;
-                  hidden?: boolean;
                 }> = [
                   { key: "about", label: "About", onClick: () => setAboutOpen(true) },
                   { key: "feedback", label: "Feedback", onClick: () => setFeedbackOpen(true) },
@@ -768,7 +767,6 @@ const ChatPage = () => {
                     onClick: () => schemaRoute.openEmpty(),
                   },
                 ];
-                const visibleActions = actions.filter((a) => !a.hidden);
 
                 return (
                   <Box sx={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: { xs: 0.5, md: 1 }, mt: { xs: 0, md: 1 }, flexShrink: 0 }}>
@@ -786,7 +784,7 @@ const ChatPage = () => {
                           open={Boolean(actionMenuAnchorEl)}
                           onClose={() => setActionMenuAnchorEl(null)}
                         >
-                          {visibleActions.map((a) => (
+                          {actions.map((a) => (
                             <MenuItem
                               key={a.key}
                               onClick={(e) => {
@@ -801,7 +799,7 @@ const ChatPage = () => {
                         </Menu>
                       </>
                     ) : (
-                      visibleActions.map((a) => {
+                      actions.map((a) => {
                         const btn = (
                           <Button
                             key={a.key}
