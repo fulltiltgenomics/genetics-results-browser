@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo, type MouseEvent as ReactMouseEvent, type ReactNode } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Box, Typography, CircularProgress, Button, Chip, Drawer, IconButton, ListItemIcon, ListItemText, Menu, MenuItem, Popover, Alert, Tooltip, useMediaQuery, useTheme } from "@mui/material";
-import { VisibilityOff, Share as ShareIcon, LinkOff as LinkOffIcon, ForkRight as ForkRightIcon } from "@mui/icons-material";
+import { VisibilityOff, Share as ShareIcon, LinkOff as LinkOffIcon, ForkRight as ForkRightIcon, FileDownload as FileDownloadIcon } from "@mui/icons-material";
 import MenuIcon from "@mui/icons-material/Menu";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import finnGenieLogo from "../../assets/finngenie-leonardo-gemini-2.5-flash-recraft-vectorized-claude-cropped.svg";
@@ -736,6 +736,16 @@ const ChatPage = () => {
                     Fork to continue
                   </Button>
                 )}
+                {currentMessageCount > 0 && (
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    startIcon={<FileDownloadIcon />}
+                    onClick={(e) => setExportMenuAnchor(e.currentTarget)}
+                  >
+                    Export
+                  </Button>
+                )}
               </Box>
 
               {(() => {
@@ -756,12 +766,6 @@ const ChatPage = () => {
                     label: "Tables",
                     tooltip: "Database tables",
                     onClick: () => schemaRoute.openEmpty(),
-                  },
-                  {
-                    key: "export",
-                    label: "Export this chat",
-                    onClick: (e) => setExportMenuAnchor(e.currentTarget),
-                    hidden: currentMessageCount === 0,
                   },
                 ];
                 const visibleActions = actions.filter((a) => !a.hidden);
@@ -786,15 +790,8 @@ const ChatPage = () => {
                             <MenuItem
                               key={a.key}
                               onClick={(e) => {
-                                if (a.key === "export") {
-                                  // anchor the export submenu to the trigger IconButton so only one menu is visible at a time
-                                  const triggerEl = actionMenuAnchorEl;
-                                  setActionMenuAnchorEl(null);
-                                  setExportMenuAnchor(triggerEl);
-                                } else {
-                                  a.onClick(e);
-                                  setActionMenuAnchorEl(null);
-                                }
+                                a.onClick(e);
+                                setActionMenuAnchorEl(null);
                               }}
                             >
                               {a.icon && <ListItemIcon>{a.icon}</ListItemIcon>}
@@ -824,17 +821,6 @@ const ChatPage = () => {
                         );
                       })
                     )}
-                    <Menu
-                      anchorEl={exportMenuAnchor}
-                      open={Boolean(exportMenuAnchor)}
-                      onClose={() => {
-                        setExportMenuAnchor(null);
-                        setActionMenuAnchorEl(null);
-                      }}
-                    >
-                      <MenuItem onClick={() => { handleExportChat("html"); setActionMenuAnchorEl(null); }}>As HTML</MenuItem>
-                      <MenuItem onClick={() => { handleExportChat("markdown"); setActionMenuAnchorEl(null); }}>As Markdown</MenuItem>
-                    </Menu>
                   </Box>
                 );
               })()}
@@ -964,6 +950,14 @@ const ChatPage = () => {
         sources before use in research.
       </Typography>
 
+      <Menu
+        anchorEl={exportMenuAnchor}
+        open={Boolean(exportMenuAnchor)}
+        onClose={() => setExportMenuAnchor(null)}
+      >
+        <MenuItem onClick={() => handleExportChat("html")}>As HTML</MenuItem>
+        <MenuItem onClick={() => handleExportChat("markdown")}>As Markdown</MenuItem>
+      </Menu>
       <FeedbackDialog open={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
       <AboutDialog open={aboutOpen} onClose={() => setAboutOpen(false)} />
       <McpTokenDialog open={tokensOpen} onClose={() => setTokensOpen(false)} />
