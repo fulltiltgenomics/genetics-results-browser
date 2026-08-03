@@ -12,6 +12,8 @@ export type LiteratureBackend = "europepmc" | "perplexity";
 
 export type ToolProfile = "api" | "bigquery" | "rag";
 
+export type Verbosity = "brief" | "detailed";
+
 export type AttachmentType = "image" | "tsv" | "excel";
 
 export interface FileAttachment {

@@ -34,7 +34,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { PluggableList } from "unified";
 import { fetchEventSource } from "@microsoft/fetch-event-source";
-import type { ChatMessage, LLMChatProps, LiteratureBackend, ToolProfile, PendingAttachment, FileAttachment, ContextUsage } from "./chat.types";
+import type { ChatMessage, LLMChatProps, LiteratureBackend, ToolProfile, Verbosity, PendingAttachment, FileAttachment, ContextUsage } from "./chat.types";
 import { MessageRating } from "./MessageRating";
 import { APP_NAME } from "../../config/appName";
 import { PendingAttachments, MessageAttachments } from "./FileAttachments";
@@ -196,6 +196,7 @@ export const LLMChat = ({
   const [hoveredMessageId, setHoveredMessageId] = useState<string | null>(null);
   const [literatureBackend, setLiteratureBackend] = useState<LiteratureBackend>("perplexity");
   const [toolProfile, setToolProfile] = useState<ToolProfile | null>(null);
+  const [verbosity, setVerbosity] = useState<Verbosity>("brief");
   const [optionsOpen, setOptionsOpen] = useState(false);
   const hasTriggeredFirstExchange = useRef(false);
   const [pendingAttachments, setPendingAttachments] = useState<PendingAttachment[]>([]);
@@ -589,6 +590,7 @@ export const LLMChat = ({
             enable_mcp: true,
             literature_backend: literatureBackend,
             tool_profile: toolProfile,
+            verbosity,
             secret: isSecretChat || false,
             session_id: sessionId || null,
           }),
@@ -719,6 +721,7 @@ export const LLMChat = ({
       onStreamingComplete,
       literatureBackend,
       toolProfile,
+      verbosity,
     ]
   );
 
@@ -939,6 +942,52 @@ export const LLMChat = ({
                 value="bigquery"
                 control={<Radio size="small" />}
                 label="BigQuery"
+                sx={{ "& .MuiFormControlLabel-label": { fontSize: "0.75rem" } }}
+              />
+            </RadioGroup>
+          </Box>
+          <Box
+            sx={{
+              borderLeft: { xs: 0, sm: 1 },
+              borderTop: { xs: 1, sm: 0 },
+              borderColor: "divider",
+              pl: { xs: 0, sm: 2 },
+              pt: { xs: 1, sm: 0 },
+              display: "flex",
+              alignItems: "center",
+              gap: 2,
+            }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+              <Typography variant="body2" color="text.secondary">
+                Answer
+              </Typography>
+              <Tooltip
+                title={
+                  <span style={{ whiteSpace: "pre-line" }}>
+                    How much detail should the answer contain?{"\n"}
+                    Brief - leads with the finding and the data behind it; ask a follow-up for anything left out (default){"\n"}
+                    Detailed - the full write-up: complete data extraction, then literature, then analysis
+                  </span>
+                }
+                arrow
+                placement="top">
+                <InfoIcon sx={{ fontSize: 16, color: "text.secondary", cursor: "help" }} />
+              </Tooltip>
+            </Box>
+            <RadioGroup
+              row
+              value={verbosity}
+              onChange={(e) => setVerbosity(e.target.value as Verbosity)}>
+              <FormControlLabel
+                value="brief"
+                control={<Radio size="small" />}
+                label="Brief"
+                sx={{ "& .MuiFormControlLabel-label": { fontSize: "0.75rem" } }}
+              />
+              <FormControlLabel
+                value="detailed"
+                control={<Radio size="small" />}
+                label="Detailed"
                 sx={{ "& .MuiFormControlLabel-label": { fontSize: "0.75rem" } }}
               />
             </RadioGroup>
