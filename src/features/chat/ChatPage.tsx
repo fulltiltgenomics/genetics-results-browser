@@ -26,6 +26,7 @@ import {
   rateMessage,
   generateTitle,
   getAttachment,
+  getAttachmentText,
   uploadAttachment,
   shareSession,
   forkSession,
@@ -317,20 +318,26 @@ const ChatPage = () => {
       // for user messages with attachments, upload files and store metadata in contentJson
       let contentJson = msg.contentJson;
       if (msg.role === "user" && hasAttachments) {
-        // upload attachments that have previewUrl but no serverId
+        // upload every attachment type, not just images: an un-uploaded data file
+        // survives only as long as the page's in-memory File, so reopening the session
+        // would leave the model with a filename and no contents
         const uploadedAttachments = await Promise.all(
           msg.attachments!.map(async (a) => {
-            if (a.type === "image" && a.previewUrl && !a.serverId) {
-              try {
-                const file = dataUrlToFile(a.previewUrl, a.name, a.mimeType);
-                const uploaded = await uploadAttachment(sessionId, file);
-                return { ...a, serverId: uploaded.id, status: "uploaded" as const };
-              } catch (err) {
-                console.error("Failed to upload attachment:", err);
-                return a;
-              }
+            if (a.serverId) return a;
+            // images are re-derived from the preview data URL; data files carry the
+            // original File so Excel is uploaded as Excel, not as its parsed TSV
+            const file =
+              a.type === "image" && a.previewUrl
+                ? dataUrlToFile(a.previewUrl, a.name, a.mimeType)
+                : a.file;
+            if (!file) return a;
+            try {
+              const uploaded = await uploadAttachment(sessionId, file);
+              return { ...a, serverId: uploaded.id, status: "uploaded" as const };
+            } catch (err) {
+              console.error("Failed to upload attachment:", err);
+              return a;
             }
-            return a;
           }),
         );
 
@@ -582,7 +589,8 @@ const ChatPage = () => {
     });
   };
 
-  // fetch image preview data for attachments that have serverId but no previewUrl
+  // restore attachment payloads from the server: image previews, and the text of data
+  // files so replayed turns still carry their contents
   const loadAttachmentPreviews = useCallback(
     async (sessionId: string, messages: ChatMessage[]): Promise<ChatMessage[]> => {
       const updatedMessages = await Promise.all(
@@ -604,6 +612,16 @@ const ChatPage = () => {
                   return { ...att, previewUrl };
                 } catch (err) {
                   console.error("Failed to load attachment preview:", err);
+                  return att;
+                }
+              }
+              if (att.type !== "image" && att.serverId && !att.textContent) {
+                try {
+                  return { ...att, textContent: await getAttachmentText(sessionId, att.serverId) };
+                } catch (err) {
+                  // pre-fix messages have no serverId at all and are unrecoverable; this
+                  // path only fires when the upload succeeded but the sidecar is missing
+                  console.error("Failed to load attachment text:", err);
                   return att;
                 }
               }

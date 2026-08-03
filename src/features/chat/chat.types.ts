@@ -28,6 +28,13 @@ export interface FileAttachment {
   serverId?: string;
   // error message if upload failed
   error?: string;
+  // original file, kept on sent messages so the upload can preserve the real bytes
+  // (an Excel file's textContent is parsed TSV, not something we can re-upload)
+  file?: File;
+  // model-ready text for data files, inlined as a "[File: name]" block on every turn.
+  // Cached at send time and refetched from the server sidecar when a session is
+  // restored, so replayed turns don't depend on the local File still being around.
+  textContent?: string;
 }
 
 export interface PendingAttachment extends FileAttachment {

@@ -292,6 +292,29 @@ export async function getAttachment(
   return response.blob();
 }
 
+/**
+ * Fetch the model-ready text of a data-file attachment: parsed TSV for Excel,
+ * the original text for TSV/CSV. Used to restore the inlined file content when a
+ * session is reopened and the local File object is long gone.
+ */
+export async function getAttachmentText(
+  sessionId: string,
+  attachmentId: string
+): Promise<string> {
+  const response = await fetch(
+    `${chatUrl}/v1/chat/sessions/${sessionId}/attachments/${attachmentId}?as=text`,
+    {
+      credentials: "include",
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}`);
+  }
+
+  return response.text();
+}
+
 export function getAttachmentType(mimeType: string, fileName: string): AttachmentType {
   if (mimeType.startsWith("image/")) {
     return "image";

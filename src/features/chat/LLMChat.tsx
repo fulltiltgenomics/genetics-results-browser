@@ -427,10 +427,27 @@ export const LLMChat = ({
       if ((!userMessage.trim() && (!attachments || attachments.length === 0)) || isLoading) return;
       setWasStopped(false);
 
-      // convert pending attachments to file attachments for the message
+      // read data-file text up front: it is inlined into this turn's content and kept
+      // on the message so later turns can resend it. Reading it lazily per turn would
+      // fail once the local File is gone (after a reload the attachment is metadata only).
+      const fileTexts = new Map<string, string>();
+      for (const att of attachments ?? []) {
+        if (att.type === "image") continue;
+        try {
+          fileTexts.set(
+            att.id,
+            att.type === "excel" ? await excelFileToTsv(att.file) : await att.file.text(),
+          );
+        } catch {
+          fileTexts.set(att.id, "(failed to read)");
+        }
+      }
+
+      // convert pending attachments to file attachments for the message; `file` is kept
+      // so the upload can send the original bytes, and is stripped before serialization
       const messageAttachments: FileAttachment[] | undefined =
         attachments && attachments.length > 0
-          ? attachments.map(({ file, ...rest }) => rest)
+          ? attachments.map((a) => ({ ...a, textContent: fileTexts.get(a.id) }))
           : undefined;
 
       const userMsgId = crypto.randomUUID();
@@ -482,7 +499,9 @@ export const LLMChat = ({
                 // fall back to text content if parsing fails
               }
             }
-            // for user messages with attachments, rebuild content with images
+            // for user messages with attachments, rebuild content with images and the
+            // inlined text of data files — replaying only the images would silently drop
+            // an attached TSV/Excel from every turn after the one that first sent it
             if (m.role === "user" && m.attachments && m.attachments.length > 0) {
               const content: any[] = [];
               for (const att of m.attachments) {
@@ -495,6 +514,11 @@ export const LLMChat = ({
                       media_type: att.mimeType || "image/png",
                       data: base64Data,
                     },
+                  });
+                } else if (att.type !== "image" && att.textContent) {
+                  content.push({
+                    type: "text",
+                    text: `[File: ${att.name}]\n${att.textContent}`,
                   });
                 }
               }
@@ -526,23 +550,12 @@ export const LLMChat = ({
               },
             });
           } else {
-            // for data files, inline as text; Excel is binary so parse it to TSV
-            // first (reading it as text would yield garbage)
-            try {
-              const text =
-                attachment.type === "excel"
-                  ? await excelFileToTsv(attachment.file)
-                  : await attachment.file.text();
-              userContent.push({
-                type: "text",
-                text: `[File: ${attachment.name}]\n${text}`,
-              });
-            } catch {
-              userContent.push({
-                type: "text",
-                text: `[File: ${attachment.name}] (failed to read)`,
-              });
-            }
+            // data files are inlined as text, read once above (Excel is binary and was
+            // parsed to TSV there — reading it as text would yield garbage)
+            userContent.push({
+              type: "text",
+              text: `[File: ${attachment.name}]\n${fileTexts.get(attachment.id) ?? "(failed to read)"}`,
+            });
           }
         }
       }
