@@ -93,8 +93,8 @@
   },
   {
     "resource": "open_targets",
-    "version": "25.12",
-    "dataset": "Open_Targets_25.12",
+    "version": "26.06",
+    "dataset": "Open_Targets_26.06",
     "data_type": "GWAS",
     "trait": "GCST003665",
     "trait_original": "GCST003665",
@@ -116,8 +116,8 @@
   },
   {
     "resource": "open_targets",
-    "version": "25.12",
-    "dataset": "Open_Targets_25.12",
+    "version": "26.06",
+    "dataset": "Open_Targets_26.06",
     "data_type": "GWAS",
     "trait": "GCST004607",
     "trait_original": "GCST004607",

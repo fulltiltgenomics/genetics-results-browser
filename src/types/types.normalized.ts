@@ -111,7 +111,7 @@ export interface GeneTarget {
 export interface CredibleSetMembership {
   // provenance
   resource: string; // e.g. "finngen", "ukbb", "eqtl_catalogue", "open_targets" (the resource filter value)
-  version: string; // e.g. "R12", "3k", "R7", "25.12"
+  version: string; // e.g. "R12", "3k", "R7", "26.06"
   dataset: string; // dataset/file id, e.g. "FinnGen_kanta", "QTD000435", "FinnGen_ATACseq"
   dataType: CredibleSetDataType;
 

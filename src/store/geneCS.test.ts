@@ -41,7 +41,7 @@ describe("mapToDataName (new resource ids -> legacy config dataName)", () => {
   });
 
   it("drops resources not modelled in the gene-view config (e.g. open_targets)", () => {
-    expect(mapToDataName("open_targets", "Open_Targets_25.12", "GWAS")).toBeUndefined();
+    expect(mapToDataName("open_targets", "Open_Targets_26.06", "GWAS")).toBeUndefined();
   });
 });
 
