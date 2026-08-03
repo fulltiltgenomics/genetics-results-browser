@@ -34,7 +34,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { PluggableList } from "unified";
 import { fetchEventSource } from "@microsoft/fetch-event-source";
-import type { ChatMessage, LLMChatProps, LiteratureBackend, ToolProfile, PendingAttachment, FileAttachment, ContextUsage } from "./chat.types";
+import type { ChatMessage, LLMChatProps, LiteratureBackend, ToolProfile, Verbosity, PendingAttachment, FileAttachment, ContextUsage } from "./chat.types";
 import { MessageRating } from "./MessageRating";
 import { APP_NAME } from "../../config/appName";
 import { PendingAttachments, MessageAttachments } from "./FileAttachments";
@@ -54,6 +54,10 @@ const FALLBACK_VIEW_NAMES = [
 
 // regex to match image markers: [IMAGE:format:alt:base64data]
 const IMAGE_MARKER_REGEX = /\[IMAGE:([^:]+):([^:]+):([^\]]+)\]/g;
+
+// per-message limits (mirror the backend MAX_MESSAGE_CHARS / MAX_ATTACHMENTS_PER_MESSAGE)
+const MAX_MESSAGE_CHARS = 50000;
+const MAX_ATTACHMENTS_PER_MESSAGE = 10;
 
 /**
  * Renders message content, handling embedded images separately from markdown.
@@ -198,6 +202,7 @@ export const LLMChat = ({
   const [hoveredMessageId, setHoveredMessageId] = useState<string | null>(null);
   const [literatureBackend, setLiteratureBackend] = useState<LiteratureBackend>("perplexity");
   const [toolProfile, setToolProfile] = useState<ToolProfile | null>(null);
+  const [verbosity, setVerbosity] = useState<Verbosity>("brief");
   const [optionsOpen, setOptionsOpen] = useState(false);
   const hasTriggeredFirstExchange = useRef(false);
   // unlike initialInput, initialAttachments needs no async-seed effect: the parent restores drafts
@@ -425,6 +430,21 @@ export const LLMChat = ({
   const sendMessage = useCallback(
     async (userMessage: string, attachments?: PendingAttachment[]) => {
       if ((!userMessage.trim() && (!attachments || attachments.length === 0)) || isLoading) return;
+
+      // enforce per-message limits before sending (typed text only; attachments exempt)
+      if (userMessage.length > MAX_MESSAGE_CHARS) {
+        setError(
+          `Message too long (${userMessage.length.toLocaleString()} characters, limit ${MAX_MESSAGE_CHARS.toLocaleString()}). For large data, attach a TSV/CSV file instead.`
+        );
+        return;
+      }
+      if (attachments && attachments.length > MAX_ATTACHMENTS_PER_MESSAGE) {
+        setError(
+          `Too many attachments (${attachments.length}, limit ${MAX_ATTACHMENTS_PER_MESSAGE} per message).`
+        );
+        return;
+      }
+
       setWasStopped(false);
 
       // read data-file text up front: it is inlined into this turn's content and kept
@@ -603,6 +623,7 @@ export const LLMChat = ({
             enable_mcp: true,
             literature_backend: literatureBackend,
             tool_profile: toolProfile,
+            verbosity,
             secret: isSecretChat || false,
             session_id: sessionId || null,
           }),
@@ -744,6 +765,7 @@ export const LLMChat = ({
       onStreamingComplete,
       literatureBackend,
       toolProfile,
+      verbosity,
     ]
   );
 
@@ -964,6 +986,52 @@ export const LLMChat = ({
                 value="bigquery"
                 control={<Radio size="small" />}
                 label="Database"
+                sx={{ "& .MuiFormControlLabel-label": { fontSize: "0.75rem" } }}
+              />
+            </RadioGroup>
+          </Box>
+          <Box
+            sx={{
+              borderLeft: { xs: 0, sm: 1 },
+              borderTop: { xs: 1, sm: 0 },
+              borderColor: "divider",
+              pl: { xs: 0, sm: 2 },
+              pt: { xs: 1, sm: 0 },
+              display: "flex",
+              alignItems: "center",
+              gap: 2,
+            }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+              <Typography variant="body2" color="text.secondary">
+                Answer
+              </Typography>
+              <Tooltip
+                title={
+                  <span style={{ whiteSpace: "pre-line" }}>
+                    How much detail should the answer contain?{"\n"}
+                    Brief - leads with the finding and the data behind it; ask a follow-up for anything left out (default){"\n"}
+                    Detailed - the full write-up: complete data extraction, then literature, then analysis
+                  </span>
+                }
+                arrow
+                placement="top">
+                <InfoIcon sx={{ fontSize: 16, color: "text.secondary", cursor: "help" }} />
+              </Tooltip>
+            </Box>
+            <RadioGroup
+              row
+              value={verbosity}
+              onChange={(e) => setVerbosity(e.target.value as Verbosity)}>
+              <FormControlLabel
+                value="brief"
+                control={<Radio size="small" />}
+                label="Brief"
+                sx={{ "& .MuiFormControlLabel-label": { fontSize: "0.75rem" } }}
+              />
+              <FormControlLabel
+                value="detailed"
+                control={<Radio size="small" />}
+                label="Detailed"
                 sx={{ "& .MuiFormControlLabel-label": { fontSize: "0.75rem" } }}
               />
             </RadioGroup>
