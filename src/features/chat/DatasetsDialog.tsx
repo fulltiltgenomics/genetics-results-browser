@@ -11,6 +11,7 @@ import {
   Box,
   CircularProgress,
   Tooltip,
+  Link,
 } from "@mui/material";
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import axios from "axios";
@@ -103,6 +104,55 @@ const categories: Category[] = [
   },
 ];
 
+// Public resources the assistant queries live during a conversation, as opposed to the
+// datasets below which we ingest and serve ourselves. Keep in sync with the external
+// tools in genetics-mcp-server (docs/project-spec.md) — both the natively-called APIs
+// and the proxied external MCP servers.
+const externalResources: { name: string; url: string; description: string }[] = [
+  {
+    name: "gnomAD",
+    url: "https://gnomad.broadinstitute.org",
+    description:
+      "How common each variant is in large reference populations, plus which genes appear intolerant to damaging variation.",
+  },
+  {
+    name: "Open Targets Platform",
+    url: "https://platform.opentargets.org",
+    description:
+      "Evidence linking genes to diseases and to drugs that target them, aggregated across many sources.",
+  },
+  {
+    name: "MGI (Mouse Genome Informatics)",
+    url: "https://www.informatics.jax.org",
+    description:
+      "Curated phenotypes of mice in which a gene has been knocked out or altered, and which mouse gene corresponds to which human gene.",
+  },
+  {
+    name: "cBioPortal",
+    url: "https://www.cbioportal.org",
+    description:
+      "Which genes are recurrently mutated in which cancers, across hundreds of tumour sequencing studies. These are somatic changes acquired by tumours, not inherited variants.",
+  },
+  {
+    name: "UniProt",
+    url: "https://www.uniprot.org",
+    description:
+      "What the protein a gene encodes actually does, and which parts of it matter — domains, active sites and disease-linked residues.",
+  },
+  {
+    name: "myvariant.info",
+    url: "https://myvariant.info",
+    description:
+      "Per-variant clinical and computational annotation gathered from ClinVar, CADD, SIFT, PolyPhen-2, COSMIC and dbSNP.",
+  },
+  {
+    name: "Europe PMC",
+    url: "https://europepmc.org",
+    description:
+      "Biomedical literature, including preprints, so answers can cite published work.",
+  },
+];
+
 const hasSumstats = (d: Dataset) => (d.products as Record<string, unknown>)?.summary_stats === true;
 const hasCredibleSets = (d: Dataset) => (d.products as Record<string, unknown>)?.credible_sets === true;
 const hasPseudoCredibleSets = (d: Dataset) => d.pseudo_credible_sets === true;
@@ -149,6 +199,56 @@ export const DatasetsDialog = ({ open, onClose }: DatasetsDialogProps) => {
 
   return (
     <SideSheet open={open} onClose={onClose} title="Currently available datasets">
+        {/* static prose: rendered while the dataset list is still loading */}
+        <Typography variant="body2" color="text.secondary" sx={{ mt: 1, mb: 2 }}>
+          These datasets are results from large human genetics studies — statistical summaries of
+          how genetic variants across the genome relate to diseases, traits, and molecular
+          measurements such as gene expression or protein levels. They are aggregate results
+          rather than individual people's genomes: each entry summarises variants or genes across
+          thousands to millions of study participants.
+        </Typography>
+
+        <Box
+          sx={{
+            mb: 3,
+            p: 2,
+            borderRadius: 1,
+            border: 1,
+            borderColor: "divider",
+            bgcolor: "action.hover",
+          }}
+        >
+          <Typography variant="subtitle2" sx={{ mb: 1 }}>
+            Live external resources
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+            Alongside the datasets listed below, which we host ourselves, the assistant can query
+            these public resources live while answering. Their content always reflects the
+            resource as it stands today and is not stored here.
+          </Typography>
+          <Box component="ul" sx={{ m: 0, pl: 2.5 }}>
+            {externalResources.map((r) => (
+              <Typography
+                key={r.name}
+                component="li"
+                variant="body2"
+                color="text.secondary"
+                sx={{ mb: 0.75 }}
+              >
+                <Link href={r.url} target="_blank" rel="noreferrer">
+                  {r.name}
+                </Link>
+                {" — "}
+                {r.description}
+              </Typography>
+            ))}
+          </Box>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>
+            The assistant can also run general web searches when a question is not covered by any
+            of the above.
+          </Typography>
+        </Box>
+
         {loading && (
           <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
             <CircularProgress />
