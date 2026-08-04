@@ -5,6 +5,7 @@ import Brightness7Icon from "@mui/icons-material/Brightness7";
 import AdminPanelSettingsIcon from "@mui/icons-material/AdminPanelSettings";
 import AccountCircleIcon from "@mui/icons-material/AccountCircle";
 import KeyIcon from "@mui/icons-material/Key";
+import EditNoteIcon from "@mui/icons-material/EditNote";
 import LogoutIcon from "@mui/icons-material/Logout";
 import { useHotkeys } from "react-hotkeys-hook";
 import config from "../../config.json";
@@ -14,6 +15,7 @@ import { useThemeStore } from "@/store/store.theme";
 import { useAuth } from "@/store/useAuth";
 import { Link as RouterLink, useLocation, useNavigate } from "react-router-dom";
 import McpTokenDialog from "./McpTokenDialog";
+import InstructionsDialog from "../chat/InstructionsDialog";
 
 const Header = () => {
   const location = useLocation();
@@ -42,6 +44,7 @@ const Header = () => {
   const { isAuthenticated, isAdmin, user, login, logout } = useAuth();
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
   const [tokenDialogOpen, setTokenDialogOpen] = useState(false);
+  const [instructionsDialogOpen, setInstructionsDialogOpen] = useState(false);
 
   const handleThemeClick = () => {
     setTheme(!actualDarkMode);
@@ -150,6 +153,15 @@ const Header = () => {
               <MenuItem
                 onClick={() => {
                   setMenuAnchor(null);
+                  setInstructionsDialogOpen(true);
+                }}
+              >
+                <EditNoteIcon fontSize="small" sx={{ mr: 1 }} />
+                Instructions
+              </MenuItem>
+              <MenuItem
+                onClick={() => {
+                  setMenuAnchor(null);
                   logout();
                 }}
               >
@@ -158,6 +170,10 @@ const Header = () => {
               </MenuItem>
             </Menu>
             <McpTokenDialog open={tokenDialogOpen} onClose={() => setTokenDialogOpen(false)} />
+            <InstructionsDialog
+              open={instructionsDialogOpen}
+              onClose={() => setInstructionsDialogOpen(false)}
+            />
           </>
         ) : import.meta.env.VITE_TARGET === "public" ? null : (
           <Button onClick={() => login()}>Login</Button>

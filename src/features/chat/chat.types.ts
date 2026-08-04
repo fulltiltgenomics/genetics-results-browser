@@ -14,6 +14,26 @@ export type ToolProfile = "api" | "bigquery" | "rag";
 
 export type Verbosity = "brief" | "detailed";
 
+/** a named set of user-authored instructions appended to the chat system prompt */
+export interface InstructionSet {
+  id: string;
+  name: string;
+  body: string;
+  createdAt: string;
+  updatedAt: string;
+  /** the stored body predates the character cap, so saving it back unchanged is rejected */
+  bodyOverCap: boolean;
+}
+
+export interface InstructionSetVersion {
+  id: number;
+  setId: string;
+  name: string;
+  body: string;
+  changedAt: string;
+  comment?: string | null;
+}
+
 export type AttachmentType = "image" | "tsv" | "excel";
 
 export interface FileAttachment {
