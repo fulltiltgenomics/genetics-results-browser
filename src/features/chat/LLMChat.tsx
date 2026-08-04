@@ -17,6 +17,9 @@ import {
   Radio,
   FormControlLabel,
   Tooltip,
+  Select,
+  MenuItem,
+  Divider,
 } from "@mui/material";
 import {
   Send as SendIcon,
@@ -36,6 +39,8 @@ import type { PluggableList } from "unified";
 import { fetchEventSource } from "@microsoft/fetch-event-source";
 import type { ChatMessage, LLMChatProps, LiteratureBackend, ToolProfile, Verbosity, PendingAttachment, FileAttachment, ContextUsage } from "./chat.types";
 import { MessageRating } from "./MessageRating";
+import InstructionsDialog from "./InstructionsDialog";
+import { useInstructionSetsStore } from "./useInstructionSets";
 import { APP_NAME } from "../../config/appName";
 import { PendingAttachments, MessageAttachments } from "./FileAttachments";
 import { getAttachmentType, isValidAttachmentType } from "./chatHistoryApi";
@@ -54,6 +59,9 @@ const FALLBACK_VIEW_NAMES = [
 
 // regex to match image markers: [IMAGE:format:alt:base64data]
 const IMAGE_MARKER_REGEX = /\[IMAGE:([^:]+):([^:]+):([^\]]+)\]/g;
+
+// sentinel option value: opens the management dialog instead of changing the selection
+const MANAGE_INSTRUCTIONS_VALUE = "__manage__";
 
 // per-message limits (mirror the backend MAX_MESSAGE_CHARS / MAX_ATTACHMENTS_PER_MESSAGE)
 const MAX_MESSAGE_CHARS = 50000;
@@ -203,6 +211,13 @@ export const LLMChat = ({
   const [literatureBackend, setLiteratureBackend] = useState<LiteratureBackend>("perplexity");
   const [toolProfile, setToolProfile] = useState<ToolProfile | null>(null);
   const [verbosity, setVerbosity] = useState<Verbosity>("brief");
+  // shared store, not component state: this survives the remount ChatPage does on every
+  // conversation switch, so the stored default still applies to a message sent right after one
+  const instructionSets = useInstructionSetsStore((s) => s.sets);
+  const instructionSetId = useInstructionSetsStore((s) => s.selectedId);
+  const loadInstructionSets = useInstructionSetsStore((s) => s.load);
+  const selectInstructionSet = useInstructionSetsStore((s) => s.select);
+  const [instructionsDialogOpen, setInstructionsDialogOpen] = useState(false);
   const [optionsOpen, setOptionsOpen] = useState(false);
   const hasTriggeredFirstExchange = useRef(false);
   // unlike initialInput, initialAttachments needs no async-seed effect: the parent restores drafts
@@ -231,6 +246,21 @@ export const LLMChat = ({
     const names = schemaData?.tables.map((t) => t.name) ?? FALLBACK_VIEW_NAMES;
     return [linkifyViewsPlugin(names)];
   }, [schemaData]);
+
+  useEffect(() => {
+    void loadInstructionSets();
+  }, [loadInstructionSets]);
+
+  const handleInstructionSetChange = useCallback(
+    (value: string) => {
+      if (value === MANAGE_INSTRUCTIONS_VALUE) {
+        setInstructionsDialogOpen(true);
+        return;
+      }
+      selectInstructionSet(value === "" ? null : value);
+    },
+    [selectInstructionSet],
+  );
 
   // track the last session ID to detect actual session switches
   const lastSessionIdRef = useRef<string | null | undefined>(undefined);
@@ -624,6 +654,7 @@ export const LLMChat = ({
             literature_backend: literatureBackend,
             tool_profile: toolProfile,
             verbosity,
+            instruction_set_id: instructionSetId,
             secret: isSecretChat || false,
             session_id: sessionId || null,
           }),
@@ -713,12 +744,12 @@ export const LLMChat = ({
             role: "assistant",
             content: accumulatedContent,
           };
-          onStreamingComplete?.(userMsg, completedAssistantMsg, messageContent, literatureBackend, toolProfile, toolResults);
+          onStreamingComplete?.(userMsg, completedAssistantMsg, messageContent, literatureBackend, toolProfile, toolResults, instructionSetId);
 
           // check if this is the first exchange
           if (!hasTriggeredFirstExchange.current) {
             hasTriggeredFirstExchange.current = true;
-            onFirstExchange?.(literatureBackend, toolProfile);
+            onFirstExchange?.(literatureBackend, toolProfile, instructionSetId);
           }
         }
       } catch (err: any) {
@@ -734,10 +765,10 @@ export const LLMChat = ({
               role: "assistant",
               content: accumulatedContent,
             };
-            onStreamingComplete?.(userMsg, partialMsg, messageContent, literatureBackend, toolProfile, toolResults);
+            onStreamingComplete?.(userMsg, partialMsg, messageContent, literatureBackend, toolProfile, toolResults, instructionSetId);
             if (!hasTriggeredFirstExchange.current) {
               hasTriggeredFirstExchange.current = true;
-              onFirstExchange?.(literatureBackend, toolProfile);
+              onFirstExchange?.(literatureBackend, toolProfile, instructionSetId);
             }
             // a timed-out turn is resumable for the same reason a stopped one is
             setWasStopped(true);
@@ -766,6 +797,7 @@ export const LLMChat = ({
       literatureBackend,
       toolProfile,
       verbosity,
+      instructionSetId,
     ]
   );
 
@@ -1036,6 +1068,55 @@ export const LLMChat = ({
               />
             </RadioGroup>
           </Box>
+          <Box
+            sx={{
+              borderLeft: { xs: 0, sm: 1 },
+              borderTop: { xs: 1, sm: 0 },
+              borderColor: "divider",
+              pl: { xs: 0, sm: 2 },
+              pt: { xs: 1, sm: 0 },
+              display: "flex",
+              alignItems: "center",
+              gap: 2,
+            }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+              <Typography variant="body2" color="text.secondary">
+                Instructions
+              </Typography>
+              <Tooltip
+                title={
+                  <span style={{ whiteSpace: "pre-line" }}>
+                    Your own standing instructions, added to every message in this chat.{"\n"}
+                    Use them to say who you are and how you want answers written — e.g. "I am a statistical geneticist, always give effect sizes with standard errors".{"\n"}
+                    None - no extra instructions (default){"\n"}
+                    Manage instructions - create, edit or archive your sets
+                  </span>
+                }
+                arrow
+                placement="top">
+                <InfoIcon sx={{ fontSize: 16, color: "text.secondary", cursor: "help" }} />
+              </Tooltip>
+            </Box>
+            <Select
+              size="small"
+              value={instructionSetId ?? ""}
+              onChange={(e) => handleInstructionSetChange(e.target.value)}
+              inputProps={{ "aria-label": "Instructions" }}
+              sx={{ fontSize: "0.75rem", minWidth: 160 }}>
+              <MenuItem value="" sx={{ fontSize: "0.75rem" }}>
+                None
+              </MenuItem>
+              {instructionSets.map((set) => (
+                <MenuItem key={set.id} value={set.id} sx={{ fontSize: "0.75rem" }}>
+                  {set.name}
+                </MenuItem>
+              ))}
+              <Divider />
+              <MenuItem value={MANAGE_INSTRUCTIONS_VALUE} sx={{ fontSize: "0.75rem" }}>
+                Manage instructions…
+              </MenuItem>
+            </Select>
+          </Box>
         </Box>
         {contextUsage && (
           <Tooltip title="Context window usage for this conversation — when full, older messages may be summarized" arrow placement="top">
@@ -1057,6 +1138,15 @@ export const LLMChat = ({
           </Tooltip>
         )}
       </Collapse>
+      <InstructionsDialog
+        open={instructionsDialogOpen}
+        onClose={() => {
+          setInstructionsDialogOpen(false);
+          // a set may have been renamed, created or archived while the dialog was open, and an
+          // archive can invalidate the current selection
+          void loadInstructionSets(true);
+        }}
+      />
       <PendingAttachments
         attachments={pendingAttachments}
         onRemove={removeAttachment}

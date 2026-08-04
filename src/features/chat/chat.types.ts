@@ -110,7 +110,11 @@ export interface LLMChatProps {
   onMessagesChange?: (messages: ChatMessage[]) => void;
 
   /** callback when the first message exchange completes (for title generation) */
-  onFirstExchange?: (literatureBackend?: string | null, toolProfile?: string | null) => void;
+  onFirstExchange?: (
+    literatureBackend?: string | null,
+    toolProfile?: string | null,
+    instructionSetId?: string | null,
+  ) => void;
 
   /** callback when streaming completes for a message (for persistence) */
   onStreamingComplete?: (
@@ -120,6 +124,7 @@ export interface LLMChatProps {
     literatureBackend?: string | null,
     toolProfile?: string | null,
     toolResults?: any[] | null,
+    instructionSetId?: string | null,
   ) => void;
 
   /** callback to rate a message */

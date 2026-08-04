@@ -310,7 +310,13 @@ const ChatPage = () => {
 
   // save a single message to backend
   const saveMessageToBackend = useCallback(
-    async (sessionId: string, msg: ChatMessage, literatureBackend?: string | null, toolProfile?: string | null) => {
+    async (
+      sessionId: string,
+      msg: ChatMessage,
+      literatureBackend?: string | null,
+      toolProfile?: string | null,
+      instructionSetId?: string | null,
+    ) => {
       const hasContent = msg.content.trim();
       const hasAttachments = msg.attachments && msg.attachments.length > 0;
       if (!hasContent && !hasAttachments) return;
@@ -354,7 +360,7 @@ const ChatPage = () => {
       }
 
       try {
-        await saveMessage(sessionId, msg.id, msg.role, msg.content, contentJson, literatureBackend, toolProfile, msg.toolResultsJson);
+        await saveMessage(sessionId, msg.id, msg.role, msg.content, contentJson, literatureBackend, toolProfile, msg.toolResultsJson, instructionSetId);
       } catch (err) {
         console.error("Failed to save message:", err);
       }
@@ -377,16 +383,17 @@ const ChatPage = () => {
       literatureBackend?: string | null,
       toolProfile?: string | null,
       toolResults?: any[] | null,
+      instructionSetId?: string | null,
     ) => {
       if (isSecretChat) return;
-      console.log("[handleStreamingComplete] literatureBackend:", literatureBackend, "toolProfile:", toolProfile);
+      console.log("[handleStreamingComplete] literatureBackend:", literatureBackend, "toolProfile:", toolProfile, "instructionSetId:", instructionSetId);
       if (!activeSessionId) return;
 
       // save user message with literature backend and tool profile
       const hasUserContent = userMessage.content.trim();
       const hasUserAttachments = userMessage.attachments && userMessage.attachments.length > 0;
       if (!savedMessageIds.current.has(userMessage.id) && (hasUserContent || hasUserAttachments)) {
-        await saveMessageToBackend(activeSessionId, userMessage, literatureBackend, toolProfile);
+        await saveMessageToBackend(activeSessionId, userMessage, literatureBackend, toolProfile, instructionSetId);
         savedMessageIds.current.add(userMessage.id);
       }
 
@@ -403,6 +410,7 @@ const ChatPage = () => {
           },
           literatureBackend,
           toolProfile,
+          instructionSetId,
         );
         savedMessageIds.current.add(assistantMessage.id);
       }
@@ -412,9 +420,13 @@ const ChatPage = () => {
 
   // called after first exchange completes - creates session and saves initial messages
   const handleFirstExchange = useCallback(
-    async (literatureBackend?: string | null, toolProfile?: string | null) => {
+    async (
+      literatureBackend?: string | null,
+      toolProfile?: string | null,
+      instructionSetId?: string | null,
+    ) => {
       if (isSecretChat) return;
-      console.log("[handleFirstExchange] literatureBackend:", literatureBackend, "toolProfile:", toolProfile);
+      console.log("[handleFirstExchange] literatureBackend:", literatureBackend, "toolProfile:", toolProfile, "instructionSetId:", instructionSetId);
       let sessionIdToUse = activeSessionId;
 
       // if no session exists, create one first
@@ -456,7 +468,7 @@ const ChatPage = () => {
         const hasContent = msg.content.trim();
         const hasAttachments = msg.attachments && msg.attachments.length > 0;
         if ((hasContent || hasAttachments) && !savedMessageIds.current.has(msg.id)) {
-          await saveMessageToBackend(sessionIdToUse, msg, literatureBackend, toolProfile);
+          await saveMessageToBackend(sessionIdToUse, msg, literatureBackend, toolProfile, instructionSetId);
           savedMessageIds.current.add(msg.id);
         }
       }

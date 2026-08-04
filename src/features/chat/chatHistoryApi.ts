@@ -153,6 +153,7 @@ export async function saveMessage(
   literatureBackend?: string | null,
   toolProfile?: string | null,
   toolResultsJson?: string | null,
+  instructionSetId?: string | null,
 ): Promise<ChatMessageRecord> {
   const payload = {
     id: messageId,
@@ -162,6 +163,10 @@ export async function saveMessage(
     literature_backend: literatureBackend,
     tool_profile: toolProfile,
     tool_results_json: toolResultsJson,
+    // the server's upsert does ON CONFLICT DO UPDATE SET instruction_set_id = excluded.…, so a
+    // re-save that omits the key would clear it — null explicitly rather than letting
+    // JSON.stringify drop an undefined
+    instruction_set_id: instructionSetId ?? null,
   };
   console.log("[saveMessage] Saving with payload:", payload);
   const response = await fetch(`${chatUrl}/v1/chat/sessions/${sessionId}/messages`, {
