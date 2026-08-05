@@ -137,19 +137,25 @@ const externalResources: { name: string; url: string; description: string }[] = 
     name: "UniProt",
     url: "https://www.uniprot.org",
     description:
-      "What the protein a gene encodes actually does, and which parts of it matter — domains, active sites and disease-linked residues.",
+      "What the protein a gene encodes actually does, and which parts of it matter: domains, active sites and disease-linked residues.",
   },
   {
     name: "myvariant.info",
     url: "https://myvariant.info",
     description:
-      "Per-variant clinical and computational annotation gathered from ClinVar, CADD, SIFT, PolyPhen-2, COSMIC and dbSNP.",
+      "Per-variant clinical and computational annotation gathered from ClinVar, CADD, SIFT, PolyPhen-2, COSMIC, dbSNP etc.",
+  },
+  {
+    name: "Perplexity",
+    url: "https://www.perplexity.ai",
+    description:
+      "AI search across a broad set of scientific web domains, returning a summary with citations.",
   },
   {
     name: "Europe PMC",
     url: "https://europepmc.org",
     description:
-      "Biomedical literature, including preprints, so answers can cite published work.",
+      "Biomedical literature, including preprints, so answers can cite published work. The alternative literature backend to Perplexity.",
   },
 ];
 
@@ -201,11 +207,14 @@ export const DatasetsDialog = ({ open, onClose }: DatasetsDialogProps) => {
     <SideSheet open={open} onClose={onClose} title="Currently available datasets">
         {/* static prose: rendered while the dataset list is still loading */}
         <Typography variant="body2" color="text.secondary" sx={{ mt: 1, mb: 2 }}>
-          These datasets are results from large human genetics studies — statistical summaries of
-          how genetic variants across the genome relate to diseases, traits, and molecular
-          measurements such as gene expression or protein levels. They are aggregate results
-          rather than individual people's genomes: each entry summarises variants or genes across
-          thousands to millions of study participants.
+          These datasets are results from large human genetics studies, spanning genome-wide
+          association results for thousands of diseases and quantitative traits, rare-variant and
+          gene-level burden results from exome sequencing, and QTL studies linking variants to gene
+          expression, protein levels, splicing and chromatin activity across many tissues and cell
+          types. Alongside them sit colocalization results, expression atlases, curated
+          gene-disease relationships and regulatory annotation, so a variant or gene can be
+          followed from a disease association through to the molecular mechanism that may underlie
+          it.
         </Typography>
 
         <Box
@@ -226,26 +235,31 @@ export const DatasetsDialog = ({ open, onClose }: DatasetsDialogProps) => {
             these public resources live while answering. Their content always reflects the
             resource as it stands today and is not stored here.
           </Typography>
-          <Box component="ul" sx={{ m: 0, pl: 2.5 }}>
-            {externalResources.map((r) => (
-              <Typography
-                key={r.name}
-                component="li"
-                variant="body2"
-                color="text.secondary"
-                sx={{ mb: 0.75 }}
-              >
-                <Link href={r.url} target="_blank" rel="noreferrer">
-                  {r.name}
-                </Link>
-                {" — "}
-                {r.description}
-              </Typography>
-            ))}
-          </Box>
+          <TableContainer>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell sx={{ width: 200 }}>Resource</TableCell>
+                  <TableCell>Description</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {externalResources.map((r) => (
+                  <TableRow key={r.name}>
+                    <TableCell>
+                      <Link href={r.url} target="_blank" rel="noreferrer">
+                        {r.name}
+                      </Link>
+                    </TableCell>
+                    <TableCell sx={{ color: "text.secondary" }}>{r.description}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>
-            The assistant can also run general web searches when a question is not covered by any
-            of the above.
+            The assistant can also run general web searches via DuckDuckGo when a question is not
+            covered by any of the above.
           </Typography>
         </Box>
 
