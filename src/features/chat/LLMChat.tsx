@@ -253,7 +253,6 @@ export const LLMChat = ({
   const literatureBackend = useChatOptionsStore((s) => s.literatureBackend);
   const setLiteratureBackend = useChatOptionsStore((s) => s.setLiteratureBackend);
   const toolProfile = useChatOptionsStore((s) => s.toolProfile);
-  const setToolProfile = useChatOptionsStore((s) => s.setToolProfile);
   const verbosity = useChatOptionsStore((s) => s.verbosity);
   const setVerbosity = useChatOptionsStore((s) => s.setVerbosity);
   const loadChatOptions = useChatOptionsStore((s) => s.load);
@@ -1083,6 +1082,7 @@ export const LLMChat = ({
               />
             </RadioGroup>
           </OptionRow>
+          {/* tool profile is hidden from the UI; the stored value still rides along with each request
           <OptionRow
             label="Tools"
             tooltip={
@@ -1106,12 +1106,6 @@ export const LLMChat = ({
                 label="All"
                 sx={optionRadioSx}
               />
-              {/* <FormControlLabel
-                value="rag"
-                control={<Radio size="small" />}
-                label="RAG"
-                sx={optionRadioSx}
-              /> */}
               <FormControlLabel
                 value="api"
                 control={<Radio size="small" />}
@@ -1126,6 +1120,7 @@ export const LLMChat = ({
               />
             </RadioGroup>
           </OptionRow>
+          */}
         </Box>
         {contextUsage && (
           <Tooltip title="Context window usage for this conversation — when full, older messages may be summarized" arrow placement="top">

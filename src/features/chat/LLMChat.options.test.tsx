@@ -107,7 +107,7 @@ describe("LLMChat options", () => {
 
     await waitFor(() => expect(radio("Detailed").checked).toBe(true));
     expect(radio("Europe PMC").checked).toBe(true);
-    expect(radio("Database").checked).toBe(true);
+    // the tool profile still loads into the store but has no control of its own any more
     await waitFor(() =>
       expect(screen.getByLabelText("Instructions")).toHaveTextContent("Statistician"),
     );
