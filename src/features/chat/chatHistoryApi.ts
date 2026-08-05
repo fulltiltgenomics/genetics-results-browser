@@ -32,6 +32,8 @@ export interface ChatMessageRecord {
   literatureBackend: string | null;
   toolProfile: string | null;
   toolResultsJson: string | null;
+  instructionSetId: string | null;
+  verbosity: string | null;
 }
 
 export interface SessionDetail extends ChatSession {
@@ -154,6 +156,7 @@ export async function saveMessage(
   toolProfile?: string | null,
   toolResultsJson?: string | null,
   instructionSetId?: string | null,
+  verbosity?: string | null,
 ): Promise<ChatMessageRecord> {
   const payload = {
     id: messageId,
@@ -167,6 +170,7 @@ export async function saveMessage(
     // re-save that omits the key would clear it — null explicitly rather than letting
     // JSON.stringify drop an undefined
     instruction_set_id: instructionSetId ?? null,
+    verbosity: verbosity ?? null,
   };
   console.log("[saveMessage] Saving with payload:", payload);
   const response = await fetch(`${chatUrl}/v1/chat/sessions/${sessionId}/messages`, {
@@ -230,6 +234,8 @@ function mapMessage(data: any): ChatMessageRecord {
     literatureBackend: data.literature_backend,
     toolProfile: data.tool_profile,
     toolResultsJson: data.tool_results_json,
+    instructionSetId: data.instruction_set_id,
+    verbosity: data.verbosity,
   };
 }
 

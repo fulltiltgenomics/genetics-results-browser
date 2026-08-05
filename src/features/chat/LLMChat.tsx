@@ -41,6 +41,7 @@ import type { ChatMessage, LLMChatProps, LiteratureBackend, ToolProfile, Verbosi
 import { MessageRating } from "./MessageRating";
 import InstructionsDialog from "./InstructionsDialog";
 import { useInstructionSetsStore } from "./useInstructionSets";
+import { useChatOptionsStore } from "./useChatOptions";
 import { APP_NAME } from "../../config/appName";
 import { PendingAttachments, MessageAttachments } from "./FileAttachments";
 import { getAttachmentType, isValidAttachmentType } from "./chatHistoryApi";
@@ -247,11 +248,15 @@ export const LLMChat = ({
   const [contextExpanded, setContextExpanded] = useState(true);
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
   const [hoveredMessageId, setHoveredMessageId] = useState<string | null>(null);
-  const [literatureBackend, setLiteratureBackend] = useState<LiteratureBackend>("perplexity");
-  const [toolProfile, setToolProfile] = useState<ToolProfile | null>(null);
-  const [verbosity, setVerbosity] = useState<Verbosity>("brief");
-  // shared store, not component state: this survives the remount ChatPage does on every
+  // shared stores, not component state: these survive the remount ChatPage does on every
   // conversation switch, so the stored default still applies to a message sent right after one
+  const literatureBackend = useChatOptionsStore((s) => s.literatureBackend);
+  const setLiteratureBackend = useChatOptionsStore((s) => s.setLiteratureBackend);
+  const toolProfile = useChatOptionsStore((s) => s.toolProfile);
+  const setToolProfile = useChatOptionsStore((s) => s.setToolProfile);
+  const verbosity = useChatOptionsStore((s) => s.verbosity);
+  const setVerbosity = useChatOptionsStore((s) => s.setVerbosity);
+  const loadChatOptions = useChatOptionsStore((s) => s.load);
   const instructionSets = useInstructionSetsStore((s) => s.sets);
   const instructionSetId = useInstructionSetsStore((s) => s.selectedId);
   const loadInstructionSets = useInstructionSetsStore((s) => s.load);
@@ -295,6 +300,10 @@ export const LLMChat = ({
   useEffect(() => {
     void loadInstructionSets();
   }, [loadInstructionSets]);
+
+  useEffect(() => {
+    void loadChatOptions();
+  }, [loadChatOptions]);
 
   const handleInstructionSetChange = useCallback(
     (value: string) => {
@@ -789,12 +798,12 @@ export const LLMChat = ({
             role: "assistant",
             content: accumulatedContent,
           };
-          onStreamingComplete?.(userMsg, completedAssistantMsg, messageContent, literatureBackend, toolProfile, toolResults, instructionSetId);
+          onStreamingComplete?.(userMsg, completedAssistantMsg, messageContent, literatureBackend, toolProfile, toolResults, instructionSetId, verbosity);
 
           // check if this is the first exchange
           if (!hasTriggeredFirstExchange.current) {
             hasTriggeredFirstExchange.current = true;
-            onFirstExchange?.(literatureBackend, toolProfile, instructionSetId);
+            onFirstExchange?.(literatureBackend, toolProfile, instructionSetId, verbosity);
           }
         }
       } catch (err: any) {
@@ -810,10 +819,10 @@ export const LLMChat = ({
               role: "assistant",
               content: accumulatedContent,
             };
-            onStreamingComplete?.(userMsg, partialMsg, messageContent, literatureBackend, toolProfile, toolResults, instructionSetId);
+            onStreamingComplete?.(userMsg, partialMsg, messageContent, literatureBackend, toolProfile, toolResults, instructionSetId, verbosity);
             if (!hasTriggeredFirstExchange.current) {
               hasTriggeredFirstExchange.current = true;
-              onFirstExchange?.(literatureBackend, toolProfile, instructionSetId);
+              onFirstExchange?.(literatureBackend, toolProfile, instructionSetId, verbosity);
             }
             // a timed-out turn is resumable for the same reason a stopped one is
             setWasStopped(true);

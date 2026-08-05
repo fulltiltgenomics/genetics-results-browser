@@ -114,6 +114,7 @@ export interface LLMChatProps {
     literatureBackend?: string | null,
     toolProfile?: string | null,
     instructionSetId?: string | null,
+    verbosity?: string | null,
   ) => void;
 
   /** callback when streaming completes for a message (for persistence) */
@@ -125,6 +126,7 @@ export interface LLMChatProps {
     toolProfile?: string | null,
     toolResults?: any[] | null,
     instructionSetId?: string | null,
+    verbosity?: string | null,
   ) => void;
 
   /** callback to rate a message */

@@ -37,6 +37,8 @@ import {
 import type { ChatMessage, FileAttachment, PendingAttachment } from "./chat.types";
 import { exportChatAsHtml, exportChatAsMarkdown } from "./exportChat";
 import { useChatSeedStore } from "../../store/store.chatSeed";
+import { useChatOptionsStore } from "./useChatOptions";
+import { useInstructionSetsStore } from "./useInstructionSets";
 
 /**
  * Standalone chat page with history sidebar and config editor.
@@ -90,6 +92,10 @@ const ChatPage = () => {
   const inlineSessionIdRef = useRef<string | null>(null);
   // stable key for LLMChat - only changes when user explicitly switches sessions
   const [chatKey, setChatKey] = useState<string>("new");
+  const applyChatOptions = useChatOptionsStore((s) => s.applyFromConversation);
+  const resetChatOptions = useChatOptionsStore((s) => s.resetToDefaults);
+  const applyInstructionSet = useInstructionSetsStore((s) => s.applyFromConversation);
+  const resetInstructionSet = useInstructionSetsStore((s) => s.resetToDefault);
 
   // consume a pending chat seed once on committed mount (annotation -> chat hand-off). consuming in
   // a useEffect rather than a useState initializer is deliberate: React may speculatively render/
@@ -191,6 +197,34 @@ const ChatPage = () => {
     }
   }, [activeSessionId, activeSession?.id]);
 
+  // reapply the options a conversation was last held under. the last message wins rather than the
+  // first: a conversation the user switched to detailed halfway through reopens as detailed, which
+  // is what its most recent answers reflect. assistant rows carry the same values as the user turn
+  // that produced them, so no role filter is needed
+  const applyConversationOptions = (messages: ChatMessageRecord[]) => {
+    const last = messages[messages.length - 1];
+    // a session created but never sent to has nothing to reapply. treating it as a conversation
+    // would pin the controls to whatever is on screen and block the user's stored default from
+    // landing when the settings fetch resolves after this
+    if (!last) {
+      resetToUserDefaults();
+      return;
+    }
+    applyChatOptions({
+      verbosity: last.verbosity,
+      literatureBackend: last.literatureBackend,
+      toolProfile: last.toolProfile,
+    });
+    applyInstructionSet(last.instructionSetId);
+  };
+
+  // a new chat starts from what the user last chose, not from whatever the conversation they were
+  // just reading happened to use
+  const resetToUserDefaults = () => {
+    resetChatOptions();
+    resetInstructionSet();
+  };
+
   const loadSessionDetail = async (sessionId: string) => {
     setSessionLoading(true);
     setSessionError(null);
@@ -205,6 +239,7 @@ const ChatPage = () => {
 
       setActiveSession(data);
       setLoadedMessages(ready);
+      applyConversationOptions(data.messages);
     } catch (err) {
       console.error("Failed to load session:", err);
       setSessionError("Chat not found or not shared with you");
@@ -217,6 +252,7 @@ const ChatPage = () => {
   const handleNewChat = async () => {
     setIsSecretChat(false);
     setSeedInput(undefined);
+    resetToUserDefaults();
     try {
       const session = await createSession();
       setSessions((prev) => [{ ...session, preview: undefined, rating: undefined }, ...prev]);
@@ -250,6 +286,7 @@ const ChatPage = () => {
   const handleGoHome = () => {
     setIsSecretChat(false);
     setSessionError(null);
+    resetToUserDefaults();
     inlineSessionIdRef.current = null;
     isNewSession.current = false;
     setLoadedMessages(undefined);
@@ -264,6 +301,7 @@ const ChatPage = () => {
   const handleNewSecretChat = () => {
     setIsSecretChat(true);
     setSeedInput(undefined);
+    resetToUserDefaults();
     setActiveSessionId(null);
     setActiveSession(null);
     setSecretSessionId(crypto.randomUUID());
@@ -316,6 +354,7 @@ const ChatPage = () => {
       literatureBackend?: string | null,
       toolProfile?: string | null,
       instructionSetId?: string | null,
+      verbosity?: string | null,
     ) => {
       const hasContent = msg.content.trim();
       const hasAttachments = msg.attachments && msg.attachments.length > 0;
@@ -360,7 +399,7 @@ const ChatPage = () => {
       }
 
       try {
-        await saveMessage(sessionId, msg.id, msg.role, msg.content, contentJson, literatureBackend, toolProfile, msg.toolResultsJson, instructionSetId);
+        await saveMessage(sessionId, msg.id, msg.role, msg.content, contentJson, literatureBackend, toolProfile, msg.toolResultsJson, instructionSetId, verbosity);
       } catch (err) {
         console.error("Failed to save message:", err);
       }
@@ -384,6 +423,7 @@ const ChatPage = () => {
       toolProfile?: string | null,
       toolResults?: any[] | null,
       instructionSetId?: string | null,
+      verbosity?: string | null,
     ) => {
       if (isSecretChat) return;
       console.log("[handleStreamingComplete] literatureBackend:", literatureBackend, "toolProfile:", toolProfile, "instructionSetId:", instructionSetId);
@@ -393,7 +433,7 @@ const ChatPage = () => {
       const hasUserContent = userMessage.content.trim();
       const hasUserAttachments = userMessage.attachments && userMessage.attachments.length > 0;
       if (!savedMessageIds.current.has(userMessage.id) && (hasUserContent || hasUserAttachments)) {
-        await saveMessageToBackend(activeSessionId, userMessage, literatureBackend, toolProfile, instructionSetId);
+        await saveMessageToBackend(activeSessionId, userMessage, literatureBackend, toolProfile, instructionSetId, verbosity);
         savedMessageIds.current.add(userMessage.id);
       }
 
@@ -411,6 +451,7 @@ const ChatPage = () => {
           literatureBackend,
           toolProfile,
           instructionSetId,
+          verbosity,
         );
         savedMessageIds.current.add(assistantMessage.id);
       }
@@ -424,6 +465,7 @@ const ChatPage = () => {
       literatureBackend?: string | null,
       toolProfile?: string | null,
       instructionSetId?: string | null,
+      verbosity?: string | null,
     ) => {
       if (isSecretChat) return;
       console.log("[handleFirstExchange] literatureBackend:", literatureBackend, "toolProfile:", toolProfile, "instructionSetId:", instructionSetId);
@@ -468,7 +510,7 @@ const ChatPage = () => {
         const hasContent = msg.content.trim();
         const hasAttachments = msg.attachments && msg.attachments.length > 0;
         if ((hasContent || hasAttachments) && !savedMessageIds.current.has(msg.id)) {
-          await saveMessageToBackend(sessionIdToUse, msg, literatureBackend, toolProfile, instructionSetId);
+          await saveMessageToBackend(sessionIdToUse, msg, literatureBackend, toolProfile, instructionSetId, verbosity);
           savedMessageIds.current.add(msg.id);
         }
       }
