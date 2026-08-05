@@ -92,10 +92,16 @@ export async function archiveInstructionSet(setId: string): Promise<void> {
   }
 }
 
+/**
+ * @param limit 1..100 — the server declares `Query(20, ge=1, le=100)` and 422s outside that,
+ *   which the dialog would surface as its generic error. Clamped here so a caller passing a
+ *   computed value cannot turn an ordinary read into an error (genetics-results-suite-uvh 10).
+ */
 export async function getInstructionSetHistory(
   setId: string,
   limit = 20,
 ): Promise<InstructionSetVersion[]> {
+  limit = Math.min(100, Math.max(1, Math.trunc(limit) || 20));
   const response = await fetch(
     `${setsUrl}/${encodeURIComponent(setId)}/history?limit=${limit}`,
     { credentials: "include" },

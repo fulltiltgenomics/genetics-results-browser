@@ -205,6 +205,10 @@ export const InstructionsDialog = ({ open, onClose }: InstructionsDialogProps) =
     }
   };
 
+  // String.length counts UTF-16 code units while the server's Python len() counts code points, so
+  // an astral-plane character (emoji, rare CJK) counts 2 here and 1 there. The skew is always in
+  // the safe direction — the client can only be stricter, never permit a body the server rejects —
+  // but the "shorten by N characters" figure below can overstate by the number of such characters
   const overCap = body.length > MAX_BODY_CHARS;
   // a set stored before the cap existed reads back in full but cannot be written back, so the
   // editor has to say why rather than letting the save 413 with no explanation
@@ -297,7 +301,17 @@ export const InstructionsDialog = ({ open, onClose }: InstructionsDialogProps) =
                   {s.name}
                 </Typography>
                 {s.bodyOverCap && (
-                  <Chip label="Too long to save" size="small" color="warning" variant="outlined" />
+                  // the full explanation otherwise appears only once the editor is open, so the
+                  // list view showed a warning with no way to find out what it meant
+                  <Tooltip
+                    title={`These instructions were saved before the ${MAX_BODY_CHARS}-character limit. They still apply to your chats, but they cannot be saved again until you shorten them.`}>
+                    <Chip
+                      label="Too long to save"
+                      size="small"
+                      color="warning"
+                      variant="outlined"
+                    />
+                  </Tooltip>
                 )}
                 <Tooltip title="Edit">
                   <IconButton size="small" onClick={() => openEditor(s)} aria-label="edit">

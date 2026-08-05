@@ -33,6 +33,8 @@ interface InstructionSetsState {
 }
 
 let inflight: Promise<void> | null = null;
+// the most recent selection PUT/DELETE, so load() can wait for it to land before reading back
+let pendingSelection: Promise<void> | null = null;
 
 /** an archived set keeps its id in the messages it shaped but is gone from the list. the server
  * ignores an id it cannot resolve, so showing one would claim to shape answers while doing nothing */
@@ -52,10 +54,17 @@ export const useInstructionSetsStore = create<InstructionSetsState>((set, get) =
     if (get().loaded && !force) return Promise.resolve();
     inflight = (async () => {
       try {
-        const [sets, selected] = await Promise.all([
-          listInstructionSets(),
-          getSelectedInstructionSetId(),
-        ]);
+        // a selection made moments ago persists without being awaited, so wait for it here or
+        // this GET can return the pre-PUT value and the dialog reopens on the old set
+        // (genetics-results-suite-uvh 14)
+        await pendingSelection?.catch(() => {});
+        // serialized, not Promise.all: read the pointer first and the list second, so the list is
+        // provably no older than the pointer it is validated against. Fetched in parallel, a set
+        // created and selected in a SECOND TAB between the two responses arrives as list=[] with
+        // selected=X, and the dangling-pointer branch below clears a perfectly valid selection.
+        // Costs one serialized round trip (genetics-results-suite-uvh 13)
+        const selected = await getSelectedInstructionSetId();
+        const sets = await listInstructionSets();
         // reached only once BOTH fetches resolved, so a list that failed to load can never be read
         // as "the selected set is gone"
         if (selected && !sets.some((s) => s.id === selected)) {
@@ -96,6 +105,9 @@ export const useInstructionSetsStore = create<InstructionSetsState>((set, get) =
     // the selection is the user's global default, so it outlives the page. clearing goes through
     // DELETE because the settings endpoint rejects an empty setting_value with a 400
     const persisted = id ? setSelectedInstructionSetId(id) : clearSelectedInstructionSet();
+    // not awaited here — the selector must not block on the network — but load() waits for it, so
+    // a reload triggered right after a change cannot read the pre-PUT value
+    pendingSelection = persisted;
     persisted.catch((err) => console.error("Failed to save the selected instruction set:", err));
   },
 
