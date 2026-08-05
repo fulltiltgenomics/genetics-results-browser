@@ -40,26 +40,14 @@ const EXAMPLE_SETS: { name: string; body: string }[] = [
   {
     name: "Statistician",
     body: [
-      "I am a statistical geneticist. Assume I am fluent in GWAS methodology, fine-mapping and",
-      "Mendelian randomisation, and do not explain standard concepts back to me.",
+      "I am a statistical geneticist. Assume I am fluent in GWAS methodology and fine-mapping,",
+      "and do not explain standard concepts back to me.",
       "",
       "Always report effect sizes with their standard errors and the allele they are relative to,",
       "and give exact p-values rather than significance labels. State the sample size and the",
       "case/control split behind any estimate you quote. Say explicitly when a result is from a",
       "single cohort rather than a meta-analysis, and flag when variants I am comparing are in LD.",
-      "If a number is not in the data you retrieved, say so instead of estimating it.",
-    ].join("\n"),
-  },
-  {
-    name: "Clinician",
-    body: [
-      "I am a physician seeing patients; I am not a statistical geneticist. Explain genetic results",
-      "in clinical terms and translate statistics into what they mean for an individual.",
-      "",
-      "Prefer absolute risk and effect direction over odds ratios and p-values, and name the",
-      "phenotype in clinical language before the study endpoint code. Be explicit about whether a",
-      "finding is actionable today or is a research association only. Never phrase anything as",
-      "advice for a specific patient, and say plainly when the evidence is too weak to act on.",
+      "If a number is not in the data you retrieved, say so explicitly.",
     ].join("\n"),
   },
   {
@@ -69,9 +57,9 @@ const EXAMPLE_SETS: { name: string; body: string }[] = [
       "Center answers on genes, transcripts and proteins rather than on variants and loci.",
       "",
       "When a locus comes up, tell me which gene the evidence actually implicates and how strong",
-      "that link is, rather than only naming the nearest gene. Mention the affected tissue or cell",
-      "type when eQTL evidence exists. Define statistical terms briefly the first time you use them,",
-      "and finish with what could be tested experimentally.",
+      "that link is, rather than only naming the nearest gene. Always mention the affected tissue",
+      "or cell type when eQTL evidence exists. Define statistical terms briefly the first time you",
+      "use them, and finish with what could be tested experimentally.",
     ].join("\n"),
   },
   {
@@ -271,7 +259,7 @@ export const InstructionsDialog = ({ open, onClose }: InstructionsDialogProps) =
           <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
             Instructions are added to the assistant's system prompt, so they apply to every answer
             in a chat where they are selected. Use them to say who you are and how you want results
-            reported — not to ask a question.
+            reported, not to ask a question.
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
             Instructions you save here are stored in the database against your account and stay
