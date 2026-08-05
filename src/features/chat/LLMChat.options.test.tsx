@@ -1,3 +1,4 @@
+import React from "react";
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -52,10 +53,10 @@ const serveSettings = (settings: Record<string, string>, puts?: string[]) =>
   );
 
 // LLMChat pulls the view list through react-query; retries off so a missing handler fails fast
-const renderChat = () =>
+const renderChat = (props: Partial<React.ComponentProps<typeof LLMChat>> = {}) =>
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
-      <LLMChat />
+      <LLMChat {...props} />
     </QueryClientProvider>,
   );
 
@@ -90,6 +91,8 @@ describe("LLMChat options", () => {
   beforeEach(() => {
     vi.resetModules();
     resetStores();
+    // jsdom has no layout, so the auto-scroll effect would throw once a message renders
+    window.HTMLElement.prototype.scrollIntoView = vi.fn();
   });
 
   it("shows the user's stored options rather than the built-in defaults", async () => {
@@ -135,6 +138,69 @@ describe("LLMChat options", () => {
     renderChat();
 
     await waitFor(() => expect(screen.getByText(/brief, no instructions/)).toBeInTheDocument());
+  });
+
+  describe("the per-message note", () => {
+    const message = (id: string, extra: Record<string, unknown>) => ({
+      id,
+      role: "assistant" as const,
+      content: `answer ${id}`,
+      ...extra,
+    });
+
+    it("names what each answer was produced under", async () => {
+      serveSettings({ chat_verbosity: "brief" });
+      renderChat({
+        initialMessages: [message("a", { verbosity: "detailed", instructionSetId: SET.id })],
+      });
+
+      await waitFor(() => expect(screen.getByText("detailed · Statistician")).toBeInTheDocument());
+    });
+
+    // the point of stamping the message rather than reading the selector
+    it("keeps each turn's own note when the options changed mid-conversation", async () => {
+      serveSettings({ chat_verbosity: "brief" });
+      renderChat({
+        initialMessages: [
+          message("a", { verbosity: "brief", instructionSetId: null }),
+          message("b", { verbosity: "detailed", instructionSetId: SET.id }),
+        ],
+      });
+
+      await waitFor(() => expect(screen.getByText("detailed · Statistician")).toBeInTheDocument());
+      expect(screen.getByText("brief")).toBeInTheDocument();
+    });
+
+    it("says nothing for a message that predates the stamp", async () => {
+      serveSettings({ chat_verbosity: "brief" });
+      renderChat({ initialMessages: [message("a", { verbosity: null, instructionSetId: null })] });
+
+      await waitFor(() => expect(screen.getByText("answer a")).toBeInTheDocument());
+      expect(screen.queryByText(/·/)).not.toBeInTheDocument();
+      expect(screen.queryByText("brief")).not.toBeInTheDocument();
+    });
+
+    it("omits an instruction set that no longer lists rather than naming it wrongly", async () => {
+      serveSettings({ chat_verbosity: "brief" });
+      renderChat({
+        initialMessages: [message("a", { verbosity: "brief", instructionSetId: "set-archived" })],
+      });
+
+      await waitFor(() => expect(screen.getByText("brief")).toBeInTheDocument());
+      expect(screen.queryByText(/·/)).not.toBeInTheDocument();
+    });
+
+    it("does not label the user's own messages", async () => {
+      serveSettings({ chat_verbosity: "brief" });
+      renderChat({
+        initialMessages: [
+          { id: "u", role: "user" as const, content: "question", verbosity: "detailed" },
+        ],
+      });
+
+      await waitFor(() => expect(screen.getByText("question")).toBeInTheDocument());
+      expect(screen.queryByText("detailed")).not.toBeInTheDocument();
+    });
   });
 
   // the reapply path: ChatPage hands a conversation's stored options to the store, and the

@@ -567,7 +567,12 @@ export const LLMChat = ({
       setPendingAttachments([]);
 
       const assistantMsgId = crypto.randomUUID();
-      setMessages((prev) => [...prev, { id: assistantMsgId, role: "assistant", content: "" }]);
+      // stamped from the send-time values, so the note under the label keeps saying what this turn
+      // was actually produced under even if the user moves a control while it streams
+      setMessages((prev) => [
+        ...prev,
+        { id: assistantMsgId, role: "assistant", content: "", verbosity, instructionSetId },
+      ]);
 
       abortControllerRef.current?.abort();
       abortControllerRef.current = new AbortController();
@@ -943,6 +948,20 @@ export const LLMChat = ({
         boxShadow: theme.shadows[4],
       },
     },
+  };
+
+  // reads the message's own stamp rather than the selector: returning to an old chat should show
+  // what each answer was actually produced under, including turns from before the user switched
+  const messageNote = (message: ChatMessage) => {
+    const parts: string[] = [];
+    if (message.verbosity === "brief" || message.verbosity === "detailed") {
+      parts.push(message.verbosity);
+    }
+    // an archived set is gone from the list but still named by the messages it shaped; naming it
+    // would need a lookup the client cannot do, and saying nothing beats saying the wrong thing
+    const set = instructionSets.find((s) => s.id === message.instructionSetId);
+    if (set) parts.push(set.name);
+    return parts.join(" · ");
   };
 
   const hasMessages = messages.length > 0;
@@ -1412,6 +1431,13 @@ export const LLMChat = ({
                     opacity: 0.8,
                   }}>
                   {message.role === "user" ? "You" : APP_NAME}
+                  {message.role === "assistant" && messageNote(message) && (
+                    <Box
+                      component="span"
+                      sx={{ fontWeight: "normal", ml: 1, opacity: 0.75 }}>
+                      {messageNote(message)}
+                    </Box>
+                  )}
                 </Typography>
                 {message.attachments && message.attachments.length > 0 && (
                   <MessageAttachments

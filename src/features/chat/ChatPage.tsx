@@ -638,6 +638,8 @@ const ChatPage = () => {
         thumbsUp: m.thumbsUp,
         contentJson: m.contentJson,
         toolResultsJson: m.toolResultsJson,
+        verbosity: m.verbosity,
+        instructionSetId: m.instructionSetId,
         attachments,
       };
     });

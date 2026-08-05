@@ -72,6 +72,8 @@ export interface ChatMessage {
   contentJson?: string | null; // JSON string of full message content blocks (for tool calls)
   toolResultsJson?: string | null; // JSON string of tool_result blocks for this assistant turn
   literatureBackend?: string | null; // literature search backend used
+  verbosity?: string | null; // answer detail this turn was produced under
+  instructionSetId?: string | null; // instruction set this turn was produced under
   attachments?: FileAttachment[]; // file attachments (images, TSV, Excel)
 }
 
