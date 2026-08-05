@@ -85,12 +85,12 @@ const OptionRow = ({
         width: OPTION_LABEL_WIDTH,
         flexShrink: 0,
       }}>
-      <Typography variant="body2" color="text.secondary">
-        {label}
-      </Typography>
       <Tooltip title={tooltip} arrow placement="top">
         <InfoIcon sx={{ fontSize: 16, color: "text.secondary", cursor: "help" }} />
       </Tooltip>
+      <Typography variant="body2" color="text.secondary">
+        {label}
+      </Typography>
     </Box>
     {children}
   </Box>
