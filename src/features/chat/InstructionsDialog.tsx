@@ -378,7 +378,7 @@ export const InstructionsDialog = ({ open, onClose }: InstructionsDialogProps) =
             Start from an example
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-            These are starting points, not presets — copy one and edit it to describe your own work.
+            These are starting points, not presets. Copy one and edit it to describe your own work.
           </Typography>
           {EXAMPLE_SETS.map((example) => (
             <Box
