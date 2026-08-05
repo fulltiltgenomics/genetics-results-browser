@@ -63,6 +63,45 @@ const IMAGE_MARKER_REGEX = /\[IMAGE:([^:]+):([^:]+):([^\]]+)\]/g;
 // sentinel option value: opens the management dialog instead of changing the selection
 const MANAGE_INSTRUCTIONS_VALUE = "__manage__";
 
+// one option per row, labels in a fixed-width column so every control starts at the same x
+const OPTION_LABEL_WIDTH = 116;
+
+const OptionRow = ({
+  label,
+  tooltip,
+  children,
+}: {
+  label: string;
+  tooltip: React.ReactNode;
+  children: React.ReactNode;
+}) => (
+  <Box sx={{ display: "flex", alignItems: "center", gap: 1, minHeight: 30 }}>
+    <Box
+      sx={{
+        display: "flex",
+        alignItems: "center",
+        gap: 0.5,
+        width: OPTION_LABEL_WIDTH,
+        flexShrink: 0,
+      }}>
+      <Typography variant="body2" color="text.secondary">
+        {label}
+      </Typography>
+      <Tooltip title={tooltip} arrow placement="top">
+        <InfoIcon sx={{ fontSize: 16, color: "text.secondary", cursor: "help" }} />
+      </Tooltip>
+    </Box>
+    {children}
+  </Box>
+);
+
+// compact radios: MUI's default FormControlLabel margins are sized for standalone form fields
+const optionRadioSx = {
+  mr: 1.5,
+  "& .MuiRadio-root": { p: 0.375 },
+  "& .MuiFormControlLabel-label": { fontSize: "0.75rem" },
+};
+
 // per-message limits (mirror the backend MAX_MESSAGE_CHARS / MAX_ATTACHMENTS_PER_MESSAGE)
 const MAX_MESSAGE_CHARS = 50000;
 const MAX_ATTACHMENTS_PER_MESSAGE = 10;
@@ -219,6 +258,12 @@ export const LLMChat = ({
   const selectInstructionSet = useInstructionSetsStore((s) => s.select);
   const [instructionsDialogOpen, setInstructionsDialogOpen] = useState(false);
   const [optionsOpen, setOptionsOpen] = useState(false);
+  // keyed off the id, not the looked-up set: the list and the stored selection load together but the
+  // name can be momentarily unresolved, and claiming "no instructions" while one is selected would
+  // misreport what the next message actually sends
+  const instructionsSummary = instructionSetId
+    ? (instructionSets.find((s) => s.id === instructionSetId)?.name ?? "instructions")
+    : "no instructions";
   const hasTriggeredFirstExchange = useRef(false);
   // unlike initialInput, initialAttachments needs no async-seed effect: the parent restores drafts
   // synchronously from a ref when remounting on conversation switch
@@ -909,7 +954,10 @@ export const LLMChat = ({
         sx={{ display: "flex", alignItems: "center", cursor: "pointer", userSelect: "none" }}
         onClick={() => setOptionsOpen((v) => !v)}>
         <Typography variant="body2" color="text.secondary">
-          Options
+          Options{" "}
+          <Box component="span" sx={{ opacity: 0.8 }}>
+            ({verbosity}, {instructionsSummary})
+          </Box>
         </Typography>
         {optionsOpen ? (
           <ExpandLessIcon sx={{ fontSize: 18, color: "text.secondary" }} />
@@ -918,138 +966,16 @@ export const LLMChat = ({
         )}
       </Box>
       <Collapse in={optionsOpen}>
-        <Box
-          sx={{
-            display: "flex",
-            flexDirection: { xs: "column", sm: "row" },
-            alignItems: { xs: "flex-start", sm: "center" },
-            gap: { xs: 1, sm: 2 },
-            flexWrap: "wrap",
-          }}>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-            <Typography variant="body2" color="text.secondary">
-              Literature search
-            </Typography>
-            <Tooltip
-              title={
-                <span style={{ whiteSpace: "pre-line" }}>
-                  Choose where to search for scientific literature.{"\n"}
-                  Perplexity - AI-powered search across the web, good for broad questions and recent findings{"\n"}
-                  Europe PMC - searches the Europe PubMed Central database directly, best for precise biomedical literature queries
-                </span>
-              }
-              arrow
-              placement="top">
-              <InfoIcon sx={{ fontSize: 16, color: "text.secondary", cursor: "help" }} />
-            </Tooltip>
-          </Box>
-          <RadioGroup
-            row
-            value={literatureBackend}
-            onChange={(e) => setLiteratureBackend(e.target.value as LiteratureBackend)}>
-            <FormControlLabel
-              value="perplexity"
-              control={<Radio size="small" />}
-              label="Perplexity"
-              sx={{ "& .MuiFormControlLabel-label": { fontSize: "0.75rem" } }}
-            />
-            <FormControlLabel
-              value="europepmc"
-              control={<Radio size="small" />}
-              label="Europe PMC"
-              sx={{ "& .MuiFormControlLabel-label": { fontSize: "0.75rem" } }}
-            />
-          </RadioGroup>
-          <Box
-            sx={{
-              borderLeft: { xs: 0, sm: 1 },
-              borderTop: { xs: 1, sm: 0 },
-              borderColor: "divider",
-              pl: { xs: 0, sm: 2 },
-              pt: { xs: 1, sm: 0 },
-              display: "flex",
-              alignItems: "center",
-              gap: 2,
-            }}>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-              <Typography variant="body2" color="text.secondary">
-                Tools
-              </Typography>
-              <Tooltip
-                title={
-                  <span style={{ whiteSpace: "pre-line" }}>
-                    Which MCP tools to use?{"\n"}
-                    All - includes all tools and automatically determines the ones to use (most times this is the best choice){"\n"}
-                    API - includes tools tied to the genetics results API (can be used when strictly getting data for variants/genes/phenotypes){"\n"}
-                    Database - includes access to a database that contains credible set and colocalization data (good when computations across all data is needed instead of a specific variant, gene or phenotype)
-                  </span>
-                }
-                arrow
-                placement="top">
-                <InfoIcon sx={{ fontSize: 16, color: "text.secondary", cursor: "help" }} />
-              </Tooltip>
-            </Box>
-            <RadioGroup
-              row
-              value={toolProfile ?? "all"}
-              onChange={(e) => {
-                const val = e.target.value;
-                setToolProfile(val === "all" ? null : (val as ToolProfile));
-              }}>
-              <FormControlLabel
-                value="all"
-                control={<Radio size="small" />}
-                label="All"
-                sx={{ "& .MuiFormControlLabel-label": { fontSize: "0.75rem" } }}
-              />
-              {/* <FormControlLabel
-                value="rag"
-                control={<Radio size="small" />}
-                label="RAG"
-                sx={{ "& .MuiFormControlLabel-label": { fontSize: "0.75rem" } }}
-              /> */}
-              <FormControlLabel
-                value="api"
-                control={<Radio size="small" />}
-                label="API"
-                sx={{ "& .MuiFormControlLabel-label": { fontSize: "0.75rem" } }}
-              />
-              <FormControlLabel
-                value="bigquery"
-                control={<Radio size="small" />}
-                label="Database"
-                sx={{ "& .MuiFormControlLabel-label": { fontSize: "0.75rem" } }}
-              />
-            </RadioGroup>
-          </Box>
-          <Box
-            sx={{
-              borderLeft: { xs: 0, sm: 1 },
-              borderTop: { xs: 1, sm: 0 },
-              borderColor: "divider",
-              pl: { xs: 0, sm: 2 },
-              pt: { xs: 1, sm: 0 },
-              display: "flex",
-              alignItems: "center",
-              gap: 2,
-            }}>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-              <Typography variant="body2" color="text.secondary">
-                Answer
-              </Typography>
-              <Tooltip
-                title={
-                  <span style={{ whiteSpace: "pre-line" }}>
-                    How much detail should the answer contain?{"\n"}
-                    Brief - leads with the finding and the data behind it; ask a follow-up for anything left out (default){"\n"}
-                    Detailed - the full write-up: complete data extraction, then literature, then analysis
-                  </span>
-                }
-                arrow
-                placement="top">
-                <InfoIcon sx={{ fontSize: 16, color: "text.secondary", cursor: "help" }} />
-              </Tooltip>
-            </Box>
+        <Box sx={{ display: "flex", flexDirection: "column" }}>
+          <OptionRow
+            label="Answer"
+            tooltip={
+              <span style={{ whiteSpace: "pre-line" }}>
+                How much detail should the answer contain?{"\n"}
+                Brief - leads with the finding and the data behind it; ask a follow-up for anything left out (default){"\n"}
+                Detailed - the full write-up: complete data extraction, then literature, then analysis
+              </span>
+            }>
             <RadioGroup
               row
               value={verbosity}
@@ -1058,51 +984,36 @@ export const LLMChat = ({
                 value="brief"
                 control={<Radio size="small" />}
                 label="Brief"
-                sx={{ "& .MuiFormControlLabel-label": { fontSize: "0.75rem" } }}
+                sx={optionRadioSx}
               />
               <FormControlLabel
                 value="detailed"
                 control={<Radio size="small" />}
                 label="Detailed"
-                sx={{ "& .MuiFormControlLabel-label": { fontSize: "0.75rem" } }}
+                sx={optionRadioSx}
               />
             </RadioGroup>
-          </Box>
-          <Box
-            sx={{
-              borderLeft: { xs: 0, sm: 1 },
-              borderTop: { xs: 1, sm: 0 },
-              borderColor: "divider",
-              pl: { xs: 0, sm: 2 },
-              pt: { xs: 1, sm: 0 },
-              display: "flex",
-              alignItems: "center",
-              gap: 2,
-            }}>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-              <Typography variant="body2" color="text.secondary">
-                Instructions
-              </Typography>
-              <Tooltip
-                title={
-                  <span style={{ whiteSpace: "pre-line" }}>
-                    Your own standing instructions, added to every message in this chat.{"\n"}
-                    Use them to say who you are and how you want answers written — e.g. "I am a statistical geneticist, always give effect sizes with standard errors".{"\n"}
-                    None - no extra instructions (default){"\n"}
-                    Manage instructions - create, edit or archive your sets
-                  </span>
-                }
-                arrow
-                placement="top">
-                <InfoIcon sx={{ fontSize: 16, color: "text.secondary", cursor: "help" }} />
-              </Tooltip>
-            </Box>
+          </OptionRow>
+          <OptionRow
+            label="Instructions"
+            tooltip={
+              <span style={{ whiteSpace: "pre-line" }}>
+                Your own standing instructions, added to every message in this chat.{"\n"}
+                Use them to say who you are and how you want answers written — e.g. "I am a statistical geneticist, always give effect sizes with standard errors".{"\n"}
+                None - no extra instructions (default){"\n"}
+                Manage instructions - create or edit your instruction sets
+              </span>
+            }>
             <Select
               size="small"
               value={instructionSetId ?? ""}
               onChange={(e) => handleInstructionSetChange(e.target.value)}
               inputProps={{ "aria-label": "Instructions" }}
-              sx={{ fontSize: "0.75rem", minWidth: 160 }}>
+              sx={{
+                fontSize: "0.75rem",
+                minWidth: 160,
+                "& .MuiSelect-select": { py: 0.375 },
+              }}>
               <MenuItem value="" sx={{ fontSize: "0.75rem" }}>
                 None
               </MenuItem>
@@ -1116,7 +1027,77 @@ export const LLMChat = ({
                 Manage instructions…
               </MenuItem>
             </Select>
-          </Box>
+          </OptionRow>
+          <OptionRow
+            label="Literature search"
+            tooltip={
+              <span style={{ whiteSpace: "pre-line" }}>
+                Choose where to search for scientific literature.{"\n"}
+                Perplexity - AI-powered search across the web, good for broad questions and recent findings{"\n"}
+                Europe PMC - searches the Europe PubMed Central database directly, best for precise biomedical literature queries
+              </span>
+            }>
+            <RadioGroup
+              row
+              value={literatureBackend}
+              onChange={(e) => setLiteratureBackend(e.target.value as LiteratureBackend)}>
+              <FormControlLabel
+                value="perplexity"
+                control={<Radio size="small" />}
+                label="Perplexity"
+                sx={optionRadioSx}
+              />
+              <FormControlLabel
+                value="europepmc"
+                control={<Radio size="small" />}
+                label="Europe PMC"
+                sx={optionRadioSx}
+              />
+            </RadioGroup>
+          </OptionRow>
+          <OptionRow
+            label="Tools"
+            tooltip={
+              <span style={{ whiteSpace: "pre-line" }}>
+                Which MCP tools to use?{"\n"}
+                All - includes all tools and automatically determines the ones to use (most times this is the best choice){"\n"}
+                API - includes tools tied to the genetics results API (can be used when strictly getting data for variants/genes/phenotypes){"\n"}
+                Database - includes access to a database that contains credible set and colocalization data (good when computations across all data is needed instead of a specific variant, gene or phenotype)
+              </span>
+            }>
+            <RadioGroup
+              row
+              value={toolProfile ?? "all"}
+              onChange={(e) => {
+                const val = e.target.value;
+                setToolProfile(val === "all" ? null : (val as ToolProfile));
+              }}>
+              <FormControlLabel
+                value="all"
+                control={<Radio size="small" />}
+                label="All"
+                sx={optionRadioSx}
+              />
+              {/* <FormControlLabel
+                value="rag"
+                control={<Radio size="small" />}
+                label="RAG"
+                sx={optionRadioSx}
+              /> */}
+              <FormControlLabel
+                value="api"
+                control={<Radio size="small" />}
+                label="API"
+                sx={optionRadioSx}
+              />
+              <FormControlLabel
+                value="bigquery"
+                control={<Radio size="small" />}
+                label="Database"
+                sx={optionRadioSx}
+              />
+            </RadioGroup>
+          </OptionRow>
         </Box>
         {contextUsage && (
           <Tooltip title="Context window usage for this conversation — when full, older messages may be summarized" arrow placement="top">
