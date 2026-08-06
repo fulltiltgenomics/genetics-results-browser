@@ -13,7 +13,7 @@ import broadLogo from "../../assets/broad-logo.png";
 import finngenLogo from "../../assets/finngen-logo-400-1.png";
 import { useThemeStore } from "@/store/store.theme";
 import { useAuth } from "@/store/useAuth";
-import { Link as RouterLink, useLocation, useNavigate } from "react-router-dom";
+import { Link as RouterLink, useLocation, useNavigate } from "react-router";
 import McpTokenDialog from "./McpTokenDialog";
 import InstructionsDialog from "../chat/InstructionsDialog";
 

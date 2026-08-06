@@ -6,7 +6,7 @@ import { CSDatum, GeneModel } from "@/types/types.gene";
 import { useThemeStore } from "@/store/store.theme";
 import config from "@/config.json";
 import { useMediaQuery } from "@mui/material";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 
 const CSPlot = ({
   geneName,

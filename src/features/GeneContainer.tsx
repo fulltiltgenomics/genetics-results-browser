@@ -2,7 +2,7 @@ import { Box, Button, Tab, Tabs, TextField, Typography, useTheme } from "@mui/ma
 import CisView from "./CisView";
 import GeneEvidenceTab from "./gene/GeneEvidenceTab";
 import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router";
 
 const GeneContainer = () => {
   const params = useParams();

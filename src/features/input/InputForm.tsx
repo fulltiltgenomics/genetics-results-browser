@@ -21,7 +21,7 @@ import { PhenotypeSearchHit } from "../../types/types.normalized";
 import { formatPhenotypeCounts } from "../table/utils/tableutil";
 import config from "../../config.json";
 import { compressToEncodedURIComponent, decompressFromEncodedURIComponent } from "lz-string";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router";
 
 const InputForm = () => {
   const [searchParams, setSearchParams] = useSearchParams();

@@ -52,7 +52,7 @@ import { Line } from "react-chartjs-2";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { marked } from "marked";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import {
   fetchAdminSessions,
   fetchAdminSessionDetail,

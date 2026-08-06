@@ -11,7 +11,7 @@ import {
   FormControlLabel,
 } from "@mui/material";
 import { useState, useEffect } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router";
 import { MaterialReactTable, type MRT_ColumnDef } from "material-react-table";
 import { variantSort, naInfSort } from "./table/utils/sorting";
 import api from "../store/api";

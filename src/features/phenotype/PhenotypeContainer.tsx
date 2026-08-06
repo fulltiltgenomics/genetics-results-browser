@@ -1,7 +1,7 @@
 import { Box, TextField, Typography, Paper, Alert, Button } from "@mui/material";
 import { Search as SearchIcon } from "@mui/icons-material";
 import { useState, useEffect } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate } from "react-router";
 import { LLMChat } from "../chat";
 import { APP_NAME } from "../../config/appName";
 import api from "../../store/api";

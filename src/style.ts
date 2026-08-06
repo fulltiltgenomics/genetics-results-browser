@@ -1,5 +1,5 @@
 import { styled, TableCell } from "@mui/material";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 
 const CleanTableCell = styled(TableCell)({
   padding: 0,
