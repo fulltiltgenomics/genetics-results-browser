@@ -1,0 +1,306 @@
+import { useMemo } from "react";
+import { Box, TextField, Tooltip, Typography } from "@mui/material";
+import {
+  MaterialReactTable,
+  useMaterialReactTable,
+  type MRT_Column,
+  type MRT_ColumnDef,
+  type MRT_FilterFn,
+} from "material-react-table";
+import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import CancelIcon from "@mui/icons-material/Cancel";
+import RemoveCircleIcon from "@mui/icons-material/RemoveCircle";
+import HelpIcon from "@mui/icons-material/Help";
+import { naInfSort } from "@/features/table/utils/sorting";
+import type { AdminSession } from "./adminApi";
+import { localDayKey, parseUtcTimestamp, withinDayRange } from "./utils";
+
+// known disposition / success_label option sets, used for the column filter dropdowns
+const DISPOSITION_OPTIONS = [
+  "good_answer",
+  "agent_failure",
+  "technical_failure",
+  "out_of_scope",
+  "unfinished",
+  "weird_or_unclear",
+];
+const SUCCESS_LABEL_OPTIONS = [
+  "successful",
+  "neutral",
+  "unsuccessful",
+  "technical_failure",
+  "out_of_scope",
+  "unfinished",
+  "weird_or_unclear",
+  "unknown",
+];
+
+const RATING_OPTIONS = ["NA", "1", "2", "3", "4", "5"];
+
+// map a success_label to an icon + colour; success-ish -> green check, error-ish -> red cancel,
+// the in-between labels -> grey neutral circle, unknown/unmapped -> grey help
+export function successIcon(label: string | null) {
+  const fontSize = 18;
+  switch (label) {
+    case "successful":
+      return <CheckCircleIcon sx={{ fontSize, color: "success.main" }} />;
+    case "unsuccessful":
+    case "technical_failure":
+      return <CancelIcon sx={{ fontSize, color: "error.main" }} />;
+    case "neutral":
+    case "out_of_scope":
+    case "unfinished":
+    case "weird_or_unclear":
+      return <RemoveCircleIcon sx={{ fontSize, color: "text.disabled" }} />;
+    default:
+      return <HelpIcon sx={{ fontSize, color: "text.disabled" }} />;
+  }
+}
+
+/**
+ * From/To date inputs rendered inside the Created column header, replacing the page-level
+ * filter panel. Two native date inputs rather than MRT's `date-range` filter variant, which
+ * would pull @mui/x-date-pickers and a date adapter in as direct dependencies for no gain.
+ */
+const DayRangeFilter = ({ column }: { column: MRT_Column<AdminSession> }) => {
+  const [from, to] = (column.getFilterValue() as [string, string] | undefined) ?? ["", ""];
+  // clearing both bounds must clear the filter itself, or MRT keeps showing the column as filtered
+  const set = (next: [string, string]) =>
+    column.setFilterValue(next[0] || next[1] ? next : undefined);
+  const field = (label: string, value: string, onChange: (v: string) => void) => (
+    <TextField
+      type="date"
+      variant="standard"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      slotProps={{ htmlInput: { "aria-label": label, style: { fontSize: "0.7rem" } } }}
+      sx={{ minWidth: 118 }}
+    />
+  );
+  return (
+    <Box sx={{ display: "flex", flexDirection: "column", gap: 0.25 }}>
+      {field("created from", from, (v) => set([v, to]))}
+      {field("created to", to, (v) => set([from, v]))}
+    </Box>
+  );
+};
+
+// filters on the LOCAL calendar day of created_at, matching what the Created cell renders;
+// the raw value is a UTC instant, so comparing it against a picked date without converting
+// would file post-midnight conversations under the previous day
+const createdDayRange: MRT_FilterFn<AdminSession> = (row, _columnId, filterValue) =>
+  withinDayRange(localDayKey(row.original.createdAt), filterValue as [string, string] | undefined);
+
+const ellipsis = {
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
+} as const;
+
+const getColumns = (): MRT_ColumnDef<AdminSession>[] => [
+  {
+    accessorKey: "id",
+    header: "Session ID",
+    filterFn: "contains",
+    muiFilterTextFieldProps: { placeholder: "id" },
+    size: 300,
+  },
+  {
+    accessorKey: "userId",
+    header: "User",
+    filterFn: "contains",
+    muiFilterTextFieldProps: { placeholder: "user" },
+    size: 120,
+    Cell: ({ row }) => (
+      <Tooltip title={row.original.userId}>
+        <Box component="span" sx={ellipsis}>
+          {row.original.userId.split("@")[0]}
+        </Box>
+      </Tooltip>
+    ),
+  },
+  {
+    id: "title",
+    accessorFn: (row) => row.title || row.preview || "",
+    header: "Title / Preview",
+    filterFn: "contains",
+    muiFilterTextFieldProps: { placeholder: "text" },
+    size: 300,
+    Cell: ({ cell }) => {
+      const text = cell.getValue<string>();
+      return <Box sx={ellipsis}>{text || <em>No content</em>}</Box>;
+    },
+  },
+  {
+    accessorKey: "messageCount",
+    header: "Messages",
+    sortingFn: naInfSort,
+    sortDescFirst: true,
+    filterFn: "greaterThanOrEqualTo",
+    muiFilterTextFieldProps: { placeholder: "min" },
+    size: 90,
+  },
+  {
+    id: "createdAt",
+    // a Date so "datetime" sorting orders within a day too, not just by calendar day
+    accessorFn: (row) => parseUtcTimestamp(row.createdAt),
+    header: "Created",
+    sortingFn: "datetime",
+    enableGlobalFilter: false,
+    filterFn: createdDayRange,
+    Filter: DayRangeFilter,
+    size: 130,
+    Cell: ({ cell }) => {
+      const d = cell.getValue<Date>();
+      return (
+        <Tooltip title={d.toLocaleString()}>
+          <span>{d.toLocaleDateString()}</span>
+        </Tooltip>
+      );
+    },
+  },
+  {
+    id: "updatedAt",
+    accessorFn: (row) => parseUtcTimestamp(row.updatedAt),
+    header: "Updated",
+    sortingFn: "datetime",
+    enableGlobalFilter: false,
+    enableColumnFilter: false,
+    size: 110,
+    Cell: ({ cell }) => {
+      const d = cell.getValue<Date>();
+      return (
+        <Tooltip title={d.toLocaleString()}>
+          <span>{d.toLocaleDateString()}</span>
+        </Tooltip>
+      );
+    },
+  },
+  {
+    id: "disposition",
+    accessorFn: (row) => row.disposition ?? "",
+    header: "Disposition",
+    filterVariant: "multi-select",
+    filterSelectOptions: DISPOSITION_OPTIONS,
+    size: 150,
+    Cell: ({ cell }) => cell.getValue<string>().replace(/_/g, " ") || "-",
+  },
+  {
+    accessorKey: "issueCount",
+    header: "Issues",
+    sortingFn: naInfSort,
+    sortDescFirst: true,
+    filterFn: "greaterThanOrEqualTo",
+    muiFilterTextFieldProps: { placeholder: "min" },
+    size: 80,
+    Cell: ({ row }) =>
+      row.original.issueCount > 0 ? (
+        <Tooltip title={row.original.issueCategories.join(", ") || "no categories"}>
+          <span>{row.original.issueCount}</span>
+        </Tooltip>
+      ) : (
+        "-"
+      ),
+  },
+  {
+    id: "rating",
+    // the accessor is the displayed label so the select filter matches what the cell shows;
+    // naInfSort reads the raw numeric field off row.original, keeping NA at the bottom
+    accessorFn: (row) => (row.rating == null ? "NA" : String(row.rating)),
+    header: "User rating",
+    sortingFn: naInfSort,
+    filterVariant: "multi-select",
+    filterSelectOptions: RATING_OPTIONS,
+    size: 90,
+  },
+  {
+    id: "llmRating",
+    accessorFn: (row) => (row.llmRating == null ? "NA" : String(row.llmRating)),
+    header: "LLM rating",
+    sortingFn: naInfSort,
+    filterVariant: "multi-select",
+    filterSelectOptions: RATING_OPTIONS,
+    size: 90,
+  },
+  {
+    id: "successLabel",
+    accessorFn: (row) => row.successLabel ?? "unknown",
+    header: "Success",
+    filterVariant: "multi-select",
+    filterSelectOptions: SUCCESS_LABEL_OPTIONS,
+    size: 90,
+    Cell: ({ row }) => (
+      <Tooltip title={row.original.successLabel || "unknown"}>
+        <Box component="span" sx={{ display: "inline-flex", verticalAlign: "middle" }}>
+          {successIcon(row.original.successLabel)}
+        </Box>
+      </Tooltip>
+    ),
+  },
+];
+
+interface Props {
+  sessions: AdminSession[];
+  isLoading: boolean;
+  isXs: boolean;
+  onSelect: (sessionId: string) => void;
+}
+
+/**
+ * Conversations table. Sorting, filtering and pagination all run client-side over the full
+ * session list, so a sort covers every conversation rather than the visible page — the reason
+ * AdminPage fetches the list unpaged.
+ */
+const ConversationsTable = ({ sessions, isLoading, isXs, onSelect }: Props) => {
+  const columns = useMemo(getColumns, []);
+
+  const table = useMaterialReactTable({
+    columns,
+    data: sessions,
+    state: { isLoading },
+    enableColumnFilters: true,
+    enableGlobalFilter: true,
+    enableFacetedValues: true,
+    enableDensityToggle: false,
+    enableFullScreenToggle: false,
+    initialState: {
+      showColumnFilters: !isXs,
+      density: "compact",
+      sorting: [{ id: "updatedAt", desc: true }],
+      pagination: { pageIndex: 0, pageSize: 25 },
+      // the session id is a lookup aid rather than something to scan; reachable via the
+      // columns button. narrow screens drop everything but the conversation's identity.
+      columnVisibility: isXs
+        ? {
+            id: false,
+            messageCount: false,
+            createdAt: false,
+            disposition: false,
+            issueCount: false,
+            rating: false,
+            llmRating: false,
+          }
+        : { id: false },
+    },
+    sortingFns: { naInfSort },
+    muiTableBodyRowProps: ({ row }) => ({
+      onClick: () => onSelect(row.original.id),
+      sx: { cursor: "pointer" },
+    }),
+    muiTableProps: { sx: { tableLayout: "fixed" } },
+    muiTableBodyCellProps: { sx: { fontSize: "0.75rem" } },
+    muiTableHeadCellProps: { sx: { fontSize: "0.75rem" } },
+    muiPaginationProps: { rowsPerPageOptions: [25, 50, 100, 500] },
+    localization: { noRecordsToDisplay: "No conversations match the current filters" },
+    renderBottomToolbarCustomActions: ({ table: t }) => (
+      <Typography variant="caption" sx={{ color: "text.secondary", px: 1, alignSelf: "center" }}>
+        {t.getFilteredRowModel().rows.length} of {sessions.length} conversation
+        {sessions.length !== 1 ? "s" : ""}
+      </Typography>
+    ),
+  });
+
+  return <MaterialReactTable table={table} />;
+};
+
+export default ConversationsTable;

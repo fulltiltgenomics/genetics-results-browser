@@ -20,9 +20,6 @@ import {
   Tab,
   Tabs,
   Chip,
-  FormControl,
-  InputLabel,
-  Select,
   List,
   ListItem,
   ListItemButton,
@@ -34,10 +31,6 @@ import CloseIcon from "@mui/icons-material/Close";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import DownloadIcon from "@mui/icons-material/Download";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import CheckCircleIcon from "@mui/icons-material/CheckCircle";
-import CancelIcon from "@mui/icons-material/Cancel";
-import RemoveCircleIcon from "@mui/icons-material/RemoveCircle";
-import HelpIcon from "@mui/icons-material/Help";
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -63,10 +56,11 @@ import {
   type UsageDataPoint,
   type FeedbackItem,
 } from "./adminApi";
-import { fillUsageGaps, formatRelativeTime } from "./utils";
+import { fillUsageGaps, formatRelativeTime, parseUtcTimestamp } from "./utils";
 import { fetchQualitySeries, type QualityRow } from "./adminApi";
 import { buildAllSeries, type SeriesPanel } from "./qualitySeries";
 import { useLineHighlight, type HighlightHandlers } from "./lineHighlight";
+import ConversationsTable from "./ConversationsTable";
 
 ChartJS.register(
   CategoryScale,
@@ -78,7 +72,9 @@ ChartJS.register(
   ChartTitle
 );
 
-const PAGE_SIZE = 25;
+// the Conversations tab fetches every session and does its own sorting/filtering/paging, so this
+// is a safety ceiling on the request rather than a page size
+const SESSION_FETCH_LIMIT = 100000;
 const FEEDBACK_PAGE_SIZE = 25;
 
 function buildExportMarkdown(session: AdminSessionDetail): string {
@@ -105,46 +101,6 @@ function makeFilename(title: string, ext: string): string {
 
 function escapeHtml(text: string): string {
   return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
-}
-
-// known disposition / success_label option sets for the server-side filter dropdowns
-const DISPOSITION_OPTIONS = [
-  "good_answer",
-  "agent_failure",
-  "technical_failure",
-  "out_of_scope",
-  "unfinished",
-  "weird_or_unclear",
-];
-const SUCCESS_LABEL_OPTIONS = [
-  "successful",
-  "neutral",
-  "unsuccessful",
-  "technical_failure",
-  "out_of_scope",
-  "unfinished",
-  "weird_or_unclear",
-  "unknown",
-];
-
-// map a success_label to an icon + colour; success-ish -> green check, error-ish -> red cancel,
-// the in-between labels -> grey neutral circle, unknown/unmapped -> grey help
-function successIcon(label: string | null) {
-  const fontSize = 18;
-  switch (label) {
-    case "successful":
-      return <CheckCircleIcon sx={{ fontSize, color: "success.main" }} />;
-    case "unsuccessful":
-    case "technical_failure":
-      return <CancelIcon sx={{ fontSize, color: "error.main" }} />;
-    case "neutral":
-    case "out_of_scope":
-    case "unfinished":
-    case "weird_or_unclear":
-      return <RemoveCircleIcon sx={{ fontSize, color: "text.disabled" }} />;
-    default:
-      return <HelpIcon sx={{ fontSize, color: "text.disabled" }} />;
-  }
 }
 
 // stable colour palette for the multi-line quality plots; a label always maps to
@@ -208,23 +164,10 @@ export default function AdminPage() {
   const isXs = useMediaQuery(theme.breakpoints.down("sm"));
   const [activeTab, setActiveTab] = useState(0);
 
-  // sessions state
+  // sessions state — the full list; filtering and paging happen inside ConversationsTable
   const [sessions, setSessions] = useState<AdminSession[]>([]);
-  const [total, setTotal] = useState(0);
-  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  // filters
-  const [userFilter, setUserFilter] = useState("");
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
-  const [sessionIdFilter, setSessionIdFilter] = useState("");
-  // analysis filters (server-side)
-  const [dispositionFilter, setDispositionFilter] = useState("");
-  const [successLabelFilter, setSuccessLabelFilter] = useState("");
-  const [ratingFilter, setRatingFilter] = useState(""); // '', 'NA', or '1'..'5'
-  const [hasIssuesFilter, setHasIssuesFilter] = useState(false);
 
   // detail dialog
   const [selectedSession, setSelectedSession] = useState<AdminSessionDetail | null>(null);
@@ -258,36 +201,14 @@ export default function AdminPage() {
     setLoading(true);
     setError(null);
     try {
-      const result = await fetchAdminSessions({
-        user: userFilter || undefined,
-        dateFrom: dateFrom || undefined,
-        dateTo: dateTo || undefined,
-        sessionId: sessionIdFilter || undefined,
-        disposition: dispositionFilter || undefined,
-        successLabel: successLabelFilter || undefined,
-        rating: ratingFilter || undefined,
-        minIssues: hasIssuesFilter ? 1 : undefined,
-        limit: PAGE_SIZE,
-        offset: (page - 1) * PAGE_SIZE,
-      });
+      const result = await fetchAdminSessions({ limit: SESSION_FETCH_LIMIT });
       setSessions(result.sessions);
-      setTotal(result.total);
     } catch (e: any) {
       setError(e.message);
     } finally {
       setLoading(false);
     }
-  }, [
-    userFilter,
-    dateFrom,
-    dateTo,
-    sessionIdFilter,
-    dispositionFilter,
-    successLabelFilter,
-    ratingFilter,
-    hasIssuesFilter,
-    page,
-  ]);
+  }, []);
 
   const loadAnalytics = useCallback(async () => {
     setAnalyticsLoading(true);
@@ -359,23 +280,6 @@ export default function AdminPage() {
       loadQuality();
     }
   }, [activeTab, loadQuality]);
-
-  const handleSearch = () => {
-    setPage(1);
-    loadSessions();
-  };
-
-  const handleClearFilters = () => {
-    setUserFilter("");
-    setDateFrom("");
-    setDateTo("");
-    setSessionIdFilter("");
-    setDispositionFilter("");
-    setSuccessLabelFilter("");
-    setRatingFilter("");
-    setHasIssuesFilter(false);
-    setPage(1);
-  };
 
   const openSessionDetail = async (sessionId: string) => {
     setDetailLoading(true);
@@ -628,303 +532,12 @@ export default function AdminPage() {
             </Box>
           </Paper>
 
-          {/* Filters */}
-          <Paper sx={{ p: 2, mb: 2 }}>
-            <Box sx={{ display: "flex", gap: 1.5, flexWrap: "wrap", alignItems: "center" }}>
-              <TextField
-                size="small"
-                label="User"
-                value={userFilter}
-                onChange={(e) => setUserFilter(e.target.value)}
-                sx={{ width: { xs: "100%", sm: 200 } }}
-              />
-              <TextField
-                size="small"
-                label="From"
-                type="date"
-                value={dateFrom}
-                onChange={(e) => setDateFrom(e.target.value)}
-                slotProps={{ inputLabel: { shrink: true } }}
-                sx={{ width: { xs: "100%", sm: 160 } }}
-              />
-              <TextField
-                size="small"
-                label="To"
-                type="date"
-                value={dateTo}
-                onChange={(e) => setDateTo(e.target.value)}
-                slotProps={{ inputLabel: { shrink: true } }}
-                sx={{ width: { xs: "100%", sm: 160 } }}
-              />
-              <TextField
-                size="small"
-                label="Session ID"
-                value={sessionIdFilter}
-                onChange={(e) => setSessionIdFilter(e.target.value)}
-                sx={{ width: { xs: "100%", sm: 200 } }}
-              />
-              <FormControl size="small" sx={{ width: { xs: "100%", sm: 180 } }}>
-                <InputLabel>Disposition</InputLabel>
-                <Select
-                  label="Disposition"
-                  value={dispositionFilter}
-                  onChange={(e) => setDispositionFilter(e.target.value)}
-                >
-                  <MenuItem value="">
-                    <em>Any</em>
-                  </MenuItem>
-                  {DISPOSITION_OPTIONS.map((d) => (
-                    <MenuItem key={d} value={d}>
-                      {d}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-              <FormControl size="small" sx={{ width: { xs: "100%", sm: 180 } }}>
-                <InputLabel>Success</InputLabel>
-                <Select
-                  label="Success"
-                  value={successLabelFilter}
-                  onChange={(e) => setSuccessLabelFilter(e.target.value)}
-                >
-                  <MenuItem value="">
-                    <em>Any</em>
-                  </MenuItem>
-                  {SUCCESS_LABEL_OPTIONS.map((s) => (
-                    <MenuItem key={s} value={s}>
-                      {s}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-              <FormControl size="small" sx={{ width: { xs: "100%", sm: 110 } }}>
-                <InputLabel>Rating</InputLabel>
-                <Select
-                  label="Rating"
-                  value={ratingFilter}
-                  onChange={(e) => setRatingFilter(e.target.value)}
-                >
-                  <MenuItem value="">
-                    <em>Any</em>
-                  </MenuItem>
-                  <MenuItem value="NA">NA</MenuItem>
-                  {["1", "2", "3", "4", "5"].map((r) => (
-                    <MenuItem key={r} value={r}>
-                      {r}
-                    </MenuItem>
-                  ))}
-                </Select>
-              </FormControl>
-              <FormControl size="small" sx={{ width: { xs: "100%", sm: 130 } }}>
-                <InputLabel>Issues</InputLabel>
-                <Select
-                  label="Issues"
-                  value={hasIssuesFilter ? "1" : ""}
-                  onChange={(e) => setHasIssuesFilter(e.target.value === "1")}
-                >
-                  <MenuItem value="">
-                    <em>Any</em>
-                  </MenuItem>
-                  <MenuItem value="1">Has issues</MenuItem>
-                </Select>
-              </FormControl>
-              <Button variant="contained" size="small" onClick={handleSearch} fullWidth={isXs}>
-                Search
-              </Button>
-              <Button variant="outlined" size="small" onClick={handleClearFilters} fullWidth={isXs}>
-                Clear
-              </Button>
-            </Box>
-          </Paper>
-
-          {/* Sessions table */}
-          <Paper sx={{ overflow: "auto" }}>
-            {loading ? (
-              <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
-                <CircularProgress />
-              </Box>
-            ) : (
-              <>
-                {isXs ? (
-                  <List disablePadding>
-                    {sessions.map((s, idx) => (
-                      <Fragment key={s.id}>
-                        {idx > 0 && <Divider component="li" />}
-                        <ListItem disablePadding>
-                          <ListItemButton onClick={() => openSessionDetail(s.id)} sx={{ flexDirection: "column", alignItems: "stretch", py: 1.25 }}>
-                            <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                              <Tooltip title={s.successLabel || "unknown"}>
-                                <Box component="span" sx={{ display: "inline-flex", flexShrink: 0 }}>
-                                  {successIcon(s.successLabel)}
-                                </Box>
-                              </Tooltip>
-                              <Typography variant="body2" sx={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                                {s.title || s.preview || <em>No content</em>}
-                              </Typography>
-                            </Box>
-                            <Typography variant="caption" color="text.secondary" sx={{ mt: 0.25 }}>
-                              {s.userId} &middot; {s.messageCount} msg{s.messageCount !== 1 ? "s" : ""} &middot;{" "}
-                              {new Date(s.updatedAt).toLocaleDateString()}
-                              {s.rating != null && ` · rating ${s.rating}`}
-                              {` · LLM ${s.llmRating ?? "NA"}`}
-                              {s.disposition && ` · ${s.disposition}`}
-                              {s.issueCount > 0 && ` · ${s.issueCount} issue${s.issueCount !== 1 ? "s" : ""}`}
-                            </Typography>
-                          </ListItemButton>
-                        </ListItem>
-                      </Fragment>
-                    ))}
-                    {sessions.length === 0 && (
-                      <ListItem>
-                        <Typography variant="body2" color="text.secondary" sx={{ textAlign: "center", width: "100%", py: 2 }}>
-                          No sessions found
-                        </Typography>
-                      </ListItem>
-                    )}
-                  </List>
-                ) : (
-                <Box component="table" sx={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-                  <thead>
-                    <tr>
-                      {[
-                        { key: "user", label: "User" },
-                        { key: "title", label: "Title / Preview" },
-                        { key: "messages", label: "Messages" },
-                        { key: "created", label: "Created" },
-                        { key: "updated", label: "Updated" },
-                        { key: "disposition", label: "Disposition" },
-                        { key: "issues", label: "Issues" },
-                        { key: "userRating", label: <>User<br />rating</> },
-                        { key: "llmRating", label: <>LLM<br />rating</> },
-                        { key: "success", label: "Success" },
-                      ].map(({ key, label }) => (
-                        <Box
-                          component="th"
-                          key={key}
-                          sx={{
-                            textAlign: "left",
-                            px: 0.75,
-                            py: 0.75,
-                            borderBottom: 1,
-                            borderColor: "divider",
-                            fontWeight: 600,
-                            whiteSpace: "nowrap",
-                            verticalAlign: "bottom",
-                          }}
-                        >
-                          {label}
-                        </Box>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {sessions.map((s) => (
-                      <Box
-                        component="tr"
-                        key={s.id}
-                        onClick={() => openSessionDetail(s.id)}
-                        sx={{
-                          cursor: "pointer",
-                          "&:hover": { bgcolor: "action.hover" },
-                        }}
-                      >
-                        <Box component="td" sx={{ px: 0.75, py: 0.75, borderBottom: 1, borderColor: "divider", whiteSpace: "nowrap" }}>
-                          <Tooltip title={s.userId}>
-                            <span>{s.userId.split("@")[0]}</span>
-                          </Tooltip>
-                        </Box>
-                        <Box
-                          component="td"
-                          sx={{
-                            px: 0.75,
-                            py: 0.75,
-                            borderBottom: 1,
-                            borderColor: "divider",
-                            maxWidth: 280,
-                            overflow: "hidden",
-                            textOverflow: "ellipsis",
-                            whiteSpace: "nowrap",
-                          }}
-                        >
-                          {s.title || s.preview || <em>No content</em>}
-                        </Box>
-                        <Box
-                          component="td"
-                          sx={{ px: 0.75, py: 0.75, borderBottom: 1, borderColor: "divider", textAlign: "center" }}
-                        >
-                          {s.messageCount}
-                        </Box>
-                        <Box component="td" sx={{ px: 0.75, py: 0.75, borderBottom: 1, borderColor: "divider", whiteSpace: "nowrap" }}>
-                          {new Date(s.createdAt).toLocaleDateString()}
-                        </Box>
-                        <Box component="td" sx={{ px: 0.75, py: 0.75, borderBottom: 1, borderColor: "divider", whiteSpace: "nowrap" }}>
-                          {new Date(s.updatedAt).toLocaleDateString()}
-                        </Box>
-                        <Box component="td" sx={{ px: 0.75, py: 0.75, borderBottom: 1, borderColor: "divider", whiteSpace: "nowrap" }}>
-                          {s.disposition ? s.disposition.replace(/_/g, " ") : "-"}
-                        </Box>
-                        <Box
-                          component="td"
-                          sx={{ px: 0.75, py: 0.75, borderBottom: 1, borderColor: "divider", textAlign: "center" }}
-                        >
-                          {s.issueCount > 0 ? (
-                            <Tooltip title={s.issueCategories.join(", ") || "no categories"}>
-                              <span>{s.issueCount}</span>
-                            </Tooltip>
-                          ) : (
-                            "-"
-                          )}
-                        </Box>
-                        <Box
-                          component="td"
-                          sx={{ px: 0.75, py: 0.75, borderBottom: 1, borderColor: "divider", textAlign: "center" }}
-                        >
-                          {s.rating ?? "-"}
-                        </Box>
-                        <Box
-                          component="td"
-                          sx={{ px: 0.75, py: 0.75, borderBottom: 1, borderColor: "divider", textAlign: "center" }}
-                        >
-                          {s.llmRating ?? "NA"}
-                        </Box>
-                        <Box
-                          component="td"
-                          sx={{ px: 0.75, py: 0.75, borderBottom: 1, borderColor: "divider", textAlign: "center" }}
-                        >
-                          <Tooltip title={s.successLabel || "unknown"}>
-                            <Box component="span" sx={{ display: "inline-flex", verticalAlign: "middle" }}>
-                              {successIcon(s.successLabel)}
-                            </Box>
-                          </Tooltip>
-                        </Box>
-                      </Box>
-                    ))}
-                    {sessions.length === 0 && (
-                      <tr>
-                        <Box component="td" colSpan={10} sx={{ p: 3, textAlign: "center" }}>
-                          No sessions found
-                        </Box>
-                      </tr>
-                    )}
-                  </tbody>
-                </Box>
-                )}
-                {total > PAGE_SIZE && (
-                  <Box sx={{ display: "flex", justifyContent: "center", py: 1.5 }}>
-                    <Pagination
-                      count={Math.ceil(total / PAGE_SIZE)}
-                      page={page}
-                      onChange={(_, p) => setPage(p)}
-                      size="small"
-                    />
-                  </Box>
-                )}
-                <Typography variant="caption" sx={{ display: "block", textAlign: "right", p: 1, color: "text.secondary" }}>
-                  {total} conversation{total !== 1 ? "s" : ""} total
-                </Typography>
-              </>
-            )}
-          </Paper>
+          <ConversationsTable
+            sessions={sessions}
+            isLoading={loading}
+            isXs={isXs}
+            onSelect={openSessionDetail}
+          />
         </>
       )}
 
@@ -950,7 +563,7 @@ export default function AdminPage() {
                           <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, mt: 0.5, flexWrap: "wrap" }}>
                             <Chip label={sourceLabel(item.source)} size="small" variant="outlined" sx={{ height: 18, fontSize: 11 }} />
                             <Typography variant="caption" color="text.secondary">
-                              {item.user} &middot; {new Date(item.createdAt).toLocaleDateString()}
+                              {item.user} &middot; {parseUtcTimestamp(item.createdAt).toLocaleDateString()}
                             </Typography>
                           </Box>
                         </ListItemButton>
@@ -1019,7 +632,7 @@ export default function AdminPage() {
                         <Chip label={sourceLabel(item.source)} size="small" variant="outlined" />
                       </Box>
                       <Box component="td" sx={{ p: 1, borderBottom: 1, borderColor: "divider", whiteSpace: "nowrap" }}>
-                        {new Date(item.createdAt).toLocaleDateString()}
+                        {parseUtcTimestamp(item.createdAt).toLocaleDateString()}
                       </Box>
                     </Box>
                   ))}
@@ -1148,7 +761,7 @@ export default function AdminPage() {
                 <Typography variant="h6">Feedback</Typography>
                 <Typography variant="caption" color="text.secondary">
                   {selectedFeedback.user} &middot;{" "}
-                  {new Date(selectedFeedback.createdAt).toLocaleString()} &middot;{" "}
+                  {parseUtcTimestamp(selectedFeedback.createdAt).toLocaleString()} &middot;{" "}
                   <Chip label={sourceLabel(selectedFeedback.source)} size="small" variant="outlined" sx={{ height: 18, fontSize: 11 }} />
                 </Typography>
               </Box>
@@ -1183,7 +796,7 @@ export default function AdminPage() {
                 <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, mt: 0.5 }}>
                   <Typography variant="caption" color="text.secondary">
                     {selectedSession.userId} &middot;{" "}
-                    {new Date(selectedSession.createdAt).toLocaleString()} &middot;{" "}
+                    {parseUtcTimestamp(selectedSession.createdAt).toLocaleString()} &middot;{" "}
                     ID: {selectedSession.id}
                   </Typography>
                   <Tooltip title={copyTooltip}>

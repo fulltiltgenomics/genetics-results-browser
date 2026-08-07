@@ -84,34 +84,18 @@ export interface FeedbackListResponse {
   offset: number;
 }
 
-export interface AdminSessionFilters {
-  user?: string;
-  dateFrom?: string;
-  dateTo?: string;
-  sessionId?: string;
-  disposition?: string;
-  successLabel?: string;
-  minIssues?: number;
-  // string so 'NA' (unrated) and '1'..'5' can both be expressed
-  rating?: string;
-  limit?: number;
-  offset?: number;
-}
-
+/**
+ * Fetches the whole session list in one request: the Conversations tab sorts, filters and
+ * paginates client-side, so the server's own filter and paging params go unused. The endpoint
+ * costs one message read per session, which measures in the tens of milliseconds at the
+ * current few-hundred-session scale — revisit if that grows by an order of magnitude.
+ */
 export async function fetchAdminSessions(
-  filters: AdminSessionFilters = {}
+  opts: { limit?: number; offset?: number } = {}
 ): Promise<AdminSessionListResponse> {
   const params = new URLSearchParams();
-  if (filters.user) params.set("user", filters.user);
-  if (filters.dateFrom) params.set("date_from", filters.dateFrom);
-  if (filters.dateTo) params.set("date_to", filters.dateTo);
-  if (filters.sessionId) params.set("session_id", filters.sessionId);
-  if (filters.disposition) params.set("disposition", filters.disposition);
-  if (filters.successLabel) params.set("success_label", filters.successLabel);
-  if (filters.minIssues != null) params.set("min_issues", String(filters.minIssues));
-  if (filters.rating) params.set("rating", filters.rating);
-  if (filters.limit) params.set("limit", String(filters.limit));
-  if (filters.offset) params.set("offset", String(filters.offset));
+  if (opts.limit != null) params.set("limit", String(opts.limit));
+  if (opts.offset != null) params.set("offset", String(opts.offset));
 
   const response = await fetch(`${chatUrl}/v1/admin/sessions?${params}`, {
     credentials: "include",
