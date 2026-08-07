@@ -80,6 +80,10 @@ const categories: Category[] = [
     filter: (d) => d.data_type === "asmqtl",
   },
   {
+    label: "Classical HLA allele associations",
+    filter: (d) => d.data_type === "hla",
+  },
+  {
     label: "Colocalization-only",
     filter: (d) => {
       const keys = Object.keys(d.products || {});
