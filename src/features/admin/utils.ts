@@ -53,7 +53,10 @@ const HAS_OFFSET = /(Z|[+-]\d{2}:?\d{2})$/i;
  * wall clock mislabelled as local and filed anything after local midnight under the
  * previous day. Supplying the missing Z pins the instant so it renders in the viewer's zone.
  */
-export function parseUtcTimestamp(value: string): Date {
+export function parseUtcTimestamp(value: string | null | undefined): Date {
+  // the wire shape is unvalidated JSON, so a missing timestamp must degrade to an invalid
+  // Date: this runs inside MRT accessors, where a throw takes down the whole admin page
+  if (typeof value !== "string") return new Date(NaN);
   // tolerate the SQLite "YYYY-MM-DD HH:MM:SS" spelling as well as ISO's "T"
   const normalized = value.trim().replace(" ", "T");
   // date-only strings are already spec'd to parse as UTC, and appending Z would break them
@@ -62,7 +65,7 @@ export function parseUtcTimestamp(value: string): Date {
 }
 
 /** Local calendar day of an admin timestamp as YYYY-MM-DD, for day-granularity filtering. */
-export function localDayKey(value: string): string {
+export function localDayKey(value: string | null | undefined): string {
   const d = parseUtcTimestamp(value);
   if (Number.isNaN(d.getTime())) return "";
   const pad = (n: number) => String(n).padStart(2, "0");

@@ -28,6 +28,13 @@ describe("parseUtcTimestamp", () => {
   it("does not mangle a date-only string", () => {
     expect(parseUtcTimestamp("2026-04-28").toISOString()).toBe("2026-04-28T00:00:00.000Z");
   });
+
+  it("returns an invalid Date for a missing timestamp instead of throwing", () => {
+    // a null created_at/updated_at crashed the whole Conversations table: the parse runs
+    // inside an MRT accessor, so the throw escaped into the table's render
+    expect(parseUtcTimestamp(null).getTime()).toBeNaN();
+    expect(parseUtcTimestamp(undefined).getTime()).toBeNaN();
+  });
 });
 
 describe("localDayKey", () => {
@@ -55,6 +62,7 @@ describe("localDayKey", () => {
 
   it("is empty for an unparseable timestamp rather than throwing", () => {
     expect(localDayKey("not a date")).toBe("");
+    expect(localDayKey(null)).toBe("");
   });
 });
 

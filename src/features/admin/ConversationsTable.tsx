@@ -91,6 +91,17 @@ const DayRangeFilter = ({ column }: { column: MRT_Column<AdminSession> }) => {
 const createdDayRange: MRT_FilterFn<AdminSession> = (row, _columnId, filterValue) =>
   withinDayRange(localDayKey(row.original.createdAt), filterValue as [string, string] | undefined);
 
+// a session whose timestamp the API omitted parses to an invalid Date; show a dash instead of
+// the "Invalid Date" string the locale formatters would produce
+const DateCell = ({ value }: { value: Date }) =>
+  Number.isNaN(value.getTime()) ? (
+    <span>-</span>
+  ) : (
+    <Tooltip title={value.toLocaleString()}>
+      <span>{value.toLocaleDateString()}</span>
+    </Tooltip>
+  );
+
 const ellipsis = {
   overflow: "hidden",
   textOverflow: "ellipsis",
@@ -150,14 +161,7 @@ const getColumns = (): MRT_ColumnDef<AdminSession>[] => [
     filterFn: createdDayRange,
     Filter: DayRangeFilter,
     size: 130,
-    Cell: ({ cell }) => {
-      const d = cell.getValue<Date>();
-      return (
-        <Tooltip title={d.toLocaleString()}>
-          <span>{d.toLocaleDateString()}</span>
-        </Tooltip>
-      );
-    },
+    Cell: ({ cell }) => <DateCell value={cell.getValue<Date>()} />,
   },
   {
     id: "updatedAt",
@@ -167,14 +171,7 @@ const getColumns = (): MRT_ColumnDef<AdminSession>[] => [
     enableGlobalFilter: false,
     enableColumnFilter: false,
     size: 110,
-    Cell: ({ cell }) => {
-      const d = cell.getValue<Date>();
-      return (
-        <Tooltip title={d.toLocaleString()}>
-          <span>{d.toLocaleDateString()}</span>
-        </Tooltip>
-      );
-    },
+    Cell: ({ cell }) => <DateCell value={cell.getValue<Date>()} />,
   },
   {
     id: "disposition",

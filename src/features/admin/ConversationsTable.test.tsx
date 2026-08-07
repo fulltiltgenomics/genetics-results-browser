@@ -136,6 +136,29 @@ describe("ConversationsTable", () => {
     await waitFor(() => expect(titleOrder()).toEqual(["Bravo conversation"]));
   });
 
+  it("renders a session whose timestamps the API left null", () => {
+    // regression: the date accessors trimmed the raw value, so one null created_at/updated_at
+    // threw inside MRT's faceting pass and blanked the whole admin page
+    const undated = session({
+      id: "d",
+      title: "Delta conversation",
+      createdAt: null as unknown as string,
+      updatedAt: null as unknown as string,
+    });
+    render(
+      <ConversationsTable
+        sessions={[...SESSIONS, undated]}
+        isLoading={false}
+        isXs={false}
+        onSelect={vi.fn()}
+      />
+    );
+    const row = screen.getByText("Delta conversation").closest("tr")!;
+    const cells = within(row).getAllByRole("cell");
+    expect(cells[3]?.textContent).toBe("-");
+    expect(cells[4]?.textContent).toBe("-");
+  });
+
   it("opens the detail view for the clicked row", () => {
     const onSelect = renderTable();
     fireEvent.click(screen.getByText("Bravo conversation"));
