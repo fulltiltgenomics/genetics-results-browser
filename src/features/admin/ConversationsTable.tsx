@@ -58,38 +58,46 @@ export function successIcon(label: string | null) {
 }
 
 /**
- * From/To date inputs rendered inside the Created column header, replacing the page-level
- * filter panel. Two native date inputs rather than MRT's `date-range` filter variant, which
- * would pull @mui/x-date-pickers and a date adapter in as direct dependencies for no gain.
+ * From/To date inputs rendered inside a date column's header, replacing the page-level filter
+ * panel. Two native date inputs rather than MRT's `date-range` filter variant, which would
+ * pull @mui/x-date-pickers and a date adapter in as direct dependencies for no gain.
+ *
+ * `what` names the column in the input labels ("created from", "updated to"), which is what
+ * screen readers and the tests address the fields by.
  */
-const DayRangeFilter = ({ column }: { column: MRT_Column<AdminSession> }) => {
-  const [from, to] = (column.getFilterValue() as [string, string] | undefined) ?? ["", ""];
-  // clearing both bounds must clear the filter itself, or MRT keeps showing the column as filtered
-  const set = (next: [string, string]) =>
-    column.setFilterValue(next[0] || next[1] ? next : undefined);
-  const field = (label: string, value: string, onChange: (v: string) => void) => (
-    <TextField
-      type="date"
-      variant="standard"
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      slotProps={{ htmlInput: { "aria-label": label, style: { fontSize: "0.7rem" } } }}
-      sx={{ minWidth: 118 }}
-    />
-  );
-  return (
-    <Box sx={{ display: "flex", flexDirection: "column", gap: 0.25 }}>
-      {field("created from", from, (v) => set([v, to]))}
-      {field("created to", to, (v) => set([from, v]))}
-    </Box>
-  );
+const makeDayRangeFilter = (what: string) => {
+  const DayRangeFilter = ({ column }: { column: MRT_Column<AdminSession> }) => {
+    const [from, to] = (column.getFilterValue() as [string, string] | undefined) ?? ["", ""];
+    // clearing both bounds must clear the filter itself, or MRT keeps showing the column as filtered
+    const set = (next: [string, string]) =>
+      column.setFilterValue(next[0] || next[1] ? next : undefined);
+    const field = (label: string, value: string, onChange: (v: string) => void) => (
+      <TextField
+        type="date"
+        variant="standard"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        slotProps={{ htmlInput: { "aria-label": label, style: { fontSize: "0.7rem" } } }}
+        sx={{ minWidth: 118 }}
+      />
+    );
+    return (
+      <Box sx={{ display: "flex", flexDirection: "column", gap: 0.25 }}>
+        {field(`${what} from`, from, (v) => set([v, to]))}
+        {field(`${what} to`, to, (v) => set([from, v]))}
+      </Box>
+    );
+  };
+  return DayRangeFilter;
 };
 
-// filters on the LOCAL calendar day of created_at, matching what the Created cell renders;
-// the raw value is a UTC instant, so comparing it against a picked date without converting
-// would file post-midnight conversations under the previous day
-const createdDayRange: MRT_FilterFn<AdminSession> = (row, _columnId, filterValue) =>
-  withinDayRange(localDayKey(row.original.createdAt), filterValue as [string, string] | undefined);
+// filters on the LOCAL calendar day of the timestamp, matching what the cell renders; the raw
+// value is a UTC instant, so comparing it against a picked date without converting would file
+// post-midnight conversations under the previous day
+const dayRange =
+  (field: "createdAt" | "updatedAt"): MRT_FilterFn<AdminSession> =>
+  (row, _columnId, filterValue) =>
+    withinDayRange(localDayKey(row.original[field]), filterValue as [string, string] | undefined);
 
 // a session whose timestamp the API omitted parses to an invalid Date; show a dash instead of
 // the "Invalid Date" string the locale formatters would produce
@@ -121,7 +129,7 @@ const getColumns = (): MRT_ColumnDef<AdminSession>[] => [
     header: "User",
     filterFn: "contains",
     muiFilterTextFieldProps: { placeholder: "user" },
-    size: 120,
+    size: 110,
     Cell: ({ row }) => (
       <Tooltip title={row.original.userId}>
         <Box component="span" sx={ellipsis}>
@@ -133,10 +141,10 @@ const getColumns = (): MRT_ColumnDef<AdminSession>[] => [
   {
     id: "title",
     accessorFn: (row) => row.title || row.preview || "",
-    header: "Title / Preview",
+    header: "Title",
     filterFn: "contains",
     muiFilterTextFieldProps: { placeholder: "text" },
-    size: 300,
+    size: 205,
     Cell: ({ cell }) => {
       const text = cell.getValue<string>();
       return <Box sx={ellipsis}>{text || <em>No content</em>}</Box>;
@@ -149,7 +157,7 @@ const getColumns = (): MRT_ColumnDef<AdminSession>[] => [
     sortDescFirst: true,
     filterFn: "greaterThanOrEqualTo",
     muiFilterTextFieldProps: { placeholder: "min" },
-    size: 90,
+    size: 100,
   },
   {
     id: "createdAt",
@@ -158,9 +166,9 @@ const getColumns = (): MRT_ColumnDef<AdminSession>[] => [
     header: "Created",
     sortingFn: "datetime",
     enableGlobalFilter: false,
-    filterFn: createdDayRange,
-    Filter: DayRangeFilter,
-    size: 130,
+    filterFn: dayRange("createdAt"),
+    Filter: makeDayRangeFilter("created"),
+    size: 140,
     Cell: ({ cell }) => <DateCell value={cell.getValue<Date>()} />,
   },
   {
@@ -169,8 +177,9 @@ const getColumns = (): MRT_ColumnDef<AdminSession>[] => [
     header: "Updated",
     sortingFn: "datetime",
     enableGlobalFilter: false,
-    enableColumnFilter: false,
-    size: 110,
+    filterFn: dayRange("updatedAt"),
+    Filter: makeDayRangeFilter("updated"),
+    size: 140,
     Cell: ({ cell }) => <DateCell value={cell.getValue<Date>()} />,
   },
   {
@@ -179,7 +188,8 @@ const getColumns = (): MRT_ColumnDef<AdminSession>[] => [
     header: "Disposition",
     filterVariant: "multi-select",
     filterSelectOptions: DISPOSITION_OPTIONS,
-    size: 150,
+    muiFilterTextFieldProps: { placeholder: "any" },
+    size: 130,
     Cell: ({ cell }) => cell.getValue<string>().replace(/_/g, " ") || "-",
   },
   {
@@ -208,7 +218,8 @@ const getColumns = (): MRT_ColumnDef<AdminSession>[] => [
     sortingFn: naInfSort,
     filterVariant: "multi-select",
     filterSelectOptions: RATING_OPTIONS,
-    size: 90,
+    muiFilterTextFieldProps: { placeholder: "any" },
+    size: 85,
   },
   {
     id: "llmRating",
@@ -217,7 +228,8 @@ const getColumns = (): MRT_ColumnDef<AdminSession>[] => [
     sortingFn: naInfSort,
     filterVariant: "multi-select",
     filterSelectOptions: RATING_OPTIONS,
-    size: 90,
+    muiFilterTextFieldProps: { placeholder: "any" },
+    size: 85,
   },
   {
     id: "successLabel",
@@ -225,7 +237,8 @@ const getColumns = (): MRT_ColumnDef<AdminSession>[] => [
     header: "Success",
     filterVariant: "multi-select",
     filterSelectOptions: SUCCESS_LABEL_OPTIONS,
-    size: 90,
+    muiFilterTextFieldProps: { placeholder: "any" },
+    size: 95,
     Cell: ({ row }) => (
       <Tooltip title={row.original.successLabel || "unknown"}>
         <Box component="span" sx={{ display: "inline-flex", verticalAlign: "middle" }}>
@@ -257,6 +270,10 @@ const ConversationsTable = ({ sessions, isLoading, isXs, onSelect }: Props) => {
     state: { isLoading },
     enableColumnFilters: true,
     enableGlobalFilter: true,
+    // the per-column "..." menu costs ~25px of header width in every column, which is what
+    // squeezed the labels into ellipses on a laptop. everything it offers is already one
+    // click away: the header sorts, the filter sits under it, the toolbar hides columns.
+    enableColumnActions: false,
     enableFacetedValues: true,
     enableDensityToggle: false,
     enableFullScreenToggle: false,
@@ -286,7 +303,14 @@ const ConversationsTable = ({ sessions, isLoading, isXs, onSelect }: Props) => {
     }),
     muiTableProps: { sx: { tableLayout: "fixed" } },
     muiTableBodyCellProps: { sx: { fontSize: "0.75rem" } },
-    muiTableHeadCellProps: { sx: { fontSize: "0.75rem" } },
+    muiTableHeadCellProps: {
+      sx: {
+        fontSize: "0.75rem",
+        // MRT ellipsises any header under 20 chars rather than wrapping it; let the
+        // two-word ones ("User rating", "LLM rating") take a second line instead
+        "& .Mui-TableHeadCell-Content-Wrapper": { whiteSpace: "normal", lineHeight: 1.25 },
+      },
+    },
     muiPaginationProps: { rowsPerPageOptions: [25, 50, 100, 500] },
     localization: { noRecordsToDisplay: "No conversations match the current filters" },
     renderBottomToolbarCustomActions: ({ table: t }) => (

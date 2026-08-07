@@ -70,7 +70,7 @@ const renderTable = (onSelect = vi.fn()) => {
   return onSelect;
 };
 
-// the rendered order of the Title / Preview column, which is what a sort is observable through
+// the rendered order of the Title column, which is what a sort is observable through
 const titleOrder = () =>
   screen
     .getAllByRole("row")
@@ -118,6 +118,15 @@ describe("ConversationsTable", () => {
       target: { value: "2026-04-29" },
     });
     expect(titleOrder()).toEqual(["Bravo conversation", "Alpha conversation"]);
+  });
+
+  it("filters on the Updated column's own day range", () => {
+    renderTable();
+    // Charlie is the only session updated on Apr 30 local time
+    fireEvent.change(screen.getByLabelText("updated from"), {
+      target: { value: "2026-04-30" },
+    });
+    expect(titleOrder()).toEqual(["Charlie conversation"]);
   });
 
   it("clearing both date bounds restores every row", () => {
