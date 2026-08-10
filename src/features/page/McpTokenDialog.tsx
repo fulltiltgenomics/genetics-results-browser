@@ -212,7 +212,10 @@ const McpTokenDialog = ({ open, onClose }: McpTokenDialogProps) => {
             than putting the key in the URL.
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>
-            You can also use a Google ID token (in terminal: <code>gcloud auth print-identity-token</code>) but it recycles once an hour.
+            <strong>Deprecated:</strong> a Google ID token (in terminal:{" "}
+            <code>gcloud auth print-identity-token</code>) is still accepted, but it expires every
+            hour, we cannot revoke it for you, and it grants access on your Google account's domain
+            alone. Create a key above and use that instead.
           </Typography>
         </Box>
         <Box sx={{ mt: 3, p: 2, bgcolor: "action.hover", borderRadius: 1 }}>
@@ -239,7 +242,10 @@ const McpTokenDialog = ({ open, onClose }: McpTokenDialogProps) => {
   ${origin}/api/v1/credible_sets_by_gene/PCSK9 | head`}
           </Box>
           <Typography variant="body2" color="text.secondary" paragraph>
-            You can also use a Google ID token (in terminal: <code>gcloud auth print-identity-token</code>) but it recycles once an hour.
+            <strong>Deprecated:</strong> a Google ID token (in terminal:{" "}
+            <code>gcloud auth print-identity-token</code>) is still accepted, but it expires every
+            hour, we cannot revoke it for you, and it grants access on your Google account's domain
+            alone. Create a key above and use that instead.
           </Typography>
           <Typography variant="body2" color="text.secondary" paragraph>
             See <a href={`${origin}/api/v1/docs`} target="_blank" rel="noreferrer">API docs</a> for available API endpoints.
