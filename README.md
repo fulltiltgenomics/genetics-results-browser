@@ -49,6 +49,13 @@ Available modes: `dev`, `dev.finngen`, `dev.public`, `prod`, `prod.finngen`, `pr
 The BFF reads `GENETICS_API_URL`, `GENETICS_API_TOKEN`, `BFF_PORT`, `RESULTS_CACHE_MAX` and
 `RESULTS_CACHE_TTL_MS` — see `bff/.env.example`.
 
+`GENETICS_API_TOKEN` is the shared internal secret and is sent as `Authorization: Bearer` on
+**every** upstream call, including the generic `/api` passthrough. It is not just service
+credentials: it is the trusted-proxy marker that makes results-api believe the forwarded
+`X-Goog-Authenticated-User-Email`, so an auth-enforcing API rejects browser traffic without it.
+Unset in dev, where the dev API runs without auth. A caller's own `Authorization` header is
+never overwritten.
+
 ### Local dev startup sequence
 
 In development the data flow is: browser → Vite (`:3000`) → BFF (`:5000`) → genetics-results-api (`:2000`).

@@ -14,10 +14,28 @@ const HOP_BY_HOP = new Set([
 
 const pickForwardHeaders = (incoming: Request["headers"]): Record<string, string> => {
   const out: Record<string, string> = {};
+  let hasBearer = false;
   for (const [key, value] of Object.entries(incoming)) {
     if (value === undefined) continue;
-    if (HOP_BY_HOP.has(key.toLowerCase())) continue;
+    const lower = key.toLowerCase();
+    if (HOP_BY_HOP.has(lower)) continue;
+    // must mirror the auth-gateway nginx test `$http_authorization ~* "^Bearer "` exactly
+    // (case-insensitive, literal single space) so the divert there and this guard partition
+    // the request space with no gap and no overlap
+    if (lower === "authorization")
+      hasBearer = /^Bearer /i.test(Array.isArray(value) ? value.join(",") : String(value));
     out[key] = Array.isArray(value) ? value.join(",") : value;
+  }
+  // trusted-proxy marker. this hop forwards X-Goog-Authenticated-User-Email verbatim, and
+  // genetics-results-api honours that header only from a caller that also proves it is an
+  // in-cluster service — without the bearer every browser request here 401s. mirrors
+  // upstream.ts, which sends the same secret on the variants routes; unset in dev, where the
+  // dev API runs without auth. never overwrite a *bearer* the caller sent: programmatic callers
+  // are diverted by nginx before this hop, but a same-origin one must keep its own credential.
+  // a non-Bearer Authorization (e.g. Basic) is replaced instead — the two cannot coexist in one
+  // header, and results-api has no Basic path, so the discarded value was never a credential there.
+  if (config.apiToken && !hasBearer) {
+    out["authorization"] = `Bearer ${config.apiToken}`;
   }
   return out;
 };

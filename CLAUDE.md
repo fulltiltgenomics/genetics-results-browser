@@ -94,7 +94,13 @@ The annotation path is split in two stages so that changing a UI control never r
   fan out over the API's granular endpoints (credible sets, variant annotation, nearest genes,
   datasets/resources) and return one raw, unfiltered `NormalizedResponse`; the variant-list path is
   cached in-process by query hash. `POST /api/v1/gnomad` serves the lazy per-page gnomAD enrichment.
-  Everything else under `/api` falls through `bff/passthrough.ts` to the API unchanged.
+  Everything else under `/api` falls through `bff/passthrough.ts` to the API unchanged — except
+  that both upstream paths attach `Authorization: Bearer $GENETICS_API_TOKEN`
+  (`upstream.ts` for the assembled routes, `passthrough.ts` for the rest, and only when the
+  caller sent no `Authorization` of their own). results-api honours the forwarded
+  `X-Goog-Authenticated-User-Email` **only** from a caller presenting that secret, so dropping
+  the bearer from the passthrough 401s every browser request. **Deploy ordering: bff ships
+  before results-api** — see the suite repo's README, "Deploying the trusted-proxy marker".
 - **stage 2, in the browser** — pure filter/group/summarize functions in `src/store/munge.normalized.ts`
   recompute reactively from the normalized records held in the zustand store.
 
