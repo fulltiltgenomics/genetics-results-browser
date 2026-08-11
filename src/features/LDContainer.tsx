@@ -17,6 +17,8 @@ import { MaterialReactTable, type MRT_ColumnDef } from "material-react-table";
 import { variantSort, naInfSort } from "./table/utils/sorting";
 import api from "../store/api";
 import { isCoding, isLoF } from "../utils/coding";
+import ViewNav from "./page/ViewNav";
+import { compressToEncodedURIComponent } from "lz-string";
 
 interface LDResult {
   variation1: string;
@@ -433,10 +435,13 @@ const LDContainer = () => {
       enableColumnFilter: false,
       Cell: ({ cell }) => {
         const variant = cell.getValue<string>();
+        // the annotation tool reads ?q= as an lz-compressed variant list (InputForm), so build the
+        // link the same way its own submit does — a plain variant string decompresses to ""
+        const href = `/annotate?q=${compressToEncodedURIComponent(variant)}`;
         return (
           <Typography
             component="a"
-            href={`/?q=${encodeURIComponent(variant)}`}
+            href={href}
             style={{
               color: theme.palette.primary.main,
               textDecoration: "none",
@@ -444,7 +449,7 @@ const LDContainer = () => {
             }}
             onClick={(e) => {
               e.preventDefault();
-              navigate(`/?q=${encodeURIComponent(variant)}`);
+              navigate(href);
             }}>
             {variant}
           </Typography>
@@ -533,27 +538,7 @@ const LDContainer = () => {
 
   return (
     <Box display="flex" flexDirection="column">
-      <Box display="flex" flexDirection="row" gap={2} style={{ marginBottom: "20px" }}>
-        {isLDPage && (
-          <>
-            <Typography
-              variant="h6"
-              style={{ cursor: "pointer", color: theme.palette.primary.main }}
-              onClick={() => navigate("/")}>
-              Variant tables
-            </Typography>
-            <Typography
-              variant="h6"
-              style={{ cursor: "pointer", color: theme.palette.primary.main }}
-              onClick={() => navigate("/gene")}>
-              Gene view
-            </Typography>
-            <Box sx={{ display: "flex", alignItems: "center" }}>
-              <Typography variant="h6">LD lookup</Typography>
-            </Box>
-          </>
-        )}
-      </Box>
+      {isLDPage && <ViewNav current="ld" />}
 
       <Box display="flex" flexDirection="column" sx={{ maxWidth: "600px" }}>
         <Typography variant="body1" sx={{ marginBottom: "10px" }}>

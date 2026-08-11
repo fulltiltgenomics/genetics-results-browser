@@ -1,13 +1,13 @@
-import { Box, Button, Tab, Tabs, TextField, Typography, useTheme } from "@mui/material";
+import { Box, Button, Tab, Tabs, TextField } from "@mui/material";
 import CisView from "./CisView";
 import GeneEvidenceTab from "./gene/GeneEvidenceTab";
+import ViewNav from "./page/ViewNav";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 
 const GeneContainer = () => {
   const params = useParams();
   const navigate = useNavigate();
-  const theme = useTheme();
   const [geneName, setGeneName] = useState("");
   useEffect(() => {
     if (params.geneName) {
@@ -36,27 +36,7 @@ const GeneContainer = () => {
 
   return (
     <Box display="flex" flexDirection="column">
-      <Box display="flex" flexDirection="row" gap={2} style={{ marginBottom: "5px" }}>
-        {isGenePage && (
-          <>
-            <Typography
-              variant="h6"
-              style={{ cursor: "pointer", color: theme.palette.primary.main }}
-              onClick={() => navigate("/")}>
-              Variant tables
-            </Typography>
-            <Box sx={{ display: "flex", alignItems: "center" }}>
-              <Typography variant="h6">Gene view</Typography>
-            </Box>
-            <Typography
-              variant="h6"
-              style={{ cursor: "pointer", color: theme.palette.primary.main }}
-              onClick={() => navigate("/ld")}>
-              LD lookup
-            </Typography>
-          </>
-        )}
-      </Box>
+      {isGenePage && <ViewNav current="gene" />}
       <Box display="flex" flexDirection="column">
         <TextField
           label="Enter a gene name"
