@@ -7,6 +7,7 @@ import { TabContext } from "@mui/lab";
 import GlobalControlContainer from "../controls/GlobalControlContainer";
 import { useNormalizedQuery } from "../../store/serverQuery";
 import { lazy, Suspense, useEffect } from "react";
+import { useNavigate } from "react-router";
 
 // import factories kept named so we can BOTH lazy() them and preload the chunks (see the preload
 // effect): warming the chunks means the first switch to a tab doesn't flash the Suspense fallback,
@@ -24,6 +25,7 @@ const TissueSummaryTable = lazy(importTissueSummaryTable);
 const PhenotypeSearchContainer = lazy(importPhenotypeSearch);
 
 const TableContainer = () => {
+  const navigate = useNavigate();
   const activeTab = useDataStore((state) => state.activeTab);
   const setActiveTab = useDataStore((state) => state.setActiveTab);
   const setNormalizedData = useDataStore((state) => state.setNormalizedData);
@@ -69,7 +71,7 @@ const TableContainer = () => {
     <>
       {isVariantPage && (
         // top-level nav menu: the current section in bold, the other views as menu links. Gene view
-        // and LD lookup are not ready yet — greyed out and disabled with a "coming soon" tooltip.
+        // is not ready yet — greyed out and disabled with a "coming soon" tooltip.
         <Box
           sx={{
             display: "flex",
@@ -85,19 +87,20 @@ const TableContainer = () => {
           <Typography variant="h6" sx={{ fontWeight: 700 }}>
             Variant tables
           </Typography>
-          {[
-            { label: "Gene view" },
-            { label: "LD lookup" },
-          ].map((item) => (
-            <Tooltip key={item.label} title="Coming soon">
-              <Typography
-                variant="h6"
-                aria-disabled="true"
-                sx={{ color: "text.disabled", cursor: "not-allowed" }}>
-                {item.label}
-              </Typography>
-            </Tooltip>
-          ))}
+          <Tooltip title="Coming soon">
+            <Typography
+              variant="h6"
+              aria-disabled="true"
+              sx={{ color: "text.disabled", cursor: "not-allowed" }}>
+              Gene view
+            </Typography>
+          </Tooltip>
+          <Typography
+            variant="h6"
+            sx={{ cursor: "pointer", color: "primary.main" }}
+            onClick={() => navigate("/ld")}>
+            LD lookup
+          </Typography>
         </Box>
       )}
       <InputForm />

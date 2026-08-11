@@ -9,6 +9,7 @@ import {
   Paper,
   Switch,
   FormControlLabel,
+  Link,
 } from "@mui/material";
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router";
@@ -28,6 +29,42 @@ interface LDResultWithAnnotation extends LDResult {
   [key: string]: any; // annotation fields are dynamic
 }
 
+const RSID_RE = /^rs\d+$/i;
+// LD is FinnGen-panel based, so annotate against the FinnGen source
+const ANNOTATION_SOURCE = "finngen";
+// API's max_query_variants
+const ANNOTATION_CHUNK_SIZE = 2000;
+
+/**
+ * One-line "FinnGen AF: 1.80e-1, missense, APOE" summary of a variant's annotation, used for the
+ * query variant of a single-variant lookup and for both variants of a pairwise comparison.
+ * Consequence and gene are dropped when the annotation doesn't have them.
+ */
+const formatAnnotationSummary = (annotation: any): string | null => {
+  if (!annotation) {
+    return null;
+  }
+  // the annotation parser writes the string "NA" for every missing field (an intergenic variant has
+  // no gene), so drop those instead of printing them
+  const present = (value: any): boolean => !!value && value !== "NA" && value !== "N/A";
+
+  const af = typeof annotation.AF === "number" ? annotation.AF.toExponential(2) : "N/A";
+  const parts = [`FinnGen AF: ${af}`];
+  if (present(annotation.most_severe)) {
+    parts.push(annotation.most_severe.toLowerCase().replace("_variant", "").replace(/_/g, " "));
+  }
+  if (present(annotation.gene_most_severe)) {
+    parts.push(annotation.gene_most_severe);
+  }
+  return parts.join(", ");
+};
+
+const EXAMPLES = {
+  // the APOE ε4-defining missense variant, as an rsid to show that rsids work as input
+  single: "rs429358",
+  pair: "15:90883330:G:A, 15:90885291:CT:C",
+};
+
 const LDContainer = () => {
   const navigate = useNavigate();
   const theme = useTheme();
@@ -44,6 +81,8 @@ const LDContainer = () => {
     variant2: string;
     d_prime: number;
     r2: number;
+    annotation1: any;
+    annotation2: any;
   } | null>(null);
 
   const isLDPage = window.location.pathname.startsWith("/ld");
@@ -76,55 +115,75 @@ const LDContainer = () => {
     return null;
   };
 
+  // parse one TSV response from variant_annotation into (variant id -> annotation) plus its columns
+  const parseAnnotationTsv = (
+    tsv: string
+  ): { annotations: Map<string, any>; columns: string[] } => {
+    const rows = tsv.split("\n");
+    if (rows.length < 2) {
+      return { annotations: new Map(), columns: [] };
+    }
+
+    const columns = rows[0].split("\t").map((h) => h.replace("#", ""));
+    const headerIndex = columns.reduce((acc, field, idx) => {
+      acc[field] = idx;
+      return acc;
+    }, {} as { [key: string]: number });
+
+    const annotations = new Map<string, any>();
+
+    for (let i = 1; i < rows.length; i++) {
+      if (rows[i].length === 0) {
+        continue;
+      }
+      const fields = rows[i].split("\t");
+      const variant = `${fields[headerIndex["chr"]]}:${fields[headerIndex["pos"]]}:${
+        fields[headerIndex["ref"]]
+      }:${fields[headerIndex["alt"]]}`;
+
+      const annotation: any = {};
+      columns.forEach((col, idx) => {
+        let value: any = fields[idx];
+        if (value === "NA" || value === undefined || value === "") {
+          value = "NA";
+        } else if (col.startsWith("AF")) {
+          const parsed = parseFloat(value);
+          value = isNaN(parsed) ? "NA" : parsed;
+        }
+        annotation[col] = value;
+      });
+
+      annotations.set(variant, annotation);
+    }
+
+    return { annotations, columns };
+  };
+
   const fetchAnnotations = async (
-    chr: string,
-    minPos: number,
-    maxPos: number,
     variants: string[]
   ): Promise<{ annotations: Map<string, any>; columns: string[] }> => {
     try {
-      const response = await api.post<string>(
-        `/v1/variant_annotation_range/${chr}/${minPos}/${maxPos}`,
-        variants
-      );
-
-      const rows = response.data.split("\n");
-      if (rows.length < 2) {
-        return { annotations: new Map(), columns: [] };
+      // the API rejects more than max_query_variants (2000) per request, and an LD window can hold
+      // more than that, so split into chunks and issue them concurrently
+      const chunks: string[][] = [];
+      for (let i = 0; i < variants.length; i += ANNOTATION_CHUNK_SIZE) {
+        chunks.push(variants.slice(i, i + ANNOTATION_CHUNK_SIZE));
       }
 
-      const header = rows[0].split("\t");
-      const columns = header.map((h) => h.replace("#", ""));
-
-      const headerIndex = columns.reduce((acc, field, idx) => {
-        acc[field] = idx;
-        return acc;
-      }, {} as { [key: string]: number });
+      const responses = await Promise.all(
+        chunks.map((c) =>
+          api.post<string>(`/v1/variant_annotation/${ANNOTATION_SOURCE}`, { variants: c })
+        )
+      );
 
       const annotations = new Map<string, any>();
-
-      for (let i = 1; i < rows.length; i++) {
-        if (rows[i].length === 0) {
-          continue;
+      let columns: string[] = [];
+      for (const response of responses) {
+        const parsed = parseAnnotationTsv(response.data);
+        if (parsed.columns.length > 0) {
+          columns = parsed.columns;
         }
-        const fields = rows[i].split("\t");
-        const variant = `${fields[headerIndex["chr"]]}:${fields[headerIndex["pos"]]}:${
-          fields[headerIndex["ref"]]
-        }:${fields[headerIndex["alt"]]}`;
-
-        const annotation: any = {};
-        columns.forEach((col, idx) => {
-          let value: any = fields[idx];
-          if (value === "NA" || value === undefined || value === "") {
-            value = "NA";
-          } else if (col.startsWith("AF")) {
-            const parsed = parseFloat(value);
-            value = isNaN(parsed) ? "NA" : parsed;
-          }
-          annotation[col] = value;
-        });
-
-        annotations.set(variant, annotation);
+        parsed.annotations.forEach((value, key) => annotations.set(key, value));
       }
 
       return { annotations, columns };
@@ -134,6 +193,46 @@ const LDContainer = () => {
     }
   };
 
+  /**
+   * Replace any rsid token with the variant id it maps to. Returns null (after setting an error) when
+   * an rsid is unknown or maps to several variants — the LD API only takes a single variant id, so
+   * there is nothing sensible to pick in the ambiguous case.
+   */
+  const resolveRsidTokens = async (tokens: string[]): Promise<string[] | null> => {
+    const rsids = tokens.filter((t) => RSID_RE.test(t));
+    if (rsids.length === 0) {
+      return tokens;
+    }
+
+    const response = await api.get<{ rsid: string; variants: string[] }[]>("/v1/rsid/variants", {
+      params: { rsids: rsids.join(",") },
+    });
+    const byRsid = new Map(
+      (response.data ?? []).map((r) => [r.rsid.toLowerCase(), r.variants ?? []])
+    );
+
+    const resolved: string[] = [];
+    for (const token of tokens) {
+      if (!RSID_RE.test(token)) {
+        resolved.push(token);
+        continue;
+      }
+      const variants = byRsid.get(token.toLowerCase()) ?? [];
+      if (variants.length === 0) {
+        setError(`${token} not found`);
+        return null;
+      }
+      if (variants.length > 1) {
+        setError(
+          `${token} maps to several variants (${variants.join(", ")}) — please enter one of them`
+        );
+        return null;
+      }
+      resolved.push(variants[0].replace(/-/g, ":"));
+    }
+    return resolved;
+  };
+
   const performLookup = async (input: string) => {
     setError(null);
     setLdResults(null);
@@ -141,7 +240,7 @@ const LDContainer = () => {
     setAnnotationColumns([]);
     setQueryVariantAnnotation(null);
 
-    const variants = input
+    let variants = input
       .split(/[,\s]+/)
       .map((v) => v.trim())
       .filter((v) => v.length > 0);
@@ -159,6 +258,13 @@ const LDContainer = () => {
     setLoading(true);
 
     try {
+      const resolved = await resolveRsidTokens(variants);
+      if (resolved === null) {
+        setLoading(false);
+        return;
+      }
+      variants = resolved;
+
       if (variants.length === 1) {
         // single variant lookup
         const response = await fetch(
@@ -185,26 +291,18 @@ const LDContainer = () => {
         const ldData: LDResult[] = data.ld;
 
         if (ldData && ldData.length > 0) {
-          // extract chromosome and position range from LD results
           const queryVariant = ldData[0].variation1;
-          const chr = ldData[0].variation2.split(":")[0];
-
-          // include query variant position in the range
-          const queryPos = parseInt(queryVariant.split(":")[1], 10);
-          const positions = ldData.map((r) => parseInt(r.variation2.split(":")[1], 10));
-          positions.push(queryPos);
-          const minPos = Math.min(...positions);
-          const maxPos = Math.max(...positions);
 
           // fetch annotations for all variants including the query variant
           const variantList = [queryVariant, ...ldData.map((r) => r.variation2)];
-          const { annotations, columns } = await fetchAnnotations(chr, minPos, maxPos, variantList);
+          const { annotations, columns } = await fetchAnnotations(variantList);
 
           // store query variant annotation
           const queryAnnotation = annotations.get(queryVariant);
           setQueryVariantAnnotation(queryAnnotation || null);
 
-          const allowedColumns = ["AF", "AF_fin", "most_severe", "gene_most_severe"];
+          // the finngen annotation source has no AF_fin — its AF already is the FinnGen (Finnish) AF
+          const allowedColumns = ["AF", "most_severe", "gene_most_severe"];
           const displayColumns = allowedColumns.filter((col) => columns.includes(col));
           setAnnotationColumns(displayColumns);
 
@@ -290,11 +388,16 @@ const LDContainer = () => {
           return;
         }
 
+        // the LD API's ids are already canonical, so they double as the annotation lookup keys
+        const { annotations } = await fetchAnnotations([match.variation1, match.variation2]);
+
         setComparisonResult({
-          variant1: variants[0],
-          variant2: variants[1],
+          variant1: match.variation1,
+          variant2: match.variation2,
           d_prime: match.d_prime,
           r2: match.r2,
+          annotation1: annotations.get(match.variation1) ?? null,
+          annotation2: annotations.get(match.variation2) ?? null,
         });
       }
     } catch (err) {
@@ -313,6 +416,13 @@ const LDContainer = () => {
     if (event.key === "Enter") {
       handleLookup();
     }
+  };
+
+  // go through the URL like handleLookup does, so the example is bookmarkable and the mount effect
+  // is what triggers the lookup
+  const runExample = (variants: string) => {
+    setVariantInput(variants);
+    navigate(`/ld?variants=${encodeURIComponent(variants)}`);
   };
 
   const baseColumns: MRT_ColumnDef<LDResultWithAnnotation>[] = [
@@ -383,7 +493,7 @@ const LDContainer = () => {
       if (col === "gene_most_severe") {
         header = "most severe gene";
       } else if (col === "AF") {
-        header = "AF global";
+        header = "FinnGen AF";
       } else {
         header = col.replace(/_/g, " ");
       }
@@ -396,7 +506,7 @@ const LDContainer = () => {
           const value = cell.getValue();
           if (value === "NA" || value === undefined) return "N/A";
           if (col.startsWith("AF") && typeof value === "number") {
-            return value.toExponential(3);
+            return value.toExponential(2);
           }
           if (col === "most_severe") {
             return value.toLowerCase().replace("_variant", "").replace(/_/g, " ");
@@ -412,7 +522,7 @@ const LDContainer = () => {
       } else if (col === "gene_most_severe") {
         columnDef.filterFn = "contains";
         columnDef.muiFilterTextFieldProps = { placeholder: "gene" };
-      } else if (col === "AF" || col === "AF_fin") {
+      } else if (col === "AF") {
         columnDef.filterFn = "greaterThan";
         columnDef.muiFilterTextFieldProps = { placeholder: "> value" };
       }
@@ -452,10 +562,31 @@ const LDContainer = () => {
           or two variants to see the LD between them.
           <br />
           LD is calculated using SiSu 4.2 FinnGen imputation panel.
+          <br />
+          Variants can be given as chr:pos:ref:alt or as rsids.
+        </Typography>
+        <Typography variant="body2" sx={{ marginBottom: "10px" }}>
+          Examples:
+          <br />
+          <Link
+            component="button"
+            type="button"
+            sx={{ verticalAlign: "baseline" }}
+            onClick={() => runExample(EXAMPLES.single)}>
+            APOE4 missense ({EXAMPLES.single})
+          </Link>
+          <br />
+          <Link
+            component="button"
+            type="button"
+            sx={{ verticalAlign: "baseline" }}
+            onClick={() => runExample(EXAMPLES.pair)}>
+            FURIN/FES leads ({EXAMPLES.pair})
+          </Link>
         </Typography>
         <TextField
           label="Enter variant(s)"
-          placeholder="e.g., 2:9508859:G:T or chr2-9508859-G-T"
+          placeholder="e.g., 2:9508859:G:T, chr2-9508859-G-T or rs13410158"
           value={variantInput}
           onChange={handleInputChange}
           onKeyDown={handleKeyPress}
@@ -487,8 +618,22 @@ const LDContainer = () => {
           <Typography variant="h6" sx={{ marginBottom: "10px" }}>
             LD between variants
           </Typography>
-          <Typography variant="body1">{comparisonResult.variant1}</Typography>
-          <Typography variant="body1">{comparisonResult.variant2}</Typography>
+          {[
+            { variant: comparisonResult.variant1, annotation: comparisonResult.annotation1 },
+            { variant: comparisonResult.variant2, annotation: comparisonResult.annotation2 },
+          ].map(({ variant, annotation }) => {
+            const summary = formatAnnotationSummary(annotation);
+            return (
+              <Box key={variant} sx={{ marginBottom: "6px" }}>
+                <Typography variant="body1">{variant}</Typography>
+                {summary && (
+                  <Typography variant="body2" color="text.secondary">
+                    {summary}
+                  </Typography>
+                )}
+              </Box>
+            );
+          })}
           <Typography variant="body1" sx={{ marginTop: "10px" }}>
             <strong>D'</strong> {comparisonResult.d_prime.toFixed(4)}
           </Typography>
@@ -541,52 +686,19 @@ const LDContainer = () => {
             return { mafMin, mafMax };
           };
 
-          const mafFin099 = getMafRange(r2_099_variants, "AF_fin");
-          const mafFin09 = getMafRange(r2_09_variants, "AF_fin");
-          const mafFin06 = getMafRange(r2_06_variants, "AF_fin");
-          const mafFin005 = getMafRange(r2_005_variants, "AF_fin");
+          const mafFin099 = getMafRange(r2_099_variants, "AF");
+          const mafFin09 = getMafRange(r2_09_variants, "AF");
+          const mafFin06 = getMafRange(r2_06_variants, "AF");
+          const mafFin005 = getMafRange(r2_005_variants, "AF");
 
           const formatMafRange = (mafMin: number | null, mafMax: number | null) => {
             return mafMin !== null && mafMax !== null
-              ? `${mafMin.toExponential(3)} to ${mafMax.toExponential(3)}`
+              ? `${mafMin.toExponential(2)} to ${mafMax.toExponential(2)}`
               : "N/A";
           };
 
           const queryVariant = ldResults[0].variation1 || "the query variant";
-
-          // format query variant annotation
-          let queryVariantInfo = queryVariant;
-          if (queryVariantAnnotation) {
-            const af =
-              queryVariantAnnotation.AF !== "N/A" && typeof queryVariantAnnotation.AF === "number"
-                ? queryVariantAnnotation.AF.toExponential(3)
-                : "N/A";
-            const afFin =
-              queryVariantAnnotation.AF_fin !== "N/A" &&
-              typeof queryVariantAnnotation.AF_fin === "number"
-                ? queryVariantAnnotation.AF_fin.toExponential(3)
-                : "N/A";
-            const mostSevere =
-              queryVariantAnnotation.most_severe && queryVariantAnnotation.most_severe !== "N/A"
-                ? queryVariantAnnotation.most_severe
-                    .toLowerCase()
-                    .replace("_variant", "")
-                    .replace(/_/g, " ")
-                : "N/A";
-            const gene =
-              queryVariantAnnotation.gene_most_severe &&
-              queryVariantAnnotation.gene_most_severe !== "N/A"
-                ? queryVariantAnnotation.gene_most_severe
-                : "N/A";
-
-            queryVariantInfo = `AF: ${af}, AF fin: ${afFin}`;
-            if (mostSevere !== "N/A") {
-              queryVariantInfo = `${queryVariantInfo}, ${mostSevere}`;
-            }
-            if (gene !== "N/A") {
-              queryVariantInfo = `${queryVariantInfo}, ${gene}`;
-            }
-          }
+          const queryVariantInfo = formatAnnotationSummary(queryVariantAnnotation) ?? queryVariant;
 
           return (
             <Box sx={{ marginTop: "20px" }}>
@@ -619,7 +731,7 @@ const LDContainer = () => {
                         variants
                       </th>
                       <th style={{ textAlign: "left", padding: "2px 8px", fontWeight: "bold" }}>
-                        MAF fin
+                        FinnGen MAF
                       </th>
                       <th style={{ textAlign: "left", padding: "2px 8px", fontWeight: "bold" }}>
                         coding
