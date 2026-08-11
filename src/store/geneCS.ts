@@ -42,6 +42,10 @@ export interface GeneCSApiRow {
  * row to its legacy dataName here. unmapped rows (e.g. combined meta-analyses not in config) return
  * undefined and are dropped by the grouping so the view never shows a colorless, untoggleable row.
  */
+// config.gene_view.resources dataName for eQTL Catalogue; its rows are labelled by tissue rather
+// than by dataset, so the naming path needs to recognise them (see geneViewTraitName)
+const EQTL_CATALOGUE_DATA_NAME = "eQTL_Catalogue_R7";
+
 export const mapToDataName = (
   resource: string,
   dataset: string,
@@ -73,7 +77,7 @@ export const mapToDataName = (
     case "bbj":
       return "BBJ_79";
     case "eqtl_catalogue":
-      return "eQTL_Catalogue_R7";
+      return EQTL_CATALOGUE_DATA_NAME;
     case "finngen":
       if (dataType === "eQTL") return "FinnGen_eQTL";
       if (dataType === "pQTL") return "FinnGen_pQTL";
@@ -90,6 +94,15 @@ export const mapToDataName = (
 const CS_NUMBER_REGEX = /_L?(\d+)$/;
 
 /**
+ * eQTL Catalogue publishes each study/tissue at several quantification methods — encoded as the
+ * suffix of trait_original (|ge, |exon, |tx, |txrev, |leafcutter, |majiq, |microarray, |aptamer).
+ * they all report the same gene symbol as `trait`, so on a row labelled by gene + tissue the extra
+ * methods are indistinguishable duplicates; this view keeps gene-level expression (ge) only.
+ */
+const isDroppedQuantificationMethod = (row: GeneCSApiRow): boolean =>
+  row.resource === "eqtl_catalogue" && !(row.trait_original ?? "").endsWith("|ge");
+
+/**
  * group the new flat JSON rows into one CSDatum per credible set, mirroring the legacy useCSQuery
  * grouping: a CS is identified by resource(dataName)|dataset|trait=cs_id and accumulates its member
  * variants into parallel arrays (variant/pos/pip/mlog10p/beta/se/consequence/af/gene/rsid).
@@ -104,7 +117,7 @@ export const groupCredibleSets = (rows: GeneCSApiRow[]): CSDatum[] => {
 
   for (const row of rows) {
     const dataName = mapToDataName(row.resource, row.dataset, row.data_type);
-    if (dataName === undefined) {
+    if (dataName === undefined || isDroppedQuantificationMethod(row)) {
       continue;
     }
     const chr = String(row.chr);
@@ -126,6 +139,8 @@ export const groupCredibleSets = (rows: GeneCSApiRow[]): CSDatum[] => {
         dataset: row.dataset,
         dataType: row.data_type,
         trait,
+        traitOriginal: row.trait_original,
+        cellType: row.cell_type,
         traitId,
         traitCSId,
         csId: row.cs_id,
@@ -176,6 +191,66 @@ export const groupCredibleSets = (rows: GeneCSApiRow[]): CSDatum[] => {
     ...cs,
     numberOfCSs: trait2uniqCS[cs.traitId].size,
   }));
+};
+
+/**
+ * true when the API gave back the bare phenocode instead of a name: the credible-set endpoints
+ * resolve `trait` from the same dictionary as /v1/trait_name_mapping but miss the FinnGen drug
+ * (ATC_*_IRN) and lab (numeric OMOP code) traits, which then arrive with trait === trait_original.
+ * QTL rows are excluded because their trait legitimately equals trait_original (a gene symbol or
+ * ATAC peak id) and must not be looked up in a GWAS phenocode dictionary.
+ */
+const hasUnresolvedTraitName = (d: Pick<CSDatum, "dataType" | "trait" | "traitOriginal">): boolean =>
+  d.dataType === "GWAS" && d.traitOriginal !== undefined && d.trait === d.traitOriginal;
+
+/** whether a gene view needs the (2 MB) trait_name_mapping dictionary to label all its rows */
+export const needsTraitNameMapping = (data: CSDatum[] | undefined): boolean =>
+  data !== undefined && data.some(hasUnresolvedTraitName);
+
+/**
+ * the QTL context a credible set was called in, from the row's `cell_type` ("<tissue>|<condition>",
+ * the same two fields the BFF splits out of the eQTL Catalogue phenotype_string). the condition
+ * "naive" is the uninformative default and is dropped, matching the anno tables' dataset label.
+ */
+const formatCellType = (cellType: string | null | undefined): string => {
+  if (!cellType) {
+    return "";
+  }
+  const [tissue, condition] = cellType.split("|");
+  const suffix = condition && condition !== "naive" ? `, ${condition.replace(/_/g, " ")}` : "";
+  return `${tissue.replace(/_/g, " ")}${suffix}`;
+};
+
+/**
+ * full display name of a credible set's trait. the API stores phenostrings with spaces replaced by
+ * underscores ("Dementia_in_Alzheimer_disease"), so they are turned back here; `traitNames` (the
+ * /v1/trait_name_mapping dictionary) fills in the phenocodes the API left unresolved. QTL rows get
+ * their tissue or assay/platform appended so several rows of the same gene stay distinguishable.
+ */
+export const geneViewTraitName = (d: CSDatum, traitNames?: Record<string, string>): string => {
+  const resolved = hasUnresolvedTraitName(d) ? traitNames?.[d.traitOriginal!] : undefined;
+  // only the API's name is underscore-encoded; dictionary values are already spaced
+  let name = resolved ?? d.trait.replace(/_/g, " ");
+  if (d.resource === EQTL_CATALOGUE_DATA_NAME) {
+    // every eQTL Catalogue dataset is one tissue/condition of one study, and the QTD dataset id says
+    // nothing; the tissue is what tells the many same-gene rows apart (the study is not shown here —
+    // the anno tables have the room for it, this column does not)
+    const tissue = formatCellType(d.cellType);
+    if (tissue) {
+      name += ` ${tissue}`;
+    }
+  } else if (d.dataType === "pQTL") {
+    // FinnGen carries its platform inline in the dataset id (FinnGen_Olink, FinnGen_Olink_5K);
+    // UKB-PPP is the Olink 3K panel. kept consistent with the anno tables' datasetDisplayName.
+    name +=
+      d.resource === "FinnGen_pQTL"
+        ? ` ${d.dataset.replace(/^FinnGen_/, "").replace(/_/g, " ")}`
+        : " Olink 3K";
+  } else if (d.dataType === "eQTL" && d.resource === "FinnGen_eQTL") {
+    // FinnGen carries its assay inline in the dataset id too (e.g. FinnGen_snRNAseq)
+    name += ` ${d.dataset.replace(/^FinnGen_/, "").replace(/_/g, " ")}`;
+  }
+  return name;
 };
 
 /**

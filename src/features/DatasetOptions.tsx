@@ -38,7 +38,7 @@ const DatasetOptions = ({ data }: { data: CSDatum[] | undefined }) => {
   };
 
   return (
-    <Box display="flex" flexDirection="row" gap={4}>
+    <Box display="flex" flexDirection="row" flexWrap="wrap" gap={4}>
       {Object.entries(datatype2resources)
         .sort((a, b) => {
           if (a[0] === "GWAS" && b[0] !== "GWAS") return -1;
@@ -52,7 +52,7 @@ const DatasetOptions = ({ data }: { data: CSDatum[] | undefined }) => {
           return 0;
         })
         .map(([datatype, resources]) => (
-          <Box key={datatype}>
+          <Box key={datatype} sx={{ flexShrink: 0 }}>
             <Typography style={{ marginLeft: 8, fontWeight: "bold", userSelect: "none" }}>
               {datatype}
             </Typography>

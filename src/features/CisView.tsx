@@ -14,8 +14,14 @@ import {
   useGeneInfo,
   useGenesInRegion,
   useGeneTransCredibleSets,
+  useTraitNameMapping,
 } from "@/store/serverQuery";
-import { buildAffectedGeneList, buildAffectingGeneList } from "@/store/geneCS";
+import {
+  buildAffectedGeneList,
+  buildAffectingGeneList,
+  geneViewTraitName,
+  needsTraitNameMapping,
+} from "@/store/geneCS";
 import CSPlot from "./CSPlot";
 import { useEffect, useMemo, useState } from "react";
 import { CSDatum, CSStatus, SelectedVariantStats, TraitStatus } from "@/types/types.gene";
@@ -72,10 +78,11 @@ const CisView = ({ geneName }: { geneName: string }) => {
     error: transError,
   } = useGeneTransCredibleSets(geneName);
 
-  // the legacy /v1/trait_metadata and /v1/dataset_metadata endpoints are gone on the new API, so the
-  // trait-label / tissue-label enrichment is dropped for now: titleRows falls back to the row's own
-  // trait code/gene symbol plus the config resource label. re-enriching trait names via the new
-  // metadata path is tracked separately (genetics-results-browser-3uu.18 / .25).
+  // the credible-set endpoints already name most traits; only the phenocodes they leave unresolved
+  // (FinnGen drugs/labs) need the trait_name_mapping dictionary, and it is 2 MB, so the fetch is
+  // gated on this region actually having such a row. rows render with their code until it lands.
+  // tissue-label enrichment for eQTL Catalogue is still missing (genetics-results-browser-3uu.18/.25).
+  const { data: traitNames } = useTraitNameMapping(needsTraitNameMapping(data));
 
   const [codingOnly, setCodingOnly] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
@@ -292,8 +299,8 @@ const CisView = ({ geneName }: { geneName: string }) => {
   const titleRows = useMemo(() => {
     const rows = sortedData?.map((d) => {
       let color = "white";
-      let traitName = d.trait;
       let resourceShortName = "TBA";
+      const traitName = geneViewTraitName(d, traitNames);
       const highlighted = highlightCSs === undefined || highlightCSs.has(d.traitCSId);
       const resource = config.gene_view.resources.find(
         (resource) => d.resource === resource.dataName
@@ -306,28 +313,7 @@ const CisView = ({ geneName }: { geneName: string }) => {
           : isActualDarkMode
           ? config.gene_view.colors.dimDark
           : config.gene_view.colors.dim;
-        // traitName/resourceShortName fall back to the row's own trait code/gene symbol and the
-        // config resource label now that trait/dataset metadata enrichment is gone (see above).
-        if (d.dataType === "pQTL") {
-          // append the proteomics platform/panel, kept consistent with the dataset name shown in the
-          // anno tables (see datasetDisplayName): UKB-PPP is the Olink 3K panel; FinnGen carries its
-          // platform inline in the dataset id (e.g. FinnGen_Olink, FinnGen_Olink_5K).
-          traitName +=
-            d.resource === "FinnGen_pQTL"
-              ? ` ${d.dataset.replace(/^FinnGen_/, "").replace(/_/g, " ")}`
-              : " Olink 3K"; // UKB-PPP
-        }
         resourceShortName = resource.label;
-        if (d.dataType === "eQTL") {
-          if (d.resource === "FinnGen_eQTL") {
-            // FinnGen carries its assay inline in the dataset id (e.g. FinnGen_snRNAseq); strip the
-            // resource prefix rather than the old /FinnGen_(.*?)_/ regex, which returned undefined on
-            // ids without a trailing token.
-            traitName += ` ${d.dataset.replace(/^FinnGen_/, "").replace(/_/g, " ")}`;
-          } else {
-            traitName = `${d.trait} ${traitName}`;
-          }
-        }
       }
 
       const topPipVariantIndex = d.pip.indexOf(Math.max(...d.pip));
@@ -395,7 +381,7 @@ const CisView = ({ geneName }: { geneName: string }) => {
           <CleanTableCell
             style={{
               width: config.gene_view.titleWidth - 80,
-              overflow: "scroll",
+              overflow: "hidden",
               display: "inline-flex",
               alignItems: "center",
               justifyContent: "flex-start",
@@ -405,6 +391,9 @@ const CisView = ({ geneName }: { geneName: string }) => {
             <Tooltip
               title={
                 <>
+                  {/* the row label is clipped at titleWidth, so the tooltip carries the full name */}
+                  <Typography style={{ fontWeight: "bold" }}>{traitName}</Typography>
+                  <Box mb={2} />
                   <Typography style={{ fontWeight: "bold" }}>Top PIP variant</Typography>
                   <Box mb={2} />
                   <Typography>{d.variant[topPipVariantIndex]}</Typography>
@@ -446,7 +435,7 @@ const CisView = ({ geneName }: { geneName: string }) => {
                 </>
               }
               placement="top">
-              <Typography>{traitName}</Typography>
+              <Typography noWrap>{traitName}</Typography>
             </Tooltip>
           </CleanTableCell>
         </TableRow>
@@ -457,7 +446,7 @@ const CisView = ({ geneName }: { geneName: string }) => {
         <TableBody>{rows}</TableBody>
       </Table>
     );
-  }, [sortedData, mouseOverTrait, highlightCSs]);
+  }, [sortedData, mouseOverTrait, highlightCSs, traitNames]);
 
   if (!geneName) {
     return null;
@@ -482,10 +471,17 @@ const CisView = ({ geneName }: { geneName: string }) => {
     <>
       <Box display="flex" flexDirection="column">
         <Typography>
-          Open Targets credible sets are not yet included in this view. Hold <code>Ctrl</code> and
+          Open Targets credible sets are not yet included in this view. eQTL Catalogue credible sets
+          are shown for gene-level expression (ge) quantification only. Hold <code>Ctrl</code> and
           scroll on the credible set area to zoom.
         </Typography>
-        <Box display="flex" flexDirection="row" mt={2} mb={2}>
+        <Box
+          display="flex"
+          flexDirection="row"
+          flexWrap="wrap"
+          mt={2}
+          mb={2}
+          sx={{ columnGap: 10, rowGap: 2 }}>
           <DatasetOptions data={filteredData} />
           <CisViewOptions
             maxCsSize={maxCsSize}
