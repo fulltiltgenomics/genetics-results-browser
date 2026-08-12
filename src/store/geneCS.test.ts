@@ -9,6 +9,7 @@ import {
   groupCredibleSets,
   mapToDataName,
   needsTraitNameMapping,
+  pseudoDataNames,
 } from "./geneCS";
 import { CSDatum } from "@/types/types.gene";
 
@@ -24,6 +25,21 @@ describe("mapToDataName (new resource ids -> legacy config dataName)", () => {
     expect(mapToDataName("finngen", "FinnGen_R13", "GWAS")).toBe("FinnGen");
     expect(mapToDataName("finngen", "FinnGen_kanta", "GWAS")).toBe("FinnGen_kanta");
     expect(mapToDataName("finngen", "FinnGen_drugs", "GWAS")).toBe("FinnGen_drugs");
+  });
+
+  // the core dataset carries the release inline; pinning one release emptied FG Core when the API
+  // moved from R13 to R14, while the meta-analysis datasets must keep their own buckets
+  it("maps any FinnGen core release to FG Core without swallowing the meta-analyses", () => {
+    expect(mapToDataName("finngen", "FinnGen_R14", "GWAS")).toBe("FinnGen");
+    expect(mapToDataName("finngen", "FinnGen_R99", "GWAS")).toBe("FinnGen");
+    expect(mapToDataName("finngen_ukbb", "FinnGen_R13_UKBB", "GWAS")).toBe("FinnGen_UKBB");
+    expect(mapToDataName("finngen_mvp_ukbb", "FinnGen_R13_MVP_UKBB_labs", "GWAS")).toBe(
+      "FinnGen_MVP_UKBB"
+    );
+  });
+
+  it("maps open targets to its own GWAS bucket", () => {
+    expect(mapToDataName("open_targets", "Open_Targets_26.06", "GWAS")).toBe("Open_Targets");
   });
 
   it("maps QTL datasets/resources to their config buckets", () => {
@@ -42,8 +58,8 @@ describe("mapToDataName (new resource ids -> legacy config dataName)", () => {
     expect(mapToDataName("finngen_ukbb", "FinnGen_R13_UKBB", "GWAS")).toBe("FinnGen_UKBB");
   });
 
-  it("drops resources not modelled in the gene-view config (e.g. open_targets)", () => {
-    expect(mapToDataName("open_targets", "Open_Targets_26.06", "GWAS")).toBeUndefined();
+  it("drops resources not modelled in the gene-view config", () => {
+    expect(mapToDataName("some_new_biobank", "Whatever", "GWAS")).toBeUndefined();
   });
 });
 
@@ -347,6 +363,20 @@ describe("geneViewTraitName (credible-set row label)", () => {
         })
       )
     ).toBe("GEMIN7 snRNAseq");
+  });
+});
+
+describe("pseudoDataNames (/v1/datasets flags -> gene view dataNames)", () => {
+  it("maps flagged resources to their config buckets and ignores the rest", () => {
+    const rows = [
+      { resource: "finngen_mvp_ukbb", dataType: "gwas", hasPseudoCredibleSets: true },
+      { resource: "finngen_ukbb", dataType: "gwas", hasPseudoCredibleSets: true },
+      // flagged but not modelled in the gene view config — must not leak in as undefined
+      { resource: "covid_hgi", dataType: "gwas", hasPseudoCredibleSets: true },
+      { resource: "finngen", dataType: "gwas", hasPseudoCredibleSets: false },
+    ];
+    expect(pseudoDataNames(rows)).toEqual(new Set(["FinnGen_MVP_UKBB", "FinnGen_UKBB"]));
+    expect(pseudoDataNames(undefined)).toEqual(new Set());
   });
 });
 

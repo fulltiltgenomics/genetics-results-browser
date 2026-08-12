@@ -10,6 +10,11 @@ export const PSEUDO_CS_TOOLTIP =
   "interpreted with caution.";
 
 export const pValRepr = (mlog10p: number): string => {
+  // Open Targets omits mlog10p on many credible-set members; without this a missing value coerces
+  // to 0 in the `<= 0` branch below and is reported as a p-value of exactly 1
+  if (mlog10p == null || Number.isNaN(mlog10p)) {
+    return "NA";
+  }
   // @ts-expect-error typed number
   if (mlog10p == "NA") {
     return "";

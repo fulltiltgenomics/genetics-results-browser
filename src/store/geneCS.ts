@@ -54,7 +54,6 @@ export const mapToDataName = (
   // dataset-specific buckets first — these split one upstream resource (finngen) into the
   // separate FG Core / Kanta / Drugs / Olink rows the legacy config models.
   const datasetMap: Record<string, string> = {
-    FinnGen_R13: "FinnGen",
     FinnGen_kanta: "FinnGen_kanta",
     FinnGen_drugs: "FinnGen_drugs",
     FinnGen_Olink: "FinnGen_pQTL",
@@ -62,6 +61,12 @@ export const mapToDataName = (
   };
   if (datasetMap[dataset]) {
     return datasetMap[dataset];
+  }
+  // the FinnGen core GWAS dataset carries its release inline (FinnGen_R13, FinnGen_R14, ...), so
+  // match any release: pinning one release silently emptied the whole FG Core bucket when the API
+  // moved on. anchored, so the FinnGen_R13_UKBB* meta-analyses below are not swallowed here.
+  if (/^FinnGen_R\d+$/.test(dataset)) {
+    return "FinnGen";
   }
   // combined FinnGen meta-analyses (R13 + MVP + UKBB, with/without labs) are GWAS; surface them
   // under their own config buckets so they stay visible and individually toggleable.
@@ -78,6 +83,8 @@ export const mapToDataName = (
       return "BBJ_79";
     case "eqtl_catalogue":
       return EQTL_CATALOGUE_DATA_NAME;
+    case "open_targets":
+      return "Open_Targets";
     case "finngen":
       if (dataType === "eQTL") return "FinnGen_eQTL";
       if (dataType === "pQTL") return "FinnGen_pQTL";
@@ -86,9 +93,32 @@ export const mapToDataName = (
       if (dataType === "caQTL") return "FinnGen_caQTL";
       return undefined;
     default:
-      // open_targets and anything else not modelled in config — not shown in this view
+      // anything not modelled in config.gene_view.resources — not shown in this view
       return undefined;
   }
+};
+
+/**
+ * config dataNames whose credible sets are pseudo (built from summary stats + LD around the lead
+ * variant, not fine-mapped), derived from the /v1/datasets flag rather than hardcoded so the gene
+ * view cannot drift from the anno tables. the flag is per dataset but uniform within a resource for
+ * everything this view shows, so mapping the resource id alone is enough.
+ */
+export const pseudoDataNames = (
+  datasets: { resource: string; dataType: string; hasPseudoCredibleSets: boolean }[] | undefined
+): Set<string> => {
+  const out = new Set<string>();
+  for (const d of datasets ?? []) {
+    if (!d.hasPseudoCredibleSets) {
+      continue;
+    }
+    // /v1/datasets lowercases the data type ("gwas"); the credible-set rows use "GWAS"
+    const dataName = mapToDataName(d.resource, "", d.dataType.toUpperCase());
+    if (dataName !== undefined) {
+      out.add(dataName);
+    }
+  }
+  return out;
 };
 
 const CS_NUMBER_REGEX = /_L?(\d+)$/;

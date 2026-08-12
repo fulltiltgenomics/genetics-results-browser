@@ -118,8 +118,10 @@ const CisView = ({ geneName }: { geneName: string }) => {
         d.variant.length > 0 &&
         (!codingOnly || d.isCoding.some((c) => c))
     );
+    // `?? true` keeps this in step with the switch in DatasetOptions, which renders an unknown
+    // resource as on: without it the two disagree and rows vanish under a checked toggle
     const filteredDataWithResourceToggles = filteredData?.filter(
-      (d) => resourceToggles[d.resource]
+      (d) => resourceToggles[d.resource] ?? true
     );
     console.timeEnd("filter data");
     return { filteredData, filteredDataWithResourceToggles };
@@ -195,35 +197,31 @@ const CisView = ({ geneName }: { geneName: string }) => {
       return {};
     }
     console.time("cs overlap");
+    // index the credible sets by variant first: two CSs overlap iff they appear in the same bucket.
+    // the previous all-pairs scan compared every CS against every other one and grew quadratically
+    // with the row count — 6s on APOE once Open Targets was added.
+    const csIdsByVariant = new Map<string, string[]>();
+    for (const d of data) {
+      for (const variant of d.variant) {
+        const ids = csIdsByVariant.get(variant);
+        if (ids === undefined) {
+          csIdsByVariant.set(variant, [d.traitCSId]);
+        } else {
+          ids.push(d.traitCSId);
+        }
+      }
+    }
+    // a CS is in its own overlap set, as it was before: consumers subtract it (see traitStatus)
     const overlap: { [key: string]: Set<string> } = {};
-    for (let d1 = 0; d1 < data.length; d1++) {
-      const d1Var = data[d1].variant;
-      const d1Pos = data[d1].pos;
-      const d1CSId = data[d1].traitCSId;
-      for (let d2 = d1; d2 < data.length; d2++) {
-        const d2Var = data[d2].variant;
-        const d2Pos = data[d2].pos;
-        const d2CSId = data[d2].traitCSId;
-        for (let i1 = 0; i1 < d1Var.length; i1++) {
-          for (let i2 = 0; i2 < d2Var.length; i2++) {
-            if (d2Pos[i2] > d1Pos[i1]) {
-              break;
-            }
-            if (d2Pos[i2] < d1Pos[i1]) {
-              continue;
-            }
-            if (d1Var[i1] === d2Var[i2]) {
-              if (!overlap[d1CSId]) {
-                overlap[d1CSId] = new Set<string>();
-              }
-              if (!overlap[d2CSId]) {
-                overlap[d2CSId] = new Set<string>();
-              }
-              overlap[d1CSId].add(d2CSId);
-              overlap[d2CSId].add(d1CSId);
-              break;
-            }
-          }
+    for (const ids of csIdsByVariant.values()) {
+      for (const csId of ids) {
+        let set = overlap[csId];
+        if (set === undefined) {
+          set = new Set<string>();
+          overlap[csId] = set;
+        }
+        for (const other of ids) {
+          set.add(other);
         }
       }
     }
@@ -380,10 +378,11 @@ const CisView = ({ geneName }: { geneName: string }) => {
             }}>
             <DataTypeIcon dataType={d.dataType as CredibleSetDataType} size={14} />
           </CleanTableCell>
+          {/* wide enough for the longest resource labels ("Open Targets", "FG+MVP+UKB") */}
           <CleanTableCell
             align="right"
             style={{
-              width: "60px",
+              width: "80px",
               marginRight: "5px",
               color: color,
               overflow: "scroll",
@@ -393,7 +392,7 @@ const CisView = ({ geneName }: { geneName: string }) => {
           </CleanTableCell>
           <CleanTableCell
             style={{
-              width: config.gene_view.titleWidth - 103,
+              width: config.gene_view.titleWidth - 123,
               overflow: "hidden",
               display: "inline-flex",
               alignItems: "center",
@@ -484,9 +483,8 @@ const CisView = ({ geneName }: { geneName: string }) => {
     <>
       <Box display="flex" flexDirection="column">
         <Typography>
-          Open Targets credible sets are not yet included in this view. eQTL Catalogue credible sets
-          are shown for gene-level expression (ge) quantification only. Hold <code>Ctrl</code> and
-          scroll on the credible set area to zoom.
+          eQTL Catalogue credible sets are shown for gene-level expression (ge) quantification only.
+          Hold <code>Ctrl</code> and scroll on the credible set area to zoom.
         </Typography>
         <Box
           display="flex"

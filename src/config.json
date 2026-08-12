@@ -70,6 +70,13 @@
         "color": "#9467bd"
       },
       {
+        "dataName": "Open_Targets",
+        "label": "Open Targets",
+        "resource": "Open Targets",
+        "dataType": "GWAS",
+        "color": "#bcbd22"
+      },
+      {
         "dataName": "FinnGen_pQTL",
         "label": "FinnGen",
         "resource": "FinnGen",

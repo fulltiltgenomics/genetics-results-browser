@@ -39,6 +39,8 @@ export interface DatasetApiRow {
   trait_type?: string | null;
   data_type: string;
   qtl_types?: string[];
+  // credible sets built from summary stats + LD around the lead variant rather than fine-mapped
+  pseudo_credible_sets?: boolean;
   products: {
     credible_sets?: boolean;
     summary_stats?: boolean;
@@ -63,6 +65,7 @@ export interface DatasetRow {
   dataType: string;
   qtlTypes?: string[];
   hasCredibleSets: boolean;
+  hasPseudoCredibleSets: boolean;
   hasSummaryStats: boolean;
   hasColocalization: boolean;
   nPhenotypes?: number;
@@ -78,9 +81,10 @@ export const useDatasets = (): UseQueryResult<DatasetRow[], Error> => {
   return useQuery<DatasetRow[]>({
     queryKey: ["datasets"],
     queryFn: async (): Promise<DatasetRow[]> => {
-      const { data } = await api.get<DatasetApiRow[]>("/v1/datasets", {
-        params: { format: "json" },
-      });
+      // no `format` param here: unlike the credible-set endpoints, /v1/datasets rejects it with a
+      // 422 ("Accepted for this endpoint: data_type, include_stats, resource"), which failed the
+      // whole query and left the About page's dataset table and the pseudo-CS flags empty
+      const { data } = await api.get<DatasetApiRow[]>("/v1/datasets");
       return data.map((row) => ({
         datasetId: row.dataset_id,
         resource: row.resource,
@@ -89,6 +93,7 @@ export const useDatasets = (): UseQueryResult<DatasetRow[], Error> => {
         dataType: row.data_type,
         qtlTypes: row.qtl_types,
         hasCredibleSets: row.products?.credible_sets === true,
+        hasPseudoCredibleSets: row.pseudo_credible_sets === true,
         hasSummaryStats: row.products?.summary_stats === true,
         hasColocalization: Array.isArray(row.products?.colocalization?.partners),
         nPhenotypes: row.stats?.n_phenotypes,

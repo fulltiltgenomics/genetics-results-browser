@@ -12,6 +12,9 @@ export default defineConfig({
   testDir: "./e2e",
   // gitignored output dir for screenshots/traces/reports
   outputDir: "./e2e/.output",
+  // the gene view pulls tens of MB of credible sets per gene and renders a row per credible set, so
+  // its specs need more than playwright's 30s default; the per-assertion waits are raised to match.
+  timeout: 150_000,
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
