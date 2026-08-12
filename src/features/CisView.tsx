@@ -38,6 +38,8 @@ import AffectedGeneList from "./AffectedGeneList";
 import { afRepr, cleanConsequence, pValRepr } from "./table/utils/tableutil";
 import AffectingGeneList from "./AffectingGeneList";
 import CleanTableCell from "@/style";
+import { DataTypeIcon } from "./table/DataTypeIcon";
+import { CredibleSetDataType } from "@/types/types.normalized";
 
 const CisView = ({ geneName }: { geneName: string }) => {
   const prefersDarkMode = useMediaQuery("(prefers-color-scheme: dark)");
@@ -367,6 +369,17 @@ const CisView = ({ geneName }: { geneName: string }) => {
           <CleanTableCell align="right" style={{ width: "20px", marginRight: "5px", color: color }}>
             {d.csSize}
           </CleanTableCell>
+          {/* same letter badge as the variant tables, dimmed with the row when it is not highlighted */}
+          <CleanTableCell
+            style={{
+              width: "18px",
+              marginRight: "5px",
+              display: "inline-flex",
+              alignItems: "center",
+              opacity: highlighted ? 1 : 0.35,
+            }}>
+            <DataTypeIcon dataType={d.dataType as CredibleSetDataType} size={14} />
+          </CleanTableCell>
           <CleanTableCell
             align="right"
             style={{
@@ -380,7 +393,7 @@ const CisView = ({ geneName }: { geneName: string }) => {
           </CleanTableCell>
           <CleanTableCell
             style={{
-              width: config.gene_view.titleWidth - 80,
+              width: config.gene_view.titleWidth - 103,
               overflow: "hidden",
               display: "inline-flex",
               alignItems: "center",

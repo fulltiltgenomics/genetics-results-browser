@@ -3,6 +3,8 @@ import { useMemo } from "react";
 import config from "@/config.json";
 import { useGeneViewStore } from "@/store/store.gene";
 import { CSDatum } from "@/types/types.gene";
+import { CredibleSetDataType } from "@/types/types.normalized";
+import { DataTypeIcon } from "./table/DataTypeIcon";
 
 const DatasetOptions = ({ data }: { data: CSDatum[] | undefined }) => {
   const { resourceToggles, toggleResource } = useGeneViewStore();
@@ -53,9 +55,17 @@ const DatasetOptions = ({ data }: { data: CSDatum[] | undefined }) => {
         })
         .map(([datatype, resources]) => (
           <Box key={datatype} sx={{ flexShrink: 0 }}>
-            <Typography style={{ marginLeft: 8, fontWeight: "bold", userSelect: "none" }}>
-              {datatype}
-            </Typography>
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                marginLeft: "8px",
+                userSelect: "none",
+              }}>
+              <DataTypeIcon dataType={datatype as CredibleSetDataType} />
+              <Typography style={{ fontWeight: "bold" }}>{datatype}</Typography>
+            </Box>
             <Stack direction="row" spacing={2} sx={{ maxWidth: "fit-content" }}>
               {getResourceColumns(resources).map((column, colIndex) => (
                 <Stack key={colIndex}>
@@ -88,7 +98,10 @@ const DatasetOptions = ({ data }: { data: CSDatum[] | undefined }) => {
                           "& .MuiFormControlLabel-label": {
                             color: resource.color,
                             userSelect: "none",
-                            width: 70,
+                            // a long count + label ("375 FG+MVP+UKB") must not wrap away from its
+                            // switch, so the column grows to fit instead of the text breaking
+                            minWidth: 70,
+                            whiteSpace: "nowrap",
                           },
                         }}
                       />
