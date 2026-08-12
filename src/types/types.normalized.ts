@@ -479,7 +479,9 @@ export interface GeneExpressionRow {
   geneName: string;
   geneId: string;
   tissueCell: string; // tissue/cell label, e.g. "stomach_muscularis"
-  level: number | null; // expression level (TPM/nTPM depending on resource)
+  level: number | null; // expression level (median TPM for GTEx), null when not numeric
+  levelRaw: string; //    level as served: HPA is immunohistochemistry data whose level may be
+  //                      categorical ("high"/"medium"/…), which `level` cannot represent
 }
 
 /** One Mendelian gene-disease association from gene_disease (e.g. GenCC submissions). */

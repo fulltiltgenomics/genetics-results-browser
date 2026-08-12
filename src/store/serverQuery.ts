@@ -1284,6 +1284,7 @@ export const useGeneExpression = (
             geneId: row.gene_id,
             tissueCell: row.tissue_cell,
             level: Number.isNaN(level) ? null : level,
+            levelRaw: String(row.level),
           };
         })
         .sort((a, b) => (b.level ?? -Infinity) - (a.level ?? -Infinity));

@@ -17,7 +17,10 @@ test("gene evidence tab shows burden, expression and gene-disease for APOE", asy
 
   // section headers present
   await expect(page.getByRole("heading", { name: "Gene burden" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Expression" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Expression \(GTEx/ })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Expression (Human Protein Atlas)" })
+  ).toBeVisible();
   await expect(page.getByRole("heading", { name: "Gene-disease (Mendelian)" })).toBeVisible();
 
   // burden: a real APOE burden trait from gene_based. scope to a table CELL via role: the Credible
@@ -27,10 +30,16 @@ test("gene evidence tab shows burden, expression and gene-disease for APOE", asy
   await expect(page.getByRole("cell", { name: /Apolipoprotein/i }).first()).toBeVisible({
     timeout: 90000,
   });
-  // expression: the top GTEx tissue for APOE (adrenal_gland), sorted to the top of the table
-  await expect(page.getByRole("cell", { name: "adrenal_gland" }).first()).toBeVisible({
+  // expression: GTEx renders as the bar plot by default, and switching to the table shows the top
+  // GTEx tissue for APOE (Adrenal Gland) sorted first
+  await expect(page.getByTestId("gtex-expression-plot").locator("canvas")).toBeVisible({
     timeout: 90000,
   });
+  await page.getByRole("button", { name: "table" }).click();
+  await expect(page.getByRole("cell", { name: "Adrenal Gland" }).first()).toBeVisible({
+    timeout: 90000,
+  });
+  await page.getByRole("button", { name: "plot" }).click();
   // gene-disease: a Mendelian disease title (e.g. hyperlipoproteinemia)
   await expect(page.getByRole("cell", { name: /hyperlipoproteinemia/i }).first()).toBeVisible({
     timeout: 90000,

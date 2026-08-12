@@ -1,8 +1,11 @@
-import { describe, expect, it } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
+import { render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { renderHook, waitFor as waitForHook } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { http, HttpResponse } from "msw";
 import type { PropsWithChildren } from "react";
+import { server } from "@/test/msw/server";
 import GeneEvidenceTab from "./GeneEvidenceTab";
 import {
   parseGeneBurdenTsv,
@@ -10,6 +13,14 @@ import {
   useGeneDisease,
   useGeneExpression,
 } from "@/store/serverQuery";
+
+// chart.js needs a real canvas context, which jsdom does not provide; the plot's data shaping is
+// covered by gtexTissues.test.ts instead
+vi.mock("react-chartjs-2", () => ({
+  Bar: ({ data }: { data: { labels: string[] } }) => (
+    <div data-testid="gtex-plot">{data.labels.join("|")}</div>
+  ),
+}));
 
 // fresh client with retries off so a failing query rejects immediately instead of retrying for seconds
 const makeWrapper = () => {
@@ -89,18 +100,86 @@ describe("gene-evidence hooks (MSW)", () => {
 });
 
 describe("GeneEvidenceTab (component)", () => {
-  it("renders all three evidence sections populated for APOE", async () => {
+  it("renders all evidence sections populated for APOE", async () => {
     render(<GeneEvidenceTab geneName="APOE" />, { wrapper: makeWrapper() });
 
     expect(screen.getByText("Gene burden")).toBeInTheDocument();
-    expect(screen.getByText("Expression")).toBeInTheDocument();
     expect(screen.getByText("Gene-disease (Mendelian)")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText("Expression (GTEx v10)")).toBeInTheDocument());
 
     // burden trait from the fixture (the fixture has multiple Apolipoprotein A rows)
-    await waitFor(() =>
-      expect(screen.getAllByText("Apolipoprotein A").length).toBeGreaterThan(0)
-    );
+    await waitFor(() => expect(screen.getAllByText("Apolipoprotein A").length).toBeGreaterThan(0));
     // a gene-disease row from the fixture
     expect(screen.getAllByText(/hyperlipoproteinemia/i).length).toBeGreaterThan(0);
+  });
+
+  it("shows GTEx as a plot by default and switches to the table on toggle", async () => {
+    const user = userEvent.setup();
+    render(<GeneEvidenceTab geneName="APOE" />, { wrapper: makeWrapper() });
+
+    // plot is the default view, labelled with the official GTEx tissue names
+    const plot = await screen.findByTestId("gtex-plot");
+    // official label for a v8 tissue, and a v10 sub-tissue named off its parent
+    expect(plot.textContent).toContain("Heart - Atrial Appendage");
+    expect(plot.textContent).toContain("Stomach (muscularis)");
+    expect(screen.queryByText("median TPM")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "table" }));
+    expect(screen.queryByTestId("gtex-plot")).not.toBeInTheDocument();
+    expect(screen.getByText("median TPM")).toBeInTheDocument();
+    expect(screen.getByText("Heart - Atrial Appendage")).toBeInTheDocument();
+  });
+
+  it("reports no HPA data when the response carries only GTEx rows", async () => {
+    render(<GeneEvidenceTab geneName="APOE" />, { wrapper: makeWrapper() });
+
+    expect(await screen.findByText("Expression (Human Protein Atlas)")).toBeInTheDocument();
+    expect(await screen.findByText("no HPA expression data for this gene")).toBeInTheDocument();
+  });
+
+  it("lists HPA staining levels strongest first, with organ/cell labels collapsed", async () => {
+    // shape copied from the live endpoint: `organ|tissue|cell_type` and a categorical level
+    const hpaRow = (tissueCell: string, level: string) => ({
+      resource: "hpa",
+      version: "24.1",
+      dataset: "HPA_24.1",
+      chrom: 19,
+      gene_start: 44905791,
+      gene_end: 44909393,
+      gene_name: "APOE",
+      gene_id: "ENSG00000130203.10",
+      tissue_cell: tissueCell,
+      level,
+    });
+    server.use(
+      http.get("*/api/v1/expression_by_gene/:gene", () =>
+        HttpResponse.json([
+          hpaRow("spleen|spleen|cells_in_red_pulp", "Not_detected"),
+          hpaRow("lung|lung|macrophages", "High"),
+          hpaRow("endometrium|endometrium_2|glandular_cells", "Low"),
+          hpaRow("colon|colon|glandular_cells", "Medium"),
+        ])
+      )
+    );
+
+    render(<GeneEvidenceTab geneName="APOE" />, { wrapper: makeWrapper() });
+
+    // "level" is unique to the HPA table; the burden table on the same page also has rows
+    const hpaTable = (await screen.findByText("level")).closest("table")!;
+    const body = within(hpaTable)
+      .getAllByRole("row")
+      .slice(1) // header row
+      .map((r) => r.textContent);
+    expect(body[0]).toContain("lung, macrophages");
+    expect(body[0]).toContain("High");
+    expect(body.map((t) => t?.match(/High|Medium|Low|Not detected/)?.[0])).toEqual([
+      "High",
+      "Medium",
+      "Low",
+      "Not detected",
+    ]);
+    // numbered organ samples keep their number; dataset ids lose their underscores
+    expect(screen.getByText("endometrium 2, glandular cells")).toBeInTheDocument();
+    expect(screen.getAllByText("HPA 24.1").length).toBeGreaterThan(0);
   });
 });

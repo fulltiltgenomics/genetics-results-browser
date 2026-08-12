@@ -1,5 +1,11 @@
-import { useMemo } from "react";
-import { Box, CircularProgress, Typography } from "@mui/material";
+import { useMemo, useState } from "react";
+import {
+  Box,
+  CircularProgress,
+  ToggleButton,
+  ToggleButtonGroup,
+  Typography,
+} from "@mui/material";
 import { MaterialReactTable, MRT_Cell, MRT_ColumnDef, MRT_RowData } from "material-react-table";
 import {
   useGeneBurden,
@@ -12,6 +18,10 @@ import {
   GeneExpressionRow,
 } from "@/types/types.normalized";
 import { naInfSort } from "../table/utils/sorting";
+import { datasetDisplayName, formatTraitName, pValRepr } from "../table/utils/tableutil";
+import GeneExpressionPlot from "./GeneExpressionPlot";
+import { gtexTissueLabel } from "./gtexTissues";
+import { hpaLevelLabel, hpaLevelRank, hpaTissueLabel } from "./hpa";
 
 /**
  * Gene evidence tab (refactor.md §6). Surfaces gene-level evidence that is relevant to the gene but
@@ -28,6 +38,21 @@ const numCell =
     const v = cell.getValue<number | null>();
     return v == null || Number.isNaN(v) ? "" : v.toPrecision(precision);
   };
+
+// thousands-separated integer cell; blank for null
+const countCell = <T extends MRT_RowData>({ cell }: { cell: MRT_Cell<T, unknown> }) => {
+  const v = cell.getValue<number | null>();
+  return v == null ? "" : v.toLocaleString();
+};
+
+// shared by both expression tables, which carry the same dataset ids
+const datasetColumn: MRT_ColumnDef<GeneExpressionRow> = {
+  accessorKey: "dataset",
+  header: "dataset",
+  id: "dataset",
+  size: 120,
+  Cell: ({ cell }) => datasetDisplayName(cell.getValue<string>()),
+};
 
 /** small per-section wrapper handling loading / error / empty states consistently. */
 const Section = ({
@@ -74,20 +99,50 @@ const GeneEvidenceTab = ({ geneName }: { geneName: string }) => {
   const burden = useGeneBurden(geneName);
   const expression = useGeneExpression(geneName);
   const disease = useGeneDisease(geneName);
+  const [gtexView, setGtexView] = useState<"plot" | "table">("plot");
+
+  // the endpoint returns every expression resource in one response; they are split here because GTEx
+  // (numeric median TPM) and HPA (immunohistochemistry) are not comparable in one table or plot
+  const gtexRows = useMemo(
+    () => (expression.data ?? []).filter((r) => r.resource === "gtex"),
+    [expression.data]
+  );
+  const hpaRows = useMemo(
+    () => (expression.data ?? []).filter((r) => r.resource === "hpa"),
+    [expression.data]
+  );
+  const gtexVersion = gtexRows[0]?.version ?? "";
 
   const burdenColumns = useMemo<MRT_ColumnDef<GeneBurdenRow>[]>(
     () => [
-      { accessorKey: "trait", header: "trait", id: "trait", size: 200 },
-      { accessorKey: "dataset", header: "dataset", id: "dataset", size: 110 },
+      {
+        accessorKey: "trait",
+        header: "trait",
+        id: "trait",
+        size: 200,
+        Cell: ({ cell }) => formatTraitName(cell.getValue<string>() ?? ""),
+      },
+      {
+        accessorKey: "dataset",
+        header: "dataset",
+        id: "dataset",
+        size: 110,
+        Cell: ({ cell }) => datasetDisplayName(cell.getValue<string>() ?? ""),
+      },
       { accessorKey: "annotation", header: "annotation", id: "annotation", size: 140 },
       {
+        // sorted on mlog10p, not the rendered p-value: p underflows to 0 below ~1e-308 and every
+        // such row would compare equal
         accessorKey: "mlog10pBurden",
-        header: "-log10(p)",
+        header: "p-value",
         id: "mlog10pBurden",
         sortingFn: naInfSort,
         sortDescFirst: true,
         size: 100,
-        Cell: numCell(4),
+        Cell: ({ cell }) => {
+          const v = cell.getValue<number | null>();
+          return v == null || Number.isNaN(v) ? "" : pValRepr(v);
+        },
       },
       {
         accessorKey: "beta",
@@ -103,29 +158,65 @@ const GeneEvidenceTab = ({ geneName }: { geneName: string }) => {
         id: "nCases",
         sortingFn: naInfSort,
         size: 90,
-        Cell: ({ cell }) => {
-          const v = cell.getValue<number | null>();
-          return v == null ? "" : v.toLocaleString();
-        },
+        Cell: countCell,
+      },
+      {
+        accessorKey: "nControls",
+        header: "n controls",
+        id: "nControls",
+        sortingFn: naInfSort,
+        size: 100,
+        Cell: countCell,
       },
     ],
     []
   );
 
-  const expressionColumns = useMemo<MRT_ColumnDef<GeneExpressionRow>[]>(
+  // GTEx rows are numeric median TPM; HPA rows are categorical immunohistochemistry staining levels,
+  // so that table shows the level as served rather than the parsed number
+  const gtexColumns = useMemo<MRT_ColumnDef<GeneExpressionRow>[]>(
     () => [
-      { accessorKey: "tissueCell", header: "tissue / cell", id: "tissueCell", size: 240 },
+      {
+        accessorKey: "tissueCell",
+        header: "tissue / cell",
+        id: "tissueCell",
+        size: 260,
+        Cell: ({ cell }) => gtexTissueLabel(cell.getValue<string>()),
+      },
       {
         accessorKey: "level",
-        header: "level",
+        header: "median TPM",
         id: "level",
         sortingFn: naInfSort,
         sortDescFirst: true,
         size: 120,
         Cell: numCell(4),
       },
-      { accessorKey: "resource", header: "resource", id: "resource", size: 100 },
-      { accessorKey: "dataset", header: "dataset", id: "dataset", size: 120 },
+      datasetColumn,
+    ],
+    []
+  );
+
+  const hpaColumns = useMemo<MRT_ColumnDef<GeneExpressionRow>[]>(
+    () => [
+      {
+        accessorKey: "tissueCell",
+        header: "tissue / cell",
+        id: "tissueCell",
+        size: 260,
+        Cell: ({ cell }) => hpaTissueLabel(cell.getValue<string>()),
+      },
+      {
+        accessorKey: "levelRaw",
+        header: "level",
+        id: "levelRaw",
+        // staining categories, so ordered by intensity rather than alphabetically
+        sortingFn: (a, b) => hpaLevelRank(a.original.levelRaw) - hpaLevelRank(b.original.levelRaw),
+        sortDescFirst: true,
+        size: 120,
+        Cell: ({ cell }) => hpaLevelLabel(cell.getValue<string>()),
+      },
+      datasetColumn,
     ],
     []
   );
@@ -179,18 +270,56 @@ const GeneEvidenceTab = ({ geneName }: { geneName: string }) => {
       </Section>
 
       <Section
-        title="Expression"
+        title={`Expression (GTEx${gtexVersion ? ` ${gtexVersion}` : ""})`}
         isPending={expression.isPending}
         isError={expression.isError}
         error={expression.error}
-        isEmpty={(expression.data?.length ?? 0) === 0}
-        emptyText="no expression data for this gene">
+        isEmpty={gtexRows.length === 0}
+        emptyText="no GTEx expression data for this gene">
+        <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 1 }}>
+          <ToggleButtonGroup
+            size="small"
+            exclusive
+            value={gtexView}
+            onChange={(_e, value) => {
+              // exclusive group emits null when the active button is re-clicked; ignore that.
+              if (value) setGtexView(value);
+            }}
+            aria-label="GTEx expression view">
+            <ToggleButton value="plot" aria-label="plot">
+              plot
+            </ToggleButton>
+            <ToggleButton value="table" aria-label="table">
+              table
+            </ToggleButton>
+          </ToggleButtonGroup>
+        </Box>
+        {gtexView === "plot" ? (
+          <GeneExpressionPlot rows={gtexRows} />
+        ) : (
+          <MaterialReactTable
+            {...tableProps}
+            data={gtexRows}
+            columns={gtexColumns}
+            enablePagination={gtexRows.length > 20}
+            initialState={{ density: "compact", sorting: [{ id: "level", desc: true }] }}
+          />
+        )}
+      </Section>
+
+      <Section
+        title="Expression (Human Protein Atlas)"
+        isPending={expression.isPending}
+        isError={expression.isError}
+        error={expression.error}
+        isEmpty={hpaRows.length === 0}
+        emptyText="no HPA expression data for this gene">
         <MaterialReactTable
           {...tableProps}
-          data={expression.data ?? []}
-          columns={expressionColumns}
-          enablePagination={(expression.data?.length ?? 0) > 20}
-          initialState={{ density: "compact", sorting: [{ id: "level", desc: true }] }}
+          data={hpaRows}
+          columns={hpaColumns}
+          enablePagination={hpaRows.length > 20}
+          initialState={{ density: "compact", sorting: [{ id: "levelRaw", desc: true }] }}
         />
       </Section>
 
