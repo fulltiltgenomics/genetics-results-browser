@@ -45,6 +45,9 @@ const countCell = <T extends MRT_RowData>({ cell }: { cell: MRT_Cell<T, unknown>
   return v == null ? "" : v.toLocaleString();
 };
 
+// burden significance cut, as -log10(p): the threshold genebass is pre-filtered at upstream
+const BURDEN_MLOG10P_MIN = 4;
+
 // shared by both expression tables, which carry the same dataset ids
 const datasetColumn: MRT_ColumnDef<GeneExpressionRow> = {
   accessorKey: "dataset",
@@ -100,6 +103,14 @@ const GeneEvidenceTab = ({ geneName }: { geneName: string }) => {
   const expression = useGeneExpression(geneName);
   const disease = useGeneDisease(geneName);
   const [gtexView, setGtexView] = useState<"plot" | "table">("plot");
+
+  // genebass reaches the API already cut at mlog10p > 4 — its unfiltered export is 343M rows, so no
+  // gene-indexed copy of it exists — while SCHEMA, BipEx and IBD arrive complete. Applying the same
+  // cut to all of them makes one row mean the same thing whichever dataset it came from.
+  const burdenRows = useMemo(
+    () => (burden.data ?? []).filter((r) => (r.mlog10pBurden ?? -Infinity) > BURDEN_MLOG10P_MIN),
+    [burden.data]
+  );
 
   // the endpoint returns every expression resource in one response; they are split here because GTEx
   // (numeric median TPM) and HPA (immunohistochemistry) are not comparable in one table or plot
@@ -258,13 +269,16 @@ const GeneEvidenceTab = ({ geneName }: { geneName: string }) => {
         isPending={burden.isPending}
         isError={burden.isError}
         error={burden.error}
-        isEmpty={(burden.data?.length ?? 0) === 0}
-        emptyText="no burden results for this gene">
+        isEmpty={burdenRows.length === 0}
+        emptyText="no burden results with p < 1e-4 for this gene">
+        <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1 }}>
+          associations with p &lt; 1e-4
+        </Typography>
         <MaterialReactTable
           {...tableProps}
-          data={burden.data ?? []}
+          data={burdenRows}
           columns={burdenColumns}
-          enablePagination={(burden.data?.length ?? 0) > 20}
+          enablePagination={burdenRows.length > 20}
           initialState={{ density: "compact", sorting: [{ id: "mlog10pBurden", desc: true }] }}
         />
       </Section>

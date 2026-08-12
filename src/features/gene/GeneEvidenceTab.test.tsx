@@ -113,6 +113,25 @@ describe("GeneEvidenceTab (component)", () => {
     expect(screen.getAllByText(/hyperlipoproteinemia/i).length).toBeGreaterThan(0);
   });
 
+  it("lists only burden associations at p < 1e-4, whichever dataset they come from", async () => {
+    // genebass reaches the API already cut at this threshold; SCHEMA/BipEx/IBD arrive complete, and
+    // almost none of their rows clear it (22-62 rows genome-wide per dataset)
+    const tsv = [
+      "dataset\ttrait\tgene\tgene_id\tgene_chr\tgene_start_pos\tgene_end_pos\tannotation\tmlog10p_burden\tbeta\tse\ttotal_variants\ttotal_variants_pheno\tn_cases\tn_controls\ttrait_original\tflags",
+      "genebass\tApolipoprotein A\tAPOE\tENSG00000130203\t19\t44905791\t44909393\tmissense|LC\t6.28\t-0.0028\t0.0005\t223\t211\t343018\tNA\tcontinuous_30630\tNA",
+      "SCHEMA2\tschizophrenia\tAPOE\tENSG00000130203\t19\t44905791\t44909393\tPTV\t0.04\t0.363\t0.4\t223\t211\t87959\t150587\tschizophrenia\tNA",
+      "IBD_exome\tcrohns disease\tAPOE\tENSG00000130203\t19\t44905791\t44909393\tpLoF\t5.1\t0.127\t0.03\t223\t211\t512657\t478363\tcrohns_disease\tNA",
+    ].join("\n");
+    server.use(http.get("*/api/v1/gene_based/:gene", () => HttpResponse.text(tsv)));
+
+    render(<GeneEvidenceTab geneName="APOE" />, { wrapper: makeWrapper() });
+
+    // the significant genebass and IBD rows survive; the sub-threshold SCHEMA row does not
+    expect(await screen.findByRole("cell", { name: "Apolipoprotein A" })).toBeInTheDocument();
+    expect(screen.getByRole("cell", { name: "crohns disease" })).toBeInTheDocument();
+    expect(screen.queryByRole("cell", { name: "schizophrenia" })).not.toBeInTheDocument();
+  });
+
   it("shows GTEx as a plot by default and switches to the table on toggle", async () => {
     const user = userEvent.setup();
     render(<GeneEvidenceTab geneName="APOE" />, { wrapper: makeWrapper() });
