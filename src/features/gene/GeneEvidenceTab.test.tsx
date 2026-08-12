@@ -113,6 +113,29 @@ describe("GeneEvidenceTab (component)", () => {
     expect(screen.getAllByText(/hyperlipoproteinemia/i).length).toBeGreaterThan(0);
   });
 
+  it("reads a gene-disease 404 as no associations rather than a failure", async () => {
+    server.use(
+      http.get("*/api/v1/gene_disease/:gene", () =>
+        HttpResponse.json({ detail: "No disease associations found for gene OR51B4" }, { status: 404 })
+      )
+    );
+
+    render(<GeneEvidenceTab geneName="OR51B4" />, { wrapper: makeWrapper() });
+
+    expect(
+      await screen.findByText("no gene-disease associations for this gene")
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/failed to load/)).not.toBeInTheDocument();
+  });
+
+  it("surfaces a gene-disease server error", async () => {
+    server.use(http.get("*/api/v1/gene_disease/:gene", () => new HttpResponse(null, { status: 500 })));
+
+    render(<GeneEvidenceTab geneName="APOE" />, { wrapper: makeWrapper() });
+
+    expect(await screen.findByText(/failed to load/)).toBeInTheDocument();
+  });
+
   it("lists only burden associations at p < 1e-4, whichever dataset they come from", async () => {
     // genebass reaches the API already cut at this threshold; SCHEMA/BipEx/IBD arrive complete, and
     // almost none of their rows clear it (22-62 rows genome-wide per dataset)

@@ -22,6 +22,7 @@ import {
   groupCredibleSets,
 } from "./geneCS";
 import api from "./api";
+import { isAxiosError } from "axios";
 
 // the gene view's window padding around the gene body (legacy used the same value)
 const GENE_VIEW_PADDING = config.gene_view.gene_padding;
@@ -1306,17 +1307,28 @@ interface GeneDiseaseApiRow {
   submitter: string;
 }
 
-/** Mendelian gene-disease associations (gene_disease/{gene}, JSON). */
+/**
+ * Mendelian gene-disease associations (gene_disease/{gene}, JSON).
+ *
+ * The endpoint answers 404 ("No disease associations found for gene X") for a gene GenCC has nothing
+ * on, which is most genes — that is an empty result, not a failure, so it becomes []. Other statuses
+ * still reject so a real outage stays visible.
+ */
 export const useGeneDisease = (
   gene: string | undefined
 ): UseQueryResult<GeneDiseaseRow[], Error> => {
   return useQuery<GeneDiseaseRow[]>({
     queryKey: ["gene-disease", gene],
     queryFn: async () => {
-      const { data } = await api.get<GeneDiseaseApiRow[]>(
-        `/v1/gene_disease/${encodeURIComponent(gene!)}`,
-        { params: { format: "json" } }
-      );
+      const data = await api
+        .get<GeneDiseaseApiRow[]>(`/v1/gene_disease/${encodeURIComponent(gene!)}`, {
+          params: { format: "json" },
+        })
+        .then((res) => res.data)
+        .catch((err) => {
+          if (isAxiosError(err) && err.response?.status === 404) return [];
+          throw err;
+        });
       return data.map((row) => ({
         resource: row.resource,
         uuid: row.uuid,
