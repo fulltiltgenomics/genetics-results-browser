@@ -5,6 +5,7 @@ import {
   GeneCSApiRow,
   GeneInRegionApiRow,
   geneModelsFromRegion,
+  geneViewTraitCode,
   geneViewTraitName,
   groupCredibleSets,
   mapToDataName,
@@ -113,6 +114,47 @@ describe("groupCredibleSets (new JSON rows -> CSDatum[])", () => {
     expect(eqtl.csNumber).toBe(1);
     const ad = data.find((d) => d.csId === "chr19_45039089_T_A")!;
     expect(ad.csNumber).toBe(1);
+  });
+
+  // FinnGen_ATACseq / FinnGen_snRNAseq fine-map every cell type under one dataset id and reuse the
+  // cs_id across them, so the cell type has to be part of the grouping key
+  it("keeps a peak's cell types apart instead of unioning them into one credible set", () => {
+    const row = (cellType: string, pos: number, csSize: number): GeneCSApiRow => ({
+      resource: "finngen",
+      version: "R14",
+      dataset: "FinnGen_ATACseq",
+      data_type: "caQTL",
+      trait: "chr15-90351711-90352473",
+      trait_original: "chr15-90351711-90352473",
+      cell_type: cellType,
+      chr: 15,
+      pos,
+      ref: "A",
+      alt: "G",
+      mlog10p: 12,
+      beta: 0.2,
+      se: 0.05,
+      pip: 0.5,
+      cs_id: "chr15-90351711-90352473_2",
+      cs_size: csSize,
+      cs_min_r2: 0.9,
+      aaf: 0.2,
+      most_severe: "intron_variant",
+      gene_most_severe: "FURIN",
+    });
+    const grouped = groupCredibleSets([
+      row("l1.B", 100, 1),
+      row("l1.Mono", 200, 3),
+      row("l1.Mono", 300, 3),
+    ]);
+    expect(grouped.length).toBe(2);
+    const single = grouped.find((d) => d.cellType === "l1.B")!;
+    // the size-1 set stays size 1: it must not absorb the other cell type's variants
+    expect(single.csSize).toBe(1);
+    expect(single.variant).toEqual(["15:100:A:G"]);
+    const multi = grouped.find((d) => d.cellType === "l1.Mono")!;
+    expect(multi.csSize).toBe(3);
+    expect(multi.variant.length).toBe(2);
   });
 
   it("keeps only the ge quantification of eQTL Catalogue", () => {
@@ -363,6 +405,32 @@ describe("geneViewTraitName (credible-set row label)", () => {
         })
       )
     ).toBe("GEMIN7 snRNAseq");
+  });
+});
+
+describe("geneViewTraitCode (upstream id shown in the row tooltip)", () => {
+  it("gives the QTD sub-dataset for eQTL Catalogue and the GCST accession for Open Targets", () => {
+    expect(
+      geneViewTraitCode(
+        makeCS({ resource: "eQTL_Catalogue_R7", dataset: "QTD000381", trait: "NECTIN2" })
+      )
+    ).toBe("QTD000381");
+    expect(
+      geneViewTraitCode(
+        makeCS({
+          resource: "Open_Targets",
+          dataset: "Open_Targets_26.06",
+          dataType: "GWAS",
+          trait: "Coronary artery disease",
+          traitOriginal: "GCST90092977",
+        })
+      )
+    ).toBe("GCST90092977");
+  });
+
+  it("has nothing to add for resources whose name already identifies the trait", () => {
+    expect(geneViewTraitCode(makeCS({ resource: "FinnGen", dataType: "GWAS" }))).toBeUndefined();
+    expect(geneViewTraitCode(makeCS({ resource: "UKBB_pQTL" }))).toBeUndefined();
   });
 });
 

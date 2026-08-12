@@ -21,11 +21,18 @@ const VariantCSInfoBox = ({
       position="fixed"
       bottom={0}
       p={1}
-      bgcolor={traitStatus ? "rgba(0, 0, 0, 0.3)" : "transparent"}
       margin="auto"
       left={0}
       right={0}
-      style={{ zIndex: -1000 }}>
+      style={{ zIndex: -1000 }}
+      sx={{
+        // a faint tint rather than the old 30% black wash, which muddied the red/orange consequence
+        // text; tinted per theme so the band stays visible on a dark page too
+        backgroundColor: traitStatus
+          ? (theme) =>
+              theme.palette.mode === "dark" ? "rgba(255, 255, 255, 0.10)" : "rgba(0, 0, 0, 0.06)"
+          : "transparent",
+      }}>
       <Box display="flex" flexDirection="row" gap={4}>
         <Box display="flex" flexDirection="column">
           {traitStatus ? (

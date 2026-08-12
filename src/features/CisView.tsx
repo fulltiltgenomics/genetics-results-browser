@@ -19,6 +19,7 @@ import {
 import {
   buildAffectedGeneList,
   buildAffectingGeneList,
+  geneViewTraitCode,
   geneViewTraitName,
   needsTraitNameMapping,
 } from "@/store/geneCS";
@@ -301,6 +302,7 @@ const CisView = ({ geneName }: { geneName: string }) => {
       let color = "white";
       let resourceShortName = "TBA";
       const traitName = geneViewTraitName(d, traitNames);
+      const traitCode = geneViewTraitCode(d);
       const highlighted = highlightCSs === undefined || highlightCSs.has(d.traitCSId);
       const resource = config.gene_view.resources.find(
         (resource) => d.resource === resource.dataName
@@ -405,6 +407,8 @@ const CisView = ({ geneName }: { geneName: string }) => {
                 <>
                   {/* the row label is clipped at titleWidth, so the tooltip carries the full name */}
                   <Typography style={{ fontWeight: "bold" }}>{traitName}</Typography>
+                  {traitCode !== undefined && <Typography>{traitCode}</Typography>}
+                  <Typography>Credible set size: {d.csSize}</Typography>
                   <Box mb={2} />
                   <Typography style={{ fontWeight: "bold" }}>Top PIP variant</Typography>
                   <Box mb={2} />
@@ -483,7 +487,6 @@ const CisView = ({ geneName }: { geneName: string }) => {
     <>
       <Box display="flex" flexDirection="column">
         <Typography>
-          eQTL Catalogue credible sets are shown for gene-level expression (ge) quantification only.
           Hold <code>Ctrl</code> and scroll on the credible set area to zoom.
         </Typography>
         <Box
@@ -532,6 +535,10 @@ const CisView = ({ geneName }: { geneName: string }) => {
             <Typography>
               eQTL and pQTL variants that affect the input gene are shown. There can be other QTL
               variants affecting other genes in the region but they are not shown.
+            </Typography>
+            <Typography>
+              eQTL Catalogue credible sets are shown for gene-level expression (ge) quantification
+              only.
             </Typography>
             <Typography>Shown allele frequencies are gnomAD global allele frequencies.</Typography>
             <Box mb={2} />

@@ -45,6 +45,7 @@ export interface GeneCSApiRow {
 // config.gene_view.resources dataName for eQTL Catalogue; its rows are labelled by tissue rather
 // than by dataset, so the naming path needs to recognise them (see geneViewTraitName)
 const EQTL_CATALOGUE_DATA_NAME = "eQTL_Catalogue_R7";
+const OPEN_TARGETS_DATA_NAME = "Open_Targets";
 
 export const mapToDataName = (
   resource: string,
@@ -84,7 +85,7 @@ export const mapToDataName = (
     case "eqtl_catalogue":
       return EQTL_CATALOGUE_DATA_NAME;
     case "open_targets":
-      return "Open_Targets";
+      return OPEN_TARGETS_DATA_NAME;
     case "finngen":
       if (dataType === "eQTL") return "FinnGen_eQTL";
       if (dataType === "pQTL") return "FinnGen_pQTL";
@@ -153,7 +154,12 @@ export const groupCredibleSets = (rows: GeneCSApiRow[]): CSDatum[] => {
     const chr = String(row.chr);
     const variant = `${chr}:${row.pos}:${row.ref}:${row.alt}`;
     const trait = row.trait;
-    const traitId = `${dataName}|${row.dataset}|${trait}`;
+    // the cell type belongs in the key: FinnGen's single-cell datasets (FinnGen_ATACseq,
+    // FinnGen_snRNAseq) fine-map every cell type under one dataset id and reuse the cs_id across
+    // them, so keying on dataset+trait+cs_id alone collapsed a peak's cell types into a single row
+    // whose variants were the union of all of them, but whose cs_size was whichever row arrived
+    // first — a 94-variant row could report (and be filtered as) a credible set of 4.
+    const traitId = `${dataName}|${row.dataset}|${row.cell_type ?? ""}|${trait}`;
     const traitCSId = `${traitId}=${row.cs_id}`;
 
     // the API can emit the same variant twice within a CS (e.g. multi-annotation rows); keep first
@@ -249,6 +255,21 @@ const formatCellType = (cellType: string | null | undefined): string => {
   const [tissue, condition] = cellType.split("|");
   const suffix = condition && condition !== "naive" ? `, ${condition.replace(/_/g, " ")}` : "";
   return `${tissue.replace(/_/g, " ")}${suffix}`;
+};
+
+/**
+ * the upstream identifier worth showing beside a trait name, or undefined when the name says it all.
+ * an eQTL Catalogue row is one QTD sub-dataset, and that id is what you look the study up by; an
+ * Open Targets trait is a GCST study accession that the resolved display name hides.
+ */
+export const geneViewTraitCode = (d: CSDatum): string | undefined => {
+  if (d.resource === EQTL_CATALOGUE_DATA_NAME) {
+    return d.dataset;
+  }
+  if (d.resource === OPEN_TARGETS_DATA_NAME) {
+    return d.traitOriginal;
+  }
+  return undefined;
 };
 
 /**

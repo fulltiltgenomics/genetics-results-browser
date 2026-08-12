@@ -73,7 +73,7 @@
       },
       {
         "dataName": "Open_Targets",
-        "label": "Open Targets",
+        "label": "OT",
         "resource": "Open Targets",
         "dataType": "GWAS",
         "color": "#bcbd22"
