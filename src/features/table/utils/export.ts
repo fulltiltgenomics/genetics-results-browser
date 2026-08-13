@@ -31,7 +31,7 @@ import { classifyCisTrans } from "../../../store/munge.normalized";
  */
 
 // "NA" is the legacy sentinel for an absent value in these TSVs (kept so downstream parsers match).
-const NA = "NA";
+export const NA = "NA";
 type Cell = string | number;
 export type ExportRow = Record<string, Cell>;
 
@@ -65,7 +65,7 @@ const tsvConfig = (filename: string) =>
 
 // generateCsv throws on an empty array (it can't infer headers); callers disable their buttons when
 // there is nothing to export, but guard here too so a stray click is a no-op rather than a crash.
-const writeTsv = (rows: ExportRow[], filename: string): void => {
+export const writeTsv = (rows: ExportRow[], filename: string): void => {
   if (rows.length === 0) return;
   const cfg = tsvConfig(filename);
   download(cfg)(generateCsv(cfg)(rows));

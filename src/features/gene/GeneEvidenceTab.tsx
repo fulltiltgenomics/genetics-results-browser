@@ -6,7 +6,13 @@ import {
   ToggleButtonGroup,
   Typography,
 } from "@mui/material";
-import { MaterialReactTable, MRT_Cell, MRT_ColumnDef, MRT_RowData } from "material-react-table";
+import {
+  MaterialReactTable,
+  MRT_Cell,
+  MRT_ColumnDef,
+  MRT_RowData,
+  MRT_TableInstance,
+} from "material-react-table";
 import {
   useGeneBurden,
   useGeneDisease,
@@ -22,6 +28,8 @@ import { datasetDisplayName, formatTraitName, pValRepr } from "../table/utils/ta
 import GeneExpressionPlot from "./GeneExpressionPlot";
 import { gtexTissueLabel } from "./gtexTissues";
 import { hpaLevelLabel, hpaLevelRank, hpaTissueLabel } from "./hpa";
+import { DownloadButton, toolbarSx } from "../table/ExportToolbar";
+import { exportGeneBurden, exportGtexExpression, exportHpaExpression } from "./geneEvidenceExport";
 
 /**
  * Gene evidence tab (refactor.md §6). Surfaces gene-level evidence that is relevant to the gene but
@@ -44,6 +52,11 @@ const countCell = <T extends MRT_RowData>({ cell }: { cell: MRT_Cell<T, unknown>
   const v = cell.getValue<number | null>();
   return v == null ? "" : v.toLocaleString();
 };
+
+// rows in the order the table shows them, before pagination, so a download is the whole sorted table
+// rather than the visible page
+const sortedRows = <T extends MRT_RowData>(table: MRT_TableInstance<T>): T[] =>
+  table.getPrePaginationRowModel().rows.map((r) => r.original);
 
 // burden significance cut, as -log10(p): the threshold genebass is pre-filtered at upstream
 const BURDEN_MLOG10P_MIN = 4;
@@ -280,6 +293,15 @@ const GeneEvidenceTab = ({ geneName }: { geneName: string }) => {
           columns={burdenColumns}
           enablePagination={burdenRows.length > 20}
           initialState={{ density: "compact", sorting: [{ id: "mlog10pBurden", desc: true }] }}
+          renderTopToolbarCustomActions={({ table }) => (
+            <Box sx={toolbarSx}>
+              <DownloadButton
+                label="DOWNLOAD GENE BURDEN"
+                disabled={burdenRows.length === 0}
+                onClick={() => exportGeneBurden(geneName, sortedRows(table))}
+              />
+            </Box>
+          )}
         />
       </Section>
 
@@ -307,6 +329,13 @@ const GeneEvidenceTab = ({ geneName }: { geneName: string }) => {
               table
             </ToggleButton>
           </ToggleButtonGroup>
+          {/* beside the view toggle rather than in the table toolbar, so the download is there in
+              plot view too */}
+          <DownloadButton
+            label="DOWNLOAD GTEX EXPRESSION"
+            disabled={gtexRows.length === 0}
+            onClick={() => exportGtexExpression(geneName, gtexRows)}
+          />
         </Box>
         {gtexView === "plot" ? (
           <GeneExpressionPlot rows={gtexRows} />
@@ -334,6 +363,15 @@ const GeneEvidenceTab = ({ geneName }: { geneName: string }) => {
           columns={hpaColumns}
           enablePagination={hpaRows.length > 20}
           initialState={{ density: "compact", sorting: [{ id: "levelRaw", desc: true }] }}
+          renderTopToolbarCustomActions={({ table }) => (
+            <Box sx={toolbarSx}>
+              <DownloadButton
+                label="DOWNLOAD HPA EXPRESSION"
+                disabled={hpaRows.length === 0}
+                onClick={() => exportHpaExpression(geneName, sortedRows(table))}
+              />
+            </Box>
+          )}
         />
       </Section>
 

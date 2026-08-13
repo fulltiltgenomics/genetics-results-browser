@@ -38,7 +38,7 @@ const latestGnomadByVariant = (): Map<string, GnomadFreq | undefined> =>
  * download respects the active column filters/sort; others pass their already-derived data directly.
  */
 
-const toolbarSx = {
+export const toolbarSx = {
   display: "flex",
   gap: "0.75rem",
   p: "0.5rem",
@@ -51,7 +51,7 @@ const toolbarSx = {
 const visibleRows = <T extends MRT_RowData>(table: MRT_TableInstance<T>): T[] =>
   table.getPrePaginationRowModel().rows.map((r) => r.original);
 
-const DownloadButton = ({
+export const DownloadButton = ({
   label,
   disabled,
   onClick,
