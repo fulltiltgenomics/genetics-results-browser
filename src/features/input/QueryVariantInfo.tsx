@@ -60,7 +60,29 @@ const QueryVariantInfo = () => {
         : inCredibleSet;
 
   let foundElem = <></>;
-  if (input.found.length > 0) {
+  if (input.expandedFromGene) {
+    // a gene query: the variant list is derived, not pasted, so name the gene rather than reporting
+    // a "found" count for variants the user never typed. an empty list is a real answer about a real
+    // gene (a lncRNA/miRNA has no coding variants), not a parse failure.
+    // the AF cutoff comes from the response, not a local copy, so it cannot drift from the BFF rule
+    const afNote =
+      input.expandedGeneMinAf !== undefined
+        ? ` (gnomAD AF > ${input.expandedGeneMinAf.toExponential()})`
+        : "";
+    foundElem =
+      input.found.length > 0 ? (
+        <Typography variant="h6" gutterBottom>
+          {input.found.length} coding variant{input.found.length === 1 ? "" : "s"} in{" "}
+          {input.expandedFromGene}
+          {afNote}, {inCredibleSetPhrase} in at least one credible set with the current filters
+        </Typography>
+      ) : (
+        <Typography variant="h6" gutterBottom>
+          No coding variants found in {input.expandedFromGene}
+          {afNote}
+        </Typography>
+      );
+  } else if (input.found.length > 0) {
     foundElem =
       input.found.length > 1 ? (
         <Typography variant="h6" gutterBottom>

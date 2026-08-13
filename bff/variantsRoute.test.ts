@@ -220,6 +220,129 @@ describe("POST /v1/results — variant list normalize", () => {
     expect(res.body.variants[0].value).toBe("sev");
   });
 
+  // a bare gene symbol expands to that gene's coding variants, which BECOME the input variant list
+  // (restores the pre-refactor server.py gene_results behavior). the gnomad annotation fixture is
+  // exactly the shape this needs: APOE rs429358 as separate exome+genome records, plus a TP53 row
+  // three orders of magnitude below the AF floor.
+  describe("bare gene symbol -> coding variants", () => {
+    it("expands the gene into its coding variants and reports the gene it came from", async () => {
+      const fetchMock = routeFetch();
+      vi.stubGlobal("fetch", fetchMock);
+
+      const res = await request(app).post("/api/v1/results").send({ query: "APOE" });
+
+      expect(res.status).toBe(200);
+      expect(res.body.inputVariants.expandedFromGene).toBe("APOE");
+      // the cutoff travels with the response so the UI states the rule rather than a local copy
+      expect(res.body.inputVariants.expandedGeneMinAf).toBe(1e-4);
+      // one variant, not two: the exome and genome records are the same variant
+      expect(res.body.inputVariants.found).toEqual(["19:44908684:T:C"]);
+      expect(res.body.inputVariants.unparsed).toEqual([]);
+      // the expanded variants are what the fan-out actually queries
+      const csCall = fetchMock.mock.calls.find((c) =>
+        String(c[0]).includes("/v1/credible_sets_by_variant")
+      );
+      const csBody = (csCall?.[1] as RequestInit | undefined)?.body as string;
+      expect(JSON.parse(csBody)).toEqual({ variants: "19:44908684:T:C" });
+      // the gene is what scopes the lookup, not a region
+      const annoCall = fetchMock.mock.calls.find((c) =>
+        String(c[0]).includes("/v1/variant_annotation/gnomad")
+      );
+      expect(String(annoCall?.[0])).toContain("gene=APOE");
+    });
+
+    // regression: the expansion picks variants from gnomAD, but the fan-out annotates from the
+    // FinnGen file, which has no row for a variant FinnGen never genotyped (43 of PCSK9's 50 coding
+    // variants). Those rendered with a blank consequence despite gnomAD explicitly calling them
+    // coding, so the gnomAD annotation the expansion already read is carried through as a fallback.
+    it("annotates a gene-expanded variant the FinnGen file does not cover", async () => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async (url: string | URL) => {
+          const u = String(url);
+          // FinnGen knows nothing about this variant
+          if (u.includes("/v1/variant_annotation/finngen")) return tsv([]);
+          if (u.includes("/v1/variant_annotation/gnomad")) return tsv(annoGnomad);
+          if (u.includes("/v1/credible_sets_by_variant")) return tsv(csBatch);
+          if (u.includes("/v1/nearest_genes")) return tsv(nearestGenes);
+          if (u.includes("/v1/datasets")) return json(datasets);
+          return json({}, 404);
+        })
+      );
+
+      const res = await request(app).post("/api/v1/results").send({ query: "APOE" });
+
+      const v = res.body.variants.find((x: { variant: string }) => x.variant === "19:44908684:T:C");
+      expect(v.annotation.consequence).toBe("missense variant");
+      expect(v.annotation.gene).toBe("APOE");
+      expect(v.annotation.rsid).toBe("rs429358");
+      expect(v.annotation.isCoding).toBe(true);
+      // frequency stays FinnGen-only: gnomAD's AF is a different quantity and arrives via /v1/gnomad
+      expect(v.annotation.af).toBeNull();
+    });
+
+    it("matches the gene case-insensitively", async () => {
+      vi.stubGlobal("fetch", routeFetch());
+
+      const res = await request(app).post("/api/v1/results").send({ query: "apoe" });
+
+      expect(res.body.inputVariants.found).toEqual(["19:44908684:T:C"]);
+      expect(res.body.inputVariants.expandedFromGene).toBe("apoe");
+    });
+
+    it("drops coding variants below the AF floor but still reports the gene as resolved", async () => {
+      vi.stubGlobal("fetch", routeFetch());
+
+      // the fixture's only TP53 row is AF 6.8e-07, far under the 1e-4 floor -> nothing qualifies.
+      // the gene still RESOLVED upstream, so this must not look like an unparseable token.
+      const res = await request(app).post("/api/v1/results").send({ query: "TP53" });
+
+      expect(res.status).toBe(200);
+      expect(res.body.inputVariants.expandedFromGene).toBe("TP53");
+      expect(res.body.inputVariants.found).toEqual([]);
+      expect(res.body.inputVariants.unparsed).toEqual([]);
+    });
+
+    it("leaves an unknown gene as unparsed rather than failing the query", async () => {
+      // route gnomad annotation to a 404, as the API does for an unknown gene
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async (url: string | URL) => {
+          const u = String(url);
+          if (u.includes("/v1/variant_annotation/gnomad")) return json({ detail: "no" }, 404);
+          if (u.includes("/v1/credible_sets_by_variant")) return tsv([]);
+          if (u.includes("/v1/variant_annotation/finngen")) return tsv([]);
+          if (u.includes("/v1/nearest_genes")) return tsv([]);
+          if (u.includes("/v1/datasets")) return json(datasets);
+          return json({}, 404);
+        })
+      );
+
+      const res = await request(app).post("/api/v1/results").send({ query: "NOTAGENE" });
+
+      expect(res.status).toBe(200);
+      expect(res.body.inputVariants.unparsed).toEqual(["NOTAGENE"]);
+      expect(res.body.inputVariants.expandedFromGene).toBeUndefined();
+    });
+
+    it("never runs the gene lookup for a variant id, an rsid, or a multi-line list", async () => {
+      for (const query of ["19-44908684-T-C", "rs429358", "19-44908684-T-C\n19-44908822-C-T"]) {
+        const fetchMock = routeFetch({
+          rsid: () => json([{ rsid: "rs429358", variants: ["19-44908684-T-C"] }]),
+        });
+        vi.stubGlobal("fetch", fetchMock);
+        clearResultsCache();
+
+        await request(app).post("/api/v1/results").send({ query });
+
+        const geneLookup = fetchMock.mock.calls.some((c) =>
+          String(c[0]).includes("/v1/variant_annotation/gnomad")
+        );
+        expect(geneLookup, `gene lookup fired for ${JSON.stringify(query)}`).toBe(false);
+      }
+    });
+  });
+
   it("returns 502 when an upstream fan-out call fails", async () => {
     vi.stubGlobal(
       "fetch",
