@@ -78,10 +78,6 @@ export const mapToDataName = (
     return "FinnGen_UKBB";
   }
   switch (resource) {
-    case "ukbb":
-      return dataType === "GWAS" ? "UKBB_119" : undefined;
-    case "bbj":
-      return "BBJ_79";
     case "eqtl_catalogue":
       return EQTL_CATALOGUE_DATA_NAME;
     case "open_targets":
