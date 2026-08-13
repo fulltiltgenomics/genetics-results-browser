@@ -435,15 +435,36 @@ describe("geneViewTraitName (credible-set row label)", () => {
     expect(geneViewTraitName(cs("l2.CD14_Mono"))).toBe("GEMIN7 l2.CD14 Mono");
     expect(geneViewTraitName(cs(null))).toBe("GEMIN7 snRNAseq");
   });
+
+  // every cell type a peak was fine-mapped in reuses the peak id, so the rows are identical without it
+  it("labels caQTL rows with their cell type alongside the peak id", () => {
+    const cs = (cellType: string | null) =>
+      makeCS({
+        dataType: "caQTL",
+        resource: "FinnGen_caQTL",
+        dataset: "FinnGen_ATACseq",
+        trait: "chr15-90854305-90854804",
+        cellType,
+      });
+    expect(geneViewTraitName(cs("l1.NK"))).toBe("chr15-90854305-90854804 l1.NK");
+    // the peak id is never the viewed gene's symbol, so it survives the redundant-gene rule
+    expect(geneViewTraitName(cs("l2.cDC2"), undefined, "FES")).toBe(
+      "chr15-90854305-90854804 l2.cDC2"
+    );
+    expect(geneViewTraitName(cs(null))).toBe("chr15-90854305-90854804");
+  });
 });
 
 describe("geneViewTraitCode (upstream id shown in the row tooltip)", () => {
   it("gives the QTD sub-dataset for eQTL Catalogue and the GCST accession for Open Targets", () => {
-    expect(
-      geneViewTraitCode(
-        makeCS({ resource: "eQTL_Catalogue_R7", dataset: "QTD000381", trait: "NECTIN2" })
-      )
-    ).toBe("QTD000381");
+    const eqtlCat = makeCS({
+      resource: "eQTL_Catalogue_R7",
+      dataset: "QTD000381",
+      trait: "NECTIN2",
+    });
+    expect(geneViewTraitCode(eqtlCat)).toBe("QTD000381");
+    // the study names the dataset; the id is what you look it up by, so the tooltip carries both
+    expect(geneViewTraitCode(eqtlCat, "GTEx")).toBe("GTEx (QTD000381)");
     expect(
       geneViewTraitCode(
         makeCS({

@@ -313,7 +313,7 @@ const CisView = ({ geneName }: { geneName: string }) => {
       let color = "white";
       let resourceShortName = "TBA";
       const traitName = geneViewTraitName(d, traitNames, geneName);
-      const traitCode = geneViewTraitCode(d);
+      const traitCode = geneViewTraitCode(d, eqtlCatalogueMeta?.[d.dataset]?.study);
       const highlighted = highlightCSs === undefined || highlightCSs.has(d.traitCSId);
       const resource = config.gene_view.resources.find(
         (resource) => d.resource === resource.dataName

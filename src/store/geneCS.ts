@@ -259,12 +259,13 @@ const formatCellType = (cellType: string | null | undefined): string => {
 
 /**
  * the upstream identifier worth showing beside a trait name, or undefined when the name says it all.
- * an eQTL Catalogue row is one QTD sub-dataset, and that id is what you look the study up by; an
- * Open Targets trait is a GCST study accession that the resolved display name hides.
+ * an eQTL Catalogue row is one QTD sub-dataset — the id is what you look the dataset up by, and the
+ * `study` it belongs to (from resource_metadata, when the caller has it) is what names it in prose;
+ * an Open Targets trait is a GCST study accession that the resolved display name hides.
  */
-export const geneViewTraitCode = (d: CSDatum): string | undefined => {
+export const geneViewTraitCode = (d: CSDatum, study?: string | null): string | undefined => {
   if (d.resource === EQTL_CATALOGUE_DATA_NAME) {
-    return d.dataset;
+    return study ? `${study} (${d.dataset})` : d.dataset;
   }
   if (d.resource === OPEN_TARGETS_DATA_NAME) {
     return d.traitOriginal;
@@ -306,6 +307,10 @@ export const geneViewTraitName = (
     // without one fall back to the assay FinnGen carries inline in the dataset id (FinnGen_snRNAseq)
     context =
       formatCellType(d.cellType) || d.dataset.replace(/^FinnGen_/, "").replace(/_/g, " ");
+  } else if (d.dataType === "caQTL") {
+    // same single-cell split as the eQTLs above, but the trait here is an ATAC peak id: every cell
+    // type a peak was fine-mapped in reuses it, so without the cell type the rows are identical
+    context = formatCellType(d.cellType);
   }
 
   // a QTL row's trait is the molecular trait's gene symbol. CisView admits eQTL/pQTL rows only for
