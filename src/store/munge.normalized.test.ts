@@ -267,19 +267,34 @@ describe("filterCredibleSets data-type toggle", () => {
 // ---------------------------------------------------------------------------
 
 describe("filterCredibleSets quant-level option", () => {
-  it("by default shows ge and non-leveled (null) but drops exon/tx/txrev/leafcutter", () => {
+  it("by default drops exon/tx/txrev but keeps ge, non-leveled (null) and the splicing levels", () => {
     const v = makeVariant({
       credibleSets: [
         makeCS({ trait: "GE", dataType: "eQTL", quantLevel: "ge" }),
         makeCS({ trait: "EXON", dataType: "eQTL", quantLevel: "exon" }),
         makeCS({ trait: "TX", dataType: "eQTL", quantLevel: "tx" }),
+        makeCS({ trait: "TXREV", dataType: "eQTL", quantLevel: "txrev" }),
         makeCS({ trait: "GWAS", dataType: "GWAS", quantLevel: null }),
         makeCS({ trait: "CAQTL", dataType: "caQTL", quantLevel: null }),
       ],
     });
     const out = filterCredibleSets([v], { ...allOn, includeAllQuantLevels: false });
-    // exon/tx dropped; ge + all null-level rows pass the quant gate
+    // exon/tx/txrev dropped; ge + all null-level rows pass the quant gate
     expect(traits(out).sort()).toEqual(["CAQTL", "GE", "GWAS"]);
+  });
+
+  // regression: leafcutter/majiq are the ONLY levels sQTL is reported in, so gating them hid the
+  // whole sQTL layer even with the sQTL data-type toggle on (empty table, non-zero CS count).
+  it("keeps leafcutter/majiq sQTL rows with the default gene-level-only option", () => {
+    const v = makeVariant({
+      credibleSets: [
+        makeCS({ trait: "LC", dataType: "sQTL", quantLevel: "leafcutter" }),
+        makeCS({ trait: "MJ", dataType: "sQTL", quantLevel: "majiq" }),
+        makeCS({ trait: "EXON", dataType: "eQTL", quantLevel: "exon" }),
+      ],
+    });
+    const out = filterCredibleSets([v], { ...allOn, includeAllQuantLevels: false });
+    expect(traits(out).sort()).toEqual(["LC", "MJ"]);
   });
 
   it("includeAllQuantLevels keeps every level", () => {

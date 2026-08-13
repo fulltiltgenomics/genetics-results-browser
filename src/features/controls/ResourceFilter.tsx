@@ -2,7 +2,7 @@ import { Box, Divider, FormControlLabel, FormGroup, FormLabel, Switch, Tooltip }
 import { useEffect, useMemo, ReactElement } from "react";
 import { useDataStore } from "../../store/store";
 import { CredibleSetDataType, NormalizedResponse } from "../../types/types.normalized";
-import { HIDDEN_RESOURCES } from "../../store/munge.normalized";
+import { HIDDEN_RESOURCES, NON_GENE_QUANT_LEVELS } from "../../store/munge.normalized";
 import { DataTypeIcon } from "../table/DataTypeIcon";
 import { PSEUDO_CS_TOOLTIP } from "../table/utils/tableutil";
 
@@ -163,11 +163,13 @@ const ResourceFilter = (props: { isNotReadyYet: boolean }) => {
     return () => window.removeEventListener("keydown", handler);
   }, [availableDataTypes, toggleCredibleSetDataType, props.isNotReadyYet]);
 
-  // only offer the quant-level toggle when the data actually carries eQTL Catalogue rows with a
-  // parsed level (quantLevel !== null) — otherwise the option would be a no-op and just clutter.
+  // only offer the quant-level toggle when the data carries rows the toggle actually gates — the
+  // alternative expression levels. leafcutter/majiq rows are never gated, so they don't count here.
   const hasLeveledData: boolean = useMemo(() => {
     for (const v of normalizedData?.variants ?? []) {
-      for (const cs of v.credibleSets) if (cs.quantLevel !== null) return true;
+      for (const cs of v.credibleSets) {
+        if (cs.quantLevel !== null && NON_GENE_QUANT_LEVELS.has(cs.quantLevel)) return true;
+      }
     }
     return false;
   }, [normalizedData]);
@@ -296,8 +298,9 @@ const ResourceFilter = (props: { isNotReadyYet: boolean }) => {
                     onChange={() => setIncludeAllQuantLevels(!includeAllQuantLevels)}
                   />
                 }
-                // default off = gene-level (ge) only; on adds exon/tx/txrev/leafcutter/majiq (refactor.md §4)
-                label="Show all eQTL Catalogue quantification levels (exon/tx/txrev/leafcutter/majiq)"
+                // default off = gene-level (ge) only; on adds exon/tx/txrev. the splicing levels
+                // (leafcutter/majiq) are not gated at all — they're the sQTL layer, see munge.normalized.
+                label="Show all eQTL Catalogue expression quantification levels (exon/tx/txrev)"
               />
             </FormGroup>
           </Box>

@@ -23,7 +23,7 @@ test("eQTL quant-level toggle reveals non-ge levels with a level chip", async ({
 
   // the quant-level toggle is only mounted when leveled eQTL Catalogue data is present.
   const toggle = page.getByRole("checkbox", {
-    name: /Show all eQTL Catalogue quantification levels/i,
+    name: /Show all eQTL Catalogue .*quantification levels/i,
   });
   await expect(toggle).toBeVisible();
   await expect(toggle).not.toBeChecked();
@@ -40,9 +40,11 @@ test("eQTL quant-level toggle reveals non-ge levels with a level chip", async ({
   await traitFilter.fill("CLASRP");
   await page.waitForTimeout(400);
 
-  // a level chip carries exactly one of the non-gene level tokens as its text.
+  // a level chip carries exactly one of the GATED level tokens as its text. leafcutter/majiq are
+  // deliberately excluded: they are the sQTL layer and are never gated, so their chips can be
+  // on-screen by default and would not isolate the toggle under test.
   const levelChips = page.locator(".MuiChip-root").filter({
-    hasText: /^(exon|tx|txrev|leafcutter)$/,
+    hasText: /^(exon|tx|txrev)$/,
   });
 
   // default ge-only: this variant's only CLASRP eQTL row is exon-level, so it is hidden — no CLASRP
