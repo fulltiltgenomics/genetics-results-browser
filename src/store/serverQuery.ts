@@ -910,6 +910,9 @@ export interface PhenotypeMetadata {
   nControls: number | null;
   nSamples: number | null;
   traitType: string | null;
+  // the row's `author`. for eQTL Catalogue, keyed by QTD id, this is the study a sub-dataset belongs
+  // to ("GTEx", "GENCORD", "Alasoo_2018") — the name worth showing in place of the resource label.
+  study: string | null;
 }
 
 // raw resource_metadata row (snake_case TSV-derived JSON; numeric fields can be the string "NA").
@@ -920,6 +923,7 @@ interface ResourceMetadataApiRow {
   n_cases: number | string;
   n_controls: number | string;
   trait_type: string;
+  author?: string;
 }
 
 const metaNum = (v: number | string | undefined): number | null => {
@@ -955,6 +959,7 @@ export const useResourceMetadata = (
             nControls: metaNum(row.n_controls),
             nSamples: metaNum(row.n_samples),
             traitType: row.trait_type ?? null,
+            study: row.author && row.author !== "NA" ? row.author : null,
           };
         }
         return out;

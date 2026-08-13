@@ -44,7 +44,7 @@ export interface GeneCSApiRow {
  */
 // config.gene_view.resources dataName for eQTL Catalogue; its rows are labelled by tissue rather
 // than by dataset, so the naming path needs to recognise them (see geneViewTraitName)
-const EQTL_CATALOGUE_DATA_NAME = "eQTL_Catalogue_R7";
+export const EQTL_CATALOGUE_DATA_NAME = "eQTL_Catalogue_R7";
 const OPEN_TARGETS_DATA_NAME = "Open_Targets";
 
 export const mapToDataName = (
@@ -278,35 +278,47 @@ export const geneViewTraitCode = (d: CSDatum): string | undefined => {
  * /v1/trait_name_mapping dictionary) fills in the phenocodes the API left unresolved. QTL rows get
  * their tissue or assay/platform appended so several rows of the same gene stay distinguishable.
  */
-export const geneViewTraitName = (d: CSDatum, traitNames?: Record<string, string>): string => {
+export const geneViewTraitName = (
+  d: CSDatum,
+  traitNames?: Record<string, string>,
+  viewedGene?: string
+): string => {
   const resolved = hasUnresolvedTraitName(d) ? traitNames?.[d.traitOriginal!] : undefined;
   // only the API's name is underscore-encoded; dictionary values are already spaced
-  let name = resolved ?? d.trait.replace(/_/g, " ");
+  const name = resolved ?? d.trait.replace(/_/g, " ");
+
+  let context = "";
   if (d.resource === EQTL_CATALOGUE_DATA_NAME) {
     // every eQTL Catalogue dataset is one tissue/condition of one study, and the QTD dataset id says
-    // nothing; the tissue is what tells the many same-gene rows apart (the study is not shown here —
-    // the anno tables have the room for it, this column does not)
-    const tissue = formatCellType(d.cellType);
-    if (tissue) {
-      name += ` ${tissue}`;
-    }
+    // nothing; the tissue is what tells the many same-gene rows apart (the study is shown separately,
+    // in place of the resource label)
+    context = formatCellType(d.cellType);
   } else if (d.dataType === "pQTL") {
     // FinnGen carries its platform inline in the dataset id (FinnGen_Olink, FinnGen_Olink_5K);
     // UKB-PPP is the Olink 3K panel. kept consistent with the anno tables' datasetDisplayName.
-    name +=
+    context =
       d.resource === "FinnGen_pQTL"
-        ? ` ${d.dataset.replace(/^FinnGen_/, "").replace(/_/g, " ")}`
-        : " Olink 3K";
+        ? d.dataset.replace(/^FinnGen_/, "").replace(/_/g, " ")
+        : "Olink 3K";
   } else if (d.dataType === "eQTL" && d.resource === "FinnGen_eQTL") {
     // the single-cell datasets fine-map every cell type under one dataset id, so the cell type — not
     // the assay, which is the same for all of them — is what tells the same gene's rows apart. rows
     // without one fall back to the assay FinnGen carries inline in the dataset id (FinnGen_snRNAseq)
-    const cellType = formatCellType(d.cellType);
-    name += cellType
-      ? ` ${cellType}`
-      : ` ${d.dataset.replace(/^FinnGen_/, "").replace(/_/g, " ")}`;
+    context =
+      formatCellType(d.cellType) || d.dataset.replace(/^FinnGen_/, "").replace(/_/g, " ");
   }
-  return name;
+
+  // a QTL row's trait is the molecular trait's gene symbol. CisView admits eQTL/pQTL rows only for
+  // the gene being viewed, so there the symbol just repeats the page's gene — drop it and keep the
+  // tissue/cell type/platform that actually tells those rows apart. sQTL rows carry no such filter
+  // (FES's window shows FURIN and MAN2A2 sQTLs), so they keep their symbol: it is the only thing
+  // marking them as another gene's signal. dropping it would leave nothing to show when a row has no
+  // context either, hence the `context` guard.
+  const repeatsViewedGene = d.dataType !== "GWAS" && !!viewedGene && d.trait === viewedGene;
+  if (repeatsViewedGene && context) {
+    return context;
+  }
+  return context ? `${name} ${context}` : name;
 };
 
 /**

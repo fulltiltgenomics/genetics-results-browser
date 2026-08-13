@@ -365,6 +365,29 @@ describe("geneViewTraitName (credible-set row label)", () => {
     expect(geneViewTraitName(cs(""))).toBe("NECTIN2");
   });
 
+  // the gene's own QTLs would only repeat the gene the page is already about; the sQTL rows of
+  // neighbouring genes, which CisView does not filter out the way it does eQTL/pQTL, keep theirs
+  it("drops the gene symbol from QTL rows for the gene being viewed, but not from other genes'", () => {
+    const cs = (trait: string, dataType: CSDatum["dataType"] = "eQTL") =>
+      makeCS({
+        dataType,
+        resource: "eQTL_Catalogue_R7",
+        dataset: "QTD000381",
+        trait,
+        cellType: "fibroblast|naive",
+      });
+    expect(geneViewTraitName(cs("FES"), undefined, "FES")).toBe("fibroblast");
+    expect(geneViewTraitName(cs("FURIN", "sQTL"), undefined, "FES")).toBe("FURIN fibroblast");
+    // nothing else to show -> the gene symbol stays rather than leaving the row blank
+    expect(
+      geneViewTraitName(makeCS({ dataType: "eQTL", resource: "eQTL_Catalogue_R7", trait: "FES", cellType: "" }), undefined, "FES")
+    ).toBe("FES");
+    // GWAS traits are phenotype names, never the viewed gene's symbol
+    expect(
+      geneViewTraitName(makeCS({ dataType: "GWAS", resource: "FinnGen", trait: "FES" }), undefined, "FES")
+    ).toBe("FES");
+  });
+
   // eQTL Catalogue also serves a few pQTL datasets, which must not pick up the UKB-PPP Olink label
   it("labels eQTL Catalogue pQTL rows by tissue, not by proteomics panel", () => {
     const cs = makeCS({

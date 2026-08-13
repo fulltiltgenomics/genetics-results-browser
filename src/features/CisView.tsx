@@ -14,11 +14,13 @@ import {
   useGeneInfo,
   useGenesInRegion,
   useGeneTransCredibleSets,
+  useResourceMetadata,
   useTraitNameMapping,
 } from "@/store/serverQuery";
 import {
   buildAffectedGeneList,
   buildAffectingGeneList,
+  EQTL_CATALOGUE_DATA_NAME,
   geneViewTraitCode,
   geneViewTraitName,
   needsTraitNameMapping,
@@ -86,6 +88,15 @@ const CisView = ({ geneName }: { geneName: string }) => {
   // gated on this region actually having such a row. rows render with their code until it lands.
   // tissue-label enrichment for eQTL Catalogue is still missing (genetics-results-browser-3uu.18/.25).
   const { data: traitNames } = useTraitNameMapping(needsTraitNameMapping(data));
+
+  // an eQTL Catalogue row's resource label ("eQTL Cat") is the same on every one of them; the study
+  // behind the QTD sub-dataset is what distinguishes them, and it comes from resource_metadata keyed
+  // by QTD id. only fetched when the region actually has such rows.
+  const hasEqtlCatalogue = useMemo(
+    () => data?.some((d) => d.resource === EQTL_CATALOGUE_DATA_NAME) ?? false,
+    [data]
+  );
+  const { data: eqtlCatalogueMeta } = useResourceMetadata("eqtl_catalogue", hasEqtlCatalogue);
 
   const [codingOnly, setCodingOnly] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
@@ -301,7 +312,7 @@ const CisView = ({ geneName }: { geneName: string }) => {
     const rows = sortedData?.map((d) => {
       let color = "white";
       let resourceShortName = "TBA";
-      const traitName = geneViewTraitName(d, traitNames);
+      const traitName = geneViewTraitName(d, traitNames, geneName);
       const traitCode = geneViewTraitCode(d);
       const highlighted = highlightCSs === undefined || highlightCSs.has(d.traitCSId);
       const resource = config.gene_view.resources.find(
@@ -316,6 +327,10 @@ const CisView = ({ geneName }: { geneName: string }) => {
           ? config.gene_view.colors.dimDark
           : config.gene_view.colors.dim;
         resourceShortName = resource.label;
+      }
+      // the study says more than "eQTL Cat", which every one of these rows would otherwise repeat
+      if (d.resource === EQTL_CATALOGUE_DATA_NAME) {
+        resourceShortName = eqtlCatalogueMeta?.[d.dataset]?.study ?? resourceShortName;
       }
 
       const topPipVariantIndex = d.pip.indexOf(Math.max(...d.pip));
@@ -462,7 +477,7 @@ const CisView = ({ geneName }: { geneName: string }) => {
         <TableBody>{rows}</TableBody>
       </Table>
     );
-  }, [sortedData, mouseOverTrait, highlightCSs, traitNames]);
+  }, [sortedData, mouseOverTrait, highlightCSs, traitNames, eqtlCatalogueMeta, geneName]);
 
   if (!geneName) {
     return null;
