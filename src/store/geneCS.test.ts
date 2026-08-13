@@ -389,22 +389,28 @@ describe("geneViewTraitName (credible-set row label)", () => {
     expect(geneViewTraitName(cs, { APOE: "something else entirely" })).toBe("APOE Olink 3K");
   });
 
-  it("appends the FinnGen platform/assay from the dataset id for pQTL and eQTL rows", () => {
+  it("appends the FinnGen platform from the dataset id for pQTL rows", () => {
     expect(
       geneViewTraitName(
         makeCS({ dataType: "pQTL", resource: "FinnGen_pQTL", dataset: "FinnGen_Olink_5K", trait: "PALM" })
       )
     ).toBe("PALM Olink 5K");
-    expect(
-      geneViewTraitName(
-        makeCS({
-          dataType: "eQTL",
-          resource: "FinnGen_eQTL",
-          dataset: "FinnGen_snRNAseq",
-          trait: "GEMIN7",
-        })
-      )
-    ).toBe("GEMIN7 snRNAseq");
+  });
+
+  // FinnGen_snRNAseq fine-maps every cell type under the one dataset id, so the assay is the same on
+  // every row and only the cell type separates them
+  it("labels FinnGen eQTL rows with their cell type, falling back to the assay", () => {
+    const cs = (cellType: string | null) =>
+      makeCS({
+        dataType: "eQTL",
+        resource: "FinnGen_eQTL",
+        dataset: "FinnGen_snRNAseq",
+        trait: "GEMIN7",
+        cellType,
+      });
+    expect(geneViewTraitName(cs("l1.Mono"))).toBe("GEMIN7 l1.Mono");
+    expect(geneViewTraitName(cs("l2.CD14_Mono"))).toBe("GEMIN7 l2.CD14 Mono");
+    expect(geneViewTraitName(cs(null))).toBe("GEMIN7 snRNAseq");
   });
 });
 

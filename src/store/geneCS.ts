@@ -298,8 +298,13 @@ export const geneViewTraitName = (d: CSDatum, traitNames?: Record<string, string
         ? ` ${d.dataset.replace(/^FinnGen_/, "").replace(/_/g, " ")}`
         : " Olink 3K";
   } else if (d.dataType === "eQTL" && d.resource === "FinnGen_eQTL") {
-    // FinnGen carries its assay inline in the dataset id too (e.g. FinnGen_snRNAseq)
-    name += ` ${d.dataset.replace(/^FinnGen_/, "").replace(/_/g, " ")}`;
+    // the single-cell datasets fine-map every cell type under one dataset id, so the cell type — not
+    // the assay, which is the same for all of them — is what tells the same gene's rows apart. rows
+    // without one fall back to the assay FinnGen carries inline in the dataset id (FinnGen_snRNAseq)
+    const cellType = formatCellType(d.cellType);
+    name += cellType
+      ? ` ${cellType}`
+      : ` ${d.dataset.replace(/^FinnGen_/, "").replace(/_/g, " ")}`;
   }
   return name;
 };
