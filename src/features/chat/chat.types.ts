@@ -1,7 +1,18 @@
+/** payload of one `usage` SSE event, emitted per agentic-loop iteration */
 export interface ContextUsage {
   iteration: number;
+  /** the whole context of this call, cached parts included — NOT the billed input */
   input_tokens: number;
+  /**
+   * part of input_tokens served from the prompt cache. Optional because the browser
+   * deploys independently of the MCP backend: during a rollout window a pre-change
+   * backend still emits `usage` events without the cache fields.
+   */
+  cache_read?: number;
+  /** part of input_tokens written into the prompt cache; ~12x the price of a read */
+  cache_create?: number;
   output_tokens: number;
+  /** cumulative billed uncached input, i.e. input_tokens minus both cache fields */
   total_input_tokens: number;
   total_output_tokens: number;
   context_window: number;
