@@ -1,8 +1,8 @@
 import { Router, type Request, type Response } from "express";
 import { config } from "./config.js";
 
-// headers that must not be copied verbatim between hops: connection-level, length
-// (re-derived from the streamed body), and host (must match the upstream origin)
+// headers that must not be copied verbatim between hops, in either direction: connection-level
+// framing, length (re-derived from the buffered body), and host (must match the upstream origin)
 const HOP_BY_HOP = new Set([
   "connection",
   "keep-alive",
@@ -45,11 +45,14 @@ export const createPassthrough = (): Router => {
       res.status(upstream.status);
       upstream.headers.forEach((value, key) => {
         const k = key.toLowerCase();
-        // content-length is recomputed by express when we send the buffered body.
-        // content-encoding must NOT be forwarded: Node's fetch transparently decompresses the
-        // upstream body, so we hold plain bytes — re-advertising "gzip" makes the browser try to
-        // gunzip plain JSON and fail with ERR_CONTENT_DECODING_FAILED.
-        if (k === "content-length" || k === "content-encoding") return;
+        // HOP_BY_HOP covers content-length (recomputed by express for the buffered body) and
+        // transfer-encoding: streaming upstream endpoints such as /gene_based/{gene} answer
+        // "chunked", and forwarding that alongside express's own Content-Length makes nginx
+        // reject the response with 502 ("Content-Length and Transfer-Encoding at the same time").
+        // content-encoding must NOT be forwarded either: Node's fetch transparently decompresses
+        // the upstream body, so we hold plain bytes — re-advertising "gzip" makes the browser try
+        // to gunzip plain JSON and fail with ERR_CONTENT_DECODING_FAILED.
+        if (HOP_BY_HOP.has(k) || k === "content-encoding") return;
         res.setHeader(key, value);
       });
 
