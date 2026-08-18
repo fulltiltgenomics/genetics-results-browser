@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { TOOL_PROFILES } from "./chat.types";
 import type { LiteratureBackend, ToolProfile, Verbosity } from "./chat.types";
 import {
   DEFAULT_OPTIONS,
@@ -154,7 +155,7 @@ function resolveCurrent(options: ConversationOptions | null, defaults: Defaults)
       ["europepmc", "perplexity"] as const,
       defaults.defaultLiteratureBackend,
     ),
-    toolProfile: coerceOr(options.toolProfile, ["api", "bigquery", "rag"] as const, null),
+    toolProfile: coerceOr(options.toolProfile, TOOL_PROFILES, null),
   };
 }
 

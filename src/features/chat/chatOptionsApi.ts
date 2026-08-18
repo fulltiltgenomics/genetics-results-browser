@@ -1,3 +1,4 @@
+import { TOOL_PROFILES } from "./chat.types";
 import type { LiteratureBackend, ToolProfile, Verbosity } from "./chat.types";
 
 const apiUrl = import.meta.env.VITE_CHAT_URL;
@@ -30,8 +31,17 @@ export function coerceLiteratureBackend(value: unknown): LiteratureBackend {
     : DEFAULT_OPTIONS.literatureBackend;
 }
 
+/** `null` here is NOT the safe fallback it looks like. Server-side a null/omitted `tool_profile`
+ * means *no filtering at all* — the full ~65-tool surface — so an unrecognised value resolves to
+ * the largest possible arm, the opposite of what someone picking a minimal profile asked for, with
+ * no error anywhere. Kept that way deliberately: the value is read back from `user_settings` and
+ * from `chat_messages` rows written by older clients, and the only alternatives are raising (turns
+ * a stale row into a hard failure) or substituting some other profile (silently answers a
+ * different question than the one stored). Note the asymmetry with the server, which degrades an
+ * unknown profile to general-only instead: both are defensible, together they are inconsistent,
+ * and the mitigation is that TOOL_PROFILES is the one list every consumer narrows against. */
 export function coerceToolProfile(value: unknown): ToolProfile | null {
-  return value === "api" || value === "bigquery" || value === "rag" ? value : null;
+  return TOOL_PROFILES.includes(value as ToolProfile) ? (value as ToolProfile) : null;
 }
 
 export interface StoredChatOptions {

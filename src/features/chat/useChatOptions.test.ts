@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { TOOL_PROFILES } from "./chat.types";
 
 const getStoredChatOptions = vi.fn();
 const saveChatOption = vi.fn(() => Promise.resolve());
@@ -14,6 +15,10 @@ async function freshStore() {
   const mod = await import("./useChatOptions");
   return mod.useChatOptionsStore;
 }
+
+// the module is mocked above, and a static import of it would run before vi.mock's hoisted factory
+const realCoerceToolProfile = async () =>
+  (await vi.importActual<typeof import("./chatOptionsApi")>("./chatOptionsApi")).coerceToolProfile;
 
 describe("chat options persistence", () => {
   beforeEach(() => {
@@ -169,6 +174,61 @@ describe("chat options persistence", () => {
     await store.getState().load();
     store.getState().setToolProfile(null);
     expect(saveChatOption).toHaveBeenCalledWith("chat_tool_profile", "all");
+    expect(store.getState().toolProfile).toBeNull();
+  });
+});
+
+// a profile that some list forgot does not error, it lands on null — which is the FULL tool
+// surface, not a smaller one. these cases are driven off TOOL_PROFILES so adding a profile
+// without teaching every narrower about it fails here rather than silently running the maximal arm
+describe("tool profiles", () => {
+  beforeEach(() => {
+    getStoredChatOptions.mockReset();
+    saveChatOption.mockClear();
+    getStoredChatOptions.mockResolvedValue({
+      verbosity: "brief",
+      literatureBackend: "perplexity",
+      toolProfile: null,
+    });
+  });
+
+  it("lists code alongside the three original profiles", () => {
+    expect([...TOOL_PROFILES]).toEqual(["api", "bigquery", "rag", "code"]);
+  });
+
+  it.each([...TOOL_PROFILES])("narrows %s read back from the settings endpoint", async (profile) => {
+    const coerceToolProfile = await realCoerceToolProfile();
+    expect(coerceToolProfile(profile)).toBe(profile);
+  });
+
+  it.each([...TOOL_PROFILES])("restores %s stored on a conversation's last message", async (profile) => {
+    const store = await freshStore();
+    await store.getState().load();
+    store.getState().applyFromConversation({ toolProfile: profile });
+    expect(store.getState().toolProfile).toBe(profile);
+    // a conversation's own value must not become the user's default
+    expect(store.getState().defaultToolProfile).toBeNull();
+  });
+
+  it.each([...TOOL_PROFILES])("persists %s as the user's new default", async (profile) => {
+    const store = await freshStore();
+    await store.getState().load();
+    store.getState().setToolProfile(profile);
+    expect(store.getState().toolProfile).toBe(profile);
+    expect(saveChatOption).toHaveBeenCalledWith("chat_tool_profile", profile);
+  });
+
+  // pinned rather than implied: null means every tool, so this is the maximal fallback, chosen
+  // because the value comes back from rows written by older clients and must not raise
+  it("degrades an unrecognised profile to null, i.e. to all tools", async () => {
+    const coerceToolProfile = await realCoerceToolProfile();
+    expect(coerceToolProfile("codex")).toBeNull();
+    expect(coerceToolProfile("")).toBeNull();
+    expect(coerceToolProfile(7)).toBeNull();
+
+    const store = await freshStore();
+    await store.getState().load();
+    store.getState().applyFromConversation({ toolProfile: "codex" });
     expect(store.getState().toolProfile).toBeNull();
   });
 });

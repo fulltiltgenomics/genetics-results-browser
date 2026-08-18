@@ -5,7 +5,8 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { http, HttpResponse } from "msw";
 
 import { server } from "../../test/msw/server";
-import { LLMChat } from "./LLMChat";
+import { LLMChat, TOOL_PROFILE_LABELS } from "./LLMChat";
+import { TOOL_PROFILES } from "./chat.types";
 import { useChatOptionsStore } from "./useChatOptions";
 import { useInstructionSetsStore } from "./useInstructionSets";
 
@@ -107,10 +108,42 @@ describe("LLMChat options", () => {
 
     await waitFor(() => expect(radio("Detailed").checked).toBe(true));
     expect(radio("Europe PMC").checked).toBe(true);
-    // the tool profile still loads into the store but has no control of its own any more
+    expect(radio("Database").checked).toBe(true);
     await waitFor(() =>
       expect(screen.getByLabelText("Instructions")).toHaveTextContent("Statistician"),
     );
+  });
+
+  // the Tools control is the only place a profile is picked, and a value missing from it cannot be
+  // selected at all while every narrower still resolves it to null — the full tool surface. the
+  // label map is exhaustive over ToolProfile, so a new profile is a type error there; this pins
+  // that the map and the rendered control agree, and that rag's omission is the only one
+  it("offers every labelled profile in the Tools control, and only those", async () => {
+    serveSettings({ chat_verbosity: "brief" });
+    const { container } = renderChat();
+    openOptions();
+
+    await waitFor(() => expect(radio("Brief").checked).toBe(true));
+    const rendered = Array.from(container.querySelectorAll('input[type="radio"]'))
+      .map((el) => (el as HTMLInputElement).value)
+      .filter((v) => v === "all" || (TOOL_PROFILES as readonly string[]).includes(v));
+    // "all" is the absence of a profile rather than one of them, so it is not in TOOL_PROFILES
+    const expected = ["all", ...TOOL_PROFILES.filter((p) => TOOL_PROFILE_LABELS[p] !== null)];
+    expect(rendered).toEqual(expected);
+    expect(TOOL_PROFILES.filter((p) => TOOL_PROFILE_LABELS[p] === null)).toEqual(["rag"]);
+  });
+
+  it("persists the code profile picked from the Tools control", async () => {
+    const puts: string[] = [];
+    serveSettings({ chat_verbosity: "brief" }, puts);
+    renderChat();
+    openOptions();
+
+    await waitFor(() => expect(radio("All").checked).toBe(true));
+    fireEvent.click(radio("Code execution"));
+
+    await waitFor(() => expect(puts).toContain("chat_tool_profile=code"));
+    expect(useChatOptionsStore.getState().toolProfile).toBe("code");
   });
 
   it("saves an explicit pick so it survives to the next session", async () => {

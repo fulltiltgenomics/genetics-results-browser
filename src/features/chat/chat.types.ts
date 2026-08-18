@@ -21,7 +21,13 @@ export interface ContextUsage {
 
 export type LiteratureBackend = "europepmc" | "perplexity";
 
-export type ToolProfile = "api" | "bigquery" | "rag";
+/** every selectable tool profile, and the single source of truth for the union below. anything
+ * that narrows or enumerates a profile must read this rather than repeat the literals: a list
+ * that falls behind does not fail, it silently resolves to `null` — see `coerceToolProfile` for
+ * why that is the dangerous direction */
+export const TOOL_PROFILES = ["api", "bigquery", "rag", "code"] as const;
+
+export type ToolProfile = (typeof TOOL_PROFILES)[number];
 
 export type Verbosity = "brief" | "detailed";
 

@@ -37,6 +37,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { PluggableList } from "unified";
 import { fetchEventSource } from "@microsoft/fetch-event-source";
+import { TOOL_PROFILES } from "./chat.types";
 import type { ChatMessage, LLMChatProps, LiteratureBackend, ToolProfile, Verbosity, PendingAttachment, FileAttachment, ContextUsage } from "./chat.types";
 import { MessageRating } from "./MessageRating";
 import InstructionsDialog from "./InstructionsDialog";
@@ -101,6 +102,18 @@ const optionRadioSx = {
   mr: 1.5,
   "& .MuiRadio-root": { p: 0.375 },
   "& .MuiFormControlLabel-label": { fontSize: "0.75rem" },
+};
+
+/** what the Tools control calls each profile. Exhaustive over ToolProfile on purpose: a profile
+ * added to the union is a type error here until the UI has decided about it, because a profile the
+ * control never offers is one nothing can select while every narrower still resolves it to null —
+ * the full tool surface. `null` is a deliberate "not offered": `rag` is the general-only surface
+ * and has never been a user-facing choice. "all" is not in here — it is the absence of a profile */
+export const TOOL_PROFILE_LABELS: Record<ToolProfile, string | null> = {
+  api: "API",
+  bigquery: "Database",
+  rag: null,
+  code: "Code execution",
 };
 
 // per-message limits (mirror the backend MAX_MESSAGE_CHARS / MAX_ATTACHMENTS_PER_MESSAGE)
@@ -253,6 +266,7 @@ export const LLMChat = ({
   const literatureBackend = useChatOptionsStore((s) => s.literatureBackend);
   const setLiteratureBackend = useChatOptionsStore((s) => s.setLiteratureBackend);
   const toolProfile = useChatOptionsStore((s) => s.toolProfile);
+  const setToolProfile = useChatOptionsStore((s) => s.setToolProfile);
   const verbosity = useChatOptionsStore((s) => s.verbosity);
   const setVerbosity = useChatOptionsStore((s) => s.setVerbosity);
   const loadChatOptions = useChatOptionsStore((s) => s.load);
@@ -1082,7 +1096,6 @@ export const LLMChat = ({
               />
             </RadioGroup>
           </OptionRow>
-          {/* tool profile is hidden from the UI; the stored value still rides along with each request
           <OptionRow
             label="Tools"
             tooltip={
@@ -1090,7 +1103,8 @@ export const LLMChat = ({
                 Which MCP tools to use?{"\n"}
                 All - includes all tools and automatically determines the ones to use (most times this is the best choice){"\n"}
                 API - includes tools tied to the genetics results API (can be used when strictly getting data for variants/genes/phenotypes){"\n"}
-                Database - includes access to a database that contains credible set and colocalization data (good when computations across all data is needed instead of a specific variant, gene or phenotype)
+                Database - includes access to a database that contains credible set and colocalization data (good when computations across all data is needed instead of a specific variant, gene or phenotype){"\n"}
+                Code execution - a deliberately minimal set of seven tools built around running analysis code in the sandbox, with search for genes, phenotypes, rsids and literature; no external (gnomAD/Open Targets) or RAG tools. Needs a reachable sandbox
               </span>
             }>
             <RadioGroup
@@ -1106,21 +1120,20 @@ export const LLMChat = ({
                 label="All"
                 sx={optionRadioSx}
               />
-              <FormControlLabel
-                value="api"
-                control={<Radio size="small" />}
-                label="API"
-                sx={optionRadioSx}
-              />
-              <FormControlLabel
-                value="bigquery"
-                control={<Radio size="small" />}
-                label="Database"
-                sx={optionRadioSx}
-              />
+              {TOOL_PROFILES.map((profile) => {
+                const label = TOOL_PROFILE_LABELS[profile];
+                return label === null ? null : (
+                  <FormControlLabel
+                    key={profile}
+                    value={profile}
+                    control={<Radio size="small" />}
+                    label={label}
+                    sx={optionRadioSx}
+                  />
+                );
+              })}
             </RadioGroup>
           </OptionRow>
-          */}
         </Box>
         {contextUsage && (
           <Tooltip title="Context window usage for this conversation — when full, older messages may be summarized" arrow placement="top">
