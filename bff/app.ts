@@ -1,6 +1,7 @@
 import express, { type Express, type ErrorRequestHandler } from "express";
 import { createPassthrough } from "./passthrough.js";
 import { createVariantsRoute } from "./variantsRoute.js";
+import { createLdRoute } from "./ldRoute.js";
 
 // turn express.json() body-parse failures into a clean JSON 400 instead of its default HTML
 // stack-trace page (a malformed application/json body would otherwise leak internals)
@@ -49,6 +50,8 @@ export const createApp = (): Express => {
   // typed stage-1 normalize routes are mounted ahead of the generic passthrough so /v1/results
   // is assembled by the BFF; everything else under /api still falls through to genetics-results-api
   app.use("/api", createVariantsRoute());
+  // /v1/ld proxies an external host (not genetics-results-api), so it must also precede the passthrough
+  app.use("/api", createLdRoute());
   app.use("/api", createPassthrough());
 
   return app;

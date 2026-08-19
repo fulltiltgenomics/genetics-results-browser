@@ -15,6 +15,7 @@ import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 import { MaterialReactTable, type MRT_ColumnDef } from "material-react-table";
 import { variantSort, naInfSort } from "./table/utils/sorting";
+import axios from "axios";
 import api from "../store/api";
 import { isCoding, isLoF } from "../utils/coding";
 import ViewNav from "./page/ViewNav";
@@ -36,6 +37,41 @@ const RSID_RE = /^rs\d+$/i;
 const ANNOTATION_SOURCE = "finngen";
 // API's max_query_variants
 const ANNOTATION_CHUNK_SIZE = 2000;
+// LD reference panel requested from the LD API (proxied by the BFF as /v1/ld)
+const LD_PANEL = "sisu42";
+// the LD server accepts a window of 100kb-5Mb and rejects anything outside it. the window is the
+// TOTAL width, centred on the query variant (window=1e6 returns +/-500kb), so 5Mb is also the widest
+// window a pair lookup can ask for and partners more than 2.5Mb away are unreachable at any setting
+const MAX_LD_WINDOW = 5000000;
+// ...which puts a hard ceiling on the pairwise lookup: half the widest window either side of
+// variant 1. a pair further apart than this cannot be answered, so reject it up front rather than
+// running a query whose result would just be missing variant 2
+const MAX_LD_PAIR_DISTANCE = MAX_LD_WINDOW / 2;
+
+/**
+ * Message to show for a failed /v1/ld call, or null when the failure is not one the LD proxy
+ * reports about the query itself — those are rethrown to the generic handler. The BFF passes the LD
+ * API's own 400/404 through and answers 502/504 when the LD service is unreachable or too slow.
+ * Its `message` is written for the user (it names the rejected parameter), so prefer it.
+ */
+const ldErrorMessage = (err: unknown): string | null => {
+  if (!axios.isAxiosError(err) || !err.response) {
+    return null;
+  }
+  const message = (err.response.data as { message?: string } | undefined)?.message;
+  switch (err.response.status) {
+    case 400:
+      return message ?? "Invalid variant";
+    case 404:
+      return "Variant not found";
+    case 502:
+      return "LD service is unavailable, please try again later";
+    case 504:
+      return "LD lookup timed out, please try again";
+    default:
+      return `LD API error: ${err.response.status}`;
+  }
+};
 
 /**
  * One-line "FinnGen AF: 1.80e-1, missense, APOE" summary of a variant's annotation, used for the
@@ -269,28 +305,26 @@ const LDContainer = () => {
 
       if (variants.length === 1) {
         // single variant lookup
-        const response = await fetch(
-          `https://api.finngen.fi/api/ld?variant=${encodeURIComponent(
-            variants[0]
-          )}&window=1500000&panel=sisu42&r2_thresh=0.05`
-        );
-
-        if (!response.ok) {
-          if (response.status === 400) {
-            setError("Invalid variant");
-            setLoading(false);
-            return;
+        let ldData: LDResult[];
+        try {
+          const response = await api.get<{ ld: LDResult[] }>("/v1/ld", {
+            params: {
+              variant: variants[0],
+              window: 1500000,
+              panel: LD_PANEL,
+              r2_thresh: 0.05,
+            },
+          });
+          ldData = response.data.ld;
+        } catch (err) {
+          const message = ldErrorMessage(err);
+          if (message === null) {
+            throw err;
           }
-          if (response.status === 404) {
-            setError("Variant not found");
-            setLoading(false);
-            return;
-          }
-          throw new Error(`API error: ${response.status} ${response.statusText}`);
+          setError(message);
+          setLoading(false);
+          return;
         }
-
-        const data = await response.json();
-        const ldData: LDResult[] = data.ld;
 
         if (ldData && ldData.length > 0) {
           const queryVariant = ldData[0].variation1;
@@ -348,27 +382,35 @@ const LDContainer = () => {
         }
 
         const distance = Math.abs(parsed1.pos - parsed2.pos);
-        if (distance > 5000000) {
-          setError(`Variants are ${distance.toLocaleString()} bp apart (maximum is 5,000,000 bp)`);
+        if (distance > MAX_LD_PAIR_DISTANCE) {
+          setError(
+            `Variants are ${distance.toLocaleString()} bp apart (maximum is ${MAX_LD_PAIR_DISTANCE.toLocaleString()} bp)`
+          );
           setLoading(false);
           return;
         }
 
-        // there is some bug in the LD API / Tomahawk with the window size, so we need to use a larger window
-        const window = Math.max(distance * 2, 1000000);
+        // the window is centred on variant 1 and covers half of it either side, so reaching variant 2
+        // takes twice the distance between them — not, as the comment here used to say, a bug in the
+        // LD API / Tomahawk. clamped at the server's maximum, which it rejects outright: that used to
+        // make every pair more than 2.5Mb apart fail with a bare 400.
+        const window = Math.min(Math.max(distance * 2, 1000000), MAX_LD_WINDOW);
 
-        const response = await fetch(
-          `https://api.finngen.fi/api/ld?variant=${encodeURIComponent(
-            variants[0]
-          )}&window=${window}&panel=sisu42`
-        );
-
-        if (!response.ok) {
-          throw new Error(`API error: ${response.status} ${response.statusText}`);
+        let ldData: LDResult[];
+        try {
+          const response = await api.get<{ ld: LDResult[] }>("/v1/ld", {
+            params: { variant: variants[0], window, panel: LD_PANEL },
+          });
+          ldData = response.data.ld;
+        } catch (err) {
+          const message = ldErrorMessage(err);
+          if (message === null) {
+            throw err;
+          }
+          setError(message);
+          setLoading(false);
+          return;
         }
-
-        const data = await response.json();
-        const ldData: LDResult[] = data.ld;
 
         // find the matching variant in the results
         // normalize both variants for comparison

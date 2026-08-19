@@ -6,6 +6,11 @@ This is the frontend codebase for a variant annotation and interpretation web to
 contains the BFF (backend-for-frontend) in `bff/`, a small Express service that assembles the
 annotation tool's per-query data from the backend API and proxies everything else through.
 
+The production nginx config (`nginx.prod.conf`) serves a CSP with `connect-src 'self'`, so the SPA
+cannot call external hosts directly — the LD lookup goes through the BFF's `GET /api/v1/ld` proxy
+(`LD_API_URL`). Anything else the browser must reach off-origin needs either a BFF route or an
+explicit CSP source.
+
 Running the tool requires running the [backend API](https://github.com/fulltiltgenomics/genetics-results-api).
 The chat views additionally require the chat backend (`../genetics-mcp-server`).
 
@@ -46,8 +51,8 @@ Available modes: `dev`, `dev.finngen`, `dev.public`, `prod`, `prod.finngen`, `pr
 | `VITE_CHAT_URL` | base URL of the chat backend, e.g. `http://localhost:4000/chat` |
 | `VITE_APP_NAME` | product name shown in the UI, defaults to `FinnGenie` |
 
-The BFF reads `GENETICS_API_URL`, `GENETICS_API_TOKEN`, `BFF_PORT`, `RESULTS_CACHE_MAX` and
-`RESULTS_CACHE_TTL_MS` — see `bff/.env.example`.
+The BFF reads `GENETICS_API_URL`, `GENETICS_API_TOKEN`, `BFF_PORT`, `RESULTS_CACHE_MAX`,
+`RESULTS_CACHE_TTL_MS` and `LD_API_URL` — see `bff/.env.example`.
 
 ### Local dev startup sequence
 
