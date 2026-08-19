@@ -49,6 +49,8 @@ import { getAttachmentType, isValidAttachmentType } from "./chatHistoryApi";
 import { excelFileToTsv } from "./excelToTsv";
 import { useSchema } from "./schemaApi";
 import { linkifyViewsPlugin } from "./linkifyViews";
+import { ToolCallDisclosure } from "./ToolCallDisclosure";
+import { decodeToolCallMarker, encodeToolCallMarker, withToolCallOutcome } from "./toolCallMarker";
 
 // hardcoded fallback used until useSchema() resolves; mirrors known views in genetics-results-db
 const FALLBACK_VIEW_NAMES = [
@@ -59,8 +61,11 @@ const FALLBACK_VIEW_NAMES = [
   "gene_burden_results_v",
 ];
 
-// regex to match image markers: [IMAGE:format:alt:base64data]
-const IMAGE_MARKER_REGEX = /\[IMAGE:([^:]+):([^:]+):([^\]]+)\]/g;
+// the two embedded-object markers a message's text can carry: [IMAGE:format:alt:base64data]
+// and [TOOLUSE:base64json]. Matched by one alternation so a message holding both still
+// renders its parts in the order they were streamed.
+const EMBEDDED_MARKER_REGEX =
+  /\[IMAGE:([^:]+):([^:]+):([^\]]+)\]|\[TOOLUSE:([A-Za-z0-9+/=]*)\]/g;
 
 // sentinel option value: opens the management dialog instead of changing the selection
 const MANAGE_INSTRUCTIONS_VALUE = "__manage__";
@@ -121,8 +126,12 @@ const MAX_MESSAGE_CHARS = 50000;
 const MAX_ATTACHMENTS_PER_MESSAGE = 10;
 
 /**
- * Renders message content, handling embedded images separately from markdown.
- * Images are stored as [IMAGE:format:alt:base64data] markers.
+ * Renders message content, handling embedded objects separately from markdown.
+ *
+ * Two marker shapes are carried inline in the text: [IMAGE:format:alt:base64data] and
+ * [TOOLUSE:base64json]. Both live in the message's `content` rather than in component
+ * state so that a reopened session renders identically to the live stream — `content` is
+ * the only thing this component ever sees.
  */
 const MessageContent = ({
   content,
@@ -131,8 +140,7 @@ const MessageContent = ({
   content: string;
   rehypePlugins?: PluggableList;
 }) => {
-  // check if content has any image markers
-  if (!content.includes("[IMAGE:")) {
+  if (!content.includes("[IMAGE:") && !content.includes("[TOOLUSE:")) {
     return (
       <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={rehypePlugins}>
         {content}
@@ -140,17 +148,16 @@ const MessageContent = ({
     );
   }
 
-  // split content by image markers and render each part
   const parts: React.ReactNode[] = [];
   let lastIndex = 0;
   let match;
   let keyIndex = 0;
 
   // reset regex state
-  IMAGE_MARKER_REGEX.lastIndex = 0;
+  EMBEDDED_MARKER_REGEX.lastIndex = 0;
 
-  while ((match = IMAGE_MARKER_REGEX.exec(content)) !== null) {
-    // add text before the image
+  while ((match = EMBEDDED_MARKER_REGEX.exec(content)) !== null) {
+    // add text before the embedded object
     if (match.index > lastIndex) {
       const textPart = content.slice(lastIndex, match.index);
       if (textPart.trim()) {
@@ -165,30 +172,38 @@ const MessageContent = ({
       }
     }
 
-    // add the image
-    const [, format, alt, base64Data] = match;
-    const src = `data:image/${format};base64,${base64Data}`;
-    parts.push(
-      <Box key={`img-${keyIndex++}`} sx={{ my: 2 }}>
-        <img
-          src={src}
-          alt={alt}
-          style={{
-            maxWidth: "100%",
-            cursor: "pointer",
-            borderRadius: 4,
-            border: "1px solid #ddd",
-          }}
-          onClick={() => window.open(src, "_blank")}
-          title="Click to open in new tab"
-        />
-      </Box>
-    );
+    const [, format, alt, base64Data, toolCallData] = match;
+    if (toolCallData !== undefined) {
+      const record = decodeToolCallMarker(toolCallData);
+      // a marker left half-written by an interrupted stream decodes to null; dropping it
+      // is better than rendering the base64 as prose
+      if (record) {
+        parts.push(<ToolCallDisclosure key={`tool-${keyIndex++}`} record={record} />);
+      }
+    } else {
+      const src = `data:image/${format};base64,${base64Data}`;
+      parts.push(
+        <Box key={`img-${keyIndex++}`} sx={{ my: 2 }}>
+          <img
+            src={src}
+            alt={alt}
+            style={{
+              maxWidth: "100%",
+              cursor: "pointer",
+              borderRadius: 4,
+              border: "1px solid #ddd",
+            }}
+            onClick={() => window.open(src, "_blank")}
+            title="Click to open in new tab"
+          />
+        </Box>
+      );
+    }
 
     lastIndex = match.index + match[0].length;
   }
 
-  // add any remaining text after the last image
+  // add any remaining text after the last embedded object
   if (lastIndex < content.length) {
     const remainingText = content.slice(lastIndex);
     if (remainingText.trim()) {
@@ -221,6 +236,7 @@ export const LLMChat = ({
   sessionId,
   initialMessages,
   onSessionCreated,
+  onEnsureSession,
   onMessagesChange,
   onFirstExchange,
   onStreamingComplete,
@@ -695,6 +711,21 @@ export const LLMChat = ({
           : userContent,
       });
 
+      // resolved BEFORE the request, not after the exchange: `session_id` becomes the `sid`
+      // claim of the per-execution sandbox credential, and run_analysis fails closed without
+      // one — so a chat whose session was created afterwards could not run code on its first
+      // turn at all (genetics-results-suite-vda). A failure here is not fatal to the turn:
+      // every other tool works without a session, so the turn proceeds unpersisted rather
+      // than being refused.
+      let turnSessionId = sessionId ?? null;
+      if (!turnSessionId && onEnsureSession) {
+        try {
+          turnSessionId = await onEnsureSession();
+        } catch (err) {
+          console.error("Failed to establish a session for this turn:", err);
+        }
+      }
+
       let accumulatedContent = "";
       let messageContent: any[] | null = null;
       let toolResults: any[] | null = null;
@@ -728,7 +759,7 @@ export const LLMChat = ({
             verbosity,
             instruction_set_id: instructionSetId,
             secret: isSecretChat || false,
-            session_id: sessionId || null,
+            session_id: turnSessionId,
           }),
           signal: abortControllerRef.current.signal,
           async onopen(response) {
@@ -767,11 +798,41 @@ export const LLMChat = ({
               );
             } else if (data.type === "image") {
               // store image as a special marker that we'll render separately
-              const imageFormat = data.image_format || "png";
-              const imageAlt = data.image_alt || "Generated image";
+              const imageFormat = (data.image_format || "png").replace(/[^\w+.-]/g, "");
+              // the marker is colon-delimited and `alt` is now an artifact FILE NAME, which
+              // the sandbox permits colons and brackets in — an unescaped one would split the
+              // marker and spill base64 into the transcript as prose
+              const imageAlt = (data.image_alt || "Generated image").replace(/[:[\]]/g, " ");
               const imageData = data.image_data || "";
               const imageMarker = `\n\n[IMAGE:${imageFormat}:${imageAlt}:${imageData}]\n\n`;
               accumulatedContent += imageMarker;
+              const newContent = accumulatedContent;
+              setMessages((prev) =>
+                prev.map((m) => (m.id === assistantMsgId ? { ...m, content: newContent } : m))
+              );
+            } else if (data.type === "tool_use" && data.name) {
+              // a tool call, embedded in the text the same way an image is so that it
+              // survives persistence and reload. Rendered collapsed by MessageContent
+              setIsThinking(false);
+              accumulatedContent += `\n\n${encodeToolCallMarker({
+                id: data.id ?? "",
+                name: data.name,
+                input: data.input ?? {},
+              })}\n\n`;
+              const newContent = accumulatedContent;
+              setMessages((prev) =>
+                prev.map((m) => (m.id === assistantMsgId ? { ...m, content: newContent } : m))
+              );
+            } else if (data.type === "script_result" && data.tool_use_id) {
+              // the outcome of a run_analysis that was already written into the content
+              // above; rewrite that one marker so its summary line can show it
+              accumulatedContent = withToolCallOutcome(accumulatedContent, data.tool_use_id, {
+                ran: Boolean(data.ran),
+                ok: Boolean(data.ok),
+                status: typeof data.status === "string" ? data.status : "unknown",
+                durationMs: typeof data.duration_ms === "number" ? data.duration_ms : null,
+                exception: typeof data.exception === "string" ? data.exception : null,
+              });
               const newContent = accumulatedContent;
               setMessages((prev) =>
                 prev.map((m) => (m.id === assistantMsgId ? { ...m, content: newContent } : m))
@@ -864,6 +925,11 @@ export const LLMChat = ({
       phenotypeCode,
       chatUrl,
       isLoading,
+      // both are read when the turn resolves its session id. `sessionId` was previously
+      // absent, so this callback held whatever it was when `messages` last changed — which
+      // happened to be every turn, making the staleness invisible rather than absent
+      sessionId,
+      onEnsureSession,
       onFirstExchange,
       onStreamingComplete,
       literatureBackend,

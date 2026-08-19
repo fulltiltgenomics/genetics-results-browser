@@ -125,6 +125,15 @@ export interface LLMChatProps {
   /** callback when a new session is created */
   onSessionCreated?: (sessionId: string) => void;
 
+  /**
+   * Resolve the session id for a turn, creating the session if there is not one yet.
+   * Awaited BEFORE the request goes out, because `session_id` is not only for persistence:
+   * it becomes the `sid` claim of the per-execution sandbox credential, and `run_analysis`
+   * refuses a turn without one (genetics-results-suite-vda). Creating the session after the
+   * exchange left the first turn of every inline-started chat unable to run code.
+   */
+  onEnsureSession?: () => Promise<string | null>;
+
   /** callback when messages change (for external tracking) */
   onMessagesChange?: (messages: ChatMessage[]) => void;
 
