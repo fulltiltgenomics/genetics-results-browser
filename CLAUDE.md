@@ -94,7 +94,15 @@ The annotation path is split in two stages so that changing a UI control never r
   fan out over the API's granular endpoints (credible sets, variant annotation, nearest genes,
   datasets/resources) and return one raw, unfiltered `NormalizedResponse`; the variant-list path is
   cached in-process by query hash. `POST /api/v1/gnomad` serves the lazy per-page gnomAD enrichment.
-  Everything else under `/api` falls through `bff/passthrough.ts` to the API unchanged.
+  `GET /api/v1/ld` (`bff/ldRoute.ts`) proxies the external FinnGen LD API (`LD_API_URL`), which the
+  browser may not call directly under the production CSP's `connect-src 'self'`.
+  Everything else under `/api` falls through `bff/passthrough.ts` to the API unchanged — except
+  that both upstream paths attach `Authorization: Bearer $GENETICS_API_TOKEN`
+  (`upstream.ts` for the assembled routes, `passthrough.ts` for the rest, and only when the
+  caller sent no `Authorization` of their own). results-api honours the forwarded
+  `X-Goog-Authenticated-User-Email` **only** from a caller presenting that secret, so dropping
+  the bearer from the passthrough 401s every browser request. **Deploy ordering: bff ships
+  before results-api** — see the suite repo's README, "Deploying the trusted-proxy marker".
   Before parsing, `POST /api/v1/results` tries three single-token expansions in order
   (`bff/inputParse.ts`), each falling through to the next on a 404 or a non-match: a
   `pheno:{resource}:{code}` token → that phenotype's credible-set lead variants with their betas; a

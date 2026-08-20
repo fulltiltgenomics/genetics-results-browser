@@ -459,7 +459,50 @@ const ChatPage = () => {
     [activeSessionId, saveMessageToBackend, isSecretChat],
   );
 
-  // called after first exchange completes - creates session and saves initial messages
+  /**
+   * The session id for a turn, created on demand.
+   *
+   * Called by LLMChat BEFORE the request goes out. It used to run after the exchange
+   * instead, which meant the first turn of an inline-started chat was sent with
+   * `session_id: null` — and `run_analysis` refuses a turn with no session, because that id
+   * becomes the `sid` claim of the per-execution sandbox credential and is what scopes the
+   * execution's artifacts and audit records to a conversation
+   * (genetics-results-suite-vda). Every other tool worked, so the only symptom was the
+   * agent saying it had no authenticated session when asked to plot.
+   *
+   * Idempotent through `inlineSessionIdRef`: a second call before React has re-rendered
+   * with the new `activeSessionId` returns the same id rather than creating another row.
+   */
+  const ensureSession = useCallback(async (): Promise<string | null> => {
+    if (isSecretChat) return secretSessionId;
+    const existing = activeSessionId ?? inlineSessionIdRef.current;
+    if (existing) return existing;
+
+    const session = await createSession();
+
+    // adopt the id WITHOUT a chatKey change, which would remount LLMChat mid-send
+    inlineSessionIdRef.current = session.id;
+    setActiveSession({
+      id: session.id,
+      title: null,
+      createdAt: session.createdAt,
+      updatedAt: session.updatedAt,
+      rating: undefined,
+      comment: undefined,
+      phenotypeCode: undefined,
+      isOwner: true,
+      shared: false,
+      messages: [],
+    });
+    setSessions((prev) => [{ ...session, preview: undefined, rating: undefined }, ...prev]);
+    setActiveSessionId(session.id);
+    // prevent the URL useEffect from treating this as a fresh navigation
+    urlSessionLoadedRef.current = true;
+    navigate(`/chat/${session.id}`, { replace: true });
+    return session.id;
+  }, [activeSessionId, isSecretChat, secretSessionId, navigate]);
+
+  // called after first exchange completes - saves the initial messages
   const handleFirstExchange = useCallback(
     async (
       literatureBackend?: string | null,
@@ -469,39 +512,20 @@ const ChatPage = () => {
     ) => {
       if (isSecretChat) return;
       console.log("[handleFirstExchange] literatureBackend:", literatureBackend, "toolProfile:", toolProfile, "instructionSetId:", instructionSetId);
-      let sessionIdToUse = activeSessionId;
+      // `ensureSession` ran before the turn was sent, so one exists. The ref is read as well
+      // as the state because the state may not have re-rendered this callback yet.
+      let sessionIdToUse = activeSessionId ?? inlineSessionIdRef.current;
 
-      // if no session exists, create one first
+      // a turn whose session creation failed still streamed and answered; it simply has
+      // nowhere to be saved
       if (!sessionIdToUse) {
         try {
-          const session = await createSession();
-          sessionIdToUse = session.id;
-
-          // set active session WITHOUT triggering a key change on LLMChat
-          inlineSessionIdRef.current = session.id;
-
-          setActiveSession({
-            id: session.id,
-            title: null,
-            createdAt: session.createdAt,
-            updatedAt: session.updatedAt,
-            rating: undefined,
-            comment: undefined,
-            phenotypeCode: undefined,
-            isOwner: true,
-            shared: false,
-            messages: [],
-          });
-
-          setSessions((prev) => [{ ...session, preview: undefined, rating: undefined }, ...prev]);
-          setActiveSessionId(session.id);
-          // prevent the URL useEffect from treating this as a fresh navigation
-          urlSessionLoadedRef.current = true;
-          navigate(`/chat/${session.id}`, { replace: true });
+          sessionIdToUse = await ensureSession();
         } catch (err) {
           console.error("Failed to create session:", err);
           return;
         }
+        if (!sessionIdToUse) return;
       }
 
       // save all current messages to the newly created session
@@ -542,7 +566,7 @@ const ChatPage = () => {
         console.error("Failed to generate title:", err);
       }
     },
-    [activeSessionId, saveMessageToBackend, isSecretChat],
+    [activeSessionId, saveMessageToBackend, isSecretChat, ensureSession],
   );
 
   const handleRateMessage = useCallback(async (messageId: string, thumbsUp: boolean | null) => {
@@ -976,6 +1000,7 @@ const ChatPage = () => {
                 sessionId={isSecretChat ? secretSessionId : activeSessionId}
                 initialMessages={isSecretChat ? undefined : loadedMessages}
                 onMessagesChange={handleMessagesChange}
+                onEnsureSession={ensureSession}
                 onFirstExchange={handleFirstExchange}
                 onStreamingComplete={handleStreamingComplete}
                 onRateMessage={isSecretChat ? undefined : handleRateMessage}

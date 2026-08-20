@@ -1,20 +1,40 @@
 import { marked } from "marked";
 import type { ChatMessage } from "./chat.types";
 import { APP_NAME } from "../../config/appName";
+import { TOOL_CALL_MARKER_REGEX, decodeToolCallMarker } from "./toolCallMarker";
 
 const IMAGE_MARKER_REGEX = /\[IMAGE:([^:]+):([^:]+):([^\]]+)\]/g;
 
 /**
- * Build a markdown string from chat messages, converting image markers
+ * A tool call as markdown. Expanded rather than collapsed: an export is read outside the
+ * app, where there is nothing to click, and the scripts are the part of a code-execution
+ * transcript worth keeping.
+ */
+function toolCallToMarkdown(encoded: string): string {
+  const record = decodeToolCallMarker(encoded);
+  if (!record) return "";
+  const code = record.name === "run_analysis" ? record.input.code : undefined;
+  const params = Object.entries(record.input)
+    .filter(([key]) => typeof code !== "string" || key !== "code")
+    .map(([key, value]) => `${key}: ${typeof value === "string" ? value : JSON.stringify(value)}`);
+  const header = `**Tool: \`${record.name}\`**${params.length ? ` — ${params.join(", ")}` : ""}`;
+  if (typeof code !== "string") return header;
+  return `${header}\n\n\`\`\`python\n${code}\n\`\`\``;
+}
+
+/**
+ * Build a markdown string from chat messages, converting image and tool-call markers
  * and including user attachments.
  */
 export function buildChatMarkdown(messages: ChatMessage[]): string {
   const parts = messages.map((msg) => {
     const role = msg.role === "user" ? "## User" : `## ${APP_NAME}`;
-    let content = msg.content.replace(
-      IMAGE_MARKER_REGEX,
-      (_match, format, alt, base64Data) => `![${alt}](data:image/${format};base64,${base64Data})`,
-    );
+    let content = msg.content
+      .replace(
+        IMAGE_MARKER_REGEX,
+        (_match, format, alt, base64Data) => `![${alt}](data:image/${format};base64,${base64Data})`,
+      )
+      .replace(TOOL_CALL_MARKER_REGEX, (_match, encoded: string) => toolCallToMarkdown(encoded));
     if (msg.role === "user" && msg.attachments) {
       for (const att of msg.attachments) {
         if (att.type === "image" && att.previewUrl) {

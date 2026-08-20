@@ -1,7 +1,18 @@
+/** payload of one `usage` SSE event, emitted per agentic-loop iteration */
 export interface ContextUsage {
   iteration: number;
+  /** the whole context of this call, cached parts included — NOT the billed input */
   input_tokens: number;
+  /**
+   * part of input_tokens served from the prompt cache. Optional because the browser
+   * deploys independently of the MCP backend: during a rollout window a pre-change
+   * backend still emits `usage` events without the cache fields.
+   */
+  cache_read?: number;
+  /** part of input_tokens written into the prompt cache; ~12x the price of a read */
+  cache_create?: number;
   output_tokens: number;
+  /** cumulative billed uncached input, i.e. input_tokens minus both cache fields */
   total_input_tokens: number;
   total_output_tokens: number;
   context_window: number;
@@ -10,7 +21,13 @@ export interface ContextUsage {
 
 export type LiteratureBackend = "europepmc" | "perplexity";
 
-export type ToolProfile = "api" | "bigquery" | "rag";
+/** every selectable tool profile, and the single source of truth for the union below. anything
+ * that narrows or enumerates a profile must read this rather than repeat the literals: a list
+ * that falls behind does not fail, it silently resolves to `null` — see `coerceToolProfile` for
+ * why that is the dangerous direction */
+export const TOOL_PROFILES = ["api", "bigquery", "rag", "code"] as const;
+
+export type ToolProfile = (typeof TOOL_PROFILES)[number];
 
 export type Verbosity = "brief" | "detailed";
 
@@ -107,6 +124,15 @@ export interface LLMChatProps {
 
   /** callback when a new session is created */
   onSessionCreated?: (sessionId: string) => void;
+
+  /**
+   * Resolve the session id for a turn, creating the session if there is not one yet.
+   * Awaited BEFORE the request goes out, because `session_id` is not only for persistence:
+   * it becomes the `sid` claim of the per-execution sandbox credential, and `run_analysis`
+   * refuses a turn without one (genetics-results-suite-vda). Creating the session after the
+   * exchange left the first turn of every inline-started chat unable to run code.
+   */
+  onEnsureSession?: () => Promise<string | null>;
 
   /** callback when messages change (for external tracking) */
   onMessagesChange?: (messages: ChatMessage[]) => void;

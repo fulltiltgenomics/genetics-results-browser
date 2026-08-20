@@ -22,24 +22,17 @@ export const DISPOSITION_LABELS = [
 ] as const;
 
 // fixed issue taxonomy, mirrors conversation_prompts.ISSUE_CATEGORIES (category
-// names only, minus not_an_issue which the analyzer never persists). keep in
-// sync with the backend taxonomy: a category missing here is silently dropped
-// from the chart.
+// names only). keep in sync with the backend taxonomy.
 export const ISSUE_CATEGORY_NAMES = [
   "incomplete_answer",
   "missed_data_source",
-  "capability_gap",
   "inaccurate_claim",
-  "self_corrected_error",
   "fabrication",
-  "weak_grounding",
   "inefficient_tool_use",
   "tool_failure_handling",
-  "platform_error",
   "misunderstood_question",
   "no_conclusion",
   "missing_interpretation",
-  "missing_deliverable",
   "formatting_readability",
   "overcautious",
   "other",
