@@ -43,18 +43,25 @@
         "color": "#1f77b4"
       },
       {
-        "dataName": "UKBB_119",
-        "label": "UKB",
-        "resource": "UKB",
-        "dataType": "GWAS",
-        "color": "#2ca02c"
-      },
-      {
-        "dataName": "BBJ_79",
-        "label": "BBJ",
-        "resource": "BBJ",
+        "dataName": "FinnGen_MVP_UKBB",
+        "label": "FG+MVP+UKB",
+        "resource": "FinnGen",
         "dataType": "GWAS",
         "color": "#9467bd"
+      },
+      {
+        "dataName": "FinnGen_UKBB",
+        "label": "FG+UKB",
+        "resource": "FinnGen",
+        "dataType": "GWAS",
+        "color": "#8c564b"
+      },
+      {
+        "dataName": "Open_Targets",
+        "label": "OT",
+        "resource": "Open Targets",
+        "dataType": "GWAS",
+        "color": "#bcbd22"
       },
       {
         "dataName": "FinnGen_pQTL",
@@ -83,6 +90,13 @@
         "resource": "eQTL Catalogue R7",
         "dataType": "eQTL",
         "color": "#17becf"
+      },
+      {
+        "dataName": "FinnGen_caQTL",
+        "label": "FinnGen",
+        "resource": "FinnGen",
+        "dataType": "caQTL",
+        "color": "#e377c2"
       }
     ]
   }

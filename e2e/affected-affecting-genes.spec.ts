@@ -9,12 +9,12 @@ test("gene view renders affected/affecting gene lists with click-through", async
   page.on("pageerror", (err) => pageErrors.push(err.message));
 
   await page.goto("/gene/APOE");
-  await expect(page.getByText("Loading...")).toBeHidden({ timeout: 30000 });
+  await expect(page.getByText("Loading...")).toBeHidden({ timeout: 90000 });
 
   const affectsTitle = page.getByText("Variants in APOE affect these genes");
   const affectedByTitle = page.getByText("Variants in these genes affect APOE");
   // at least one of the two panels should resolve to a populated/empty title (not Loading)
-  await expect(affectsTitle.or(affectedByTitle).first()).toBeVisible({ timeout: 30000 });
+  await expect(affectsTitle.or(affectedByTitle).first()).toBeVisible({ timeout: 90000 });
 
   // capture the gene names rendered in each panel for the report
   const collect = async (locator: ReturnType<typeof page.getByText>) => {

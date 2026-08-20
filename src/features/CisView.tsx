@@ -14,8 +14,17 @@ import {
   useGeneInfo,
   useGenesInRegion,
   useGeneTransCredibleSets,
+  useResourceMetadata,
+  useTraitNameMapping,
 } from "@/store/serverQuery";
-import { buildAffectedGeneList, buildAffectingGeneList } from "@/store/geneCS";
+import {
+  buildAffectedGeneList,
+  buildAffectingGeneList,
+  EQTL_CATALOGUE_DATA_NAME,
+  geneViewTraitCode,
+  geneViewTraitName,
+  needsTraitNameMapping,
+} from "@/store/geneCS";
 import CSPlot from "./CSPlot";
 import { useEffect, useMemo, useState } from "react";
 import { CSDatum, CSStatus, SelectedVariantStats, TraitStatus } from "@/types/types.gene";
@@ -32,6 +41,8 @@ import AffectedGeneList from "./AffectedGeneList";
 import { afRepr, cleanConsequence, pValRepr } from "./table/utils/tableutil";
 import AffectingGeneList from "./AffectingGeneList";
 import CleanTableCell from "@/style";
+import { DataTypeIcon } from "./table/DataTypeIcon";
+import { CredibleSetDataType } from "@/types/types.normalized";
 
 const CisView = ({ geneName }: { geneName: string }) => {
   const prefersDarkMode = useMediaQuery("(prefers-color-scheme: dark)");
@@ -72,10 +83,20 @@ const CisView = ({ geneName }: { geneName: string }) => {
     error: transError,
   } = useGeneTransCredibleSets(geneName);
 
-  // the legacy /v1/trait_metadata and /v1/dataset_metadata endpoints are gone on the new API, so the
-  // trait-label / tissue-label enrichment is dropped for now: titleRows falls back to the row's own
-  // trait code/gene symbol plus the config resource label. re-enriching trait names via the new
-  // metadata path is tracked separately (genetics-results-browser-3uu.18 / .25).
+  // the credible-set endpoints already name most traits; only the phenocodes they leave unresolved
+  // (FinnGen drugs/labs) need the trait_name_mapping dictionary, and it is 2 MB, so the fetch is
+  // gated on this region actually having such a row. rows render with their code until it lands.
+  // tissue-label enrichment for eQTL Catalogue is still missing (genetics-results-browser-3uu.18/.25).
+  const { data: traitNames } = useTraitNameMapping(needsTraitNameMapping(data));
+
+  // an eQTL Catalogue row's resource label ("eQTL Cat") is the same on every one of them; the study
+  // behind the QTD sub-dataset is what distinguishes them, and it comes from resource_metadata keyed
+  // by QTD id. only fetched when the region actually has such rows.
+  const hasEqtlCatalogue = useMemo(
+    () => data?.some((d) => d.resource === EQTL_CATALOGUE_DATA_NAME) ?? false,
+    [data]
+  );
+  const { data: eqtlCatalogueMeta } = useResourceMetadata("eqtl_catalogue", hasEqtlCatalogue);
 
   const [codingOnly, setCodingOnly] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
@@ -109,8 +130,10 @@ const CisView = ({ geneName }: { geneName: string }) => {
         d.variant.length > 0 &&
         (!codingOnly || d.isCoding.some((c) => c))
     );
+    // `?? true` keeps this in step with the switch in DatasetOptions, which renders an unknown
+    // resource as on: without it the two disagree and rows vanish under a checked toggle
     const filteredDataWithResourceToggles = filteredData?.filter(
-      (d) => resourceToggles[d.resource]
+      (d) => resourceToggles[d.resource] ?? true
     );
     console.timeEnd("filter data");
     return { filteredData, filteredDataWithResourceToggles };
@@ -186,35 +209,31 @@ const CisView = ({ geneName }: { geneName: string }) => {
       return {};
     }
     console.time("cs overlap");
+    // index the credible sets by variant first: two CSs overlap iff they appear in the same bucket.
+    // the previous all-pairs scan compared every CS against every other one and grew quadratically
+    // with the row count — 6s on APOE once Open Targets was added.
+    const csIdsByVariant = new Map<string, string[]>();
+    for (const d of data) {
+      for (const variant of d.variant) {
+        const ids = csIdsByVariant.get(variant);
+        if (ids === undefined) {
+          csIdsByVariant.set(variant, [d.traitCSId]);
+        } else {
+          ids.push(d.traitCSId);
+        }
+      }
+    }
+    // a CS is in its own overlap set, as it was before: consumers subtract it (see traitStatus)
     const overlap: { [key: string]: Set<string> } = {};
-    for (let d1 = 0; d1 < data.length; d1++) {
-      const d1Var = data[d1].variant;
-      const d1Pos = data[d1].pos;
-      const d1CSId = data[d1].traitCSId;
-      for (let d2 = d1; d2 < data.length; d2++) {
-        const d2Var = data[d2].variant;
-        const d2Pos = data[d2].pos;
-        const d2CSId = data[d2].traitCSId;
-        for (let i1 = 0; i1 < d1Var.length; i1++) {
-          for (let i2 = 0; i2 < d2Var.length; i2++) {
-            if (d2Pos[i2] > d1Pos[i1]) {
-              break;
-            }
-            if (d2Pos[i2] < d1Pos[i1]) {
-              continue;
-            }
-            if (d1Var[i1] === d2Var[i2]) {
-              if (!overlap[d1CSId]) {
-                overlap[d1CSId] = new Set<string>();
-              }
-              if (!overlap[d2CSId]) {
-                overlap[d2CSId] = new Set<string>();
-              }
-              overlap[d1CSId].add(d2CSId);
-              overlap[d2CSId].add(d1CSId);
-              break;
-            }
-          }
+    for (const ids of csIdsByVariant.values()) {
+      for (const csId of ids) {
+        let set = overlap[csId];
+        if (set === undefined) {
+          set = new Set<string>();
+          overlap[csId] = set;
+        }
+        for (const other of ids) {
+          set.add(other);
         }
       }
     }
@@ -292,8 +311,9 @@ const CisView = ({ geneName }: { geneName: string }) => {
   const titleRows = useMemo(() => {
     const rows = sortedData?.map((d) => {
       let color = "white";
-      let traitName = d.trait;
       let resourceShortName = "TBA";
+      const traitName = geneViewTraitName(d, traitNames, geneName);
+      const traitCode = geneViewTraitCode(d, eqtlCatalogueMeta?.[d.dataset]?.study);
       const highlighted = highlightCSs === undefined || highlightCSs.has(d.traitCSId);
       const resource = config.gene_view.resources.find(
         (resource) => d.resource === resource.dataName
@@ -306,28 +326,11 @@ const CisView = ({ geneName }: { geneName: string }) => {
           : isActualDarkMode
           ? config.gene_view.colors.dimDark
           : config.gene_view.colors.dim;
-        // traitName/resourceShortName fall back to the row's own trait code/gene symbol and the
-        // config resource label now that trait/dataset metadata enrichment is gone (see above).
-        if (d.dataType === "pQTL") {
-          // append the proteomics platform/panel, kept consistent with the dataset name shown in the
-          // anno tables (see datasetDisplayName): UKB-PPP is the Olink 3K panel; FinnGen carries its
-          // platform inline in the dataset id (e.g. FinnGen_Olink, FinnGen_Olink_5K).
-          traitName +=
-            d.resource === "FinnGen_pQTL"
-              ? ` ${d.dataset.replace(/^FinnGen_/, "").replace(/_/g, " ")}`
-              : " Olink 3K"; // UKB-PPP
-        }
         resourceShortName = resource.label;
-        if (d.dataType === "eQTL") {
-          if (d.resource === "FinnGen_eQTL") {
-            // FinnGen carries its assay inline in the dataset id (e.g. FinnGen_snRNAseq); strip the
-            // resource prefix rather than the old /FinnGen_(.*?)_/ regex, which returned undefined on
-            // ids without a trailing token.
-            traitName += ` ${d.dataset.replace(/^FinnGen_/, "").replace(/_/g, " ")}`;
-          } else {
-            traitName = `${d.trait} ${traitName}`;
-          }
-        }
+      }
+      // the study says more than "eQTL Cat", which every one of these rows would otherwise repeat
+      if (d.resource === EQTL_CATALOGUE_DATA_NAME) {
+        resourceShortName = eqtlCatalogueMeta?.[d.dataset]?.study ?? resourceShortName;
       }
 
       const topPipVariantIndex = d.pip.indexOf(Math.max(...d.pip));
@@ -381,10 +384,22 @@ const CisView = ({ geneName }: { geneName: string }) => {
           <CleanTableCell align="right" style={{ width: "20px", marginRight: "5px", color: color }}>
             {d.csSize}
           </CleanTableCell>
+          {/* same letter badge as the variant tables, dimmed with the row when it is not highlighted */}
+          <CleanTableCell
+            style={{
+              width: "18px",
+              marginRight: "5px",
+              display: "inline-flex",
+              alignItems: "center",
+              opacity: highlighted ? 1 : 0.35,
+            }}>
+            <DataTypeIcon dataType={d.dataType as CredibleSetDataType} size={14} />
+          </CleanTableCell>
+          {/* wide enough for the longest resource labels ("Open Targets", "FG+MVP+UKB") */}
           <CleanTableCell
             align="right"
             style={{
-              width: "60px",
+              width: "80px",
               marginRight: "5px",
               color: color,
               overflow: "scroll",
@@ -394,8 +409,8 @@ const CisView = ({ geneName }: { geneName: string }) => {
           </CleanTableCell>
           <CleanTableCell
             style={{
-              width: config.gene_view.titleWidth - 80,
-              overflow: "scroll",
+              width: config.gene_view.titleWidth - 123,
+              overflow: "hidden",
               display: "inline-flex",
               alignItems: "center",
               justifyContent: "flex-start",
@@ -405,6 +420,11 @@ const CisView = ({ geneName }: { geneName: string }) => {
             <Tooltip
               title={
                 <>
+                  {/* the row label is clipped at titleWidth, so the tooltip carries the full name */}
+                  <Typography style={{ fontWeight: "bold" }}>{traitName}</Typography>
+                  {traitCode !== undefined && <Typography>{traitCode}</Typography>}
+                  <Typography>Credible set size: {d.csSize}</Typography>
+                  <Box mb={2} />
                   <Typography style={{ fontWeight: "bold" }}>Top PIP variant</Typography>
                   <Box mb={2} />
                   <Typography>{d.variant[topPipVariantIndex]}</Typography>
@@ -446,7 +466,7 @@ const CisView = ({ geneName }: { geneName: string }) => {
                 </>
               }
               placement="top">
-              <Typography>{traitName}</Typography>
+              <Typography noWrap>{traitName}</Typography>
             </Tooltip>
           </CleanTableCell>
         </TableRow>
@@ -457,7 +477,7 @@ const CisView = ({ geneName }: { geneName: string }) => {
         <TableBody>{rows}</TableBody>
       </Table>
     );
-  }, [sortedData, mouseOverTrait, highlightCSs]);
+  }, [sortedData, mouseOverTrait, highlightCSs, traitNames, eqtlCatalogueMeta, geneName]);
 
   if (!geneName) {
     return null;
@@ -482,10 +502,15 @@ const CisView = ({ geneName }: { geneName: string }) => {
     <>
       <Box display="flex" flexDirection="column">
         <Typography>
-          Open Targets credible sets are not yet included in this view. Hold <code>Ctrl</code> and
-          scroll on the credible set area to zoom.
+          Hold <code>Ctrl</code> and scroll on the credible set area to zoom.
         </Typography>
-        <Box display="flex" flexDirection="row" mt={2} mb={2}>
+        <Box
+          display="flex"
+          flexDirection="row"
+          flexWrap="wrap"
+          mt={2}
+          mb={2}
+          sx={{ columnGap: 10, rowGap: 2 }}>
           <DatasetOptions data={filteredData} />
           <CisViewOptions
             maxCsSize={maxCsSize}
@@ -525,6 +550,10 @@ const CisView = ({ geneName }: { geneName: string }) => {
             <Typography>
               eQTL and pQTL variants that affect the input gene are shown. There can be other QTL
               variants affecting other genes in the region but they are not shown.
+            </Typography>
+            <Typography>
+              eQTL Catalogue credible sets are shown for gene-level expression (ge) quantification
+              only.
             </Typography>
             <Typography>Shown allele frequencies are gnomAD global allele frequencies.</Typography>
             <Box mb={2} />

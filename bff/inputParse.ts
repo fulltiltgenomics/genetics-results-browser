@@ -1,4 +1,4 @@
-import { upstreamJson, UpstreamError } from "./upstream.js";
+import { upstreamJson, upstreamTsv, UpstreamError } from "./upstream.js";
 
 // canonical internal id is colon-separated chr:pos:ref:alt (GRCh38); accept the usual CPRA
 // separators (- _ | / \) and an optional chr prefix, mirroring the MCP _parse_variant_list.
@@ -203,6 +203,162 @@ interface VariantSetResponse {
  * variant-list parse. Only single bare tokens that are NOT a variant/rsid trigger the lookup, so a
  * normal variant list never pays the extra round-trip.
  */
+/**
+ * Consequences that count as "coding" for a gene query. Verbatim the coding_set the pre-refactor
+ * Flask backend used (server.py, commit 2acbbf3), translated from its gnomAD consequence labels to
+ * the VEP terms the annotation files carry. Deliberately EXCLUDES synonymous_variant and
+ * splice_region_variant: the old set was protein-altering + essential-splice only.
+ */
+const CODING_CONSEQUENCES: ReadonlySet<string> = new Set([
+  "missense_variant",
+  "frameshift_variant",
+  "inframe_insertion",
+  "inframe_deletion",
+  "transcript_ablation",
+  "stop_gained",
+  "stop_lost",
+  "start_lost",
+  "splice_acceptor_variant",
+  "splice_donor_variant",
+  "incomplete_terminal_codon_variant",
+  "protein_altering_variant",
+  "coding_sequence_variant",
+]);
+
+/**
+ * gnomAD AF floor for gene expansion: a variant is kept when its AF is STRICTLY above this, which is
+ * both what the old backend wrote (`AF > 1e-4`, commented out) and what the UI states verbatim, so
+ * the label is exactly the rule. Without a floor a mid-size gene expands to thousands of coding
+ * variants (SORT1: 2024, ~83% of them singletons that cannot be in any credible set) and the fan-out
+ * cost is paid for rows that are empty in every tab. A null/"NA" AF passes rather than being dropped
+ * — an unevaluable frequency is not evidence of rarity, mirroring how the client treats a null
+ * mlog10p.
+ */
+export const GENE_CODING_MIN_AF = 1e-4;
+
+/** HGNC-style symbol: starts with a letter, then alphanumerics and - . _ (never a colon). */
+const GENE_SYMBOL_RE = /^[A-Za-z][A-Za-z0-9._-]*$/;
+
+interface GnomadAnnoRow {
+  chr: string | null;
+  pos: string | null;
+  ref: string | null;
+  alt: string | null;
+  AF: string | null;
+  most_severe: string | null;
+  gene_most_severe: string | null;
+  rsids: string | null;
+}
+
+/**
+ * Consequence/gene/rsid for a gene-expanded variant, taken from the gnomAD rows the expansion
+ * already read. The fan-out annotates variants from the FinnGen annotation file, which has no row
+ * for a variant FinnGen never genotyped — 43 of PCSK9's 50 coding variants — leaving the consequence
+ * blank for variants gnomAD explicitly called coding. Deliberately carries NO frequency fields: af /
+ * info / enrichmentNfe are FinnGen-specific quantities and gnomAD's AF is not a substitute (the
+ * per-population gnomAD frequencies arrive separately via the lazy POST /v1/gnomad path).
+ */
+export interface GeneAnnotationFallback {
+  mostSevere: string;
+  geneMostSevere: string | null;
+  rsid: string | null;
+}
+
+export interface GeneExpansion {
+  /** the gene token as the user typed it, for display back to them. */
+  gene: string;
+  /** canonical variant id -> its gnomAD annotation, for variants the FinnGen fan-out won't cover. */
+  annotations: Record<string, GeneAnnotationFallback>;
+  /**
+   * newline-joined canonical variant ids, ready to feed resolveInput. EMPTY when the gene resolved
+   * upstream but has no qualifying coding variants (a lncRNA/miRNA like XIST or MIR21): that is a
+   * real answer about a real gene, so it must not fall through to the "unparseable token" path,
+   * which would tell the user to check their chr-pos-ref-alt formatting.
+   */
+  text: string;
+}
+
+/**
+ * Expand a bare gene symbol into that gene's coding variants, which then become the query's input
+ * variant list. This restores the pre-refactor behavior (server.py `looks_like_a_gene` ->
+ * `gene_results`), which was lost when the credible-set rewrite replaced that backend.
+ *
+ * Sourced from gnomAD annotations over the gene's range (GET /v1/variant_annotation/gnomad?gene=),
+ * the same source the old backend used, keeping only variants whose MOST SEVERE consequence is
+ * coding IN THIS GENE — the range spans neighbouring genes, so gene_most_severe is what scopes the
+ * result, not the range.
+ *
+ * NOT sourced from credible sets: the old backend also required each variant to have association or
+ * fine-mapping data, but that filter cannot carry over. The assoc path no longer exists, and
+ * requiring credible-set membership returns NOTHING for genes whose signal is entirely regulatory
+ * (SORT1 has 169 credible-set member variants and not one is coding). The variant list is the input;
+ * which of them have data is what the tables then show.
+ *
+ * Returns null when the token can't be a gene symbol, is unknown upstream (404), or names nothing in
+ * the annotation — the caller then falls back to the normal parse, which marks the token unparsed.
+ * A KNOWN gene with no qualifying coding variants returns an expansion with empty text instead; see
+ * GeneExpansion.text.
+ */
+export const maybeExpandGeneCodingVariants = async (
+  text: string
+): Promise<GeneExpansion | null> => {
+  const trimmed = text.trim();
+  // a gene symbol is a single bare token: no internal whitespace, no beta/value columns
+  if (trimmed === "" || /\s/.test(trimmed)) return null;
+  // tokens that already are a variant id or rsid are handled by the normal parse path
+  if (normalizeVariant(trimmed) !== null || RSID_RE.test(trimmed)) return null;
+  // shape-check before spending an upstream call: HGNC symbols start with a letter and carry no
+  // colons, so this also keeps an unrecognized `pheno:{resource}:{code}` token off the gene path
+  // (it reaches here once its own lookup 404s, and must stay unparsed rather than become a gene).
+  if (!GENE_SYMBOL_RE.test(trimmed)) return null;
+
+  let rows: GnomadAnnoRow[];
+  try {
+    rows = await upstreamTsv<GnomadAnnoRow>("/v1/variant_annotation/gnomad", {
+      query: { gene: trimmed },
+    });
+  } catch (err) {
+    // unknown gene -> 404 -> not a gene token; any other upstream failure is genuine
+    if (err instanceof UpstreamError && err.status === 404) return null;
+    throw err;
+  }
+
+  const wanted = trimmed.toUpperCase();
+  const variants: string[] = [];
+  const seen = new Set<string>();
+  const annotations: Record<string, GeneAnnotationFallback> = {};
+  // does the annotation attribute ANY variant to this symbol? that, not the HTTP status, is what
+  // tells us the token names a real gene — an unknown symbol 404s upstream, but a token that merely
+  // resolved to a region would otherwise be reported back to the user as a gene.
+  let attributed = 0;
+  for (const r of rows) {
+    if ((r.gene_most_severe ?? "").toUpperCase() !== wanted) continue;
+    attributed++;
+    if (!r.most_severe || !CODING_CONSEQUENCES.has(r.most_severe)) continue;
+    const af = r.AF === null ? null : Number(r.AF);
+    if (af !== null && Number.isFinite(af) && af <= GENE_CODING_MIN_AF) continue;
+    if (!r.chr || !r.pos || !r.ref || !r.alt) continue;
+    // canonicalize through the same normalizer resolveInput uses, so the annotation map keys match
+    // the variant ids the fan-out later looks up (chr 23 -> X, casing)
+    const id = normalizeVariant(`${r.chr}:${r.pos}:${r.ref}:${r.alt}`);
+    if (id === null) continue;
+    // gnomAD lists exome and genome records separately, so the same variant can appear twice
+    if (seen.has(id)) continue;
+    seen.add(id);
+    variants.push(id);
+    annotations[id] = {
+      mostSevere: r.most_severe,
+      geneMostSevere: r.gene_most_severe,
+      // the column is plural and can carry several ids; the first is enough to label the row
+      rsid: r.rsids ? (r.rsids.split(/[,;&|]/)[0].trim() || null) : null,
+    };
+  }
+  if (attributed === 0) return null;
+  // the symbol names real annotated variants, so an empty list here means "this gene has no coding
+  // variants" (XIST, MIR21), not "this is not a gene" — keep the gene identity either way.
+  return { gene: trimmed, text: variants.join("\n"), annotations };
+};
+
 export const maybeExpandVariantSet = async (text: string): Promise<string | null> => {
   const trimmed = text.trim();
   // a named set is a single bare token: no internal whitespace/newlines, no tab-separated columns

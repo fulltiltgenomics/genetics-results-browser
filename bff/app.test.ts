@@ -80,6 +80,31 @@ describe("passthrough", () => {
     expect(res.body).toEqual({ ok: true });
   });
 
+  it("does not forward transfer-encoding from a streaming upstream", async () => {
+    // /gene_based/{gene} answers with a StreamingResponse, so uvicorn sends "chunked" and no
+    // content-length. Forwarding that header alongside the content-length express sets for the
+    // buffered body makes nginx reject the response with 502.
+    const fetchMock = vi.fn(async () =>
+      new Response("gene\tmlog10p_burden\nPCSK9\t7.1\n", {
+        status: 200,
+        headers: {
+          "content-type": "application/octet-stream",
+          "transfer-encoding": "chunked",
+          connection: "keep-alive",
+        },
+      })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const res = await request(app).get("/api/v1/gene_based/PCSK9");
+
+    expect(res.status).toBe(200);
+    expect(res.headers["transfer-encoding"]).toBeUndefined();
+    expect(res.headers["connection"]).not.toBe("keep-alive");
+    // supertest buffers an octet-stream response into res.body rather than res.text
+    expect(res.body.toString()).toBe("gene\tmlog10p_burden\nPCSK9\t7.1\n");
+  });
+
   it("forwards POST bodies to the upstream", async () => {
     const fetchMock = vi.fn(
       async (_url: string | URL | Request, _init?: RequestInit) =>

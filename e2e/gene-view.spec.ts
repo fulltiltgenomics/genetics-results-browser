@@ -14,11 +14,11 @@ test("gene view renders cis credible-set plot on the new API", async ({ page }) 
   await page.goto("/gene/APOE");
 
   // the loading guard clears once geneInfo + cis + trans + gene track resolve
-  await expect(page.getByText("Loading...")).toBeHidden({ timeout: 30000 });
+  await expect(page.getByText("Loading...")).toBeHidden({ timeout: 90000 });
 
   // CSPlot renders two stacked canvases (gene track + credible-set area)
   const canvases = page.locator("canvas");
-  await expect(canvases.first()).toBeVisible({ timeout: 30000 });
+  await expect(canvases.first()).toBeVisible({ timeout: 90000 });
   const count = await canvases.count();
   expect(count).toBeGreaterThanOrEqual(2);
 

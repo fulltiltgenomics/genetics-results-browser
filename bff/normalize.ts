@@ -17,7 +17,14 @@ import type {
   VariantResult,
 } from "../src/types/types.normalized.js";
 import { isCoding, isLoF } from "./coding.js";
-import { maybeExpandPhenotypeLeads, maybeExpandVariantSet, resolveInput } from "./inputParse.js";
+import {
+  GENE_CODING_MIN_AF,
+  GeneAnnotationFallback,
+  maybeExpandGeneCodingVariants,
+  maybeExpandPhenotypeLeads,
+  maybeExpandVariantSet,
+  resolveInput,
+} from "./inputParse.js";
 import { fetchBatched, Semaphore, withRetry } from "./batch.js";
 import { upstreamJson, upstreamTsv, UpstreamError } from "./upstream.js";
 import { createHash } from "node:crypto";
@@ -185,14 +192,25 @@ const normalizeCsRow = (r: RawCsRow): CredibleSetMembership => ({
 const normalizeConsequence = (mostSevere: string): string =>
   mostSevere.toLowerCase().replace(/_/g, " ");
 
-const normalizeAnnotation = (r: RawAnnotationRow | undefined, fallbackFromCs?: RawCsRow): VariantAnnotation => {
-  const mostSevere = r?.most_severe ?? fallbackFromCs?.most_severe ?? "";
+/**
+ * @param fallbackFromGnomad gnomAD annotation for a gene-expanded variant, used only when the
+ * FinnGen row and the CS row both lack a consequence — see GeneAnnotationFallback for why the
+ * frequency fields are deliberately NOT filled from it.
+ */
+const normalizeAnnotation = (
+  r: RawAnnotationRow | undefined,
+  fallbackFromCs?: RawCsRow,
+  fallbackFromGnomad?: GeneAnnotationFallback
+): VariantAnnotation => {
+  const mostSevere =
+    r?.most_severe ?? fallbackFromCs?.most_severe ?? fallbackFromGnomad?.mostSevere ?? "";
   return {
-    rsid: r?.rsid ?? null,
+    rsid: r?.rsid ?? fallbackFromGnomad?.rsid ?? null,
     consequence: normalizeConsequence(mostSevere),
     isCoding: mostSevere ? isCoding(mostSevere) : false,
     isLoF: mostSevere ? isLoF(mostSevere) : false,
-    gene: r?.gene_most_severe ?? fallbackFromCs?.gene_most_severe ?? null,
+    gene:
+      r?.gene_most_severe ?? fallbackFromCs?.gene_most_severe ?? fallbackFromGnomad?.geneMostSevere ?? null,
     af: toNum(r?.AF),
     info: toNum(r?.INFO),
     enrichmentNfe: toNum(r?.GENOME_enrichment_nfe ?? r?.EXOME_enrichment_nfe),
@@ -726,9 +744,15 @@ export const normalizeVariantList = async (query: string): Promise<NormalizedRes
 
   // a "pheno:{resource}:{code}" token expands to that phenotype's credible-set lead variants (with
   // the data's betas); a single named-set token (e.g. "FinnGen_enriched_202505") expands to its
-  // curated variant list; everything else flows through unchanged as a normal variant/rsid list.
-  const expanded =
-    (await maybeExpandPhenotypeLeads(query)) ?? (await maybeExpandVariantSet(query)) ?? query;
+  // curated variant list; a bare gene symbol expands to that gene's coding variants; everything else
+  // flows through unchanged as a normal variant/rsid list.
+  // ORDER MATTERS: all three triggers are single bare tokens, so the more specific lookups run
+  // first — a curated set named after a gene must stay a set, not become a gene expansion.
+  const leads = await maybeExpandPhenotypeLeads(query);
+  const variantSet = leads === null ? await maybeExpandVariantSet(query) : null;
+  const geneExpansion =
+    leads === null && variantSet === null ? await maybeExpandGeneCodingVariants(query) : null;
+  const expanded = leads ?? variantSet ?? geneExpansion?.text ?? query;
   const resolved = await resolveInput(expanded);
   const { variantIds, rsidMap, notFound, unparsed, betaByVariant, valueByVariant } = resolved;
 
@@ -797,7 +821,11 @@ export const normalizeVariantList = async (query: string): Promise<NormalizedRes
     const rows = csByVariant.get(vid) ?? [];
     const result: VariantResult = {
       variant: vid,
-      annotation: normalizeAnnotation(annoByVariant.get(vid), rows[0]),
+      annotation: normalizeAnnotation(
+        annoByVariant.get(vid),
+        rows[0],
+        geneExpansion?.annotations[vid]
+      ),
       credibleSets: rows.map(normalizeCsRow),
     };
     const nearest = nearestByVariant.get(vid);
@@ -822,6 +850,12 @@ export const normalizeVariantList = async (query: string): Promise<NormalizedRes
       unparsed,
       ac0: [], // ac0 (allele-count-zero) flagging is not derivable from these endpoints
       rsidMap,
+      // set only when the query was a bare gene symbol, so the UI can say the list is derived
+      // rather than pasted; queryType stays "variant" because the coding variants ARE the input.
+      // the AF floor travels with it so the UI can state the cutoff without hardcoding a copy.
+      ...(geneExpansion
+        ? { expandedFromGene: geneExpansion.gene, expandedGeneMinAf: GENE_CODING_MIN_AF }
+        : {}),
     },
     variants,
     phenotypes: derivePhenotypes(csRows, traitNameMap),

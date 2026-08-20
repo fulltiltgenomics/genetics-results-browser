@@ -3,6 +3,12 @@ export type CSDatum = {
   dataset: string;
   dataType: string;
   trait: string;
+  // upstream phenocode/molecular-trait id behind `trait`. equal to `trait` when the API could not
+  // resolve a name (FinnGen drug ATC codes, lab OMOP codes), which is the cue to fall back to the
+  // trait_name_mapping dictionary — see geneViewTraitName.
+  traitOriginal?: string;
+  // QTL tissue/context as "<tissue>|<condition>" (e.g. "macrophage|Listeria_5h"); null for GWAS
+  cellType?: string | null;
   traitId: string;
   chr: string;
   variant: string[];

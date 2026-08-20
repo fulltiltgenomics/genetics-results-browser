@@ -1,7 +1,8 @@
 import QueryVariantInfo from "../input/QueryVariantInfo";
 import InputForm from "../input/InputForm";
 import { useDataStore } from "../../store/store";
-import { Box, CircularProgress, Tab, Tabs, Tooltip, Typography } from "@mui/material";
+import { Box, CircularProgress, Tab, Tabs, Typography } from "@mui/material";
+import ViewNav from "../page/ViewNav";
 import TabPanel from "@mui/lab/TabPanel";
 import { TabContext } from "@mui/lab";
 import GlobalControlContainer from "../controls/GlobalControlContainer";
@@ -67,39 +68,7 @@ const TableContainer = () => {
 
   return (
     <>
-      {isVariantPage && (
-        // top-level nav menu: the current section in bold, the other views as menu links. Gene view
-        // and LD lookup are not ready yet — greyed out and disabled with a "coming soon" tooltip.
-        <Box
-          sx={{
-            display: "flex",
-            flexDirection: "row",
-            alignItems: "center",
-            gap: 2.5,
-            mt: 3,
-            mb: "20px",
-            pb: 1,
-            borderBottom: 1,
-            borderColor: "divider",
-          }}>
-          <Typography variant="h6" sx={{ fontWeight: 700 }}>
-            Variant tables
-          </Typography>
-          {[
-            { label: "Gene view" },
-            { label: "LD lookup" },
-          ].map((item) => (
-            <Tooltip key={item.label} title="Coming soon">
-              <Typography
-                variant="h6"
-                aria-disabled="true"
-                sx={{ color: "text.disabled", cursor: "not-allowed" }}>
-                {item.label}
-              </Typography>
-            </Tooltip>
-          ))}
-        </Box>
-      )}
+      {isVariantPage && <ViewNav current="annotate" />}
       <InputForm />
       {variantInput !== undefined ? (
         <>

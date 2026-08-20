@@ -286,6 +286,16 @@ export interface InputVariants {
   unparsed: string[];
   ac0: VariantId[];
   rsidMap: Record<string, VariantId[]>;
+  /**
+   * set when the query was a bare gene symbol that the BFF expanded into that gene's coding
+   * variants (those variants are `found`). absent for a pasted variant list.
+   */
+  expandedFromGene?: string;
+  /**
+   * the gnomAD AF the expansion required variants to exceed, sent so the UI can state the cutoff
+   * instead of keeping a copy that could drift from the BFF constant.
+   */
+  expandedGeneMinAf?: number;
 }
 
 /** Stage-1 payload: everything the BFF assembles for a query. */
@@ -479,7 +489,9 @@ export interface GeneExpressionRow {
   geneName: string;
   geneId: string;
   tissueCell: string; // tissue/cell label, e.g. "stomach_muscularis"
-  level: number | null; // expression level (TPM/nTPM depending on resource)
+  level: number | null; // expression level (median TPM for GTEx), null when not numeric
+  levelRaw: string; //    level as served: HPA is immunohistochemistry data whose level may be
+  //                      categorical ("high"/"medium"/…), which `level` cannot represent
 }
 
 /** One Mendelian gene-disease association from gene_disease (e.g. GenCC submissions). */

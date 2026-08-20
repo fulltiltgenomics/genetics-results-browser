@@ -66,9 +66,10 @@ export interface FilterState {
   /** per-data-type toggle. a data type absent from the map is treated as ENABLED (permissive default). */
   dataTypes: Partial<Record<CredibleSetDataType, boolean>>;
   /**
-   * eQTL quant-level option. default (false): show only gene-level (`ge`) eQTL Catalogue rows.
-   * non-leveled rows (quantLevel === null: GWAS/pQTL/caQTL/etc.) ALWAYS pass this gate.
-   * true: also include exon/tx/txrev/leafcutter levels.
+   * eQTL quant-level option. default (false): of the eQTL Catalogue expression quantifications show
+   * only gene-level (`ge`). non-leveled rows (quantLevel === null: GWAS/pQTL/caQTL/etc.) and the
+   * splicing levels (leafcutter/majiq) ALWAYS pass this gate.
+   * true: also include exon/tx/txrev.
    */
   includeAllQuantLevels?: boolean;
   /** when set, keep only memberships for this resource+trait (mirrors legacy selected-phenotype filter). */
@@ -129,14 +130,13 @@ export const classifyCisTrans = (
   return "trans";
 };
 
-/** non-gene eQTL Catalogue quant levels — filtered out unless includeAllQuantLevels is on. */
-const NON_GENE_QUANT_LEVELS: ReadonlySet<QuantLevel> = new Set([
-  "exon",
-  "tx",
-  "txrev",
-  "leafcutter",
-  "majiq",
-]);
+/**
+ * Alternative eQTL Catalogue *expression* quant levels — filtered out unless includeAllQuantLevels
+ * is on. leafcutter/majiq are deliberately NOT here: they are the only quantifications splicing is
+ * reported in, so gating them hid every eQTL Catalogue sQTL row regardless of the sQTL data-type
+ * toggle. txrev stays gated — upstream only ever labels txrev rows as eQTL, never sQTL.
+ */
+export const NON_GENE_QUANT_LEVELS: ReadonlySet<QuantLevel> = new Set(["exon", "tx", "txrev"]);
 
 /**
  * Resources hidden from the frontend for now (to be re-added later). Dropped here so they disappear
@@ -157,7 +157,7 @@ const passesFilter = (cs: CredibleSetMembership, f: FilterState): boolean => {
   // a data type absent from the toggle map is treated as enabled (so a partial map never hides data
   // the store hasn't explicitly toggled off).
   if (f.dataTypes[cs.dataType] === false) return false;
-  // quant-level gate only applies to leveled eQTL Catalogue rows (quantLevel !== null).
+  // quant-level gate only applies to the alternative expression levels (see NON_GENE_QUANT_LEVELS).
   if (
     !f.includeAllQuantLevels &&
     cs.quantLevel !== null &&

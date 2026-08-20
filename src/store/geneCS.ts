@@ -42,6 +42,11 @@ export interface GeneCSApiRow {
  * row to its legacy dataName here. unmapped rows (e.g. combined meta-analyses not in config) return
  * undefined and are dropped by the grouping so the view never shows a colorless, untoggleable row.
  */
+// config.gene_view.resources dataName for eQTL Catalogue; its rows are labelled by tissue rather
+// than by dataset, so the naming path needs to recognise them (see geneViewTraitName)
+export const EQTL_CATALOGUE_DATA_NAME = "eQTL_Catalogue_R7";
+const OPEN_TARGETS_DATA_NAME = "Open_Targets";
+
 export const mapToDataName = (
   resource: string,
   dataset: string,
@@ -50,7 +55,6 @@ export const mapToDataName = (
   // dataset-specific buckets first — these split one upstream resource (finngen) into the
   // separate FG Core / Kanta / Drugs / Olink rows the legacy config models.
   const datasetMap: Record<string, string> = {
-    FinnGen_R13: "FinnGen",
     FinnGen_kanta: "FinnGen_kanta",
     FinnGen_drugs: "FinnGen_drugs",
     FinnGen_Olink: "FinnGen_pQTL",
@@ -58,6 +62,12 @@ export const mapToDataName = (
   };
   if (datasetMap[dataset]) {
     return datasetMap[dataset];
+  }
+  // the FinnGen core GWAS dataset carries its release inline (FinnGen_R13, FinnGen_R14, ...), so
+  // match any release: pinning one release silently emptied the whole FG Core bucket when the API
+  // moved on. anchored, so the FinnGen_R13_UKBB* meta-analyses below are not swallowed here.
+  if (/^FinnGen_R\d+$/.test(dataset)) {
+    return "FinnGen";
   }
   // combined FinnGen meta-analyses (R13 + MVP + UKBB, with/without labs) are GWAS; surface them
   // under their own config buckets so they stay visible and individually toggleable.
@@ -68,12 +78,10 @@ export const mapToDataName = (
     return "FinnGen_UKBB";
   }
   switch (resource) {
-    case "ukbb":
-      return dataType === "GWAS" ? "UKBB_119" : undefined;
-    case "bbj":
-      return "BBJ_79";
     case "eqtl_catalogue":
-      return "eQTL_Catalogue_R7";
+      return EQTL_CATALOGUE_DATA_NAME;
+    case "open_targets":
+      return OPEN_TARGETS_DATA_NAME;
     case "finngen":
       if (dataType === "eQTL") return "FinnGen_eQTL";
       if (dataType === "pQTL") return "FinnGen_pQTL";
@@ -82,12 +90,44 @@ export const mapToDataName = (
       if (dataType === "caQTL") return "FinnGen_caQTL";
       return undefined;
     default:
-      // open_targets and anything else not modelled in config — not shown in this view
+      // anything not modelled in config.gene_view.resources — not shown in this view
       return undefined;
   }
 };
 
+/**
+ * config dataNames whose credible sets are pseudo (built from summary stats + LD around the lead
+ * variant, not fine-mapped), derived from the /v1/datasets flag rather than hardcoded so the gene
+ * view cannot drift from the anno tables. the flag is per dataset but uniform within a resource for
+ * everything this view shows, so mapping the resource id alone is enough.
+ */
+export const pseudoDataNames = (
+  datasets: { resource: string; dataType: string; hasPseudoCredibleSets: boolean }[] | undefined
+): Set<string> => {
+  const out = new Set<string>();
+  for (const d of datasets ?? []) {
+    if (!d.hasPseudoCredibleSets) {
+      continue;
+    }
+    // /v1/datasets lowercases the data type ("gwas"); the credible-set rows use "GWAS"
+    const dataName = mapToDataName(d.resource, "", d.dataType.toUpperCase());
+    if (dataName !== undefined) {
+      out.add(dataName);
+    }
+  }
+  return out;
+};
+
 const CS_NUMBER_REGEX = /_L?(\d+)$/;
+
+/**
+ * eQTL Catalogue publishes each study/tissue at several quantification methods — encoded as the
+ * suffix of trait_original (|ge, |exon, |tx, |txrev, |leafcutter, |majiq, |microarray, |aptamer).
+ * they all report the same gene symbol as `trait`, so on a row labelled by gene + tissue the extra
+ * methods are indistinguishable duplicates; this view keeps gene-level expression (ge) only.
+ */
+const isDroppedQuantificationMethod = (row: GeneCSApiRow): boolean =>
+  row.resource === "eqtl_catalogue" && !(row.trait_original ?? "").endsWith("|ge");
 
 /**
  * group the new flat JSON rows into one CSDatum per credible set, mirroring the legacy useCSQuery
@@ -104,13 +144,18 @@ export const groupCredibleSets = (rows: GeneCSApiRow[]): CSDatum[] => {
 
   for (const row of rows) {
     const dataName = mapToDataName(row.resource, row.dataset, row.data_type);
-    if (dataName === undefined) {
+    if (dataName === undefined || isDroppedQuantificationMethod(row)) {
       continue;
     }
     const chr = String(row.chr);
     const variant = `${chr}:${row.pos}:${row.ref}:${row.alt}`;
     const trait = row.trait;
-    const traitId = `${dataName}|${row.dataset}|${trait}`;
+    // the cell type belongs in the key: FinnGen's single-cell datasets (FinnGen_ATACseq,
+    // FinnGen_snRNAseq) fine-map every cell type under one dataset id and reuse the cs_id across
+    // them, so keying on dataset+trait+cs_id alone collapsed a peak's cell types into a single row
+    // whose variants were the union of all of them, but whose cs_size was whichever row arrived
+    // first — a 94-variant row could report (and be filtered as) a credible set of 4.
+    const traitId = `${dataName}|${row.dataset}|${row.cell_type ?? ""}|${trait}`;
     const traitCSId = `${traitId}=${row.cs_id}`;
 
     // the API can emit the same variant twice within a CS (e.g. multi-annotation rows); keep first
@@ -126,6 +171,8 @@ export const groupCredibleSets = (rows: GeneCSApiRow[]): CSDatum[] => {
         dataset: row.dataset,
         dataType: row.data_type,
         trait,
+        traitOriginal: row.trait_original,
+        cellType: row.cell_type,
         traitId,
         traitCSId,
         csId: row.cs_id,
@@ -176,6 +223,103 @@ export const groupCredibleSets = (rows: GeneCSApiRow[]): CSDatum[] => {
     ...cs,
     numberOfCSs: trait2uniqCS[cs.traitId].size,
   }));
+};
+
+/**
+ * true when the API gave back the bare phenocode instead of a name: the credible-set endpoints
+ * resolve `trait` from the same dictionary as /v1/trait_name_mapping but miss the FinnGen drug
+ * (ATC_*_IRN) and lab (numeric OMOP code) traits, which then arrive with trait === trait_original.
+ * QTL rows are excluded because their trait legitimately equals trait_original (a gene symbol or
+ * ATAC peak id) and must not be looked up in a GWAS phenocode dictionary.
+ */
+const hasUnresolvedTraitName = (d: Pick<CSDatum, "dataType" | "trait" | "traitOriginal">): boolean =>
+  d.dataType === "GWAS" && d.traitOriginal !== undefined && d.trait === d.traitOriginal;
+
+/** whether a gene view needs the (2 MB) trait_name_mapping dictionary to label all its rows */
+export const needsTraitNameMapping = (data: CSDatum[] | undefined): boolean =>
+  data !== undefined && data.some(hasUnresolvedTraitName);
+
+/**
+ * the QTL context a credible set was called in, from the row's `cell_type` ("<tissue>|<condition>",
+ * the same two fields the BFF splits out of the eQTL Catalogue phenotype_string). the condition
+ * "naive" is the uninformative default and is dropped, matching the anno tables' dataset label.
+ */
+const formatCellType = (cellType: string | null | undefined): string => {
+  if (!cellType) {
+    return "";
+  }
+  const [tissue, condition] = cellType.split("|");
+  const suffix = condition && condition !== "naive" ? `, ${condition.replace(/_/g, " ")}` : "";
+  return `${tissue.replace(/_/g, " ")}${suffix}`;
+};
+
+/**
+ * the upstream identifier worth showing beside a trait name, or undefined when the name says it all.
+ * an eQTL Catalogue row is one QTD sub-dataset — the id is what you look the dataset up by, and the
+ * `study` it belongs to (from resource_metadata, when the caller has it) is what names it in prose;
+ * an Open Targets trait is a GCST study accession that the resolved display name hides.
+ */
+export const geneViewTraitCode = (d: CSDatum, study?: string | null): string | undefined => {
+  if (d.resource === EQTL_CATALOGUE_DATA_NAME) {
+    return study ? `${study} (${d.dataset})` : d.dataset;
+  }
+  if (d.resource === OPEN_TARGETS_DATA_NAME) {
+    return d.traitOriginal;
+  }
+  return undefined;
+};
+
+/**
+ * full display name of a credible set's trait. the API stores phenostrings with spaces replaced by
+ * underscores ("Dementia_in_Alzheimer_disease"), so they are turned back here; `traitNames` (the
+ * /v1/trait_name_mapping dictionary) fills in the phenocodes the API left unresolved. QTL rows get
+ * their tissue or assay/platform appended so several rows of the same gene stay distinguishable.
+ */
+export const geneViewTraitName = (
+  d: CSDatum,
+  traitNames?: Record<string, string>,
+  viewedGene?: string
+): string => {
+  const resolved = hasUnresolvedTraitName(d) ? traitNames?.[d.traitOriginal!] : undefined;
+  // only the API's name is underscore-encoded; dictionary values are already spaced
+  const name = resolved ?? d.trait.replace(/_/g, " ");
+
+  let context = "";
+  if (d.resource === EQTL_CATALOGUE_DATA_NAME) {
+    // every eQTL Catalogue dataset is one tissue/condition of one study, and the QTD dataset id says
+    // nothing; the tissue is what tells the many same-gene rows apart (the study is shown separately,
+    // in place of the resource label)
+    context = formatCellType(d.cellType);
+  } else if (d.dataType === "pQTL") {
+    // FinnGen carries its platform inline in the dataset id (FinnGen_Olink, FinnGen_Olink_5K);
+    // UKB-PPP is the Olink 3K panel. kept consistent with the anno tables' datasetDisplayName.
+    context =
+      d.resource === "FinnGen_pQTL"
+        ? d.dataset.replace(/^FinnGen_/, "").replace(/_/g, " ")
+        : "Olink 3K";
+  } else if (d.dataType === "eQTL" && d.resource === "FinnGen_eQTL") {
+    // the single-cell datasets fine-map every cell type under one dataset id, so the cell type — not
+    // the assay, which is the same for all of them — is what tells the same gene's rows apart. rows
+    // without one fall back to the assay FinnGen carries inline in the dataset id (FinnGen_snRNAseq)
+    context =
+      formatCellType(d.cellType) || d.dataset.replace(/^FinnGen_/, "").replace(/_/g, " ");
+  } else if (d.dataType === "caQTL") {
+    // same single-cell split as the eQTLs above, but the trait here is an ATAC peak id: every cell
+    // type a peak was fine-mapped in reuses it, so without the cell type the rows are identical
+    context = formatCellType(d.cellType);
+  }
+
+  // a QTL row's trait is the molecular trait's gene symbol. CisView admits eQTL/pQTL rows only for
+  // the gene being viewed, so there the symbol just repeats the page's gene — drop it and keep the
+  // tissue/cell type/platform that actually tells those rows apart. sQTL rows carry no such filter
+  // (FES's window shows FURIN and MAN2A2 sQTLs), so they keep their symbol: it is the only thing
+  // marking them as another gene's signal. dropping it would leave nothing to show when a row has no
+  // context either, hence the `context` guard.
+  const repeatsViewedGene = d.dataType !== "GWAS" && !!viewedGene && d.trait === viewedGene;
+  if (repeatsViewedGene && context) {
+    return context;
+  }
+  return context ? `${name} ${context}` : name;
 };
 
 /**

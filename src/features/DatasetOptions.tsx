@@ -1,11 +1,18 @@
-import { Box, FormControlLabel, Stack, Switch, Typography } from "@mui/material";
+import { Box, FormControlLabel, Stack, Switch, Tooltip, Typography } from "@mui/material";
 import { useMemo } from "react";
 import config from "@/config.json";
 import { useGeneViewStore } from "@/store/store.gene";
 import { CSDatum } from "@/types/types.gene";
+import { CredibleSetDataType } from "@/types/types.normalized";
+import { DataTypeIcon } from "./table/DataTypeIcon";
+import { PSEUDO_CS_TOOLTIP } from "./table/utils/tableutil";
+import { pseudoDataNames } from "@/store/geneCS";
+import { useDatasets } from "@/store/serverQuery";
 
 const DatasetOptions = ({ data }: { data: CSDatum[] | undefined }) => {
   const { resourceToggles, toggleResource } = useGeneViewStore();
+  const { data: datasets } = useDatasets();
+  const pseudoResources = useMemo(() => pseudoDataNames(datasets), [datasets]);
 
   const resourceCountsByDataType = useMemo(() => {
     return data?.reduce((acc, d) => {
@@ -38,7 +45,7 @@ const DatasetOptions = ({ data }: { data: CSDatum[] | undefined }) => {
   };
 
   return (
-    <Box display="flex" flexDirection="row" gap={4}>
+    <Box display="flex" flexDirection="row" flexWrap="wrap" gap={4}>
       {Object.entries(datatype2resources)
         .sort((a, b) => {
           if (a[0] === "GWAS" && b[0] !== "GWAS") return -1;
@@ -52,10 +59,18 @@ const DatasetOptions = ({ data }: { data: CSDatum[] | undefined }) => {
           return 0;
         })
         .map(([datatype, resources]) => (
-          <Box key={datatype}>
-            <Typography style={{ marginLeft: 8, fontWeight: "bold", userSelect: "none" }}>
-              {datatype}
-            </Typography>
+          <Box key={datatype} sx={{ flexShrink: 0 }}>
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                gap: "6px",
+                marginLeft: "8px",
+                userSelect: "none",
+              }}>
+              <DataTypeIcon dataType={datatype as CredibleSetDataType} />
+              <Typography style={{ fontWeight: "bold" }}>{datatype}</Typography>
+            </Box>
             <Stack direction="row" spacing={2} sx={{ maxWidth: "fit-content" }}>
               {getResourceColumns(resources).map((column, colIndex) => (
                 <Stack key={colIndex}>
@@ -80,15 +95,32 @@ const DatasetOptions = ({ data }: { data: CSDatum[] | undefined }) => {
                             }}
                           />
                         }
-                        label={`${resourceCountsByDataType?.[datatype]?.[resource.dataName] || 0} ${
-                          resource.label
-                        }`}
+                        label={
+                          <>
+                            {`${resourceCountsByDataType?.[datatype]?.[resource.dataName] || 0} ${
+                              resource.label
+                            }`}
+                            {/* same "*" marker the variant tables' resource filter uses */}
+                            {pseudoResources.has(resource.dataName) && (
+                              <Tooltip title={PSEUDO_CS_TOOLTIP} arrow>
+                                <Box
+                                  component="span"
+                                  sx={{ color: "text.secondary", cursor: "help", ml: "2px" }}>
+                                  *
+                                </Box>
+                              </Tooltip>
+                            )}
+                          </>
+                        }
                         sx={{
                           margin: 0,
                           "& .MuiFormControlLabel-label": {
                             color: resource.color,
                             userSelect: "none",
-                            width: 70,
+                            // a long count + label ("375 FG+MVP+UKB") must not wrap away from its
+                            // switch, so the column grows to fit instead of the text breaking
+                            minWidth: 70,
+                            whiteSpace: "nowrap",
                           },
                         }}
                       />

@@ -74,6 +74,10 @@ describe("useDatasets (currently included datasets for the About page)", () => {
     expect(eqtl.qtlTypes).toEqual(["eQTL"]);
     expect(eqtl.nSamples).toBe(1108);
 
+    // pseudo credible sets are flagged so both the resource filter and the gene view can mark them
+    expect(finngen.hasPseudoCredibleSets).toBe(false);
+    expect(rows.find((r) => r.datasetId === "finngen_mvp_ukbb")!.hasPseudoCredibleSets).toBe(true);
+
     // a summary-stats-only dataset (no credible sets / coloc)
     const asm = rows.find((r) => r.datasetId === "decode_asmqtl_cpg")!;
     expect(asm.hasCredibleSets).toBe(false);

@@ -5,8 +5,12 @@ import {
   GeneCSApiRow,
   GeneInRegionApiRow,
   geneModelsFromRegion,
+  geneViewTraitCode,
+  geneViewTraitName,
   groupCredibleSets,
   mapToDataName,
+  needsTraitNameMapping,
+  pseudoDataNames,
 } from "./geneCS";
 import { CSDatum } from "@/types/types.gene";
 
@@ -22,6 +26,21 @@ describe("mapToDataName (new resource ids -> legacy config dataName)", () => {
     expect(mapToDataName("finngen", "FinnGen_R13", "GWAS")).toBe("FinnGen");
     expect(mapToDataName("finngen", "FinnGen_kanta", "GWAS")).toBe("FinnGen_kanta");
     expect(mapToDataName("finngen", "FinnGen_drugs", "GWAS")).toBe("FinnGen_drugs");
+  });
+
+  // the core dataset carries the release inline; pinning one release emptied FG Core when the API
+  // moved from R13 to R14, while the meta-analysis datasets must keep their own buckets
+  it("maps any FinnGen core release to FG Core without swallowing the meta-analyses", () => {
+    expect(mapToDataName("finngen", "FinnGen_R14", "GWAS")).toBe("FinnGen");
+    expect(mapToDataName("finngen", "FinnGen_R99", "GWAS")).toBe("FinnGen");
+    expect(mapToDataName("finngen_ukbb", "FinnGen_R13_UKBB", "GWAS")).toBe("FinnGen_UKBB");
+    expect(mapToDataName("finngen_mvp_ukbb", "FinnGen_R13_MVP_UKBB_labs", "GWAS")).toBe(
+      "FinnGen_MVP_UKBB"
+    );
+  });
+
+  it("maps open targets to its own GWAS bucket", () => {
+    expect(mapToDataName("open_targets", "Open_Targets_26.06", "GWAS")).toBe("Open_Targets");
   });
 
   it("maps QTL datasets/resources to their config buckets", () => {
@@ -40,8 +59,8 @@ describe("mapToDataName (new resource ids -> legacy config dataName)", () => {
     expect(mapToDataName("finngen_ukbb", "FinnGen_R13_UKBB", "GWAS")).toBe("FinnGen_UKBB");
   });
 
-  it("drops resources not modelled in the gene-view config (e.g. open_targets)", () => {
-    expect(mapToDataName("open_targets", "Open_Targets_26.06", "GWAS")).toBeUndefined();
+  it("drops resources not modelled in the gene-view config", () => {
+    expect(mapToDataName("some_new_biobank", "Whatever", "GWAS")).toBeUndefined();
   });
 });
 
@@ -49,9 +68,12 @@ describe("groupCredibleSets (new JSON rows -> CSDatum[])", () => {
   const data = groupCredibleSets(cisRows);
 
   it("groups rows into one CSDatum per resource|dataset|trait=cs_id", () => {
-    // every row in the fixture is from a distinct credible set, minus the dropped caQTL row
+    // every row in the fixture is from a distinct credible set, minus the ones dropped for an
+    // unmodelled resource or a non-ge eQTL Catalogue quantification
     const dropped = cisRows.filter(
-      (r) => mapToDataName(r.resource, r.dataset, r.data_type) === undefined
+      (r) =>
+        mapToDataName(r.resource, r.dataset, r.data_type) === undefined ||
+        (r.resource === "eqtl_catalogue" && !r.trait_original.endsWith("|ge"))
     );
     expect(data.length).toBe(cisRows.length - dropped.length);
     for (const d of data) {
@@ -75,6 +97,8 @@ describe("groupCredibleSets (new JSON rows -> CSDatum[])", () => {
     expect(ad.rsid[0]).toBe("NA");
     // gene_most_severe -> gene
     expect(ad.gene[0]).toBe("CLASRP");
+    // the phenocode is kept alongside the name so unresolved names can be filled in downstream
+    expect(ad.traitOriginal).toBe("G6_ALZHEIMER");
   });
 
   it("strips the _variant suffix before classifying coding/LoF", () => {
@@ -90,6 +114,56 @@ describe("groupCredibleSets (new JSON rows -> CSDatum[])", () => {
     expect(eqtl.csNumber).toBe(1);
     const ad = data.find((d) => d.csId === "chr19_45039089_T_A")!;
     expect(ad.csNumber).toBe(1);
+  });
+
+  // FinnGen_ATACseq / FinnGen_snRNAseq fine-map every cell type under one dataset id and reuse the
+  // cs_id across them, so the cell type has to be part of the grouping key
+  it("keeps a peak's cell types apart instead of unioning them into one credible set", () => {
+    const row = (cellType: string, pos: number, csSize: number): GeneCSApiRow => ({
+      resource: "finngen",
+      version: "R14",
+      dataset: "FinnGen_ATACseq",
+      data_type: "caQTL",
+      trait: "chr15-90351711-90352473",
+      trait_original: "chr15-90351711-90352473",
+      cell_type: cellType,
+      chr: 15,
+      pos,
+      ref: "A",
+      alt: "G",
+      mlog10p: 12,
+      beta: 0.2,
+      se: 0.05,
+      pip: 0.5,
+      cs_id: "chr15-90351711-90352473_2",
+      cs_size: csSize,
+      cs_min_r2: 0.9,
+      aaf: 0.2,
+      most_severe: "intron_variant",
+      gene_most_severe: "FURIN",
+    });
+    const grouped = groupCredibleSets([
+      row("l1.B", 100, 1),
+      row("l1.Mono", 200, 3),
+      row("l1.Mono", 300, 3),
+    ]);
+    expect(grouped.length).toBe(2);
+    const single = grouped.find((d) => d.cellType === "l1.B")!;
+    // the size-1 set stays size 1: it must not absorb the other cell type's variants
+    expect(single.csSize).toBe(1);
+    expect(single.variant).toEqual(["15:100:A:G"]);
+    const multi = grouped.find((d) => d.cellType === "l1.Mono")!;
+    expect(multi.csSize).toBe(3);
+    expect(multi.variant.length).toBe(2);
+  });
+
+  it("keeps only the ge quantification of eQTL Catalogue", () => {
+    const cat = data.filter((d) => d.resource === "eQTL_Catalogue_R7");
+    // the fixture has six eqtl_catalogue rows: ge, exon, tx, txrev, microarray and a leafcutter sQTL
+    expect(cat.length).toBe(1);
+    expect(cat[0].traitOriginal).toBe("ENSG00000104859|ge");
+    // the same gene from FinnGen's own eQTL data is unaffected (no quantification suffix there)
+    expect(data.some((d) => d.resource === "FinnGen_eQTL" && d.trait === "CLASRP")).toBe(true);
   });
 
   it("emits finngen caQTL rows under the FinnGen_caQTL bucket (peak-id trait kept verbatim)", () => {
@@ -232,5 +306,214 @@ describe("geneModelsFromRegion (genes_in_region -> GeneModel[])", () => {
     const apoe = models.find((m) => m.geneName === "APOE");
     expect(apoe).toBeDefined();
     expect([1, -1]).toContain(apoe!.strand);
+  });
+});
+
+describe("geneViewTraitName (credible-set row label)", () => {
+  // the API stores phenostrings underscore-separated
+  it("turns the underscores in an API-resolved GWAS name back into spaces", () => {
+    const cs = makeCS({
+      dataType: "GWAS",
+      resource: "FinnGen_UKBB",
+      trait: "Dementia_in_Alzheimer_disease",
+      traitOriginal: "F5_ALZHDEMENT",
+    });
+    expect(geneViewTraitName(cs)).toBe("Dementia in Alzheimer disease");
+  });
+
+  it("names a FinnGen drug trait from the mapping when the API left the ATC code unresolved", () => {
+    const cs = makeCS({
+      dataType: "GWAS",
+      resource: "FinnGen_drugs",
+      dataset: "FinnGen_drugs",
+      trait: "ATC_C10AA_IRN",
+      traitOriginal: "ATC_C10AA_IRN",
+    });
+    expect(geneViewTraitName(cs)).toBe("ATC C10AA IRN");
+    expect(geneViewTraitName(cs, { ATC_C10AA_IRN: "C10AA Hmg coa reductase inhibitors" })).toBe(
+      "C10AA Hmg coa reductase inhibitors"
+    );
+  });
+
+  it("keeps the API name when it resolved one, even if the mapping has a different string", () => {
+    const cs = makeCS({
+      dataType: "GWAS",
+      resource: "FinnGen",
+      trait: "Erysipelas",
+      traitOriginal: "AB1_ERYSIPELAS_WIDE",
+    });
+    expect(geneViewTraitName(cs, { AB1_ERYSIPELAS_WIDE: "Erysipelas, including avohilmo" })).toBe(
+      "Erysipelas"
+    );
+  });
+
+  it("labels eQTL Catalogue rows with their tissue, dropping the default naive condition", () => {
+    const cs = (cellType: string) =>
+      makeCS({
+        dataType: "eQTL",
+        resource: "eQTL_Catalogue_R7",
+        dataset: "QTD000381",
+        trait: "NECTIN2",
+        traitOriginal: "ENSG00000130202|ge",
+        cellType,
+      });
+    expect(geneViewTraitName(cs("macrophage|Listeria_5h"))).toBe("NECTIN2 macrophage, Listeria 5h");
+    expect(geneViewTraitName(cs("brain_(nucleus_accumbens)|naive"))).toBe(
+      "NECTIN2 brain (nucleus accumbens)"
+    );
+    // no cell type available -> the bare gene symbol, never a duplicated one
+    expect(geneViewTraitName(cs(""))).toBe("NECTIN2");
+  });
+
+  // the gene's own QTLs would only repeat the gene the page is already about; the sQTL rows of
+  // neighbouring genes, which CisView does not filter out the way it does eQTL/pQTL, keep theirs
+  it("drops the gene symbol from QTL rows for the gene being viewed, but not from other genes'", () => {
+    const cs = (trait: string, dataType: CSDatum["dataType"] = "eQTL") =>
+      makeCS({
+        dataType,
+        resource: "eQTL_Catalogue_R7",
+        dataset: "QTD000381",
+        trait,
+        cellType: "fibroblast|naive",
+      });
+    expect(geneViewTraitName(cs("FES"), undefined, "FES")).toBe("fibroblast");
+    expect(geneViewTraitName(cs("FURIN", "sQTL"), undefined, "FES")).toBe("FURIN fibroblast");
+    // nothing else to show -> the gene symbol stays rather than leaving the row blank
+    expect(
+      geneViewTraitName(makeCS({ dataType: "eQTL", resource: "eQTL_Catalogue_R7", trait: "FES", cellType: "" }), undefined, "FES")
+    ).toBe("FES");
+    // GWAS traits are phenotype names, never the viewed gene's symbol
+    expect(
+      geneViewTraitName(makeCS({ dataType: "GWAS", resource: "FinnGen", trait: "FES" }), undefined, "FES")
+    ).toBe("FES");
+  });
+
+  // eQTL Catalogue also serves a few pQTL datasets, which must not pick up the UKB-PPP Olink label
+  it("labels eQTL Catalogue pQTL rows by tissue, not by proteomics panel", () => {
+    const cs = makeCS({
+      dataType: "pQTL",
+      resource: "eQTL_Catalogue_R7",
+      dataset: "QTD000584",
+      trait: "APOE",
+      cellType: "plasma|naive",
+    });
+    expect(geneViewTraitName(cs)).toBe("APOE plasma");
+  });
+
+  // a QTL trait is a gene symbol / ATAC peak id, not a GWAS phenocode: never dictionary-resolved
+  it("does not look up QTL traits in the phenocode dictionary", () => {
+    const cs = makeCS({
+      dataType: "pQTL",
+      resource: "UKBB_pQTL",
+      dataset: "UKB_PPP",
+      trait: "APOE",
+      traitOriginal: "APOE",
+    });
+    expect(geneViewTraitName(cs, { APOE: "something else entirely" })).toBe("APOE Olink 3K");
+  });
+
+  it("appends the FinnGen platform from the dataset id for pQTL rows", () => {
+    expect(
+      geneViewTraitName(
+        makeCS({ dataType: "pQTL", resource: "FinnGen_pQTL", dataset: "FinnGen_Olink_5K", trait: "PALM" })
+      )
+    ).toBe("PALM Olink 5K");
+  });
+
+  // FinnGen_snRNAseq fine-maps every cell type under the one dataset id, so the assay is the same on
+  // every row and only the cell type separates them
+  it("labels FinnGen eQTL rows with their cell type, falling back to the assay", () => {
+    const cs = (cellType: string | null) =>
+      makeCS({
+        dataType: "eQTL",
+        resource: "FinnGen_eQTL",
+        dataset: "FinnGen_snRNAseq",
+        trait: "GEMIN7",
+        cellType,
+      });
+    expect(geneViewTraitName(cs("l1.Mono"))).toBe("GEMIN7 l1.Mono");
+    expect(geneViewTraitName(cs("l2.CD14_Mono"))).toBe("GEMIN7 l2.CD14 Mono");
+    expect(geneViewTraitName(cs(null))).toBe("GEMIN7 snRNAseq");
+  });
+
+  // every cell type a peak was fine-mapped in reuses the peak id, so the rows are identical without it
+  it("labels caQTL rows with their cell type alongside the peak id", () => {
+    const cs = (cellType: string | null) =>
+      makeCS({
+        dataType: "caQTL",
+        resource: "FinnGen_caQTL",
+        dataset: "FinnGen_ATACseq",
+        trait: "chr15-90854305-90854804",
+        cellType,
+      });
+    expect(geneViewTraitName(cs("l1.NK"))).toBe("chr15-90854305-90854804 l1.NK");
+    // the peak id is never the viewed gene's symbol, so it survives the redundant-gene rule
+    expect(geneViewTraitName(cs("l2.cDC2"), undefined, "FES")).toBe(
+      "chr15-90854305-90854804 l2.cDC2"
+    );
+    expect(geneViewTraitName(cs(null))).toBe("chr15-90854305-90854804");
+  });
+});
+
+describe("geneViewTraitCode (upstream id shown in the row tooltip)", () => {
+  it("gives the QTD sub-dataset for eQTL Catalogue and the GCST accession for Open Targets", () => {
+    const eqtlCat = makeCS({
+      resource: "eQTL_Catalogue_R7",
+      dataset: "QTD000381",
+      trait: "NECTIN2",
+    });
+    expect(geneViewTraitCode(eqtlCat)).toBe("QTD000381");
+    // the study names the dataset; the id is what you look it up by, so the tooltip carries both
+    expect(geneViewTraitCode(eqtlCat, "GTEx")).toBe("GTEx (QTD000381)");
+    expect(
+      geneViewTraitCode(
+        makeCS({
+          resource: "Open_Targets",
+          dataset: "Open_Targets_26.06",
+          dataType: "GWAS",
+          trait: "Coronary artery disease",
+          traitOriginal: "GCST90092977",
+        })
+      )
+    ).toBe("GCST90092977");
+  });
+
+  it("has nothing to add for resources whose name already identifies the trait", () => {
+    expect(geneViewTraitCode(makeCS({ resource: "FinnGen", dataType: "GWAS" }))).toBeUndefined();
+    expect(geneViewTraitCode(makeCS({ resource: "UKBB_pQTL" }))).toBeUndefined();
+  });
+});
+
+describe("pseudoDataNames (/v1/datasets flags -> gene view dataNames)", () => {
+  it("maps flagged resources to their config buckets and ignores the rest", () => {
+    const rows = [
+      { resource: "finngen_mvp_ukbb", dataType: "gwas", hasPseudoCredibleSets: true },
+      { resource: "finngen_ukbb", dataType: "gwas", hasPseudoCredibleSets: true },
+      // flagged but not modelled in the gene view config — must not leak in as undefined
+      { resource: "covid_hgi", dataType: "gwas", hasPseudoCredibleSets: true },
+      { resource: "finngen", dataType: "gwas", hasPseudoCredibleSets: false },
+    ];
+    expect(pseudoDataNames(rows)).toEqual(new Set(["FinnGen_MVP_UKBB", "FinnGen_UKBB"]));
+    expect(pseudoDataNames(undefined)).toEqual(new Set());
+  });
+});
+
+describe("needsTraitNameMapping (gate on the 2 MB dictionary fetch)", () => {
+  it("is true only when a GWAS row arrived with its name unresolved", () => {
+    const resolved = makeCS({
+      dataType: "GWAS",
+      trait: "Dementia",
+      traitOriginal: "F5_DEMENTIA",
+    });
+    const unresolved = makeCS({
+      dataType: "GWAS",
+      trait: "ATC_J01_IRN",
+      traitOriginal: "ATC_J01_IRN",
+    });
+    // QTL rows legitimately have trait === traitOriginal and must not trigger the fetch
+    const qtl = makeCS({ dataType: "pQTL", trait: "APOE", traitOriginal: "APOE" });
+    expect(needsTraitNameMapping(undefined)).toBe(false);
+    expect(needsTraitNameMapping([resolved, qtl])).toBe(false);
+    expect(needsTraitNameMapping([resolved, unresolved])).toBe(true);
   });
 });

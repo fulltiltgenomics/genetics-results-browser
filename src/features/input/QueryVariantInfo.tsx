@@ -5,7 +5,9 @@ import { useNormalizedQuery } from "../../store/serverQuery";
 
 /**
  * Summary line(s) above the results: how many input variants were found / not found / unparsed, and
- * any rsid-to-multiple-variant notes. Reads the normalized stage-1 payload (inputVariants) and shares
+ * any rsid-to-multiple-variant notes. The found/not-found counts come from the raw stage-1 payload
+ * (they are a lookup fact, filter-independent); the credible-set count comes from stage-2
+ * filteredVariants so it always equals the main table's row count. Shares
  * the single useNormalizedQuery cache key — the legacy useServerQuery it used before fired a SECOND
  * /v1/results request (with the old TableData query key) that errored on the new shape and retried.
  */
@@ -13,16 +15,24 @@ const QueryVariantInfo = () => {
   const variantInput: string = useDataStore((state) => state.variantInput)!;
   const message: string | undefined = useDataStore((state) => state.message);
   const normalizedData = useDataStore((state) => state.normalizedData);
+  const filteredVariants = useDataStore((state) => state.filteredVariants);
   const { isError, isFetching, isLoading } = useNormalizedQuery(variantInput);
 
   const input = normalizedData?.inputVariants;
+
+  // the tables only render variants that are a member of at least one credible set, so surface that
+  // count rather than the raw one. counted on filteredVariants (post stage-2), NOT the raw payload:
+  // the main table drops variants whose memberships all fail the filters, so counting raw promised
+  // rows that never appeared. shared by both query types — the gene view uses the same table.
+  const inCredibleSet = filteredVariants.filter((v) => v.credibleSets.length > 0).length;
 
   if (normalizedData?.queryType === "gene") {
     return isLoading || isFetching || isError ? (
       <></>
     ) : (
       <Typography variant="h6" gutterBottom>
-        Found {normalizedData.variants.length} credible-set variants for {variantInput}
+        Found {inCredibleSet} credible-set variant{inCredibleSet === 1 ? "" : "s"} for{" "}
+        {variantInput} with the current filters
       </Typography>
     );
   }
@@ -39,12 +49,6 @@ const QueryVariantInfo = () => {
     <></>
   );
 
-  // the tables only render variants that are a member of at least one credible set, so surface that
-  // count alongside the found count to explain why fewer rows may show than variants found.
-  const inCredibleSet = (normalizedData?.variants ?? []).filter(
-    (v) => v.credibleSets.length > 0
-  ).length;
-
   // natural quantifier for the "<n> in at least one credible set" clause: none / both / all / the number
   const inCredibleSetPhrase =
     inCredibleSet === 0
@@ -56,7 +60,29 @@ const QueryVariantInfo = () => {
         : inCredibleSet;
 
   let foundElem = <></>;
-  if (input.found.length > 0) {
+  if (input.expandedFromGene) {
+    // a gene query: the variant list is derived, not pasted, so name the gene rather than reporting
+    // a "found" count for variants the user never typed. an empty list is a real answer about a real
+    // gene (a lncRNA/miRNA has no coding variants), not a parse failure.
+    // the AF cutoff comes from the response, not a local copy, so it cannot drift from the BFF rule
+    const afNote =
+      input.expandedGeneMinAf !== undefined
+        ? ` (gnomAD AF > ${input.expandedGeneMinAf.toExponential()})`
+        : "";
+    foundElem =
+      input.found.length > 0 ? (
+        <Typography variant="h6" gutterBottom>
+          {input.found.length} coding variant{input.found.length === 1 ? "" : "s"} in{" "}
+          {input.expandedFromGene}
+          {afNote}, {inCredibleSetPhrase} in at least one credible set with the current filters
+        </Typography>
+      ) : (
+        <Typography variant="h6" gutterBottom>
+          No coding variants found in {input.expandedFromGene}
+          {afNote}
+        </Typography>
+      );
+  } else if (input.found.length > 0) {
     foundElem =
       input.found.length > 1 ? (
         <Typography variant="h6" gutterBottom>
@@ -65,12 +91,12 @@ const QueryVariantInfo = () => {
               ? "Both "
               : `All ${input.found.length} `
             : input.found.length}{" "}
-          variants found, {inCredibleSetPhrase} in at least one credible set across all datasets
+          variants found, {inCredibleSetPhrase} in at least one credible set with the current filters
         </Typography>
       ) : (
         <Typography variant="h6" gutterBottom>
           Variant {input.found[0]} found
-          {inCredibleSet === 0 ? ", not in any credible set" : ""}
+          {inCredibleSet === 0 ? ", not in any credible set with the current filters" : ""}
         </Typography>
       );
   }

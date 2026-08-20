@@ -22,6 +22,7 @@ import {
   groupCredibleSets,
 } from "./geneCS";
 import api from "./api";
+import { isAxiosError } from "axios";
 
 // the gene view's window padding around the gene body (legacy used the same value)
 const GENE_VIEW_PADDING = config.gene_view.gene_padding;
@@ -39,6 +40,8 @@ export interface DatasetApiRow {
   trait_type?: string | null;
   data_type: string;
   qtl_types?: string[];
+  // credible sets built from summary stats + LD around the lead variant rather than fine-mapped
+  pseudo_credible_sets?: boolean;
   products: {
     credible_sets?: boolean;
     summary_stats?: boolean;
@@ -63,6 +66,7 @@ export interface DatasetRow {
   dataType: string;
   qtlTypes?: string[];
   hasCredibleSets: boolean;
+  hasPseudoCredibleSets: boolean;
   hasSummaryStats: boolean;
   hasColocalization: boolean;
   nPhenotypes?: number;
@@ -78,9 +82,10 @@ export const useDatasets = (): UseQueryResult<DatasetRow[], Error> => {
   return useQuery<DatasetRow[]>({
     queryKey: ["datasets"],
     queryFn: async (): Promise<DatasetRow[]> => {
-      const { data } = await api.get<DatasetApiRow[]>("/v1/datasets", {
-        params: { format: "json" },
-      });
+      // no `format` param here: unlike the credible-set endpoints, /v1/datasets rejects it with a
+      // 422 ("Accepted for this endpoint: data_type, include_stats, resource"), which failed the
+      // whole query and left the About page's dataset table and the pseudo-CS flags empty
+      const { data } = await api.get<DatasetApiRow[]>("/v1/datasets");
       return data.map((row) => ({
         datasetId: row.dataset_id,
         resource: row.resource,
@@ -89,6 +94,7 @@ export const useDatasets = (): UseQueryResult<DatasetRow[], Error> => {
         dataType: row.data_type,
         qtlTypes: row.qtl_types,
         hasCredibleSets: row.products?.credible_sets === true,
+        hasPseudoCredibleSets: row.pseudo_credible_sets === true,
         hasSummaryStats: row.products?.summary_stats === true,
         hasColocalization: Array.isArray(row.products?.colocalization?.partners),
         nPhenotypes: row.stats?.n_phenotypes,
@@ -904,6 +910,9 @@ export interface PhenotypeMetadata {
   nControls: number | null;
   nSamples: number | null;
   traitType: string | null;
+  // the row's `author`. for eQTL Catalogue, keyed by QTD id, this is the study a sub-dataset belongs
+  // to ("GTEx", "GENCORD", "Alasoo_2018") — the name worth showing in place of the resource label.
+  study: string | null;
 }
 
 // raw resource_metadata row (snake_case TSV-derived JSON; numeric fields can be the string "NA").
@@ -914,6 +923,7 @@ interface ResourceMetadataApiRow {
   n_cases: number | string;
   n_controls: number | string;
   trait_type: string;
+  author?: string;
 }
 
 const metaNum = (v: number | string | undefined): number | null => {
@@ -949,6 +959,7 @@ export const useResourceMetadata = (
             nControls: metaNum(row.n_controls),
             nSamples: metaNum(row.n_samples),
             traitType: row.trait_type ?? null,
+            study: row.author && row.author !== "NA" ? row.author : null,
           };
         }
         return out;
@@ -1279,6 +1290,7 @@ export const useGeneExpression = (
             geneId: row.gene_id,
             tissueCell: row.tissue_cell,
             level: Number.isNaN(level) ? null : level,
+            levelRaw: String(row.level),
           };
         })
         .sort((a, b) => (b.level ?? -Infinity) - (a.level ?? -Infinity));
@@ -1300,17 +1312,28 @@ interface GeneDiseaseApiRow {
   submitter: string;
 }
 
-/** Mendelian gene-disease associations (gene_disease/{gene}, JSON). */
+/**
+ * Mendelian gene-disease associations (gene_disease/{gene}, JSON).
+ *
+ * The endpoint answers 404 ("No disease associations found for gene X") for a gene GenCC has nothing
+ * on, which is most genes — that is an empty result, not a failure, so it becomes []. Other statuses
+ * still reject so a real outage stays visible.
+ */
 export const useGeneDisease = (
   gene: string | undefined
 ): UseQueryResult<GeneDiseaseRow[], Error> => {
   return useQuery<GeneDiseaseRow[]>({
     queryKey: ["gene-disease", gene],
     queryFn: async () => {
-      const { data } = await api.get<GeneDiseaseApiRow[]>(
-        `/v1/gene_disease/${encodeURIComponent(gene!)}`,
-        { params: { format: "json" } }
-      );
+      const data = await api
+        .get<GeneDiseaseApiRow[]>(`/v1/gene_disease/${encodeURIComponent(gene!)}`, {
+          params: { format: "json" },
+        })
+        .then((res) => res.data)
+        .catch((err) => {
+          if (isAxiosError(err) && err.response?.status === 404) return [];
+          throw err;
+        });
       return data.map((row) => ({
         resource: row.resource,
         uuid: row.uuid,
