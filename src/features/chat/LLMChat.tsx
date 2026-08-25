@@ -31,6 +31,7 @@ import {
   KeyboardArrowDown as ArrowDownIcon,
   AttachFile as AttachFileIcon,
   InfoOutlined as InfoIcon,
+  WarningAmber as WarningAmberIcon,
 } from "@mui/icons-material";
 import React, { useRef, useEffect, useState, useCallback, useMemo } from "react";
 import ReactMarkdown from "react-markdown";
@@ -38,7 +39,7 @@ import remarkGfm from "remark-gfm";
 import type { PluggableList } from "unified";
 import { fetchEventSource } from "@microsoft/fetch-event-source";
 import { TOOL_PROFILES } from "./chat.types";
-import type { ChatMessage, LLMChatProps, LiteratureBackend, ToolProfile, Verbosity, PendingAttachment, FileAttachment, ContextUsage } from "./chat.types";
+import type { ChatMessage, LLMChatProps, LiteratureBackend, ToolProfile, ToolProfileValue, Verbosity, PendingAttachment, FileAttachment, ContextUsage } from "./chat.types";
 import { MessageRating } from "./MessageRating";
 import InstructionsDialog from "./InstructionsDialog";
 import { useInstructionSetsStore } from "./useInstructionSets";
@@ -120,6 +121,22 @@ export const TOOL_PROFILE_LABELS: Record<ToolProfile, string | null> = {
   rag: null,
   code: "Code execution",
 };
+
+/** what to call a profile the SERVER knows and this build does not (genetics-results-suite-4h6.74).
+ * TOOL_PROFILE_LABELS is exhaustive over ToolProfile by design and so can never have an entry for a
+ * name added after this build shipped, but the value is kept and sent, so the control has to say
+ * something. The raw key made readable beats both alternatives: hiding it leaves a radio group with
+ * nothing selected, and showing the bare key looks like a bug. Bounded upstream by
+ * `isPlausibleToolProfile`, which is what makes it safe to render at all. */
+export function toolProfileLabel(profile: ToolProfileValue): string {
+  const known = TOOL_PROFILE_LABELS[profile as ToolProfile];
+  if (known) return known;
+  return profile
+    .split(/[-_]+/)
+    .filter(Boolean)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
 
 // per-message limits (mirror the backend MAX_MESSAGE_CHARS / MAX_ATTACHMENTS_PER_MESSAGE)
 const MAX_MESSAGE_CHARS = 50000;
@@ -283,6 +300,16 @@ export const LLMChat = ({
   const setLiteratureBackend = useChatOptionsStore((s) => s.setLiteratureBackend);
   const toolProfile = useChatOptionsStore((s) => s.toolProfile);
   const setToolProfile = useChatOptionsStore((s) => s.setToolProfile);
+  // what the server said about the selected profile, once it has said anything. undefined while
+  // unasked or unanswerable, so an unreachable backend renders exactly as before
+  const toolProfileCheck = useChatOptionsStore((s) =>
+    s.toolProfile ? s.profileChecks[s.toolProfile] : undefined,
+  );
+  // a profile the server confirmed that this build does not enumerate, so the radio group has an
+  // option to be selected on. Only the store's adoption path can put one here, and only after the
+  // server answered known_profile:true for it
+  const extraToolProfile =
+    toolProfile && !TOOL_PROFILES.includes(toolProfile as ToolProfile) ? toolProfile : null;
   const verbosity = useChatOptionsStore((s) => s.verbosity);
   const setVerbosity = useChatOptionsStore((s) => s.setVerbosity);
   const loadChatOptions = useChatOptionsStore((s) => s.load);
@@ -1178,7 +1205,7 @@ export const LLMChat = ({
               value={toolProfile ?? "all"}
               onChange={(e) => {
                 const val = e.target.value;
-                setToolProfile(val === "all" ? null : (val as ToolProfile));
+                setToolProfile(val === "all" ? null : val);
               }}>
               <FormControlLabel
                 value="all"
@@ -1198,7 +1225,51 @@ export const LLMChat = ({
                   />
                 );
               })}
+              {extraToolProfile && (
+                <FormControlLabel
+                  value={extraToolProfile}
+                  control={<Radio size="small" />}
+                  label={toolProfileLabel(extraToolProfile)}
+                  sx={optionRadioSx}
+                />
+              )}
             </RadioGroup>
+            {/* the server's verdict on the selected profile (genetics-results-suite-4h6.74). The
+                browser and the server each keep their own profile list and neither can import the
+                other's, so a name this build offers may be one the server no longer knows — in
+                which case it quietly resolves to general-only and the user gets an arm they did
+                not pick. Only an explicit known_profile:false speaks up here. */}
+            {toolProfileCheck && toolProfile && !toolProfileCheck.known && (
+              <Tooltip
+                arrow
+                placement="top"
+                title={`The server does not recognise "${toolProfile}", so it falls back to a general-only tool set instead of the one this option names. Your messages still work; they are not using the tools you selected. This browser build is out of step with the chat backend — pick All, or report it.`}>
+                <Typography
+                  variant="caption"
+                  color="warning.main"
+                  sx={{ display: "flex", alignItems: "center", gap: 0.25, cursor: "help" }}>
+                  <WarningAmberIcon sx={{ fontSize: 14 }} />
+                  not recognised by the server ({toolProfileCheck.count} tools)
+                </Typography>
+              </Tooltip>
+            )}
+            {toolProfileCheck?.known && (
+              // confirmation that the server resolved the same profile this control names. The
+              // count is LOCAL tools only — gnomAD/Open Targets and RAG are proxied surfaces the
+              // endpoint deliberately leaves out, so the tooltip says so rather than implying
+              // this is everything the model gets
+              <Tooltip
+                arrow
+                placement="top"
+                title="Local tools the server resolves this profile to. Proxied gnomAD / Open Targets and RAG tools are counted separately.">
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  sx={{ whiteSpace: "nowrap", cursor: "help" }}>
+                  {toolProfileCheck.count} tools
+                </Typography>
+              </Tooltip>
+            )}
           </OptionRow>
         </Box>
         {contextUsage && (
