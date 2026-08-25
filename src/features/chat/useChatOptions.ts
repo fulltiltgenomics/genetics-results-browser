@@ -104,7 +104,7 @@ export const useChatOptionsStore = create<ChatOptionsState>((set, get) => ({
         // "All" above, which is WIDER than whatever the user stored; ask the server before letting
         // that stand
         if (stored.unknownToolProfile) {
-          adoptServerKnownProfile(stored.unknownToolProfile, set, get);
+          adoptServerKnownProfile(stored.unknownToolProfile, set, get, "default");
         }
       } catch (err) {
         // these are preferences, not state a chat needs; fall back to the built-in defaults
@@ -134,6 +134,14 @@ export const useChatOptionsStore = create<ChatOptionsState>((set, get) => ({
 
   applyFromConversation: (options) => {
     set({ ...resolveCurrent(options, get()), lastConversation: options });
+    // the third way an unknown name reaches the UI, and the likeliest one: the conversation itself
+    // stored a profile this build does not enumerate, so resolveCurrent has just widened it to
+    // "All" — which is not what that conversation actually ran with. Same probe as the other two,
+    // but the answer stays in the conversation layer: a conversation's value never becomes the
+    // user's default (genetics-results-suite-4h6.74)
+    if (get().toolProfile === null && typeof options.toolProfile === "string") {
+      adoptServerKnownProfile(options.toolProfile, set, get, "conversation");
+    }
   },
 
   resetToDefaults: () => {
@@ -190,34 +198,57 @@ function checkProfile(
  *
  * Only `known_profile: true` changes anything. `false`, an unanswerable probe, or an implausible
  * name all leave the pre-existing behaviour exactly as it was — nothing is selected, "All" stands.
- * Nothing is persisted either: the settings row already holds this value, and a PUT here would
- * write back a name from a server the user may not be on next time.
+ * Nothing is persisted either: the settings row (or the conversation's own rows) already holds this
+ * value, and a PUT here would write back a name from a server the user may not be on next time.
  *
- * One probe, from `load`, which itself runs once. There is no retry and no re-ask. */
+ * `origin` says which layer the name came from, and only that layer is written: "default" is the
+ * user's stored setting, which is also what a new chat starts from; "conversation" is one
+ * conversation's own stored value, which must never rewrite the user's default. Whether the name
+ * also lands in the live control is decided at ANSWER time from what the control is showing then,
+ * not from the origin — the user's default when no conversation is open, or a conversation whose
+ * own stored profile is this very name.
+ *
+ * At most one probe per name for the lifetime of the page: an in-flight one is joined by nobody
+ * and a settled one is re-applied from `profileChecks` without asking again, so reopening the same
+ * conversation is free. */
 function adoptServerKnownProfile(
   name: string,
   set: (partial: Partial<ChatOptionsState>) => void,
   get: () => ChatOptionsState,
+  origin: "default" | "conversation",
 ) {
   if (!isPlausibleToolProfile(name) || profileChecksInflight.has(name)) return;
+
+  const apply = (result: ResolvedToolProfile) => {
+    if (!result.known) return;
+    const state = get();
+    // an explicit pick made while this was in flight is the newer intent, and its own PUT has
+    // already replaced the stored value this probe was about
+    if (state.userChose) return;
+    // adopt into the live control only while the thing this name came from is still what the
+    // control stands for. a conversation on screen carries its OWN profile, so the user's stored
+    // default must not overwrite it — but a conversation whose stored profile IS this name is
+    // exactly the case being fixed, whichever probe brought the answer back
+    const showing =
+      state.lastConversation === null
+        ? origin === "default"
+        : state.lastConversation.toolProfile === name;
+    set({
+      profileChecks: { ...state.profileChecks, [name]: result },
+      ...(origin === "default" ? { defaultToolProfile: name } : {}),
+      ...(showing && state.toolProfile === null ? { toolProfile: name } : {}),
+    });
+  };
+
+  const settled = get().profileChecks[name];
+  if (settled) {
+    apply(settled);
+    return;
+  }
   profileChecksInflight.add(name);
   void fetchResolvedToolProfile(name)
     .then((result) => {
-      if (!result?.known) return;
-      const state = get();
-      // an explicit pick made while this was in flight is the newer intent, and its own PUT has
-      // already replaced the stored value this probe was about
-      if (state.userChose) return;
-      set({
-        profileChecks: { ...state.profileChecks, [name]: result },
-        defaultToolProfile: name,
-        // a conversation on screen carries its OWN profile; the user's stored default must not
-        // overwrite what that conversation was run with. It still becomes the default for the
-        // next new chat
-        ...(state.lastConversation === null && state.toolProfile === null
-          ? { toolProfile: name }
-          : {}),
-      });
+      if (result) apply(result);
     })
     .catch(() => {})
     .finally(() => profileChecksInflight.delete(name));

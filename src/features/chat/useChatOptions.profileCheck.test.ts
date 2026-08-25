@@ -284,6 +284,107 @@ describe("a stored profile only the server knows", () => {
   });
 });
 
+/**
+ * The same drift arriving on the path a user hits most: reopening a conversation.
+ *
+ * A conversation's `tool_profile` is persisted per message, so a chat that ran under a
+ * server-only profile stores that name. `resolveCurrent` narrows it against TOOL_PROFILES exactly
+ * like the stored setting, and `null` there is the FULL tool surface — so reopening the
+ * conversation shows "All" and the next message in it silently runs unfiltered, which is not what
+ * the earlier messages ran with. The conversation's value is probed too, but it stays in the
+ * conversation layer: it must not become the user's default for new chats.
+ */
+describe("a conversation whose own profile only the server knows", () => {
+  beforeEach(() => {
+    getStoredChatOptions.mockReset();
+    saveChatOption.mockClear();
+    fetchResolvedToolProfile.mockReset();
+    getStoredChatOptions.mockResolvedValue({
+      verbosity: "brief",
+      literatureBackend: "perplexity",
+      toolProfile: null,
+      unknownToolProfile: null,
+    });
+    fetchResolvedToolProfile.mockResolvedValue(null);
+  });
+
+  it("keeps the conversation's name the server confirms, instead of showing All", async () => {
+    fetchResolvedToolProfile.mockResolvedValue({ known: true, count: 62 });
+    const store = await freshStore();
+    await store.getState().load();
+
+    store.getState().applyFromConversation({ toolProfile: "nocode" });
+    await settle();
+
+    expect(fetchResolvedToolProfile).toHaveBeenCalledWith("nocode");
+    // the control shows what this conversation actually ran with, and the next message carries it
+    expect(store.getState().toolProfile).toBe("nocode");
+    // ...without rewriting the user's default: a new chat still starts from their own choice
+    expect(store.getState().defaultToolProfile).toBeNull();
+    expect(saveChatOption).not.toHaveBeenCalled();
+  });
+
+  it("leaves All standing when the server does not know the conversation's name either", async () => {
+    fetchResolvedToolProfile.mockResolvedValue({ known: false, count: 18 });
+    const store = await freshStore();
+    await store.getState().load();
+
+    store.getState().applyFromConversation({ toolProfile: "wat" });
+    await settle();
+
+    expect(store.getState().toolProfile).toBeNull();
+    expect(store.getState().defaultToolProfile).toBeNull();
+  });
+
+  it("does not overwrite a conversation the user switched to while the probe was in flight", async () => {
+    let answer: (value: unknown) => void = () => {};
+    fetchResolvedToolProfile.mockImplementation(
+      () => new Promise((resolve) => (answer = resolve)),
+    );
+    const store = await freshStore();
+    await store.getState().load();
+
+    store.getState().applyFromConversation({ toolProfile: "nocode" });
+    store.getState().applyFromConversation({ toolProfile: "api" });
+    answer({ known: true, count: 62 });
+    await settle();
+
+    expect(store.getState().toolProfile).toBe("api");
+  });
+
+  it("does not overwrite a pick the user made while the probe was in flight", async () => {
+    let answer: (value: unknown) => void = () => {};
+    fetchResolvedToolProfile.mockImplementation(
+      () => new Promise((resolve) => (answer = resolve)),
+    );
+    const store = await freshStore();
+    await store.getState().load();
+
+    store.getState().applyFromConversation({ toolProfile: "nocode" });
+    store.getState().setToolProfile("code");
+    answer({ known: true, count: 62 });
+    await settle();
+
+    expect(store.getState().toolProfile).toBe("code");
+  });
+
+  it("asks once however often the conversation is reopened", async () => {
+    fetchResolvedToolProfile.mockResolvedValue({ known: true, count: 62 });
+    const store = await freshStore();
+    await store.getState().load();
+
+    store.getState().applyFromConversation({ toolProfile: "nocode" });
+    await settle();
+    store.getState().resetToDefaults();
+    store.getState().applyFromConversation({ toolProfile: "nocode" });
+    await settle();
+
+    expect(fetchResolvedToolProfile.mock.calls.map(([p]) => p)).toEqual(["nocode"]);
+    // the cached answer is re-applied, so the second open shows the profile straight away
+    expect(store.getState().toolProfile).toBe("nocode");
+  });
+});
+
 describe("isPlausibleToolProfile", () => {
   // the bound on everything an opaque settings value is allowed to become: a probe URL, a radio
   // label, and the tool_profile on the next message
