@@ -19,6 +19,12 @@ const PhenotypeContainer = () => {
   const [markdownContent, setMarkdownContent] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  // this chat stays ephemeral — nothing here is persisted and it never appears in the session
+  // list — but `session_id` is not only a persistence key: chat-backend makes it the `sid` claim
+  // of the per-execution sandbox credential, and run_analysis refuses any turn without one
+  // (genetics-results-suite-r0v). So mint one client-side for the life of the conversation,
+  // exactly as secret chats do in ChatPage.
+  const [chatSessionId, setChatSessionId] = useState(() => crypto.randomUUID());
 
   useEffect(() => {
     if (phenocode && phenocode !== activePhenocode) {
@@ -49,6 +55,8 @@ const PhenotypeContainer = () => {
       }
       setMarkdownContent(null);
       setActivePhenocode(null);
+      // the chat unmounts here and loses its messages, so the next one is a new conversation
+      setChatSessionId(crypto.randomUUID());
     } finally {
       setLoading(false);
     }
@@ -98,6 +106,7 @@ const PhenotypeContainer = () => {
 
       {activePhenocode && (
         <LLMChat
+          sessionId={chatSessionId}
           phenotypeCode={activePhenocode}
           contextContent={
             markdownContent
