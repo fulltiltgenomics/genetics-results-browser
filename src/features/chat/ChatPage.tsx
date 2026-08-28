@@ -13,6 +13,7 @@ import { FeedbackDialog } from "./FeedbackDialog";
 import { AboutDialog } from "./AboutDialog";
 import McpTokenDialog from "../page/McpTokenDialog";
 import { DatasetsDialog } from "./DatasetsDialog";
+import { ToolsDialog } from "./ToolsDialog";
 import { SchemaDrawer } from "./SchemaDrawer";
 import { useSchema } from "./schemaApi";
 import { useSchemaHashRoute } from "./useSchemaHashRoute";
@@ -71,6 +72,7 @@ const ChatPage = () => {
   const [exportMenuAnchor, setExportMenuAnchor] = useState<HTMLElement | null>(null);
   const [actionMenuAnchorEl, setActionMenuAnchorEl] = useState<HTMLElement | null>(null);
   const [datasetsOpen, setDatasetsOpen] = useState(false);
+  const [toolsOpen, setToolsOpen] = useState(false);
   // hash-based deep linking for SchemaDrawer; known view names come from the cached schema
   const { data: schemaData } = useSchema();
   const knownSchemaViews = useMemo(
@@ -859,6 +861,12 @@ const ChatPage = () => {
                   { key: "tokens", label: "MCP/API Keys", onClick: () => setTokensOpen(true) },
                   { key: "datasets", label: "Datasets", onClick: () => setDatasetsOpen(true) },
                   {
+                    key: "tools",
+                    label: "Tools",
+                    tooltip: "What the assistant can call",
+                    onClick: () => setToolsOpen(true),
+                  },
+                  {
                     key: "tables",
                     label: "Tables",
                     tooltip: "Database tables",
@@ -1059,6 +1067,7 @@ const ChatPage = () => {
       <AboutDialog open={aboutOpen} onClose={() => setAboutOpen(false)} />
       <McpTokenDialog open={tokensOpen} onClose={() => setTokensOpen(false)} />
       <DatasetsDialog open={datasetsOpen} onClose={() => setDatasetsOpen(false)} />
+      <ToolsDialog open={toolsOpen} onClose={() => setToolsOpen(false)} />
       <SchemaDrawer
         open={schemaRoute.open}
         onClose={schemaRoute.close}
