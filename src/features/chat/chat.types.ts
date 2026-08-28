@@ -29,6 +29,15 @@ export const TOOL_PROFILES = ["api", "bigquery", "rag", "code"] as const;
 
 export type ToolProfile = (typeof TOOL_PROFILES)[number];
 
+/** a profile value as it travels: one of this build's own names, or a name only the SERVER knows.
+ * The second case is the other half of the drift the list above warns about — a profile added
+ * server-side is absent here, and narrowing it away resolves it to `null`, which is the FULL tool
+ * surface rather than the smaller one the user stored. The browser therefore asks the server about
+ * an unrecognised stored value instead of discarding it (genetics-results-suite-4h6.74); see
+ * `adoptServerKnownProfile` in useChatOptions.ts. Nothing may be *selectable* outside TOOL_PROFILES
+ * — this type only carries a value the server has confirmed. */
+export type ToolProfileValue = ToolProfile | (string & {});
+
 export type Verbosity = "brief" | "detailed";
 
 /** a named set of user-authored instructions appended to the chat system prompt */

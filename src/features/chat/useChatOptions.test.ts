@@ -3,10 +3,14 @@ import { TOOL_PROFILES } from "./chat.types";
 
 const getStoredChatOptions = vi.fn();
 const saveChatOption = vi.fn(() => Promise.resolve());
+// selecting or restoring a profile now probes the server; stubbed to "no answer" here so these
+// cases stay about persistence and hermetic. The probe itself is covered in
+// useChatOptions.profileCheck.test.ts
+const fetchResolvedToolProfile = vi.fn(() => Promise.resolve(null));
 
 vi.mock("./chatOptionsApi", async () => {
   const actual = await vi.importActual<typeof import("./chatOptionsApi")>("./chatOptionsApi");
-  return { ...actual, getStoredChatOptions, saveChatOption };
+  return { ...actual, getStoredChatOptions, saveChatOption, fetchResolvedToolProfile };
 });
 
 // the store keeps module-level flags, so each case needs a fresh module instance

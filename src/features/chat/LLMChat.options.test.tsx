@@ -7,7 +7,7 @@ import { http, HttpResponse } from "msw";
 import { server } from "../../test/msw/server";
 import { LLMChat, TOOL_PROFILE_LABELS } from "./LLMChat";
 import { TOOL_PROFILES } from "./chat.types";
-import { useChatOptionsStore } from "./useChatOptions";
+import { useChatOptionsStore, __resetToolProfileChecks } from "./useChatOptions";
 import { useInstructionSetsStore } from "./useInstructionSets";
 
 const SET = {
@@ -79,6 +79,8 @@ const resetStores = () => {
     lastConversation: null,
     userChose: false,
   });
+  // the server's per-profile verdicts are cached in the store AND in a module-level in-flight set
+  __resetToolProfileChecks();
   useInstructionSetsStore.setState({
     sets: [],
     selectedId: null,
@@ -131,6 +133,61 @@ describe("LLMChat options", () => {
     const expected = ["all", ...TOOL_PROFILES.filter((p) => TOOL_PROFILE_LABELS[p] !== null)];
     expect(rendered).toEqual(expected);
     expect(TOOL_PROFILES.filter((p) => TOOL_PROFILE_LABELS[p] === null)).toEqual(["rag"]);
+  });
+
+  // genetics-results-suite-4h6.74: the browser's profile list and the server's are two hand-kept
+  // lists in two repos, so this build can offer a name the server no longer knows. Without this the
+  // user picks the seven-tool code surface, the server resolves general-only, and nothing says so
+  it("warns when the server does not recognise the profile the user selected", async () => {
+    serveSettings({ chat_tool_profile: "code" });
+    server.use(
+      http.get("*/v1/tools/resolved", () =>
+        HttpResponse.json({ tool_profile: "code", known_profile: false, count: 18, names: [] }),
+      ),
+    );
+    renderChat();
+    openOptions();
+
+    expect(await screen.findByText(/not recognised by the server/)).toBeTruthy();
+  });
+
+  // the opposite half: an unreachable endpoint is not evidence of drift, and a warning there would
+  // be permanent noise for every user whose backend is simply older or briefly down
+  it("says nothing when the resolved-tools endpoint cannot be reached", async () => {
+    serveSettings({ chat_tool_profile: "code" });
+    server.use(http.get("*/v1/tools/resolved", () => HttpResponse.error()));
+    renderChat();
+    openOptions();
+
+    await waitFor(() => expect(radio("Code execution").checked).toBe(true));
+    expect(screen.queryByText(/not recognised by the server/)).toBeNull();
+  });
+
+  // the other drift direction (genetics-results-suite-4h6.74): the stored profile is one the SERVER
+  // has and this build does not enumerate. Narrowing it away shows "All", which is the FULL tool
+  // surface — the opposite of the narrow one the user stored — so it is kept once the server
+  // confirms it, under a label derived from the key because TOOL_PROFILE_LABELS cannot have one
+  it("keeps and labels a stored profile only the server knows", async () => {
+    serveSettings({ chat_tool_profile: "nocode" });
+    renderChat();
+    openOptions();
+
+    await waitFor(() => expect(radio("Nocode").checked).toBe(true));
+    expect(radio("All").checked).toBe(false);
+  });
+
+  it("stays on All when the server does not know the stored profile either", async () => {
+    serveSettings({ chat_tool_profile: "nocode" });
+    server.use(
+      http.get("*/v1/tools/resolved", () =>
+        HttpResponse.json({ tool_profile: "nocode", known_profile: false, count: 65, names: [] }),
+      ),
+    );
+    renderChat();
+    openOptions();
+
+    await waitFor(() => expect(radio("All").checked).toBe(true));
+    expect(screen.queryByRole("radio", { name: "Nocode" })).toBeNull();
   });
 
   it("persists the code profile picked from the Tools control", async () => {

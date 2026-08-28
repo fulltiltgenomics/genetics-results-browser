@@ -127,4 +127,17 @@ export const handlers = [
   ),
   http.get(api("expression_by_gene/:gene"), () => HttpResponse.json(expressionByGene)),
   http.get(api("gene_disease/:gene"), () => HttpResponse.json(geneDisease)),
+
+  // the chat Tools control asks the chat API whether it recognises the selected profile
+  // (genetics-results-suite-4h6.74). Answered by default so every test that renders LLMChat stays
+  // offline; a test about the unknown-profile warning overrides this with server.use
+  http.get("*/v1/tools/resolved", ({ request }) =>
+    HttpResponse.json({
+      tool_profile: new URL(request.url).searchParams.get("tool_profile"),
+      enable_tools: true,
+      known_profile: true,
+      count: 7,
+      names: [],
+    })
+  ),
 ];
