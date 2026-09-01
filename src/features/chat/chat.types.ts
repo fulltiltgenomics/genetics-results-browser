@@ -9,7 +9,7 @@ export interface ContextUsage {
    * backend still emits `usage` events without the cache fields.
    */
   cache_read?: number;
-  /** part of input_tokens written into the prompt cache; ~12x the price of a read */
+  /** part of input_tokens written into the prompt cache; priced far above a cache read */
   cache_create?: number;
   output_tokens: number;
   /** cumulative billed uncached input, i.e. input_tokens minus both cache fields */
