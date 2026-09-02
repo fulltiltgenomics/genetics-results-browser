@@ -776,6 +776,11 @@ export const LLMChat = ({
             "Content-Type": "application/json",
           },
           credentials: "include",
+          // the gateway answers an expired oauth2-proxy session with 302 -> /oauth2/start.
+          // Followed, that strips this POST's body — the message is discarded and the SSO
+          // landing page resolves as a 200 text/html, which onopen could only report as
+          // "HTTP 200". Kept opaque, it is recognisable as the expired session it is.
+          redirect: "manual",
           body: JSON.stringify({
             messages: messageHistory,
             phenotype_code: phenotypeCode || null,
@@ -797,12 +802,18 @@ export const LLMChat = ({
               resetInactivityTimer();
               return;
             }
+            if (response.type === "opaqueredirect" || response.status === 0) {
+              throw new Error(
+                "Your sign-in expired before the message was sent. Reload the page, then send it again."
+              );
+            }
             const contentType = response.headers.get("content-type");
             if (contentType?.includes("application/json")) {
               const errorData = await response.json();
               throw new Error(errorData.detail || errorData.error || `HTTP ${response.status}`);
             }
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            // statusText is always "" over HTTP/2, so the status has to carry the message
+            throw new Error(`HTTP ${response.status}${response.statusText ? `: ${response.statusText}` : ""}`);
           },
           onmessage(event) {
             resetInactivityTimer();
