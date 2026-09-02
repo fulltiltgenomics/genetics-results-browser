@@ -179,7 +179,9 @@ const CSPlot = ({
 
         geneTextPositions.current = [];
         geneModels.forEach((geneModel) => {
-          const { geneStart, geneEnd } = geneModel;
+          // the drawn span is the transcript's, not the gene record's — see GeneModel
+          const geneStart = Math.min(...geneModel.exonStarts);
+          const geneEnd = Math.max(...geneModel.exonEnds);
           if (scales.x(geneEnd) < 0) {
             return; // if gene is not in the current viewport, skip it because otherwise its name may be drawn on the canvas which is not what we want
           }
@@ -211,7 +213,9 @@ const CSPlot = ({
       } else {
         const ySeen = new Set<number>();
         geneModelPositions.forEach(({ geneModel, y }) => {
-          drawGeneModel(context, geneModel, y, exonHeight, geneModel.geneStart, geneModel.geneEnd);
+          const geneStart = Math.min(...geneModel.exonStarts);
+          const geneEnd = Math.max(...geneModel.exonEnds);
+          drawGeneModel(context, geneModel, y, exonHeight, geneStart, geneEnd);
           ySeen.add(y);
         });
         totalGeneModelHeight = Math.max(...Array.from(ySeen)) + geneModelRowHeight;

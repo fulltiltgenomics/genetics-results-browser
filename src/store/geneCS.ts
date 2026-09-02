@@ -360,8 +360,6 @@ export const geneModelsFromRegion = (rows: GeneInRegionApiRow[]): GeneModel[] =>
       ensg: row.gene_name.startsWith("ENSG") ? row.gene_name : "",
       chr: String(row.chrom),
       strand: row.gene_strand === "-" ? -1 : 1,
-      geneStart: row.gene_start,
-      geneEnd: row.gene_end,
       exonStarts,
       exonEnds,
       cdsStarts: hasExons && row.cds_starts?.length === exonStarts.length ? row.cds_starts : blank,

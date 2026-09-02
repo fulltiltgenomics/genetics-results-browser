@@ -306,19 +306,24 @@ describe("geneModelsFromRegion (genes_in_region -> GeneModel[])", () => {
     expect(apoe.cdsStarts[1]).toBe(44906625);
   });
 
-  it("takes the gene body from the gene, not from the transcript's exons", () => {
-    // the exons belong to the canonical transcript while the gene spans all of them, so a
-    // body derived as min/max over the exons draws a shorter gene than the label names
-    expect(apoe.geneStart).toBeLessThanOrEqual(Math.min(...apoe.exonStarts));
-    expect(apoe.geneEnd).toBeGreaterThanOrEqual(Math.max(...apoe.exonEnds));
+  it("carries the exons alone, so the drawn span is the transcript's", () => {
+    // CSPlot derives the body from min(exonStarts)..max(exonEnds). there is deliberately no
+    // geneStart/geneEnd on the model: a GENCODE gene record spans every transcript it has,
+    // and drawing that leaves the exons in a corner of a long bare line
+    expect("geneStart" in apoe).toBe(false);
+    expect("geneEnd" in apoe).toBe(false);
+    expect(Math.min(...apoe.exonStarts)).toBe(44905796);
+    expect(Math.max(...apoe.exonEnds)).toBe(44909393);
   });
 
   it("falls back to one full-length exon for a gene the API sent no exons for", () => {
     // APOC1 carries no exon columns in the fixture: a GENCODE release with no exon file, and
-    // a results-api predating them, both look like this
+    // a results-api predating them, both look like this. the same min/max then hands the
+    // gene record back, which is all there is to draw
     const apoc1 = models.find((m) => m.geneName === "APOC1")!;
-    expect(apoc1.exonStarts).toEqual([apoc1.geneStart]);
-    expect(apoc1.exonEnds).toEqual([apoc1.geneEnd]);
+    const row = geneRows.find((r) => r.gene_name === "APOC1")!;
+    expect(apoc1.exonStarts).toEqual([row.gene_start]);
+    expect(apoc1.exonEnds).toEqual([row.gene_end]);
     expect(apoc1.cdsStarts).toEqual([null]);
   });
 

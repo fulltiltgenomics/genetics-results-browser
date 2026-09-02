@@ -32,10 +32,13 @@ export type CSDatum = {
 };
 
 /**
- * One gene drawn as a model. The body is geneStart..geneEnd and is NOT derivable from the
- * exons: the exons belong to one transcript (GENCODE's Ensembl-canonical one) while the gene
- * spans every transcript, so min/max over exonStarts/exonEnds draws a shorter gene than the
- * one the label names.
+ * One gene drawn as a model. The body is min(exonStarts)..max(exonEnds) — the span of the ONE
+ * transcript being drawn, GENCODE's Ensembl-canonical one, and deliberately not the gene
+ * record's own start and end. A gene record spans every transcript it has, which for TUBA1C
+ * is 86 kb against a 9.5 kb canonical transcript, so drawing the record puts the exons in a
+ * corner of a long bare line and the gene reads as being somewhere it is not. A row the API
+ * sent no exons for arrives as one full-length exon, so the same min/max gives the record
+ * back where that is all there is.
  *
  * The exon arrays are positional and equal length: exon i spans exonStarts[i]..exonEnds[i]
  * and its translated part is cdsStarts[i]..cdsEnds[i], null where that exon is entirely UTR.
@@ -45,8 +48,6 @@ export type GeneModel = {
   ensg: string;
   chr: string;
   strand: number;
-  geneStart: number;
-  geneEnd: number;
   exonStarts: number[];
   exonEnds: number[];
   cdsStarts: (number | null)[];
