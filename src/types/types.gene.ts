@@ -31,13 +31,26 @@ export type CSDatum = {
   rsid: string[];
 };
 
+/**
+ * One gene drawn as a model. The body is geneStart..geneEnd and is NOT derivable from the
+ * exons: the exons belong to one transcript (GENCODE's Ensembl-canonical one) while the gene
+ * spans every transcript, so min/max over exonStarts/exonEnds draws a shorter gene than the
+ * one the label names.
+ *
+ * The exon arrays are positional and equal length: exon i spans exonStarts[i]..exonEnds[i]
+ * and its translated part is cdsStarts[i]..cdsEnds[i], null where that exon is entirely UTR.
+ */
 export type GeneModel = {
   geneName: string;
   ensg: string;
   chr: string;
   strand: number;
+  geneStart: number;
+  geneEnd: number;
   exonStarts: number[];
   exonEnds: number[];
+  cdsStarts: (number | null)[];
+  cdsEnds: (number | null)[];
 };
 
 export type TraitStatus = {

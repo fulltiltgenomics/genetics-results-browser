@@ -13,7 +13,6 @@ import {
 import { parseQuantLevel } from "@/utils/quantLevel";
 import { CSDatum, GeneModel } from "@/types/types.gene";
 import config from "@/config.json";
-import { mungeGeneModelResponse } from "./serverMunge";
 import { isCoding, isLoF } from "@/utils/coding";
 import {
   GeneCSApiRow,
@@ -180,39 +179,6 @@ export const useServerQuery = (
     enabled: !!variantInput,
     placeholderData: (prev) => prev,
     staleTime: Infinity,
-  });
-};
-
-/**
- * @deprecated hits the dead legacy /v1/gene_model_by_gene (404 on the new API). use
- * useGenesInRegion / useGeneInfo instead. kept only for any non-gene-view caller.
- */
-export const useGeneModelByGeneQuery = (gene: string): UseQueryResult<GeneModel[], Error> => {
-  return useQuery<GeneModel[]>({
-    queryKey: ["gene-model-by-gene", gene],
-    queryFn: async () => {
-      const response = await api.get<string>(
-        `/v1/gene_model_by_gene/${gene}/${config.gene_view.gene_padding}`
-      );
-      return mungeGeneModelResponse(response.data);
-    },
-    enabled: !!gene,
-    staleTime: Infinity,
-  });
-};
-
-export const useGeneModelQuery = (
-  chr: string,
-  start: number,
-  end: number
-): UseQueryResult<GeneModel[], Error> => {
-  return useQuery<GeneModel[]>({
-    queryKey: ["gene-model", chr, start, end],
-    queryFn: async () => {
-      const response = await api.get<string>(`/v1/gene_model/${chr}/${start}/${end}`);
-      return mungeGeneModelResponse(response.data);
-    },
-    enabled: !!chr && !!start && !!end,
   });
 };
 
@@ -601,9 +567,8 @@ export const useGeneTransCredibleSets = (
 };
 
 /**
- * gene track for the plot: gene bodies in the region from genes_in_region, adapted to GeneModel[].
- * the new endpoint exposes only gene boundaries (no exons), so the track loses exon-level detail
- * vs the legacy gene_model TSV — see geneModelsFromRegion.
+ * gene track for the plot: the region's genes from genes_in_region, adapted to GeneModel[].
+ * format=json because the exon columns are arrays, which the TSV form comma-joins.
  */
 export const useGenesInRegion = (
   chr: string | undefined,

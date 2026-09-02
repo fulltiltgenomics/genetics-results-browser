@@ -322,10 +322,7 @@ export const geneViewTraitName = (
   return context ? `${name} ${context}` : name;
 };
 
-/**
- * raw row from genes_in_region. the new endpoint exposes only gene bodies (no exon structure), so
- * the gene track loses exon-level detail vs the legacy gene_model TSV — see geneModelsFromRegion.
- */
+/** raw row from genes_in_region (format=json, so the exon columns arrive as real arrays) */
 export interface GeneInRegionApiRow {
   gene_name: string;
   chrom: number;
@@ -337,24 +334,40 @@ export interface GeneInRegionApiRow {
   hgnc_name: string | null;
   hgnc_alias_symbol: string | null;
   hgnc_prev_symbol: string | null;
+  exon_starts?: number[];
+  exon_ends?: number[];
+  cds_starts?: (number | null)[];
+  cds_ends?: (number | null)[];
 }
 
 /**
- * adapt genes_in_region rows to the GeneModel shape CSPlot draws. the endpoint provides only gene
- * boundaries, so we model each gene as a single full-length "exon" (start..end): the gene line and
- * body still render and the strand arrow + click-through work, but individual exons are not drawn.
- * prefer the hgnc symbol for the label/click target, falling back to the raw gene_name (an ENSG when
- * no hgnc mapping exists).
+ * adapt genes_in_region rows to the GeneModel shape CSPlot draws. prefer the hgnc symbol for the
+ * label/click target, falling back to the raw gene_name (an ENSG when no hgnc mapping exists).
+ *
+ * a row with no exon arrays falls back to one full-length "exon" spanning the gene: the API serves
+ * exons only for GENCODE releases that have an exon file, and a results-api predating them serves
+ * none at all. that keeps the gene body, the strand arrow and the click-through working, which is
+ * exactly what the track did before exons existed.
  */
 export const geneModelsFromRegion = (rows: GeneInRegionApiRow[]): GeneModel[] => {
-  return rows.map((row) => ({
-    geneName: row.hgnc_symbol ?? row.gene_name,
-    ensg: row.gene_name.startsWith("ENSG") ? row.gene_name : "",
-    chr: String(row.chrom),
-    strand: row.gene_strand === "-" ? -1 : 1,
-    exonStarts: [row.gene_start],
-    exonEnds: [row.gene_end],
-  }));
+  return rows.map((row) => {
+    const hasExons = !!row.exon_starts?.length && row.exon_starts.length === row.exon_ends?.length;
+    const exonStarts = hasExons ? row.exon_starts! : [row.gene_start];
+    const exonEnds = hasExons ? row.exon_ends! : [row.gene_end];
+    const blank = exonStarts.map(() => null);
+    return {
+      geneName: row.hgnc_symbol ?? row.gene_name,
+      ensg: row.gene_name.startsWith("ENSG") ? row.gene_name : "",
+      chr: String(row.chrom),
+      strand: row.gene_strand === "-" ? -1 : 1,
+      geneStart: row.gene_start,
+      geneEnd: row.gene_end,
+      exonStarts,
+      exonEnds,
+      cdsStarts: hasExons && row.cds_starts?.length === exonStarts.length ? row.cds_starts : blank,
+      cdsEnds: hasExons && row.cds_ends?.length === exonEnds.length ? row.cds_ends : blank,
+    };
+  });
 };
 
 // resolve which config dataNames are GWAS so callers can identify cis GWAS rows if needed

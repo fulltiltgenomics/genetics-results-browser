@@ -292,20 +292,39 @@ describe("buildAffectingGeneList (trans: variants in other genes affect input ge
 
 describe("geneModelsFromRegion (genes_in_region -> GeneModel[])", () => {
   const models = geneModelsFromRegion(geneRows);
+  const apoe = models.find((m) => m.geneName === "APOE")!;
 
-  it("models each gene body as a single full-length exon (no exon detail)", () => {
+  it("keeps every exon the API sent, with its coding bounds at the same index", () => {
     expect(models.length).toBe(geneRows.length);
-    for (const m of models) {
-      expect(m.exonStarts.length).toBe(1);
-      expect(m.exonEnds.length).toBe(1);
-      expect(m.exonEnds[0]).toBeGreaterThanOrEqual(m.exonStarts[0]);
-    }
+    expect(apoe.exonStarts.length).toBe(4);
+    expect(apoe.exonEnds.length).toBe(apoe.exonStarts.length);
+    expect(apoe.cdsStarts.length).toBe(apoe.exonStarts.length);
+    expect(apoe.cdsEnds.length).toBe(apoe.exonStarts.length);
+    // the first exon is entirely 5' UTR, and dropping its empty coding bounds rather than
+    // keeping the hole would shift every later exon's CDS onto the wrong exon
+    expect(apoe.cdsStarts[0]).toBeNull();
+    expect(apoe.cdsStarts[1]).toBe(44906625);
+  });
+
+  it("takes the gene body from the gene, not from the transcript's exons", () => {
+    // the exons belong to the canonical transcript while the gene spans all of them, so a
+    // body derived as min/max over the exons draws a shorter gene than the label names
+    expect(apoe.geneStart).toBeLessThanOrEqual(Math.min(...apoe.exonStarts));
+    expect(apoe.geneEnd).toBeGreaterThanOrEqual(Math.max(...apoe.exonEnds));
+  });
+
+  it("falls back to one full-length exon for a gene the API sent no exons for", () => {
+    // APOC1 carries no exon columns in the fixture: a GENCODE release with no exon file, and
+    // a results-api predating them, both look like this
+    const apoc1 = models.find((m) => m.geneName === "APOC1")!;
+    expect(apoc1.exonStarts).toEqual([apoc1.geneStart]);
+    expect(apoc1.exonEnds).toEqual([apoc1.geneEnd]);
+    expect(apoc1.cdsStarts).toEqual([null]);
   });
 
   it("prefers the hgnc symbol and decodes the strand", () => {
-    const apoe = models.find((m) => m.geneName === "APOE");
     expect(apoe).toBeDefined();
-    expect([1, -1]).toContain(apoe!.strand);
+    expect([1, -1]).toContain(apoe.strand);
   });
 });
 

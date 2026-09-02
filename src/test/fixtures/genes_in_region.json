@@ -9,7 +9,51 @@
     "hgnc_symbol": "TOMM40",
     "hgnc_name": "translocase of outer mitochondrial membrane 40",
     "hgnc_alias_symbol": "PEREC1|D19S1177E|C19orf1|TOM40|PER-EC1",
-    "hgnc_prev_symbol": null
+    "hgnc_prev_symbol": null,
+    "exon_starts": [
+      44891254,
+      44892393,
+      44892837,
+      44893780,
+      44893961,
+      44900730,
+      44901028,
+      44901208,
+      44903030
+    ],
+    "exon_ends": [
+      44891689,
+      44892460,
+      44892929,
+      44893881,
+      44894066,
+      44900852,
+      44901104,
+      44901310,
+      44903689
+    ],
+    "cds_starts": [
+      44891416,
+      44892393,
+      44892837,
+      44893780,
+      44893961,
+      44900730,
+      44901028,
+      44901208,
+      44903030
+    ],
+    "cds_ends": [
+      44891689,
+      44892460,
+      44892929,
+      44893881,
+      44894066,
+      44900852,
+      44901104,
+      44901310,
+      44903169
+    ]
   },
   {
     "gene_name": "APOE",
@@ -21,7 +65,31 @@
     "hgnc_symbol": "APOE",
     "hgnc_name": "apolipoprotein E",
     "hgnc_alias_symbol": null,
-    "hgnc_prev_symbol": "AD2"
+    "hgnc_prev_symbol": "AD2",
+    "exon_starts": [
+      44905796,
+      44906602,
+      44907760,
+      44908533
+    ],
+    "exon_ends": [
+      44905841,
+      44906667,
+      44907952,
+      44909393
+    ],
+    "cds_starts": [
+      null,
+      44906625,
+      44907760,
+      44908533
+    ],
+    "cds_ends": [
+      null,
+      44906667,
+      44907952,
+      44909250
+    ]
   },
   {
     "gene_name": "APOC1",
