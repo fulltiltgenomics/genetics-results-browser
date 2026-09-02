@@ -951,7 +951,21 @@ export const LLMChat = ({
         }
         console.error("Chat error:", err);
         setError(err.message || "Failed to send message");
-        setMessages((prev) => prev.filter((m) => m.id !== assistantMsgId || m.content));
+        if (accumulatedContent) {
+          setMessages((prev) => prev.filter((m) => m.id !== assistantMsgId || m.content));
+        } else {
+          // the turn produced nothing and was never persisted, so take it back off the
+          // transcript and put it back in the box, ready to resend. Leaving the user
+          // message in `messages` would show it twice next to the restored draft and
+          // replay it in the retry's history. A draft typed since the failure wins.
+          setMessages((prev) =>
+            prev.filter((m) => m.id !== assistantMsgId && m.id !== userMsgId)
+          );
+          setInput((current) => (current.trim() ? current : userMessage));
+          if (attachments && attachments.length > 0) {
+            setPendingAttachments((current) => (current.length > 0 ? current : attachments));
+          }
+        }
       } finally {
         if (inactivityTimer) clearTimeout(inactivityTimer);
         setIsLoading(false);
@@ -1082,6 +1096,21 @@ export const LLMChat = ({
   };
 
   const hasMessages = messages.length > 0;
+
+  // rendered by both branches below: a failed first turn is handed back to the input box and
+  // taken off the transcript, so the empty state is exactly where the error has to be legible
+  const errorBanner = error && (
+    <Alert severity="error" sx={{ mb: 2 }}>
+      {error}
+      {/* retry resends the last user message; with none on the transcript the turn is back
+          in the input box and Send is the retry */}
+      {messages.some((m) => m.role === "user") && (
+        <IconButton size="small" onClick={handleRetry} sx={{ ml: 1 }}>
+          <RefreshIcon fontSize="small" />
+        </IconButton>
+      )}
+    </Alert>
+  );
 
   const inputForm = (
     <Paper
@@ -1466,6 +1495,7 @@ export const LLMChat = ({
             </Collapse>
           </Paper>
         )}
+        {errorBanner}
         {!readOnly && inputForm}
 
         {/* example questions */}
@@ -1677,14 +1707,7 @@ export const LLMChat = ({
         )}
       </Paper>
 
-      {error && (
-        <Alert severity="error" sx={{ mb: 2 }}>
-          {error}
-          <IconButton size="small" onClick={handleRetry} sx={{ ml: 1 }}>
-            <RefreshIcon fontSize="small" />
-          </IconButton>
-        </Alert>
-      )}
+      {errorBanner}
 
 
       {!readOnly && inputForm}

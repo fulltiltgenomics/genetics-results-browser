@@ -45,6 +45,25 @@ describe("LLMChat expired-session handling", () => {
     expect(screen.queryByText(/HTTP 200/)).toBeNull();
   });
 
+  it("gives the message back so it can be resent, and does not leave it on the transcript", async () => {
+    Element.prototype.scrollIntoView = vi.fn();
+    render(<LLMChat />);
+
+    send("two locuszoom plots please");
+
+    await waitFor(() => expect(screen.getByText(/sign-in expired/i)).toBeTruthy());
+
+    const textbox = screen.getByRole("textbox") as HTMLTextAreaElement;
+    expect(textbox.value).toBe("two locuszoom plots please");
+    // it must not be in both places: a transcript copy would be shown twice and would
+    // replay in the history of the retry. jsdom renders a textarea's value as its child
+    // text, so the restored draft itself matches the query and has to come back out.
+    const onTranscript = screen
+      .queryAllByText("two locuszoom plots please")
+      .filter((el) => el.tagName !== "TEXTAREA");
+    expect(onTranscript).toHaveLength(0);
+  });
+
   it("asks fetch not to follow the redirect, since following it drops the POST body", async () => {
     Element.prototype.scrollIntoView = vi.fn();
     render(<LLMChat />);
