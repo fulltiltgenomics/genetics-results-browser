@@ -111,4 +111,28 @@ describe("tool calls in the transcript", () => {
     expect(screen.queryByText(/IMAGE:/)).toBeNull();
     expect(img.alt).not.toContain(":");
   });
+
+  it("shows a plot as a figure and not as a link", async () => {
+    await startTurn();
+    await act(async () => {
+      emit!({
+        type: "image",
+        image_data: "aW1hZ2U=".repeat(20),
+        image_format: "png",
+        image_alt: "locuszoom.png",
+      });
+    });
+
+    const img = screen.getByRole("img");
+    // the src is a data: URL and a browser refuses one as a top-level navigation, so the
+    // click handler this replaces opened a blank tab every time. The affordances that
+    // promised it go with it, or the plot still reads as something to click.
+    const opened = vi.spyOn(window, "open").mockImplementation(() => null);
+    fireEvent.click(img);
+    expect(opened).not.toHaveBeenCalled();
+    expect(img.closest("a")).toBeNull();
+    expect(img.getAttribute("title")).toBeNull();
+    expect((img as HTMLImageElement).style.cursor).toBe("");
+    opened.mockRestore();
+  });
 });

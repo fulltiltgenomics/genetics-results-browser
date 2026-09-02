@@ -201,17 +201,17 @@ const MessageContent = ({
       const src = `data:image/${format};base64,${base64Data}`;
       parts.push(
         <Box key={`img-${keyIndex++}`} sx={{ my: 2 }}>
+          {/* not a link, and deliberately not clickable: the src is a data: URL, and a
+              browser refuses one as a top-level navigation, so opening it in a tab gave a
+              blank tab every time. Saving the image is the context menu's job. */}
           <img
             src={src}
             alt={alt}
             style={{
               maxWidth: "100%",
-              cursor: "pointer",
               borderRadius: 4,
               border: "1px solid #ddd",
             }}
-            onClick={() => window.open(src, "_blank")}
-            title="Click to open in new tab"
           />
         </Box>
       );
@@ -1073,11 +1073,7 @@ export const LLMChat = ({
       borderRadius: 1,
       my: 2,
       display: "block",
-      cursor: "pointer",
       border: `1px solid ${theme.palette.divider}`,
-      "&:hover": {
-        boxShadow: theme.shadows[4],
-      },
     },
   };
 
