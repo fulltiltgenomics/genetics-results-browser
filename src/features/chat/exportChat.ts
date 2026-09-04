@@ -23,18 +23,28 @@ function toolCallToMarkdown(encoded: string): string {
 }
 
 /**
+ * One stored message's `content` as portable markdown: an image marker becomes an inline
+ * data-URL image and a tool-call marker becomes the block above. Exported because the admin
+ * conversation export reads the same stored content and, rendering it raw, wrote the base64
+ * of both markers into the downloaded file.
+ */
+export function messageContentToMarkdown(content: string): string {
+  return content
+    .replace(
+      IMAGE_MARKER_REGEX,
+      (_match, format, alt, base64Data) => `![${alt}](data:image/${format};base64,${base64Data})`,
+    )
+    .replace(TOOL_CALL_MARKER_REGEX, (_match, encoded: string) => toolCallToMarkdown(encoded));
+}
+
+/**
  * Build a markdown string from chat messages, converting image and tool-call markers
  * and including user attachments.
  */
 export function buildChatMarkdown(messages: ChatMessage[]): string {
   const parts = messages.map((msg) => {
     const role = msg.role === "user" ? "## User" : `## ${APP_NAME}`;
-    let content = msg.content
-      .replace(
-        IMAGE_MARKER_REGEX,
-        (_match, format, alt, base64Data) => `![${alt}](data:image/${format};base64,${base64Data})`,
-      )
-      .replace(TOOL_CALL_MARKER_REGEX, (_match, encoded: string) => toolCallToMarkdown(encoded));
+    let content = messageContentToMarkdown(msg.content);
     if (msg.role === "user" && msg.attachments) {
       for (const att of msg.attachments) {
         if (att.type === "image" && att.previewUrl) {

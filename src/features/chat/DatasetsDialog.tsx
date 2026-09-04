@@ -144,6 +144,12 @@ const externalResources: { name: string; url: string; description: string }[] = 
       "What the protein a gene encodes actually does, and which parts of it matter: domains, active sites and disease-linked residues.",
   },
   {
+    name: "ChEMBL",
+    url: "https://www.ebi.ac.uk/chembl",
+    description:
+      "Which drugs and clinical candidates act on the protein a gene encodes, what they do to it, how far each got in the clinic, what it is used for, and how much medicinal chemistry exists against the target.",
+  },
+  {
     name: "myvariant.info",
     url: "https://myvariant.info",
     description:

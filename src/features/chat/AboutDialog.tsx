@@ -47,8 +47,10 @@ export const AboutDialog = ({ open, onClose }: AboutDialogProps) => {
       <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
         Beyond our own curated genetics datasets (see Datasets), I can pull live information
         from external resources: gnomAD (population allele frequencies and gene constraint),
-        myvariant.info (ClinVar, CADD, PolyPhen-2, SIFT), and MGI (mouse knockout phenotypes
-        and orthologs), and HGNC gene annotations (including gene groups/families). I can also
+        myvariant.info (ClinVar, CADD, PolyPhen-2, SIFT), MGI (mouse knockout phenotypes
+        and orthologs), ChEMBL (drugs and clinical candidates acting on a gene's protein,
+        with their mechanism, clinical phase and indications), and HGNC gene annotations
+        (including gene groups/families). I can also
         search the scientific literature and the web, compute LD from the FinnGen reference
         panel, draw PheWAS plots (limited to variants in credible sets, not non-significant
         associations), and run custom queries against our results database.

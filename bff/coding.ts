@@ -1,5 +1,7 @@
 // mirror of src/utils/coding.ts; the BFF tsconfig only includes ./bff/*.ts so the frontend module
-// is not importable here. consequence tokens arrive with a "_variant" suffix and are stripped first.
+// is not importable here. consequence tokens arrive with a "_variant" suffix and are stripped
+// first. The two files must stay byte-identical below this header — see the note there for the
+// other three copies of this definition and for why synonymous and coding_sequence are out.
 const CODING = new Set([
   "missense",
   "frameshift",
@@ -13,7 +15,6 @@ const CODING = new Set([
   "splice_donor",
   "incomplete_terminal_codon",
   "protein_altering",
-  "coding_sequence",
 ]);
 
 const LOF = new Set([

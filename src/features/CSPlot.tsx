@@ -101,13 +101,32 @@ const CSPlot = ({
       context.strokeStyle = color;
       context.lineWidth = 2;
       context.stroke();
-      // exons
+      // exons: an untranslated stretch is drawn shorter than a translated one, so a reader
+      // can tell a UTR from coding sequence by height alone — the convention every genome
+      // browser uses. a release with no exon data arrives as one full-length exon and simply
+      // draws as one box, which is what this track did before exons existed.
+      const utrHeight = exonHeight * 0.6;
+      const utrY = geneModelY + (exonHeight - utrHeight) / 2;
       geneModel.exonStarts.forEach((start, exonIndex) => {
         const end = geneModel.exonEnds[exonIndex];
         context.beginPath();
-        context.rect(scales.x(start), geneModelY, scales.x(end) - scales.x(start), exonHeight);
+        context.rect(scales.x(start), utrY, scales.x(end) - scales.x(start), utrHeight);
         context.fillStyle = color;
         context.fill();
+
+        const cdsStart = geneModel.cdsStarts[exonIndex];
+        const cdsEnd = geneModel.cdsEnds[exonIndex];
+        if (cdsStart !== null && cdsEnd !== null) {
+          context.beginPath();
+          context.rect(
+            scales.x(cdsStart),
+            geneModelY,
+            scales.x(cdsEnd) - scales.x(cdsStart),
+            exonHeight
+          );
+          context.fillStyle = color;
+          context.fill();
+        }
       });
 
       // strand direction arrow
@@ -160,6 +179,7 @@ const CSPlot = ({
 
         geneTextPositions.current = [];
         geneModels.forEach((geneModel) => {
+          // the drawn span is the transcript's, not the gene record's — see GeneModel
           const geneStart = Math.min(...geneModel.exonStarts);
           const geneEnd = Math.max(...geneModel.exonEnds);
           if (scales.x(geneEnd) < 0) {

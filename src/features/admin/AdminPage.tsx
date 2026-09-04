@@ -42,8 +42,6 @@ import {
   Title as ChartTitle,
 } from "chart.js";
 import { Line } from "react-chartjs-2";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import { marked } from "marked";
 import { useNavigate } from "react-router";
 import {
@@ -61,6 +59,10 @@ import { fetchQualitySeries, type QualityRow } from "./adminApi";
 import { buildAllSeries, type SeriesPanel } from "./qualitySeries";
 import { useLineHighlight, type HighlightHandlers } from "./lineHighlight";
 import ConversationsTable from "./ConversationsTable";
+// the transcript renderer and the export converter the chat itself uses: an admin viewing a
+// stored conversation sees exactly what its owner saw, markers included
+import { MessageContent } from "../chat/MessageContent";
+import { messageContentToMarkdown } from "../chat/exportChat";
 
 ChartJS.register(
   CategoryScale,
@@ -80,7 +82,7 @@ const FEEDBACK_PAGE_SIZE = 25;
 function buildExportMarkdown(session: AdminSessionDetail): string {
   const parts = session.messages.map((m) => {
     const role = m.role === "user" ? "## User" : "## Assistant";
-    return `${role}\n\n${m.content}`;
+    return `${role}\n\n${messageContentToMarkdown(m.content)}`;
   });
   return parts.join("\n\n---\n\n");
 }
@@ -844,7 +846,7 @@ export default function AdminPage() {
                     {m.thumbsUp !== null && (m.thumbsUp ? " 👍" : " 👎")}
                   </Typography>
                   <Box sx={{ mt: 0.5, fontSize: 13, "& p": { my: 0.5 }, "& table": { borderCollapse: "collapse", fontSize: 12, my: 1 }, "& th, & td": { border: 1, borderColor: "divider", px: 1, py: 0.5 }, "& pre": { bgcolor: "action.hover", p: 1, borderRadius: 1, overflow: "auto", fontSize: 12 }, "& code": { fontSize: 12 }, "& img": { maxWidth: "100%" } }}>
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{m.content}</ReactMarkdown>
+                    <MessageContent content={m.content} />
                   </Box>
                 </Box>
               ))}

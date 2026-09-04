@@ -238,7 +238,8 @@ describe("gene view hooks (credible sets + gene track on the new API)", () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
     const models = result.current.data!;
     expect(models.length).toBeGreaterThan(0);
-    expect(models.every((m) => m.exonStarts.length === 1)).toBe(true);
+    expect(models.every((m) => m.exonStarts.length === m.exonEnds.length)).toBe(true);
+    expect(models.find((m) => m.geneName === "TOMM40")!.exonStarts.length).toBe(9);
   });
 
   it("useGenesInRegion stays idle until coordinates are known", () => {

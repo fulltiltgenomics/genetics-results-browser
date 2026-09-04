@@ -50,8 +50,8 @@ import { getAttachmentType, isValidAttachmentType } from "./chatHistoryApi";
 import { excelFileToTsv } from "./excelToTsv";
 import { useSchema } from "./schemaApi";
 import { linkifyViewsPlugin } from "./linkifyViews";
-import { ToolCallDisclosure } from "./ToolCallDisclosure";
-import { decodeToolCallMarker, encodeToolCallMarker, withToolCallOutcome } from "./toolCallMarker";
+import { MessageContent } from "./MessageContent";
+import { encodeToolCallMarker, withToolCallOutcome } from "./toolCallMarker";
 
 // hardcoded fallback used until useSchema() resolves; mirrors known views in genetics-results-db
 const FALLBACK_VIEW_NAMES = [
@@ -61,12 +61,6 @@ const FALLBACK_VIEW_NAMES = [
   "exome_variant_results_v",
   "gene_burden_results_v",
 ];
-
-// the two embedded-object markers a message's text can carry: [IMAGE:format:alt:base64data]
-// and [TOOLUSE:base64json]. Matched by one alternation so a message holding both still
-// renders its parts in the order they were streamed.
-const EMBEDDED_MARKER_REGEX =
-  /\[IMAGE:([^:]+):([^:]+):([^\]]+)\]|\[TOOLUSE:([A-Za-z0-9+/=]*)\]/g;
 
 // sentinel option value: opens the management dialog instead of changing the selection
 const MANAGE_INSTRUCTIONS_VALUE = "__manage__";
@@ -141,102 +135,6 @@ export function toolProfileLabel(profile: ToolProfileValue): string {
 // per-message limits (mirror the backend MAX_MESSAGE_CHARS / MAX_ATTACHMENTS_PER_MESSAGE)
 const MAX_MESSAGE_CHARS = 50000;
 const MAX_ATTACHMENTS_PER_MESSAGE = 10;
-
-/**
- * Renders message content, handling embedded objects separately from markdown.
- *
- * Two marker shapes are carried inline in the text: [IMAGE:format:alt:base64data] and
- * [TOOLUSE:base64json]. Both live in the message's `content` rather than in component
- * state so that a reopened session renders identically to the live stream — `content` is
- * the only thing this component ever sees.
- */
-const MessageContent = ({
-  content,
-  rehypePlugins,
-}: {
-  content: string;
-  rehypePlugins?: PluggableList;
-}) => {
-  if (!content.includes("[IMAGE:") && !content.includes("[TOOLUSE:")) {
-    return (
-      <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={rehypePlugins}>
-        {content}
-      </ReactMarkdown>
-    );
-  }
-
-  const parts: React.ReactNode[] = [];
-  let lastIndex = 0;
-  let match;
-  let keyIndex = 0;
-
-  // reset regex state
-  EMBEDDED_MARKER_REGEX.lastIndex = 0;
-
-  while ((match = EMBEDDED_MARKER_REGEX.exec(content)) !== null) {
-    // add text before the embedded object
-    if (match.index > lastIndex) {
-      const textPart = content.slice(lastIndex, match.index);
-      if (textPart.trim()) {
-        parts.push(
-          <ReactMarkdown
-            key={`text-${keyIndex++}`}
-            remarkPlugins={[remarkGfm]}
-            rehypePlugins={rehypePlugins}>
-            {textPart}
-          </ReactMarkdown>
-        );
-      }
-    }
-
-    const [, format, alt, base64Data, toolCallData] = match;
-    if (toolCallData !== undefined) {
-      const record = decodeToolCallMarker(toolCallData);
-      // a marker left half-written by an interrupted stream decodes to null; dropping it
-      // is better than rendering the base64 as prose
-      if (record) {
-        parts.push(<ToolCallDisclosure key={`tool-${keyIndex++}`} record={record} />);
-      }
-    } else {
-      const src = `data:image/${format};base64,${base64Data}`;
-      parts.push(
-        <Box key={`img-${keyIndex++}`} sx={{ my: 2 }}>
-          <img
-            src={src}
-            alt={alt}
-            style={{
-              maxWidth: "100%",
-              cursor: "pointer",
-              borderRadius: 4,
-              border: "1px solid #ddd",
-            }}
-            onClick={() => window.open(src, "_blank")}
-            title="Click to open in new tab"
-          />
-        </Box>
-      );
-    }
-
-    lastIndex = match.index + match[0].length;
-  }
-
-  // add any remaining text after the last embedded object
-  if (lastIndex < content.length) {
-    const remainingText = content.slice(lastIndex);
-    if (remainingText.trim()) {
-      parts.push(
-        <ReactMarkdown
-          key={`text-${keyIndex++}`}
-          remarkPlugins={[remarkGfm]}
-          rehypePlugins={rehypePlugins}>
-          {remainingText}
-        </ReactMarkdown>
-      );
-    }
-  }
-
-  return <>{parts}</>;
-};
 
 /**
  * Reusable LLM chat component with SSE streaming.
@@ -776,6 +674,11 @@ export const LLMChat = ({
             "Content-Type": "application/json",
           },
           credentials: "include",
+          // the gateway answers an expired oauth2-proxy session with 302 -> /oauth2/start.
+          // Followed, that strips this POST's body — the message is discarded and the SSO
+          // landing page resolves as a 200 text/html, which onopen could only report as
+          // "HTTP 200". Kept opaque, it is recognisable as the expired session it is.
+          redirect: "manual",
           body: JSON.stringify({
             messages: messageHistory,
             phenotype_code: phenotypeCode || null,
@@ -797,12 +700,18 @@ export const LLMChat = ({
               resetInactivityTimer();
               return;
             }
+            if (response.type === "opaqueredirect" || response.status === 0) {
+              throw new Error(
+                "Your sign-in expired before the message was sent. Reload the page, then send it again."
+              );
+            }
             const contentType = response.headers.get("content-type");
             if (contentType?.includes("application/json")) {
               const errorData = await response.json();
               throw new Error(errorData.detail || errorData.error || `HTTP ${response.status}`);
             }
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            // statusText is always "" over HTTP/2, so the status has to carry the message
+            throw new Error(`HTTP ${response.status}${response.statusText ? `: ${response.statusText}` : ""}`);
           },
           onmessage(event) {
             resetInactivityTimer();
@@ -940,7 +849,21 @@ export const LLMChat = ({
         }
         console.error("Chat error:", err);
         setError(err.message || "Failed to send message");
-        setMessages((prev) => prev.filter((m) => m.id !== assistantMsgId || m.content));
+        if (accumulatedContent) {
+          setMessages((prev) => prev.filter((m) => m.id !== assistantMsgId || m.content));
+        } else {
+          // the turn produced nothing and was never persisted, so take it back off the
+          // transcript and put it back in the box, ready to resend. Leaving the user
+          // message in `messages` would show it twice next to the restored draft and
+          // replay it in the retry's history. A draft typed since the failure wins.
+          setMessages((prev) =>
+            prev.filter((m) => m.id !== assistantMsgId && m.id !== userMsgId)
+          );
+          setInput((current) => (current.trim() ? current : userMessage));
+          if (attachments && attachments.length > 0) {
+            setPendingAttachments((current) => (current.length > 0 ? current : attachments));
+          }
+        }
       } finally {
         if (inactivityTimer) clearTimeout(inactivityTimer);
         setIsLoading(false);
@@ -1048,11 +971,7 @@ export const LLMChat = ({
       borderRadius: 1,
       my: 2,
       display: "block",
-      cursor: "pointer",
       border: `1px solid ${theme.palette.divider}`,
-      "&:hover": {
-        boxShadow: theme.shadows[4],
-      },
     },
   };
 
@@ -1071,6 +990,21 @@ export const LLMChat = ({
   };
 
   const hasMessages = messages.length > 0;
+
+  // rendered by both branches below: a failed first turn is handed back to the input box and
+  // taken off the transcript, so the empty state is exactly where the error has to be legible
+  const errorBanner = error && (
+    <Alert severity="error" sx={{ mb: 2 }}>
+      {error}
+      {/* retry resends the last user message; with none on the transcript the turn is back
+          in the input box and Send is the retry */}
+      {messages.some((m) => m.role === "user") && (
+        <IconButton size="small" onClick={handleRetry} sx={{ ml: 1 }}>
+          <RefreshIcon fontSize="small" />
+        </IconButton>
+      )}
+    </Alert>
+  );
 
   const inputForm = (
     <Paper
@@ -1455,6 +1389,7 @@ export const LLMChat = ({
             </Collapse>
           </Paper>
         )}
+        {errorBanner}
         {!readOnly && inputForm}
 
         {/* example questions */}
@@ -1666,14 +1601,7 @@ export const LLMChat = ({
         )}
       </Paper>
 
-      {error && (
-        <Alert severity="error" sx={{ mb: 2 }}>
-          {error}
-          <IconButton size="small" onClick={handleRetry} sx={{ ml: 1 }}>
-            <RefreshIcon fontSize="small" />
-          </IconButton>
-        </Alert>
-      )}
+      {errorBanner}
 
 
       {!readOnly && inputForm}
