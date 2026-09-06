@@ -21,22 +21,12 @@ export interface ContextUsage {
 
 export type LiteratureBackend = "europepmc" | "perplexity";
 
-/** every selectable tool profile, and the single source of truth for the union below. anything
- * that narrows or enumerates a profile must read this rather than repeat the literals: a list
- * that falls behind does not fail, it silently resolves to `null` — see `coerceToolProfile` for
- * why that is the dangerous direction */
-export const TOOL_PROFILES = ["api", "bigquery", "rag", "code"] as const;
-
-export type ToolProfile = (typeof TOOL_PROFILES)[number];
-
-/** a profile value as it travels: one of this build's own names, or a name only the SERVER knows.
- * The second case is the other half of the drift the list above warns about — a profile added
- * server-side is absent here, and narrowing it away resolves it to `null`, which is the FULL tool
- * surface rather than the smaller one the user stored. The browser therefore asks the server about
- * an unrecognised stored value instead of discarding it (genetics-results-suite-4h6.74); see
- * `adoptServerKnownProfile` in useChatOptions.ts. Nothing may be *selectable* outside TOOL_PROFILES
- * — this type only carries a value the server has confirmed. */
-export type ToolProfileValue = ToolProfile | (string & {});
+/** the wire value of `tool_profile`, and the two ends of the one coercion the server makes:
+ * `"code"` selects the code-execution surface and everything else — the legacy api/bigquery/rag
+ * names, the old "all" sentinel, null, a value neither side knows — resolves to the no-code one.
+ * The browser therefore only ever sends one of these two, and reading a stored value is the same
+ * question: was it "code"? */
+export type ToolProfile = "code" | "nocode";
 
 export type Verbosity = "brief" | "detailed";
 

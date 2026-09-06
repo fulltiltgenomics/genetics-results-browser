@@ -51,7 +51,7 @@ const serveTools = () => {
 describe("ToolsDialog", () => {
   it("asks for the resolved surface of the conversation's profile, not the raw catalogue", async () => {
     const requested = serveTools();
-    useChatOptionsStore.setState({ toolProfile: "bigquery" });
+    useChatOptionsStore.setState({ toolProfile: "code" });
 
     renderDialog();
 
@@ -60,22 +60,24 @@ describe("ToolsDialog", () => {
     // without resolved=true the endpoint answers with the unfiltered catalogue, which would
     // list tools this conversation does not have and omit the ones it does
     expect(url.searchParams.get("resolved")).toBe("true");
-    expect(url.searchParams.get("tool_profile")).toBe("bigquery");
+    expect(url.searchParams.get("tool_profile")).toBe("code");
   });
 
-  it('omits tool_profile entirely for "All", which is the absence of a profile', async () => {
+  // the off state is a profile of its own now, not the absence of one: an omitted tool_profile
+  // would resolve the same way server-side, but the panel then names a surface the message did not
+  it("names the no-code profile rather than omitting it", async () => {
     const requested = serveTools();
-    useChatOptionsStore.setState({ toolProfile: null });
+    useChatOptionsStore.setState({ toolProfile: "nocode" });
 
     renderDialog();
 
     await waitFor(() => expect(requested).toHaveLength(1));
-    expect(new URL(requested[0]).searchParams.has("tool_profile")).toBe(false);
+    expect(new URL(requested[0]).searchParams.get("tool_profile")).toBe("nocode");
   });
 
   it("groups the tools and renders each description as markdown", async () => {
     serveTools();
-    useChatOptionsStore.setState({ toolProfile: null });
+    useChatOptionsStore.setState({ toolProfile: "nocode" });
 
     renderDialog();
 
@@ -91,7 +93,7 @@ describe("ToolsDialog", () => {
 
   it("filters on name and description", async () => {
     serveTools();
-    useChatOptionsStore.setState({ toolProfile: null });
+    useChatOptionsStore.setState({ toolProfile: "nocode" });
 
     renderDialog();
     await screen.findByText("query_database");

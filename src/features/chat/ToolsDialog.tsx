@@ -11,7 +11,6 @@ import SearchIcon from "@mui/icons-material/Search";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { SideSheet } from "../../components/SideSheet";
-import { toolProfileLabel } from "./LLMChat";
 import { useChatOptionsStore } from "./useChatOptions";
 import { useAvailableTools } from "./toolsApi";
 import type { AvailableTool } from "./toolsApi";
@@ -100,9 +99,9 @@ export const ToolsDialog = ({ open, onClose }: ToolsDialogProps) => {
     <SideSheet open={open} onClose={onClose} title="Tools available to the assistant">
       <Typography variant="body2" color="text.secondary" sx={{ mt: 1, mb: 2 }}>
         These are the tools the assistant can call while answering, exactly as this conversation
-        is currently configured. The set depends on the Tools option below the message box:{" "}
-        <strong>{toolProfile ? toolProfileLabel(toolProfile) : "All"}</strong> is selected, so
-        switching it changes this list. The assistant decides on its own which of these to call,
+        is currently configured. The set depends on the Tools option below the message box: code
+        execution is <strong>{toolProfile === "code" ? "on" : "off"}</strong>, so switching it
+        changes this list. The assistant decides on its own which of these to call,
         and you can see the ones it used by expanding the tool calls in its replies.
       </Typography>
 

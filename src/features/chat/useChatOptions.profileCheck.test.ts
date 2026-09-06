@@ -1,14 +1,11 @@
 /**
- * The selected tool profile is checked against the server that will actually run it
- * (genetics-results-suite-4h6.74).
+ * What the server says the selected tool profile resolves to, and how a stored value is read.
  *
- * The browser's TOOL_PROFILES and the server's are two hand-maintained lists in two repos that
- * cannot import each other. When they drift, `coerceToolProfile` cannot help — the name IS in the
- * browser's list, so it passes through and the server degrades it to general-only. The user picked
- * a seven-tool surface and silently gets a different arm. `GET /chat/v1/tools/resolved` is the only
- * thing that can tell the two apart, and these cases pin that it is asked and that its answer is
- * used in exactly one direction: an explicit `known_profile: false` is a signal, anything else is
- * not.
+ * The probe is no longer a correctness mechanism. It existed because the two ends resolved a value
+ * neither of them recognised in OPPOSITE directions — the browser to "no profile", which server-side
+ * was the full surface, and the server to a general-only one. Both now resolve everything but
+ * "code" to the no-code surface, so nothing the browser sends can mean two things and the only
+ * thing left to ask for is the size of the surface, which the control shows as a caption.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -31,7 +28,7 @@ async function freshStore() {
 // lets a fire-and-forget check settle without the store exposing a promise for it
 const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
 
-describe("the server's verdict on the selected tool profile", () => {
+describe("the size of the surface the selected profile resolves to", () => {
   beforeEach(() => {
     getStoredChatOptions.mockReset();
     saveChatOption.mockClear();
@@ -39,13 +36,13 @@ describe("the server's verdict on the selected tool profile", () => {
     getStoredChatOptions.mockResolvedValue({
       verbosity: "brief",
       literatureBackend: "perplexity",
-      toolProfile: null,
+      toolProfile: "nocode",
     });
     fetchResolvedToolProfile.mockResolvedValue(null);
   });
 
-  it("records known_profile:false for a profile this build offers and the server does not", async () => {
-    fetchResolvedToolProfile.mockResolvedValue({ known: false, count: 18 });
+  it("records the resolved count for the profile the user selected", async () => {
+    fetchResolvedToolProfile.mockResolvedValue({ known: true, count: 18 });
     const store = await freshStore();
     await store.getState().load();
 
@@ -53,29 +50,13 @@ describe("the server's verdict on the selected tool profile", () => {
     await settle();
 
     expect(fetchResolvedToolProfile).toHaveBeenCalledWith("code");
-    // what the Tools control renders its warning from
-    expect(store.getState().profileChecks.code).toEqual({ known: false, count: 18 });
-    // the selection itself is untouched: the warning tells the user what the server will do, it
-    // does not silently pick something else for them
+    expect(store.getState().profileChecks.code).toEqual({ known: true, count: 18 });
     expect(store.getState().toolProfile).toBe("code");
-    expect(saveChatOption).toHaveBeenCalledWith("chat_tool_profile", "code");
   });
 
-  it("records the resolved count for a profile the server does know", async () => {
-    fetchResolvedToolProfile.mockResolvedValue({ known: true, count: 7 });
-    const store = await freshStore();
-    await store.getState().load();
-
-    store.getState().setToolProfile("code");
-    await settle();
-
-    expect(store.getState().profileChecks.code).toEqual({ known: true, count: 7 });
-  });
-
+  // the caption is absent rather than guessed at: an unreachable or older backend says nothing
+  // about a preference that works either way
   it("records NOTHING when the check cannot be answered", async () => {
-    // an unreachable endpoint, a 5xx, or a backend predating /chat/v1/tools/resolved. None of
-    // those is evidence of drift, and the control must look exactly as it did before the check
-    // existed rather than accuse a perfectly good profile
     fetchResolvedToolProfile.mockResolvedValue(null);
     const store = await freshStore();
     await store.getState().load();
@@ -92,302 +73,55 @@ describe("the server's verdict on the selected tool profile", () => {
     const store = await freshStore();
     await store.getState().load();
 
-    expect(() => store.getState().setToolProfile("code")).not.toThrow();
+    store.getState().setToolProfile("code");
     await settle();
 
     expect(store.getState().profileChecks).toEqual({});
-    expect(store.getState().toolProfile).toBe("code");
   });
 
-  it("checks a profile restored from the user's stored settings, not only one just clicked", async () => {
-    // the drift a user is most likely to hit: they chose the profile weeks ago, it is restored at
-    // load, and nothing else ever re-selects it
-    getStoredChatOptions.mockResolvedValue({
-      verbosity: "brief",
-      literatureBackend: "perplexity",
-      toolProfile: "code",
-    });
-    fetchResolvedToolProfile.mockResolvedValue({ known: false, count: 18 });
+  // the caption has to appear for what the controls already show, not only for a fresh click
+  it("checks the profile restored from the user's stored settings", async () => {
+    fetchResolvedToolProfile.mockResolvedValue({ known: true, count: 62 });
     const store = await freshStore();
-
     await store.getState().load();
     await settle();
 
-    expect(fetchResolvedToolProfile).toHaveBeenCalledWith("code");
-    expect(store.getState().profileChecks.code).toEqual({ known: false, count: 18 });
+    expect(fetchResolvedToolProfile).toHaveBeenCalledWith("nocode");
+    expect(store.getState().profileChecks.nocode).toEqual({ known: true, count: 62 });
   });
 
-  it("never asks about all, which is the absence of a profile", async () => {
+  // opening a conversation is the other way a profile reaches the controls without a click
+  it("checks the profile a conversation was opened on", async () => {
+    fetchResolvedToolProfile.mockResolvedValue({ known: true, count: 18 });
     const store = await freshStore();
     await store.getState().load();
-
-    store.getState().setToolProfile(null);
     await settle();
 
-    expect(fetchResolvedToolProfile).not.toHaveBeenCalled();
+    store.getState().applyFromConversation({ toolProfile: "code" });
+    await settle();
+
+    expect(store.getState().profileChecks.code).toEqual({ known: true, count: 18 });
   });
 
   it("asks once per profile however often it is selected", async () => {
-    fetchResolvedToolProfile.mockResolvedValue({ known: true, count: 7 });
+    fetchResolvedToolProfile.mockResolvedValue({ known: true, count: 18 });
     const store = await freshStore();
     await store.getState().load();
+    await settle();
 
     store.getState().setToolProfile("code");
+    await settle();
+    store.getState().setToolProfile("nocode");
+    await settle();
     store.getState().setToolProfile("code");
     await settle();
-    store.getState().setToolProfile("api");
-    store.getState().setToolProfile("code");
-    await settle();
 
-    expect(fetchResolvedToolProfile.mock.calls.map(([p]) => p)).toEqual(["code", "api"]);
-  });
-});
-
-/**
- * The OTHER direction of the same drift: a profile the SERVER has and this build does not.
- *
- * `coerceToolProfile` narrows it to `null`, and `null` is not a smaller tool set — server-side it
- * means no filtering at all. A user whose stored `chat_tool_profile` is a server-only name loses
- * the narrow surface they chose and silently gets the full one, with the Tools row saying "All"
- * and the message omitting `tool_profile` entirely. Nothing else can catch it: the value is gone
- * before the resolved-tools probe runs, and the server never receives the string it would warn
- * about. So the stored name is not discarded until the server has been asked about it.
- */
-describe("a stored profile only the server knows", () => {
-  const storedProfile = (raw: string | null) => ({
-    verbosity: "brief" as const,
-    literatureBackend: "perplexity" as const,
-    toolProfile: null,
-    unknownToolProfile: raw,
-  });
-
-  beforeEach(() => {
-    getStoredChatOptions.mockReset();
-    saveChatOption.mockClear();
-    fetchResolvedToolProfile.mockReset();
-    fetchResolvedToolProfile.mockResolvedValue(null);
-  });
-
-  it("keeps a stored name the server confirms, instead of widening the user to All", async () => {
-    getStoredChatOptions.mockResolvedValue(storedProfile("nocode"));
-    fetchResolvedToolProfile.mockResolvedValue({ known: true, count: 62 });
-    const store = await freshStore();
-
-    await store.getState().load();
-    await settle();
-
-    expect(fetchResolvedToolProfile).toHaveBeenCalledWith("nocode");
-    // selected, so the control shows it and the next message carries it
-    expect(store.getState().toolProfile).toBe("nocode");
-    // and it stays the user's default, so a new chat does not silently widen either
-    expect(store.getState().defaultToolProfile).toBe("nocode");
-    expect(store.getState().profileChecks.nocode).toEqual({ known: true, count: 62 });
-    // nothing is written back: the settings row already holds this value
-    expect(saveChatOption).not.toHaveBeenCalled();
-  });
-
-  it("falls back to All when the server does not know the stored name either", async () => {
-    getStoredChatOptions.mockResolvedValue(storedProfile("wat"));
-    fetchResolvedToolProfile.mockResolvedValue({ known: false, count: 18 });
-    const store = await freshStore();
-
-    await store.getState().load();
-    await settle();
-
-    expect(store.getState().toolProfile).toBeNull();
-    expect(store.getState().defaultToolProfile).toBeNull();
-    expect(store.getState().profileChecks).toEqual({});
-  });
-
-  it("falls back to All when the probe cannot be answered", async () => {
-    // an old backend, a 5xx, offline. An unanswerable probe must change nothing at all
-    getStoredChatOptions.mockResolvedValue(storedProfile("nocode"));
-    fetchResolvedToolProfile.mockResolvedValue(null);
-    const store = await freshStore();
-
-    await store.getState().load();
-    await settle();
-
-    expect(store.getState().toolProfile).toBeNull();
-  });
-
-  it("survives an adoption probe that rejects outright", async () => {
-    getStoredChatOptions.mockResolvedValue(storedProfile("nocode"));
-    fetchResolvedToolProfile.mockRejectedValue(new Error("boom"));
-    const store = await freshStore();
-
-    await store.getState().load();
-    await settle();
-
-    expect(store.getState().toolProfile).toBeNull();
-  });
-
-  it("does not overwrite a pick the user made while the probe was in flight", async () => {
-    getStoredChatOptions.mockResolvedValue(storedProfile("nocode"));
-    let answer: (value: unknown) => void = () => {};
-    fetchResolvedToolProfile.mockImplementation(
-      () => new Promise((resolve) => (answer = resolve)),
-    );
-    const store = await freshStore();
-
-    await store.getState().load();
-    store.getState().setToolProfile("code");
-    answer({ known: true, count: 62 });
-    await settle();
-
-    expect(store.getState().toolProfile).toBe("code");
-    expect(store.getState().defaultToolProfile).toBe("code");
-  });
-
-  it("does not overwrite the profile of a conversation already on screen", async () => {
-    // the stored value is the user's DEFAULT; a conversation carries its own. Adopting into the
-    // live control here would misreport what that conversation is running with
-    getStoredChatOptions.mockResolvedValue(storedProfile("nocode"));
-    fetchResolvedToolProfile.mockResolvedValue({ known: true, count: 62 });
-    const store = await freshStore();
-
-    store.getState().applyFromConversation({ toolProfile: "api" });
-    await store.getState().load();
-    await settle();
-
-    expect(store.getState().toolProfile).toBe("api");
-    expect(store.getState().defaultToolProfile).toBe("nocode");
-  });
-
-  it("asks about the stored name once, not in a loop", async () => {
-    getStoredChatOptions.mockResolvedValue(storedProfile("nocode"));
-    fetchResolvedToolProfile.mockResolvedValue({ known: true, count: 62 });
-    const store = await freshStore();
-
-    await store.getState().load();
-    await settle();
-    await store.getState().load();
-    await settle();
-
-    expect(fetchResolvedToolProfile.mock.calls.map(([p]) => p)).toEqual(["nocode"]);
-  });
-
-  it.each([
-    ["an empty value", ""],
-    ["a value far too long to be a profile name", "n".repeat(200)],
-    ["punctuation that has no business in a URL", "no/code?x=1"],
-    ["something that is not a string at all", 42],
-  ])("never asks the server about %s", async (_label, junk) => {
-    getStoredChatOptions.mockResolvedValue(storedProfile(junk as string));
-    const store = await freshStore();
-
-    await store.getState().load();
-    await settle();
-
-    expect(fetchResolvedToolProfile).not.toHaveBeenCalled();
-    expect(store.getState().toolProfile).toBeNull();
-  });
-});
-
-/**
- * The same drift arriving on the path a user hits most: reopening a conversation.
- *
- * A conversation's `tool_profile` is persisted per message, so a chat that ran under a
- * server-only profile stores that name. `resolveCurrent` narrows it against TOOL_PROFILES exactly
- * like the stored setting, and `null` there is the FULL tool surface — so reopening the
- * conversation shows "All" and the next message in it silently runs unfiltered, which is not what
- * the earlier messages ran with. The conversation's value is probed too, but it stays in the
- * conversation layer: it must not become the user's default for new chats.
- */
-describe("a conversation whose own profile only the server knows", () => {
-  beforeEach(() => {
-    getStoredChatOptions.mockReset();
-    saveChatOption.mockClear();
-    fetchResolvedToolProfile.mockReset();
-    getStoredChatOptions.mockResolvedValue({
-      verbosity: "brief",
-      literatureBackend: "perplexity",
-      toolProfile: null,
-      unknownToolProfile: null,
-    });
-    fetchResolvedToolProfile.mockResolvedValue(null);
-  });
-
-  it("keeps the conversation's name the server confirms, instead of showing All", async () => {
-    fetchResolvedToolProfile.mockResolvedValue({ known: true, count: 62 });
-    const store = await freshStore();
-    await store.getState().load();
-
-    store.getState().applyFromConversation({ toolProfile: "nocode" });
-    await settle();
-
-    expect(fetchResolvedToolProfile).toHaveBeenCalledWith("nocode");
-    // the control shows what this conversation actually ran with, and the next message carries it
-    expect(store.getState().toolProfile).toBe("nocode");
-    // ...without rewriting the user's default: a new chat still starts from their own choice
-    expect(store.getState().defaultToolProfile).toBeNull();
-    expect(saveChatOption).not.toHaveBeenCalled();
-  });
-
-  it("leaves All standing when the server does not know the conversation's name either", async () => {
-    fetchResolvedToolProfile.mockResolvedValue({ known: false, count: 18 });
-    const store = await freshStore();
-    await store.getState().load();
-
-    store.getState().applyFromConversation({ toolProfile: "wat" });
-    await settle();
-
-    expect(store.getState().toolProfile).toBeNull();
-    expect(store.getState().defaultToolProfile).toBeNull();
-  });
-
-  it("does not overwrite a conversation the user switched to while the probe was in flight", async () => {
-    let answer: (value: unknown) => void = () => {};
-    fetchResolvedToolProfile.mockImplementation(
-      () => new Promise((resolve) => (answer = resolve)),
-    );
-    const store = await freshStore();
-    await store.getState().load();
-
-    store.getState().applyFromConversation({ toolProfile: "nocode" });
-    store.getState().applyFromConversation({ toolProfile: "api" });
-    answer({ known: true, count: 62 });
-    await settle();
-
-    expect(store.getState().toolProfile).toBe("api");
-  });
-
-  it("does not overwrite a pick the user made while the probe was in flight", async () => {
-    let answer: (value: unknown) => void = () => {};
-    fetchResolvedToolProfile.mockImplementation(
-      () => new Promise((resolve) => (answer = resolve)),
-    );
-    const store = await freshStore();
-    await store.getState().load();
-
-    store.getState().applyFromConversation({ toolProfile: "nocode" });
-    store.getState().setToolProfile("code");
-    answer({ known: true, count: 62 });
-    await settle();
-
-    expect(store.getState().toolProfile).toBe("code");
-  });
-
-  it("asks once however often the conversation is reopened", async () => {
-    fetchResolvedToolProfile.mockResolvedValue({ known: true, count: 62 });
-    const store = await freshStore();
-    await store.getState().load();
-
-    store.getState().applyFromConversation({ toolProfile: "nocode" });
-    await settle();
-    store.getState().resetToDefaults();
-    store.getState().applyFromConversation({ toolProfile: "nocode" });
-    await settle();
-
-    expect(fetchResolvedToolProfile.mock.calls.map(([p]) => p)).toEqual(["nocode"]);
-    // the cached answer is re-applied, so the second open shows the profile straight away
-    expect(store.getState().toolProfile).toBe("nocode");
+    expect(fetchResolvedToolProfile.mock.calls.map(([p]) => p)).toEqual(["nocode", "code"]);
   });
 });
 
 describe("isPlausibleToolProfile", () => {
-  // the bound on everything an opaque settings value is allowed to become: a probe URL, a radio
-  // label, and the tool_profile on the next message
+  // the bound on what a profile string is allowed to become downstream: today the probe URL
   const real = async () =>
     (await vi.importActual<typeof import("./chatOptionsApi")>("./chatOptionsApi"))
       .isPlausibleToolProfile;
@@ -409,7 +143,7 @@ describe("isPlausibleToolProfile", () => {
     ["null", null],
     ["a number", 7],
     ["an object", { profile: "code" }],
-    // "all" is the sentinel for the ABSENCE of a profile, never a profile to ask the server about
+    // the sentinel an older client wrote for "no profile selected", never a name to ask about
     ["the all sentinel", "all"],
   ])("rejects %s", async (_label, value) => {
     expect((await real())(value)).toBe(false);
@@ -432,32 +166,29 @@ describe("getStoredChatOptions", () => {
       ),
     );
 
-  it("surfaces an unrecognised-but-plausible stored profile instead of dropping it", async () => {
-    serve("nocode");
-    await expect((await real())()).resolves.toMatchObject({
-      toolProfile: null,
-      unknownToolProfile: "nocode",
-    });
-    vi.unstubAllGlobals();
-  });
-
-  it("leaves unknownToolProfile null for a profile this build does enumerate", async () => {
+  it("reads a stored code as code execution", async () => {
     serve("code");
-    await expect((await real())()).resolves.toMatchObject({
-      toolProfile: "code",
-      unknownToolProfile: null,
-    });
+    await expect((await real())()).resolves.toMatchObject({ toolProfile: "code" });
     vi.unstubAllGlobals();
   });
 
-  it.each([["", "empty"], ["n".repeat(200), "over-long"], ["../x", "junk"], ["all", "the sentinel"]])(
-    "leaves unknownToolProfile null for %s (%s)",
-    async (value) => {
-      serve(value);
-      await expect((await real())()).resolves.toMatchObject({ unknownToolProfile: null });
-      vi.unstubAllGlobals();
-    },
-  );
+  // every value an older client could have written, plus corruption and a name from a build this
+  // one predates: all of them are what the server resolves to the no-code surface
+  it.each([
+    ["a legacy api row", "api"],
+    ["a legacy bigquery row", "bigquery"],
+    ["a legacy rag row", "rag"],
+    ["the all sentinel", "all"],
+    ["a profile only some other build knows", "codex"],
+    ["a missing setting", undefined],
+    ["an explicit null", null],
+    ["junk", "../x"],
+    ["a number", 7],
+  ])("reads %s as no code execution", async (_label, value) => {
+    serve(value);
+    await expect((await real())()).resolves.toMatchObject({ toolProfile: "nocode" });
+    vi.unstubAllGlobals();
+  });
 });
 
 describe("fetchResolvedToolProfile", () => {
@@ -470,13 +201,13 @@ describe("fetchResolvedToolProfile", () => {
     const fetchMock = vi.fn(() =>
       Promise.resolve({
         ok: true,
-        json: () => Promise.resolve({ known_profile: true, count: 7, names: [] }),
+        json: () => Promise.resolve({ known_profile: true, count: 18, names: [] }),
       }),
     );
     vi.stubGlobal("fetch", fetchMock);
 
     const probe = await realFetchResolvedToolProfile();
-    await expect(probe("code")).resolves.toEqual({ known: true, count: 7 });
+    await expect(probe("code")).resolves.toEqual({ known: true, count: 18 });
 
     const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toContain("/v1/tools/resolved?tool_profile=code");
@@ -484,7 +215,9 @@ describe("fetchResolvedToolProfile", () => {
     vi.unstubAllGlobals();
   });
 
-  it("reports known:false when the server says it does not know the profile", async () => {
+  // no reachable backend answers false for a value this build sends — the endpoint shipped after
+  // `nocode` did — but a false is passed through so the caller can withhold a count it cannot trust
+  it("reports known:false when the server does not recognise the value", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(() =>
@@ -496,7 +229,7 @@ describe("fetchResolvedToolProfile", () => {
     );
 
     const probe = await realFetchResolvedToolProfile();
-    await expect(probe("code")).resolves.toEqual({ known: false, count: 18 });
+    await expect(probe("nocode")).resolves.toEqual({ known: false, count: 18 });
     vi.unstubAllGlobals();
   });
 
