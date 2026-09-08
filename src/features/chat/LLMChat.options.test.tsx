@@ -5,8 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { http, HttpResponse } from "msw";
 
 import { server } from "../../test/msw/server";
-import { LLMChat, TOOL_PROFILE_LABELS } from "./LLMChat";
-import { TOOL_PROFILES } from "./chat.types";
+import { LLMChat } from "./LLMChat";
 import { useChatOptionsStore, __resetToolProfileChecks } from "./useChatOptions";
 import { useInstructionSetsStore } from "./useInstructionSets";
 
@@ -65,21 +64,25 @@ const openOptions = () => fireEvent.click(screen.getByText(/^Options/));
 
 const radio = (name: string) => screen.getByRole("radio", { name }) as HTMLInputElement;
 
+// the Tools control is a single switch: code execution on or off
+const codeToggle = () =>
+  screen.getByRole("checkbox", { name: "Code execution" }) as HTMLInputElement;
+
 // the stores are module-level singletons shared across the app, so a test that leaves state behind
 // would leak into the next one
 const resetStores = () => {
   useChatOptionsStore.setState({
     verbosity: "brief",
     literatureBackend: "perplexity",
-    toolProfile: null,
+    toolProfile: "nocode",
     defaultVerbosity: "brief",
     defaultLiteratureBackend: "perplexity",
-    defaultToolProfile: null,
+    defaultToolProfile: "nocode",
     loaded: false,
     lastConversation: null,
     userChose: false,
   });
-  // the server's per-profile verdicts are cached in the store AND in a module-level in-flight set
+  // the per-profile counts are cached in the store AND in a module-level in-flight set
   __resetToolProfileChecks();
   useInstructionSetsStore.setState({
     sets: [],
@@ -110,97 +113,92 @@ describe("LLMChat options", () => {
 
     await waitFor(() => expect(radio("Detailed").checked).toBe(true));
     expect(radio("Europe PMC").checked).toBe(true);
-    expect(radio("Database").checked).toBe(true);
+    // a legacy profile name is what the server runs without code execution, so that is what the
+    // control has to show
+    expect(codeToggle().checked).toBe(false);
     await waitFor(() =>
       expect(screen.getByLabelText("Instructions")).toHaveTextContent("Statistician"),
     );
   });
 
-  // the Tools control is the only place a profile is picked, and a value missing from it cannot be
-  // selected at all while every narrower still resolves it to null — the full tool surface. the
-  // label map is exhaustive over ToolProfile, so a new profile is a type error there; this pins
-  // that the map and the rendered control agree, and that rag's omission is the only one
-  it("offers every labelled profile in the Tools control, and only those", async () => {
+  // what the server serves a user who has never chosen: DEFAULT_TOOL_PROFILE arrives as this
+  // setting, and it is the only thing that decides where the control starts
+  it("starts from the profile the settings endpoint served", async () => {
+    serveSettings({ chat_tool_profile: "code" });
+    renderChat();
+    openOptions();
+
+    await waitFor(() => expect(codeToggle().checked).toBe(true));
+  });
+
+  // one control, two states: nothing else about the tool surface is selectable any more
+  it("offers code execution as the only tool control", async () => {
     serveSettings({ chat_verbosity: "brief" });
     const { container } = renderChat();
     openOptions();
 
     await waitFor(() => expect(radio("Brief").checked).toBe(true));
-    const rendered = Array.from(container.querySelectorAll('input[type="radio"]'))
-      .map((el) => (el as HTMLInputElement).value)
-      .filter((v) => v === "all" || (TOOL_PROFILES as readonly string[]).includes(v));
-    // "all" is the absence of a profile rather than one of them, so it is not in TOOL_PROFILES
-    const expected = ["all", ...TOOL_PROFILES.filter((p) => TOOL_PROFILE_LABELS[p] !== null)];
-    expect(rendered).toEqual(expected);
-    expect(TOOL_PROFILES.filter((p) => TOOL_PROFILE_LABELS[p] === null)).toEqual(["rag"]);
+    expect(screen.getAllByRole("checkbox", { name: /code execution/i })).toHaveLength(1);
+    expect(screen.getAllByRole("checkbox")).toHaveLength(1);
+    const radioValues = Array.from(container.querySelectorAll('input[type="radio"]')).map(
+      (el) => (el as HTMLInputElement).value,
+    );
+    expect(radioValues).not.toContain("all");
+    expect(radioValues).not.toContain("bigquery");
   });
 
-  // genetics-results-suite-4h6.74: the browser's profile list and the server's are two hand-kept
-  // lists in two repos, so this build can offer a name the server no longer knows. Without this the
-  // user picks the seven-tool code surface, the server resolves general-only, and nothing says so
-  it("warns when the server does not recognise the profile the user selected", async () => {
+  it.each(["api", "bigquery", "rag", "all", "codex"])(
+    "shows a stored %s as code execution off",
+    async (stored) => {
+      serveSettings({ chat_tool_profile: stored });
+      renderChat();
+      openOptions();
+
+      await waitFor(() => expect(screen.getByText("Code execution")).toBeInTheDocument());
+      expect(codeToggle().checked).toBe(false);
+    },
+  );
+
+  // the count the server resolves the setting to, which is all the probe is for now
+  it("shows how many local tools the server resolves the setting to", async () => {
     serveSettings({ chat_tool_profile: "code" });
     server.use(
       http.get("*/v1/tools/resolved", () =>
-        HttpResponse.json({ tool_profile: "code", known_profile: false, count: 18, names: [] }),
+        HttpResponse.json({ tool_profile: "code", known_profile: true, count: 18, names: [] }),
       ),
     );
     renderChat();
     openOptions();
 
-    expect(await screen.findByText(/not recognised by the server/)).toBeTruthy();
+    expect(await screen.findByText("18 tools")).toBeTruthy();
   });
 
-  // the opposite half: an unreachable endpoint is not evidence of drift, and a warning there would
-  // be permanent noise for every user whose backend is simply older or briefly down
+  // an unreachable endpoint is not worth a word about a preference that works either way
   it("says nothing when the resolved-tools endpoint cannot be reached", async () => {
     serveSettings({ chat_tool_profile: "code" });
     server.use(http.get("*/v1/tools/resolved", () => HttpResponse.error()));
     renderChat();
     openOptions();
 
-    await waitFor(() => expect(radio("Code execution").checked).toBe(true));
-    expect(screen.queryByText(/not recognised by the server/)).toBeNull();
+    await waitFor(() => expect(codeToggle().checked).toBe(true));
+    expect(screen.queryByText(/tools$/)).toBeNull();
   });
 
-  // the other drift direction (genetics-results-suite-4h6.74): the stored profile is one the SERVER
-  // has and this build does not enumerate. Narrowing it away shows "All", which is the FULL tool
-  // surface — the opposite of the narrow one the user stored — so it is kept once the server
-  // confirms it, under a label derived from the key because TOOL_PROFILE_LABELS cannot have one
-  it("keeps and labels a stored profile only the server knows", async () => {
-    serveSettings({ chat_tool_profile: "nocode" });
-    renderChat();
-    openOptions();
-
-    await waitFor(() => expect(radio("Nocode").checked).toBe(true));
-    expect(radio("All").checked).toBe(false);
-  });
-
-  it("stays on All when the server does not know the stored profile either", async () => {
-    serveSettings({ chat_tool_profile: "nocode" });
-    server.use(
-      http.get("*/v1/tools/resolved", () =>
-        HttpResponse.json({ tool_profile: "nocode", known_profile: false, count: 65, names: [] }),
-      ),
-    );
-    renderChat();
-    openOptions();
-
-    await waitFor(() => expect(radio("All").checked).toBe(true));
-    expect(screen.queryByRole("radio", { name: "Nocode" })).toBeNull();
-  });
-
-  it("persists the code profile picked from the Tools control", async () => {
+  it("sends code when the control is switched on and nocode when it is switched off", async () => {
     const puts: string[] = [];
     serveSettings({ chat_verbosity: "brief" }, puts);
     renderChat();
     openOptions();
 
-    await waitFor(() => expect(radio("All").checked).toBe(true));
-    fireEvent.click(radio("Code execution"));
+    await waitFor(() => expect(codeToggle().checked).toBe(false));
+    fireEvent.click(codeToggle());
 
     await waitFor(() => expect(puts).toContain("chat_tool_profile=code"));
     expect(useChatOptionsStore.getState().toolProfile).toBe("code");
+
+    fireEvent.click(codeToggle());
+    await waitFor(() => expect(puts).toContain("chat_tool_profile=nocode"));
+    expect(useChatOptionsStore.getState().toolProfile).toBe("nocode");
   });
 
   it("saves an explicit pick so it survives to the next session", async () => {

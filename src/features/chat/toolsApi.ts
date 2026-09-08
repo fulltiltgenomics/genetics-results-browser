@@ -1,11 +1,11 @@
 import { useQuery, UseQueryResult } from "@tanstack/react-query";
-import type { ToolProfileValue } from "./chat.types";
+import type { ToolProfile } from "./chat.types";
 
 const chatUrl = import.meta.env.VITE_CHAT_URL;
 
 /** where a tool comes from, and the only thing that says whether `category` means anything.
- * local tools are defined in the chat server and filtered by profile category; external and
- * RAG tools are proxied from remote MCP servers, which have no notion of our categories */
+ * local tools are defined in the chat server; external and RAG tools are proxied from remote MCP
+ * servers, which have no notion of our categories */
 export type ToolSource = "local" | "external" | "rag";
 
 export interface AvailableTool {
@@ -19,16 +19,11 @@ export interface AvailableTool {
 /** Ask the chat server what a conversation on `profile` would actually be handed.
  *
  * `resolved=true` matters: without it the endpoint answers with the raw catalogue, which is
- * the same list for every profile, includes tools the server currently refuses to advertise,
- * and omits the BigQuery and proxied tools entirely.
+ * the same list either way, includes tools the server currently refuses to advertise, and omits
+ * the BigQuery and proxied tools entirely.
  */
-export async function fetchAvailableTools(
-  profile: ToolProfileValue | null,
-): Promise<AvailableTool[]> {
-  const params = new URLSearchParams({ resolved: "true" });
-  if (profile !== null) {
-    params.set("tool_profile", profile);
-  }
+export async function fetchAvailableTools(profile: ToolProfile): Promise<AvailableTool[]> {
+  const params = new URLSearchParams({ resolved: "true", tool_profile: profile });
   const response = await fetch(`${chatUrl}/v1/tools?${params.toString()}`, {
     credentials: "include",
   });
@@ -49,11 +44,11 @@ export async function fetchAvailableTools(
 }
 
 // the surface only changes when the server is redeployed, and the panel is opened repeatedly
-// while comparing profiles — so cache per profile rather than refetching on every open
+// while comparing the two settings — so cache per profile rather than refetching on every open
 const TOOLS_STALE_TIME_MS = 10 * 60 * 1000;
 
 export function useAvailableTools(
-  profile: ToolProfileValue | null,
+  profile: ToolProfile,
   enabled: boolean,
 ): UseQueryResult<AvailableTool[], Error> {
   return useQuery<AvailableTool[], Error>({

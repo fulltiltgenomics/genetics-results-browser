@@ -1,9 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { TOOL_PROFILES } from "./chat.types";
 
 const getStoredChatOptions = vi.fn();
 const saveChatOption = vi.fn(() => Promise.resolve());
-// selecting or restoring a profile now probes the server; stubbed to "no answer" here so these
+// selecting a profile asks the server how big the surface is; stubbed to "no answer" here so these
 // cases stay about persistence and hermetic. The probe itself is covered in
 // useChatOptions.profileCheck.test.ts
 const fetchResolvedToolProfile = vi.fn(() => Promise.resolve(null));
@@ -20,10 +19,6 @@ async function freshStore() {
   return mod.useChatOptionsStore;
 }
 
-// the module is mocked above, and a static import of it would run before vi.mock's hoisted factory
-const realCoerceToolProfile = async () =>
-  (await vi.importActual<typeof import("./chatOptionsApi")>("./chatOptionsApi")).coerceToolProfile;
-
 describe("chat options persistence", () => {
   beforeEach(() => {
     getStoredChatOptions.mockReset();
@@ -31,7 +26,7 @@ describe("chat options persistence", () => {
     getStoredChatOptions.mockResolvedValue({
       verbosity: "detailed",
       literatureBackend: "europepmc",
-      toolProfile: "api",
+      toolProfile: "code",
     });
   });
 
@@ -60,7 +55,7 @@ describe("chat options persistence", () => {
     store.getState().applyFromConversation({
       verbosity: "detailed",
       literatureBackend: "perplexity",
-      toolProfile: null,
+      toolProfile: "nocode",
     });
     expect(store.getState().verbosity).toBe("detailed");
     expect(store.getState().defaultVerbosity).toBe("brief");
@@ -81,7 +76,7 @@ describe("chat options persistence", () => {
     getStoredChatOptions.mockResolvedValue({
       verbosity: "brief",
       literatureBackend: "perplexity",
-      toolProfile: null,
+      toolProfile: "nocode",
     });
     const store = await freshStore();
     await store.getState().load();
@@ -103,12 +98,12 @@ describe("chat options persistence", () => {
     store.getState().applyFromConversation({
       verbosity: "brief",
       literatureBackend: "perplexity",
-      toolProfile: null,
+      toolProfile: "nocode",
     });
     resolveStored({
       verbosity: "detailed",
       literatureBackend: "europepmc",
-      toolProfile: "api",
+      toolProfile: "code",
     });
     await loading;
 
@@ -135,7 +130,7 @@ describe("chat options persistence", () => {
     resolveStored({
       verbosity: "detailed",
       literatureBackend: "europepmc",
-      toolProfile: null,
+      toolProfile: "nocode",
     });
     await loading;
 
@@ -156,7 +151,7 @@ describe("chat options persistence", () => {
     resolveStored({
       verbosity: "detailed",
       literatureBackend: "europepmc",
-      toolProfile: "api",
+      toolProfile: "code",
     });
     await loading;
 
@@ -170,21 +165,22 @@ describe("chat options persistence", () => {
     await store.getState().load();
     expect(store.getState().verbosity).toBe("brief");
     expect(store.getState().literatureBackend).toBe("perplexity");
-    expect(store.getState().toolProfile).toBeNull();
+    expect(store.getState().toolProfile).toBe("nocode");
   });
 
-  it("round-trips the all profile through the sentinel the settings endpoint accepts", async () => {
+  it("persists the profile the control sends, without a sentinel for the off state", async () => {
     const store = await freshStore();
     await store.getState().load();
-    store.getState().setToolProfile(null);
-    expect(saveChatOption).toHaveBeenCalledWith("chat_tool_profile", "all");
-    expect(store.getState().toolProfile).toBeNull();
+    store.getState().setToolProfile("nocode");
+    expect(saveChatOption).toHaveBeenCalledWith("chat_tool_profile", "nocode");
+    expect(store.getState().toolProfile).toBe("nocode");
   });
 });
 
-// a profile that some list forgot does not error, it lands on null — which is the FULL tool
-// surface, not a smaller one. these cases are driven off TOOL_PROFILES so adding a profile
-// without teaching every narrower about it fails here rather than silently running the maximal arm
+// the stored-value path. Only "code" asks for code execution; every value an older client could
+// have written — the legacy profile names, the "all" sentinel, NULL, and a name from a build
+// nobody here knows — resolves to no code execution, which is what the server does with the same
+// value. So the control shows what that conversation actually ran with
 describe("tool profiles", () => {
   beforeEach(() => {
     getStoredChatOptions.mockReset();
@@ -192,47 +188,51 @@ describe("tool profiles", () => {
     getStoredChatOptions.mockResolvedValue({
       verbosity: "brief",
       literatureBackend: "perplexity",
-      toolProfile: null,
+      toolProfile: "nocode",
     });
   });
 
-  it("lists code alongside the three original profiles", () => {
-    expect([...TOOL_PROFILES]).toEqual(["api", "bigquery", "rag", "code"]);
-  });
+  it.each(["api", "bigquery", "rag", "all", "codex", null, undefined])(
+    "restores %s stored on a conversation's last message as no code execution",
+    async (stored) => {
+      const store = await freshStore();
+      await store.getState().load();
+      store.getState().applyFromConversation({ toolProfile: stored });
+      expect(store.getState().toolProfile).toBe("nocode");
+    },
+  );
 
-  it.each([...TOOL_PROFILES])("narrows %s read back from the settings endpoint", async (profile) => {
-    const coerceToolProfile = await realCoerceToolProfile();
-    expect(coerceToolProfile(profile)).toBe(profile);
-  });
-
-  it.each([...TOOL_PROFILES])("restores %s stored on a conversation's last message", async (profile) => {
+  it("restores code stored on a conversation's last message as code execution", async () => {
     const store = await freshStore();
     await store.getState().load();
-    store.getState().applyFromConversation({ toolProfile: profile });
-    expect(store.getState().toolProfile).toBe(profile);
+    store.getState().applyFromConversation({ toolProfile: "code" });
+    expect(store.getState().toolProfile).toBe("code");
     // a conversation's own value must not become the user's default
-    expect(store.getState().defaultToolProfile).toBeNull();
+    expect(store.getState().defaultToolProfile).toBe("nocode");
   });
 
-  it.each([...TOOL_PROFILES])("persists %s as the user's new default", async (profile) => {
+  it.each(["code", "nocode"] as const)("persists %s as the user's new default", async (profile) => {
     const store = await freshStore();
     await store.getState().load();
     store.getState().setToolProfile(profile);
     expect(store.getState().toolProfile).toBe(profile);
+    expect(store.getState().defaultToolProfile).toBe(profile);
     expect(saveChatOption).toHaveBeenCalledWith("chat_tool_profile", profile);
   });
 
-  // pinned rather than implied: null means every tool, so this is the maximal fallback, chosen
-  // because the value comes back from rows written by older clients and must not raise
-  it("degrades an unrecognised profile to null, i.e. to all tools", async () => {
-    const coerceToolProfile = await realCoerceToolProfile();
-    expect(coerceToolProfile("codex")).toBeNull();
-    expect(coerceToolProfile("")).toBeNull();
-    expect(coerceToolProfile(7)).toBeNull();
-
+  // what the server serves a user who has never chosen: DEFAULT_TOOL_PROFILE arrives as this
+  // setting, so it has to reach the control rather than the built-in default
+  it("starts a new chat from the profile the settings endpoint served", async () => {
+    getStoredChatOptions.mockResolvedValue({
+      verbosity: "brief",
+      literatureBackend: "perplexity",
+      toolProfile: "code",
+    });
     const store = await freshStore();
     await store.getState().load();
-    store.getState().applyFromConversation({ toolProfile: "codex" });
-    expect(store.getState().toolProfile).toBeNull();
+    expect(store.getState().toolProfile).toBe("code");
+    store.getState().applyFromConversation({ toolProfile: null });
+    store.getState().resetToDefaults();
+    expect(store.getState().toolProfile).toBe("code");
   });
 });

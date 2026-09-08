@@ -15,6 +15,7 @@ import {
   Chip,
   RadioGroup,
   Radio,
+  Switch,
   FormControlLabel,
   Tooltip,
   Select,
@@ -31,20 +32,19 @@ import {
   KeyboardArrowDown as ArrowDownIcon,
   AttachFile as AttachFileIcon,
   InfoOutlined as InfoIcon,
-  WarningAmber as WarningAmberIcon,
 } from "@mui/icons-material";
 import React, { useRef, useEffect, useState, useCallback, useMemo } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { PluggableList } from "unified";
 import { fetchEventSource } from "@microsoft/fetch-event-source";
-import { TOOL_PROFILES } from "./chat.types";
-import type { ChatMessage, LLMChatProps, LiteratureBackend, ToolProfile, ToolProfileValue, Verbosity, PendingAttachment, FileAttachment, ContextUsage } from "./chat.types";
+import type { ChatMessage, LLMChatProps, LiteratureBackend, Verbosity, PendingAttachment, FileAttachment, ContextUsage } from "./chat.types";
 import { MessageRating } from "./MessageRating";
 import InstructionsDialog from "./InstructionsDialog";
 import { useInstructionSetsStore } from "./useInstructionSets";
 import { useChatOptionsStore } from "./useChatOptions";
 import { APP_NAME } from "../../config/appName";
+import { SHOW_TOOLS_CONTROL } from "../../config/showToolsControl";
 import { PendingAttachments, MessageAttachments } from "./FileAttachments";
 import { getAttachmentType, isValidAttachmentType } from "./chatHistoryApi";
 import { excelFileToTsv } from "./excelToTsv";
@@ -103,34 +103,6 @@ const optionRadioSx = {
   "& .MuiRadio-root": { p: 0.375 },
   "& .MuiFormControlLabel-label": { fontSize: "0.75rem" },
 };
-
-/** what the Tools control calls each profile. Exhaustive over ToolProfile on purpose: a profile
- * added to the union is a type error here until the UI has decided about it, because a profile the
- * control never offers is one nothing can select while every narrower still resolves it to null —
- * the full tool surface. `null` is a deliberate "not offered": `rag` is the general-only surface
- * and has never been a user-facing choice. "all" is not in here — it is the absence of a profile */
-export const TOOL_PROFILE_LABELS: Record<ToolProfile, string | null> = {
-  api: "API",
-  bigquery: "Database",
-  rag: null,
-  code: "Code execution",
-};
-
-/** what to call a profile the SERVER knows and this build does not (genetics-results-suite-4h6.74).
- * TOOL_PROFILE_LABELS is exhaustive over ToolProfile by design and so can never have an entry for a
- * name added after this build shipped, but the value is kept and sent, so the control has to say
- * something. The raw key made readable beats both alternatives: hiding it leaves a radio group with
- * nothing selected, and showing the bare key looks like a bug. Bounded upstream by
- * `isPlausibleToolProfile`, which is what makes it safe to render at all. */
-export function toolProfileLabel(profile: ToolProfileValue): string {
-  const known = TOOL_PROFILE_LABELS[profile as ToolProfile];
-  if (known) return known;
-  return profile
-    .split(/[-_]+/)
-    .filter(Boolean)
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(" ");
-}
 
 // per-message limits (mirror the backend MAX_MESSAGE_CHARS / MAX_ATTACHMENTS_PER_MESSAGE)
 const MAX_MESSAGE_CHARS = 50000;
@@ -198,16 +170,9 @@ export const LLMChat = ({
   const setLiteratureBackend = useChatOptionsStore((s) => s.setLiteratureBackend);
   const toolProfile = useChatOptionsStore((s) => s.toolProfile);
   const setToolProfile = useChatOptionsStore((s) => s.setToolProfile);
-  // what the server said about the selected profile, once it has said anything. undefined while
-  // unasked or unanswerable, so an unreachable backend renders exactly as before
-  const toolProfileCheck = useChatOptionsStore((s) =>
-    s.toolProfile ? s.profileChecks[s.toolProfile] : undefined,
-  );
-  // a profile the server confirmed that this build does not enumerate, so the radio group has an
-  // option to be selected on. Only the store's adoption path can put one here, and only after the
-  // server answered known_profile:true for it
-  const extraToolProfile =
-    toolProfile && !TOOL_PROFILES.includes(toolProfile as ToolProfile) ? toolProfile : null;
+  // what the server said the selected profile resolves to, once it has said anything. undefined
+  // while unasked or unanswerable, so an unreachable backend just shows no count
+  const toolProfileCheck = useChatOptionsStore((s) => s.profileChecks[s.toolProfile]);
   const verbosity = useChatOptionsStore((s) => s.verbosity);
   const setVerbosity = useChatOptionsStore((s) => s.setVerbosity);
   const loadChatOptions = useChatOptionsStore((s) => s.load);
@@ -1123,79 +1088,37 @@ export const LLMChat = ({
               />
             </RadioGroup>
           </OptionRow>
+          {SHOW_TOOLS_CONTROL && (
           <OptionRow
             label="Tools"
             tooltip={
               <span style={{ whiteSpace: "pre-line" }}>
-                Which MCP tools to use?{"\n"}
-                All - includes all tools and automatically determines the ones to use (most times this is the best choice){"\n"}
-                API - includes tools tied to the genetics results API (can be used when strictly getting data for variants/genes/phenotypes){"\n"}
-                Database - includes access to a database that contains credible set and colocalization data (good when computations across all data is needed instead of a specific variant, gene or phenotype){"\n"}
-                Code execution - a deliberately minimal set of seven tools built around running analysis code in the sandbox, with search for genes, phenotypes, rsids and literature; no external (gnomAD/Open Targets) or RAG tools. Needs a reachable sandbox
+                Should the assistant write and run analysis code?{"\n"}
+                Off - it queries the genetics results through the data tools, one gene, variant, phenotype or region at a time, and through the database query tools for questions that span datasets, but cannot run scripts{"\n"}
+                On - it writes Python against the same data in a sandbox, which suits questions that span many phenotypes or genes at once; the per-dataset data tools are not offered, and it needs a reachable sandbox{"\n"}
+                Either way it keeps the searches for genes, phenotypes and rsids and the external tools (literature, web, UniProt, gnomAD/Open Targets)
               </span>
             }>
-            <RadioGroup
-              row
-              value={toolProfile ?? "all"}
-              onChange={(e) => {
-                const val = e.target.value;
-                setToolProfile(val === "all" ? null : val);
-              }}>
-              <FormControlLabel
-                value="all"
-                control={<Radio size="small" />}
-                label="All"
-                sx={optionRadioSx}
-              />
-              {TOOL_PROFILES.map((profile) => {
-                const label = TOOL_PROFILE_LABELS[profile];
-                return label === null ? null : (
-                  <FormControlLabel
-                    key={profile}
-                    value={profile}
-                    control={<Radio size="small" />}
-                    label={label}
-                    sx={optionRadioSx}
-                  />
-                );
-              })}
-              {extraToolProfile && (
-                <FormControlLabel
-                  value={extraToolProfile}
-                  control={<Radio size="small" />}
-                  label={toolProfileLabel(extraToolProfile)}
-                  sx={optionRadioSx}
+            <FormControlLabel
+              control={
+                <Switch
+                  size="small"
+                  name="code"
+                  checked={toolProfile === "code"}
+                  onChange={(e) => setToolProfile(e.target.checked ? "code" : "nocode")}
                 />
-              )}
-            </RadioGroup>
-            {/* the server's verdict on the selected profile (genetics-results-suite-4h6.74). The
-                browser and the server each keep their own profile list and neither can import the
-                other's, so a name this build offers may be one the server no longer knows — in
-                which case it quietly resolves to general-only and the user gets an arm they did
-                not pick. Only an explicit known_profile:false speaks up here. */}
-            {toolProfileCheck && toolProfile && !toolProfileCheck.known && (
-              <Tooltip
-                arrow
-                placement="top"
-                title={`The server does not recognise "${toolProfile}", so it falls back to a general-only tool set instead of the one this option names. Your messages still work; they are not using the tools you selected. This browser build is out of step with the chat backend — pick All, or report it.`}>
-                <Typography
-                  variant="caption"
-                  color="warning.main"
-                  sx={{ display: "flex", alignItems: "center", gap: 0.25, cursor: "help" }}>
-                  <WarningAmberIcon sx={{ fontSize: 14 }} />
-                  not recognised by the server ({toolProfileCheck.count} tools)
-                </Typography>
-              </Tooltip>
-            )}
+              }
+              label="Code execution"
+              sx={optionRadioSx}
+            />
             {toolProfileCheck?.known && (
-              // confirmation that the server resolved the same profile this control names. The
-              // count is LOCAL tools only — gnomAD/Open Targets and RAG are proxied surfaces the
-              // endpoint deliberately leaves out, so the tooltip says so rather than implying
-              // this is everything the model gets
+              // how big the surface the server resolves this to is. The count is LOCAL tools only —
+              // gnomAD/Open Targets and RAG are proxied surfaces the endpoint deliberately leaves
+              // out, so the tooltip says so rather than implying this is everything the model gets
               <Tooltip
                 arrow
                 placement="top"
-                title="Local tools the server resolves this profile to. Proxied gnomAD / Open Targets and RAG tools are counted separately.">
+                title="Local tools the server resolves this setting to. Proxied gnomAD / Open Targets and RAG tools are counted separately.">
                 <Typography
                   variant="caption"
                   color="text.secondary"
@@ -1205,6 +1128,7 @@ export const LLMChat = ({
               </Tooltip>
             )}
           </OptionRow>
+          )}
         </Box>
         {contextUsage && (
           <Tooltip title="Context window usage for this conversation — when full, older messages may be summarized" arrow placement="top">
