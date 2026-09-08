@@ -44,6 +44,7 @@ import InstructionsDialog from "./InstructionsDialog";
 import { useInstructionSetsStore } from "./useInstructionSets";
 import { useChatOptionsStore } from "./useChatOptions";
 import { APP_NAME } from "../../config/appName";
+import { SHOW_TOOLS_CONTROL } from "../../config/showToolsControl";
 import { PendingAttachments, MessageAttachments } from "./FileAttachments";
 import { getAttachmentType, isValidAttachmentType } from "./chatHistoryApi";
 import { excelFileToTsv } from "./excelToTsv";
@@ -1087,6 +1088,7 @@ export const LLMChat = ({
               />
             </RadioGroup>
           </OptionRow>
+          {SHOW_TOOLS_CONTROL && (
           <OptionRow
             label="Tools"
             tooltip={
@@ -1126,6 +1128,7 @@ export const LLMChat = ({
               </Tooltip>
             )}
           </OptionRow>
+          )}
         </Box>
         {contextUsage && (
           <Tooltip title="Context window usage for this conversation — when full, older messages may be summarized" arrow placement="top">

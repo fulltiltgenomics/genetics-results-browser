@@ -9,6 +9,8 @@ ARG DEPLOY_ENV
 ARG DATA_SOURCE
 # product/brand name shown in UI (e.g. FinnGenie, GeneGenie)
 ARG APP_NAME=FinnGenie
+# whether the chat options show the Tools row (the Code execution switch); "false" hides it
+ARG SHOW_TOOLS_CONTROL=true
 
 WORKDIR /var/www/genetics-results-browser
 
@@ -18,6 +20,7 @@ COPY . .
 COPY .env.${DEPLOY_ENV}.${DATA_SOURCE} .env
 COPY ./src/config.${DATA_SOURCE}.json ./src/config.json
 RUN echo "VITE_APP_NAME=${APP_NAME}" >> .env
+RUN echo "VITE_SHOW_TOOLS_CONTROL=${SHOW_TOOLS_CONTROL}" >> .env
 RUN npm run build
 COPY nginx.${DEPLOY_ENV}.conf /etc/nginx/conf.d/default.conf 
 
