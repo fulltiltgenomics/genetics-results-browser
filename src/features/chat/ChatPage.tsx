@@ -32,11 +32,14 @@ import {
   shareSession,
   forkSession,
   pinSession,
+  moveSession,
   type ChatSession,
   type SessionDetail,
   type ChatMessageRecord,
 } from "./chatHistoryApi";
 import type { ChatMessage, FileAttachment, PendingAttachment } from "./chat.types";
+import { useProjects } from "./useProjects";
+import { MemoryDialog } from "./MemoryDialog";
 import { exportChatAsHtml, exportChatAsMarkdown } from "./exportChat";
 import { useChatSeedStore } from "../../store/store.chatSeed";
 import { useChatOptionsStore } from "./useChatOptions";
@@ -73,6 +76,13 @@ const ChatPage = () => {
   const [exportMenuAnchor, setExportMenuAnchor] = useState<HTMLElement | null>(null);
   const [actionMenuAnchorEl, setActionMenuAnchorEl] = useState<HTMLElement | null>(null);
   const [datasetsOpen, setDatasetsOpen] = useState(false);
+  const { projects, create: createProject, rename: renameProject, remove: removeProject, reload: reloadProjects } = useProjects();
+  // the project a new chat is filed into: set by opening a filed conversation or by a section
+  // "+", cleared at home. Both creation paths (eager below, lazy in ensureSession) read it.
+  const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
+  // the sidebar's "Project memory" item; null keeps the dialog closed
+  const [memoryProjectId, setMemoryProjectId] = useState<string | null>(null);
+  const [topMoveAnchorEl, setTopMoveAnchorEl] = useState<HTMLElement | null>(null);
   const [toolsOpen, setToolsOpen] = useState(false);
   // hash-based deep linking for SchemaDrawer; known view names come from the cached schema
   const { data: schemaData } = useSchema();
@@ -241,6 +251,9 @@ const ChatPage = () => {
       const ready = hasAttachments ? await loadAttachmentPreviews(sessionId, converted) : converted;
 
       setActiveSession(data);
+      // on a deep link or a refresh the session list has not resolved yet, so the detail is the
+      // only place the conversation's project can come from
+      setCurrentProjectId(data.projectId ?? null);
       setLoadedMessages(ready);
       applyConversationOptions(data.messages);
     } catch (err) {
@@ -252,12 +265,15 @@ const ChatPage = () => {
     }
   };
 
-  const handleNewChat = async () => {
+  // `projectId` omitted keeps the current project; passing null explicitly starts an unfiled chat
+  const handleNewChat = async (projectId?: string | null) => {
+    const targetProjectId = projectId === undefined ? currentProjectId : projectId;
+    setCurrentProjectId(targetProjectId);
     setIsSecretChat(false);
     setSeedInput(undefined);
     resetToUserDefaults();
     try {
-      const session = await createSession();
+      const session = await createSession(undefined, targetProjectId ?? undefined);
       setSessions((prev) => [{ ...session, preview: undefined, rating: undefined }, ...prev]);
       isNewSession.current = true;
       inlineSessionIdRef.current = null;
@@ -279,6 +295,7 @@ const ChatPage = () => {
       setChatKey(session.id);
       savedMessageIds.current = new Set();
       navigate(`/chat/${session.id}`, { replace: true });
+      void reloadProjects();
     } catch (err) {
       console.error("Failed to create session:", err);
     }
@@ -288,6 +305,7 @@ const ChatPage = () => {
   // lazily on the first message (see handleFirstExchange), so the URL stays "/"
   const handleGoHome = () => {
     setIsSecretChat(false);
+    setCurrentProjectId(null);
     setSessionError(null);
     resetToUserDefaults();
     inlineSessionIdRef.current = null;
@@ -316,6 +334,7 @@ const ChatPage = () => {
 
   const handleSelectSession = (sessionId: string) => {
     setIsSecretChat(false);
+    setCurrentProjectId(sessions.find((s) => s.id === sessionId)?.projectId ?? null);
     setSeedInput(undefined);
     setSessionError(null);
     inlineSessionIdRef.current = null;
@@ -481,7 +500,7 @@ const ChatPage = () => {
     const existing = activeSessionId ?? inlineSessionIdRef.current;
     if (existing) return existing;
 
-    const session = await createSession();
+    const session = await createSession(undefined, currentProjectId ?? undefined);
 
     // adopt the id WITHOUT a chatKey change, which would remount LLMChat mid-send
     inlineSessionIdRef.current = session.id;
@@ -503,7 +522,7 @@ const ChatPage = () => {
     urlSessionLoadedRef.current = true;
     navigate(`/chat/${session.id}`, { replace: true });
     return session.id;
-  }, [activeSessionId, isSecretChat, secretSessionId, navigate]);
+  }, [activeSessionId, isSecretChat, secretSessionId, currentProjectId, navigate]);
 
   // called after first exchange completes - saves the initial messages
   const handleFirstExchange = useCallback(
@@ -642,6 +661,46 @@ const ChatPage = () => {
       console.error("Failed to update pin:", err);
       setSessions((prev) => prev.map((s) => (s.id === sessionId ? { ...s, pinned: wasPinned } : s)));
     }
+  };
+
+  // the loaded detail wins over the session list, which is capped at 50 and may not have
+  // resolved at all on a deep link; it is only trusted while it describes the open conversation
+  const activeSessionProjectId =
+    (activeSession?.id === activeSessionId ? activeSession?.projectId : undefined) ??
+    sessions.find((s) => s.id === activeSessionId)?.projectId ??
+    null;
+
+  const handleMoveSession = async (sessionId: string, projectId: string | null) => {
+    const previous = sessions.find((s) => s.id === sessionId)?.projectId ?? null;
+    const applyProject = (value: string | null) => {
+      setSessions((prev) =>
+        prev.map((s) => (s.id === sessionId ? { ...s, projectId: value } : s)),
+      );
+      setActiveSession((prev) => (prev?.id === sessionId ? { ...prev, projectId: value } : prev));
+      if (sessionId === activeSessionId) setCurrentProjectId(value);
+    };
+    applyProject(projectId);
+    try {
+      await moveSession(sessionId, projectId);
+      void reloadProjects();
+    } catch (err) {
+      console.error("Failed to move conversation:", err);
+      applyProject(previous);
+    }
+  };
+
+  // rejects on failure: the sidebar's dialog is where the user finds out
+  const handleDeleteProject = async (projectId: string, withSessions: boolean) => {
+    const openChatWasFiledHere = activeSessionProjectId === projectId;
+    await removeProject(projectId, withSessions);
+    if (withSessions && openChatWasFiledHere) {
+      // the conversation on screen was deleted with the project; there is nothing to go back to
+      handleGoHome();
+    }
+    if (currentProjectId === projectId) setCurrentProjectId(null);
+    // the kept chats come back unfiled, and the deleted ones are gone: either way the
+    // session list on screen is now wrong
+    await loadSessions();
   };
 
   const handleTogglePin = () => {
@@ -894,6 +953,17 @@ const ChatPage = () => {
                     tooltip: "What the assistant can call",
                     onClick: () => setToolsOpen(true),
                   },
+                  ...(activeSessionId && !isSecretChat && activeSession?.isOwner && projects.length > 0
+                    ? [
+                        {
+                          key: "move",
+                          label: "Move to\u2026",
+                          tooltip: "File this conversation in a project",
+                          onClick: (e: ReactMouseEvent<HTMLElement>) =>
+                            setTopMoveAnchorEl(e.currentTarget),
+                        },
+                      ]
+                    : []),
                   {
                     key: "tables",
                     label: "Tables",
@@ -982,6 +1052,16 @@ const ChatPage = () => {
             onDeleteSession={handleDeleteSession}
             onTogglePinSession={handleTogglePinSession}
             loading={loading}
+            projects={projects}
+            currentProjectId={currentProjectId}
+            onSelectCurrentProject={setCurrentProjectId}
+            onNewChatInProject={(projectId) => handleNewChat(projectId)}
+            onCreateProject={createProject}
+            onRenameProject={renameProject}
+            onDeleteProject={handleDeleteProject}
+            onMoveSession={handleMoveSession}
+            onOpenProjectMemory={setMemoryProjectId}
+            isSecretChat={isSecretChat}
           />
         </Box>
         {/* sidebar: temporary drawer on < md */}
@@ -1004,6 +1084,16 @@ const ChatPage = () => {
               onTogglePinSession={handleTogglePinSession}
               loading={loading}
               onAfterSelect={() => setMobileDrawerOpen(false)}
+              projects={projects}
+              currentProjectId={currentProjectId}
+              onSelectCurrentProject={setCurrentProjectId}
+              onNewChatInProject={(projectId) => handleNewChat(projectId)}
+              onCreateProject={createProject}
+              onRenameProject={renameProject}
+              onDeleteProject={handleDeleteProject}
+              onMoveSession={handleMoveSession}
+              onOpenProjectMemory={setMemoryProjectId}
+              isSecretChat={isSecretChat}
             />
           </Drawer>
         )}
@@ -1054,6 +1144,7 @@ const ChatPage = () => {
                   "We've found that the variant chr2:9521321:A:G (ADAM17) confers risk to IBD. Does this variant colocalize with any molecular QTLs (eQTL, pQTL) that might indicate the function of this variant and what process might be implicated?",
                 ]}
                 isSecretChat={isSecretChat}
+                projectId={isSecretChat ? null : activeSessionProjectId}
                 readOnly={activeSession ? !activeSession.isOwner : false}
                 initialInput={seedInput ?? storedDraft?.text}
                 initialAttachments={storedDraft?.attachments}
@@ -1093,6 +1184,40 @@ const ChatPage = () => {
         <MenuItem onClick={() => handleExportChat("html")}>As HTML</MenuItem>
         <MenuItem onClick={() => handleExportChat("markdown")}>As Markdown</MenuItem>
       </Menu>
+      <Menu
+        anchorEl={topMoveAnchorEl}
+        open={Boolean(topMoveAnchorEl)}
+        onClose={() => setTopMoveAnchorEl(null)}
+      >
+        {projects
+          .filter((p) => p.id !== activeSessionProjectId)
+          .map((p) => (
+            <MenuItem
+              key={p.id}
+              onClick={() => {
+                setTopMoveAnchorEl(null);
+                if (activeSessionId) void handleMoveSession(activeSessionId, p.id);
+              }}
+            >
+              {p.name}
+            </MenuItem>
+          ))}
+        {activeSessionProjectId && (
+          <MenuItem
+            onClick={() => {
+              setTopMoveAnchorEl(null);
+              if (activeSessionId) void handleMoveSession(activeSessionId, null);
+            }}
+          >
+            No project
+          </MenuItem>
+        )}
+      </Menu>
+      <MemoryDialog
+        open={Boolean(memoryProjectId)}
+        onClose={() => setMemoryProjectId(null)}
+        projectId={memoryProjectId}
+      />
       <FeedbackDialog open={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
       <AboutDialog open={aboutOpen} onClose={() => setAboutOpen(false)} />
       <McpTokenDialog open={tokensOpen} onClose={() => setTokensOpen(false)} />
