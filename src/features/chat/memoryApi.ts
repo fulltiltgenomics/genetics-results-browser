@@ -31,9 +31,9 @@ export async function getMemoryEnabled(): Promise<boolean> {
 }
 
 /** what the next session filed into projectId will be seeded with, not what an existing
- * session carries: a session's digest is frozen on its first turn. 404 (MemoryUnavailableError)
- * for a caller with no identifiable user (same gate as the old GET /v1/memory), or for a
- * project_id that isn't the caller's. */
+ * session carries: a session's digest is frozen on the first turn it takes in the project.
+ * 404 (MemoryUnavailableError) for a caller with no identifiable user, or for a project_id
+ * that isn't the caller's. */
 export async function getProjectMemory(projectId: string): Promise<MemoryState> {
   const response = await fetch(`${projectsUrl}/${encodeURIComponent(projectId)}/memory`, {
     credentials: "include",
