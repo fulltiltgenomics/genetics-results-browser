@@ -60,8 +60,8 @@ export interface MemorySession {
 
 /** what GET /v1/projects/{id}/memory returns: the digest is rendered fresh and included even
  * when `enabled` is false, so the dialog can preview what turning memory on would give the
- * model. memoryApi.getMemory() still hits the retired global GET /v1/memory until the memory
- * dialog is scoped to a project. */
+ * model. Only meaningful once a session is filed into a project — MemoryDialog's global
+ * (unfiled) view shows no digest and reads `enabled` via memoryApi.getMemoryEnabled() instead. */
 export interface MemoryState {
   enabled: boolean;
   digest: string;
@@ -147,6 +147,11 @@ export interface LLMChatProps {
 
   /** current session ID (for persistence) */
   sessionId?: string | null;
+
+  /** the project the current session is filed into, if any. Drives the "used <project>
+   *  memory" chip: no project, no chip, since an unfiled session never gets a memory
+   *  digest to begin with. */
+  projectId?: string | null;
 
   /** initial messages to load (when resuming a session) */
   initialMessages?: ChatMessage[];

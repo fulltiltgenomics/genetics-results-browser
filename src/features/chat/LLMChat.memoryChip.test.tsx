@@ -20,15 +20,15 @@ vi.mock("@microsoft/fetch-event-source", () => ({
 
 import { LLMChat } from "./LLMChat";
 
-async function startTurn() {
-  render(<LLMChat />);
+async function startTurn(projectId?: string | null) {
+  render(<LLMChat projectId={projectId} />);
   const textbox = screen.getByRole("textbox");
   fireEvent.change(textbox, { target: { value: "what did we discuss last time?" } });
   fireEvent.submit(textbox.closest("form")!);
   await waitFor(() => expect(emit).toBeDefined());
 }
 
-const CHIP_TEXT = "Using your recent conversations";
+const CHIP_TEXT = "Used IBD memory";
 
 describe("LLMChat memory chip", () => {
   beforeEach(() => {
@@ -37,11 +37,11 @@ describe("LLMChat memory chip", () => {
     finish = undefined;
   });
 
-  it("renders on a turn that carries a memory event, and opens the memory dialog", async () => {
-    await startTurn();
+  it("renders with the project's name and opens the memory dialog for that project", async () => {
+    await startTurn("proj-1");
 
     await act(async () => {
-      emit!({ type: "memory", sessions: 2, chars: 340 });
+      emit!({ type: "memory", project: "IBD", sessions: 2, chars: 340 });
     });
     await act(async () => {
       emit!({ type: "content", content: "Last time you asked about APOE." });
@@ -62,7 +62,7 @@ describe("LLMChat memory chip", () => {
   });
 
   it("is absent from a turn with no memory event", async () => {
-    await startTurn();
+    await startTurn("proj-1");
 
     await act(async () => {
       emit!({ type: "content", content: "Hello there." });
@@ -74,8 +74,44 @@ describe("LLMChat memory chip", () => {
     expect(screen.queryByText(CHIP_TEXT)).toBeNull();
   });
 
+  it("never appears without a projectId, even if a memory event somehow arrives", async () => {
+    await startTurn(undefined);
+
+    await act(async () => {
+      emit!({ type: "memory", project: "IBD", sessions: 2, chars: 340 });
+      emit!({ type: "content", content: "Hello there." });
+      emit!({ type: "done", message_content: [{ type: "text", text: "Hello there." }] });
+      finish!();
+    });
+
+    await waitFor(() => expect(screen.getByText(/Hello there/)).toBeTruthy());
+    expect(screen.queryByText(CHIP_TEXT)).toBeNull();
+    expect(screen.queryByText(/Using your recent conversations/)).toBeNull();
+  });
+
+  it("disappears if the session becomes unfiled after the memory event set usedMemory", async () => {
+    const { rerender } = render(<LLMChat projectId="proj-1" />);
+    const textbox = screen.getByRole("textbox");
+    fireEvent.change(textbox, { target: { value: "what did we discuss last time?" } });
+    fireEvent.submit(textbox.closest("form")!);
+    await waitFor(() => expect(emit).toBeDefined());
+
+    await act(async () => {
+      emit!({ type: "memory", project: "IBD", sessions: 2, chars: 340 });
+      emit!({ type: "content", content: "Last time you asked about APOE." });
+      emit!({ type: "done", message_content: [{ type: "text", text: "x" }] });
+      finish!();
+    });
+
+    expect(await screen.findByText(CHIP_TEXT)).toBeTruthy();
+
+    rerender(<LLMChat projectId={null} />);
+
+    expect(screen.queryByText(CHIP_TEXT)).toBeNull();
+  });
+
   it("ignores an unknown SSE event type without error", async () => {
-    await startTurn();
+    await startTurn("proj-1");
 
     await act(async () => {
       emit!({ type: "some_future_event", payload: "unhandled" });

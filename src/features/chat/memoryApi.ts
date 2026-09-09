@@ -2,7 +2,6 @@ import type { MemorySession, MemoryState } from "./chat.types";
 
 const apiUrl = import.meta.env.VITE_CHAT_URL;
 
-const memoryUrl = `${apiUrl}/v1/memory`;
 const projectsUrl = `${apiUrl}/v1/projects`;
 const settingsUrl = `${apiUrl}/v1/llm-config/user/settings`;
 
@@ -19,19 +18,16 @@ export class MemoryUnavailableError extends Error {
   }
 }
 
-/** hits the retired global memory endpoint, which will 404 once the projects router ships. Kept
- * only because the existing MemoryDialog still calls it and already maps the 404 to
- * MemoryUnavailableError, until the memory dialog is scoped to a project and calls
- * getProjectMemory instead. */
-export async function getMemory(): Promise<MemoryState> {
-  const response = await fetch(memoryUrl, { credentials: "include" });
-  if (response.status === 404) {
-    throw new MemoryUnavailableError();
-  }
+/** the global opt-in flag: whether memory is built for the caller's sessions at all. Read
+ * from the same key-value settings store setMemoryEnabled writes, since the memory feature
+ * has no per-user identity gate of its own the way the (now project-scoped) digest routes do. */
+export async function getMemoryEnabled(): Promise<boolean> {
+  const response = await fetch(settingsUrl, { credentials: "include" });
   if (!response.ok) {
     throw new Error(`HTTP ${response.status}`);
   }
-  return mapMemoryState(await response.json());
+  const data = await response.json();
+  return data?.[MEMORY_ENABLED_KEY]?.setting_value === "on";
 }
 
 /** what the next session filed into projectId will be seeded with, not what an existing

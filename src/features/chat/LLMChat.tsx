@@ -118,6 +118,7 @@ const MAX_ATTACHMENTS_PER_MESSAGE = 10;
  */
 export const LLMChat = ({
   phenotypeCode,
+  projectId,
   contextContent,
   placeholder = "Ask a question...",
   emptyStateTitle = "Start a conversation",
@@ -185,6 +186,10 @@ export const LLMChat = ({
   const selectInstructionSet = useInstructionSetsStore((s) => s.select);
   const [instructionsDialogOpen, setInstructionsDialogOpen] = useState(false);
   const [memoryDialogOpen, setMemoryDialogOpen] = useState(false);
+  // name carried by the session's one "memory" SSE event, for the chip's "used <project>
+  // memory" label. The event fires at most once per session, so component state (rather
+  // than a per-message field) is enough — every message in a mount shares one project.
+  const [memoryProjectName, setMemoryProjectName] = useState<string | null>(null);
   const [optionsOpen, setOptionsOpen] = useState(false);
   // keyed off the id, not the looked-up set: the list and the stored selection load together but the
   // name can be momentarily unresolved, and claiming "no instructions" while one is selected would
@@ -759,10 +764,14 @@ export const LLMChat = ({
               setContextUsage((prev) =>
                 !prev || data.input_tokens >= prev.input_tokens ? (data as ContextUsage) : prev
               );
-            } else if (data.type === "memory") {
-              // fires at most once per session, on the first turn only; the chip it drives
-              // just needs to know memory was used, not the counts the event also carries
+            } else if (data.type === "memory" && projectId) {
+              // covers a memory event arriving for a session that isn't (or is no longer)
+              // filed into a project. fires at most once per session, on the first turn
+              // only. Guarded on projectId: an unfiled session gets no memory server-side,
+              // so this is defense in depth, not the thing that actually prevents the chip
+              // on unfiled chats.
               usedMemory = true;
+              if (typeof data.project === "string") setMemoryProjectName(data.project);
               setMessages((prev) =>
                 prev.map((m) => (m.id === assistantMsgId ? { ...m, usedMemory: true } : m))
               );
@@ -1196,7 +1205,11 @@ export const LLMChat = ({
           void loadInstructionSets(true);
         }}
       />
-      <MemoryDialog open={memoryDialogOpen} onClose={() => setMemoryDialogOpen(false)} />
+      <MemoryDialog
+        open={memoryDialogOpen}
+        onClose={() => setMemoryDialogOpen(false)}
+        projectId={projectId ?? null}
+      />
       <PendingAttachments
         attachments={pendingAttachments}
         onRemove={removeAttachment}
@@ -1481,10 +1494,12 @@ export const LLMChat = ({
                     </Box>
                   )}
                 </Typography>
-                {message.role === "assistant" && message.usedMemory && (
+                {/* covers the session becoming unfiled after the memory event already
+                    set usedMemory (e.g. removed from the project while the chat stays open) */}
+                {message.role === "assistant" && message.usedMemory && projectId && (
                   <Chip
                     icon={<PsychologyIcon />}
-                    label="Using your recent conversations"
+                    label={`Used ${memoryProjectName ?? "project"} memory`}
                     size="small"
                     variant="outlined"
                     onClick={() => setMemoryDialogOpen(true)}

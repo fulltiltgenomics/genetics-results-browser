@@ -189,6 +189,7 @@ const Header = () => {
             <MemoryDialog
               open={memoryDialogOpen}
               onClose={() => setMemoryDialogOpen(false)}
+              projectId={null}
             />
           </>
         ) : import.meta.env.VITE_TARGET === "public" ? null : (
