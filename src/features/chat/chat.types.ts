@@ -50,6 +50,35 @@ export interface InstructionSetVersion {
   comment?: string | null;
 }
 
+/** one earlier conversation as it appears in the memory dialog's session list */
+export interface MemorySession {
+  id: string;
+  title: string | null;
+  pinned: boolean;
+  createdAt: string;
+}
+
+/** what GET /v1/projects/{id}/memory returns: the digest is rendered fresh and included even
+ * when `enabled` is false, so the dialog can preview what turning memory on would give the
+ * model. Only meaningful once a session is filed into a project — MemoryDialog's global
+ * (unfiled) view shows no digest and reads `enabled` via memoryApi.getMemoryEnabled() instead. */
+export interface MemoryState {
+  enabled: boolean;
+  digest: string;
+  sessions: MemorySession[];
+  charCap: number;
+}
+
+/** a first-class container conversations can be filed into; the grouping unit for chat memory */
+export interface Project {
+  id: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+  /** most recent session activity filed into this project; null when it has none */
+  lastActivityAt: string | null;
+}
+
 export type AttachmentType = "image" | "tsv" | "excel";
 
 export interface FileAttachment {
@@ -91,6 +120,7 @@ export interface ChatMessage {
   verbosity?: string | null; // answer detail this turn was produced under
   instructionSetId?: string | null; // instruction set this turn was produced under
   attachments?: FileAttachment[]; // file attachments (images, TSV, Excel)
+  usedMemory?: boolean; // this turn's system prompt carried the cross-session memory digest
 }
 
 export interface LLMChatProps {
@@ -117,6 +147,11 @@ export interface LLMChatProps {
 
   /** current session ID (for persistence) */
   sessionId?: string | null;
+
+  /** the project the current session is filed into, if any. Drives the "used <project>
+   *  memory" chip: no project, no chip, since an unfiled session never gets a memory
+   *  digest to begin with. */
+  projectId?: string | null;
 
   /** initial messages to load (when resuming a session) */
   initialMessages?: ChatMessage[];

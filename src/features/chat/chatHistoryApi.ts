@@ -1,4 +1,5 @@
 import type { AttachmentType } from "./chat.types";
+import { toError } from "./projectsApi";
 
 const chatUrl = import.meta.env.VITE_CHAT_URL;
 
@@ -20,6 +21,10 @@ export interface ChatSession {
   rating?: number;
   comment?: string;
   phenotypeCode?: string;
+  // optional: older backends omit it on the session-list response, which reads as unpinned
+  pinned?: boolean;
+  // the project this session is filed into; null when unfiled
+  projectId?: string | null;
 }
 
 export interface ChatMessageRecord {
@@ -53,12 +58,15 @@ export async function listSessions(): Promise<ChatSession[]> {
   return data.map(mapSession);
 }
 
-export async function createSession(phenotypeCode?: string): Promise<ChatSession> {
+export async function createSession(
+  phenotypeCode?: string,
+  projectId?: string,
+): Promise<ChatSession> {
   const response = await fetch(`${chatUrl}/v1/chat/sessions`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
-    body: JSON.stringify({ phenotype_code: phenotypeCode }),
+    body: JSON.stringify({ phenotype_code: phenotypeCode, project_id: projectId }),
   });
   if (!response.ok) {
     throw new Error(`HTTP ${response.status}`);
@@ -69,6 +77,7 @@ export async function createSession(phenotypeCode?: string): Promise<ChatSession
     title: null,
     createdAt: data.created_at,
     updatedAt: data.created_at,
+    projectId: data.project_id ?? null,
   };
 }
 
@@ -90,6 +99,7 @@ export async function getSession(sessionId: string): Promise<SessionDetail> {
     phenotypeCode: data.phenotype_code,
     isOwner: data.is_owner,
     shared: data.shared,
+    projectId: data.project_id ?? null,
     messages: data.messages.map(mapMessage),
   };
 }
@@ -132,6 +142,46 @@ export async function shareSession(
   if (!response.ok) {
     throw new Error(`HTTP ${response.status}`);
   }
+}
+
+/** secret chats have no server row and so are never a valid sessionId here; the caller hides
+ * the pin control for them rather than relying on this 404ing */
+export async function pinSession(sessionId: string, pinned: boolean): Promise<void> {
+  const response = await fetch(`${chatUrl}/v1/chat/sessions/${sessionId}/pin`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ pinned }),
+  });
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}`);
+  }
+}
+
+/** files sessionId into projectId, or unfiles it with projectId=null. Owner-only on both ends;
+ * a session that is not the caller's, or a project_id naming another user's project, 404s. */
+export async function moveSession(sessionId: string, projectId: string | null): Promise<void> {
+  const response = await fetch(`${chatUrl}/v1/chat/sessions/${sessionId}/project`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ project_id: projectId }),
+  });
+  if (!response.ok) {
+    throw await toError(response);
+  }
+}
+
+/** the caller's own sessions filed into this project, most recent first. */
+export async function listProjectSessions(projectId: string): Promise<ChatSession[]> {
+  const response = await fetch(`${chatUrl}/v1/projects/${projectId}/sessions`, {
+    credentials: "include",
+  });
+  if (!response.ok) {
+    throw await toError(response);
+  }
+  const data = await response.json();
+  return data.map(mapSession);
 }
 
 export async function forkSession(sessionId: string): Promise<ChatSession> {
@@ -220,6 +270,8 @@ function mapSession(data: any): ChatSession {
     updatedAt: data.updated_at,
     preview: data.preview,
     rating: data.rating,
+    pinned: Boolean(data.pinned),
+    projectId: data.project_id ?? null,
   };
 }
 

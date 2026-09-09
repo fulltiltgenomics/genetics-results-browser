@@ -3,29 +3,29 @@
 # (same as `npm run bff` in dev), so there is no separate build step.
 #
 # Build from the repo ROOT with this file:  docker build -f bff/Dockerfile -t <img> .
-FROM node:20-slim
+FROM node:24-slim
 
+# drop root before anything writes into /app: installing and copying as `node` means the tree is
+# owned by the runtime user already, so no recursive chown layer is needed over node_modules.
+# the base image ships the `node` user at uid 1000.
 WORKDIR /app
+RUN chown node:node /app
+USER node
 
 # install deps first for layer caching; tsx (used to run the TS entrypoint) is a devDependency,
 # so we keep dev deps. no postinstall scripts in this package, so npm ci pulls nothing extra.
-COPY package*.json ./
+COPY --chown=node:node package*.json ./
 RUN npm ci
 
 # BFF sources + the shared types they import (../src/types/types.normalized -> ./types) + tsconfig
-COPY bff ./bff
-COPY src ./src
-COPY tsconfig.json ./
+COPY --chown=node:node bff ./bff
+COPY --chown=node:node src ./src
+COPY --chown=node:node tsconfig.json ./
 
 ENV NODE_ENV=production
 # BFF_PORT and GENETICS_API_URL / GENETICS_API_TOKEN are supplied by the deployment env.
 ENV BFF_PORT=5000
 EXPOSE 5000
-
-# drop root: the BFF holds no state on disk. /app is chowned so tsx can write its transform
-# cache under node_modules; the base image ships the `node` user at uid 1000.
-RUN chown -R node:node /app
-USER node
 
 # run tsx directly rather than via npx: npx as PID 1 doesn't forward SIGTERM to node, so a
 # rollout SIGKILLs the server at the grace-period deadline and npm prints an "npm error

@@ -6,6 +6,7 @@ import AdminPanelSettingsIcon from "@mui/icons-material/AdminPanelSettings";
 import AccountCircleIcon from "@mui/icons-material/AccountCircle";
 import KeyIcon from "@mui/icons-material/Key";
 import EditNoteIcon from "@mui/icons-material/EditNote";
+import PsychologyIcon from "@mui/icons-material/Psychology";
 import LogoutIcon from "@mui/icons-material/Logout";
 import { useHotkeys } from "react-hotkeys-hook";
 import config from "../../config.json";
@@ -16,6 +17,7 @@ import { useAuth } from "@/store/useAuth";
 import { Link as RouterLink, useLocation, useNavigate } from "react-router";
 import McpTokenDialog from "./McpTokenDialog";
 import InstructionsDialog from "../chat/InstructionsDialog";
+import MemoryDialog from "../chat/MemoryDialog";
 
 const Header = () => {
   const location = useLocation();
@@ -45,6 +47,7 @@ const Header = () => {
   const [menuAnchor, setMenuAnchor] = useState<null | HTMLElement>(null);
   const [tokenDialogOpen, setTokenDialogOpen] = useState(false);
   const [instructionsDialogOpen, setInstructionsDialogOpen] = useState(false);
+  const [memoryDialogOpen, setMemoryDialogOpen] = useState(false);
 
   const handleThemeClick = () => {
     setTheme(!actualDarkMode);
@@ -162,6 +165,15 @@ const Header = () => {
               <MenuItem
                 onClick={() => {
                   setMenuAnchor(null);
+                  setMemoryDialogOpen(true);
+                }}
+              >
+                <PsychologyIcon fontSize="small" sx={{ mr: 1 }} />
+                Memory
+              </MenuItem>
+              <MenuItem
+                onClick={() => {
+                  setMenuAnchor(null);
                   logout();
                 }}
               >
@@ -173,6 +185,11 @@ const Header = () => {
             <InstructionsDialog
               open={instructionsDialogOpen}
               onClose={() => setInstructionsDialogOpen(false)}
+            />
+            <MemoryDialog
+              open={memoryDialogOpen}
+              onClose={() => setMemoryDialogOpen(false)}
+              projectId={null}
             />
           </>
         ) : import.meta.env.VITE_TARGET === "public" ? null : (

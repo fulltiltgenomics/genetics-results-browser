@@ -84,6 +84,10 @@ const categories: Category[] = [
     filter: (d) => d.data_type === "hla",
   },
   {
+    label: "Rare CNV dosage sensitivity (rCNV2)",
+    filter: (d) => d.data_type === "rcnv",
+  },
+  {
     label: "Colocalization-only",
     filter: (d) => {
       const keys = Object.keys(d.products || {});

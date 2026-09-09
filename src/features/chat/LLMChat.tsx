@@ -32,6 +32,7 @@ import {
   KeyboardArrowDown as ArrowDownIcon,
   AttachFile as AttachFileIcon,
   InfoOutlined as InfoIcon,
+  Psychology as PsychologyIcon,
 } from "@mui/icons-material";
 import React, { useRef, useEffect, useState, useCallback, useMemo } from "react";
 import ReactMarkdown from "react-markdown";
@@ -41,6 +42,7 @@ import { fetchEventSource } from "@microsoft/fetch-event-source";
 import type { ChatMessage, LLMChatProps, LiteratureBackend, Verbosity, PendingAttachment, FileAttachment, ContextUsage } from "./chat.types";
 import { MessageRating } from "./MessageRating";
 import InstructionsDialog from "./InstructionsDialog";
+import MemoryDialog from "./MemoryDialog";
 import { useInstructionSetsStore } from "./useInstructionSets";
 import { useChatOptionsStore } from "./useChatOptions";
 import { APP_NAME } from "../../config/appName";
@@ -48,6 +50,7 @@ import { SHOW_TOOLS_CONTROL } from "../../config/showToolsControl";
 import { PendingAttachments, MessageAttachments } from "./FileAttachments";
 import { getAttachmentType, isValidAttachmentType } from "./chatHistoryApi";
 import { excelFileToTsv } from "./excelToTsv";
+import { stripImageMarkers } from "./imageMarker";
 import { useSchema } from "./schemaApi";
 import { linkifyViewsPlugin } from "./linkifyViews";
 import { MessageContent } from "./MessageContent";
@@ -115,6 +118,7 @@ const MAX_ATTACHMENTS_PER_MESSAGE = 10;
  */
 export const LLMChat = ({
   phenotypeCode,
+  projectId,
   contextContent,
   placeholder = "Ask a question...",
   emptyStateTitle = "Start a conversation",
@@ -181,6 +185,11 @@ export const LLMChat = ({
   const loadInstructionSets = useInstructionSetsStore((s) => s.load);
   const selectInstructionSet = useInstructionSetsStore((s) => s.select);
   const [instructionsDialogOpen, setInstructionsDialogOpen] = useState(false);
+  const [memoryDialogOpen, setMemoryDialogOpen] = useState(false);
+  // name carried by the session's one "memory" SSE event, for the chip's "used <project>
+  // memory" label. The event fires at most once per session, so component state (rather
+  // than a per-message field) is enough — every message in a mount shares one project.
+  const [memoryProjectName, setMemoryProjectName] = useState<string | null>(null);
   const [optionsOpen, setOptionsOpen] = useState(false);
   // keyed off the id, not the looked-up set: the list and the stored selection load together but the
   // name can be momentarily unresolved, and claiming "no instructions" while one is selected would
@@ -555,6 +564,13 @@ export const LLMChat = ({
               }
               return [{ role: m.role, content }];
             }
+            // an assistant turn that ended without `done` (stopped, or the connection
+            // dropped) has no contentJson, so it replays from `content` — where a plot's
+            // whole base64 sits inside the [IMAGE:...] marker. The model cannot read it and
+            // is charged for it on every later turn, so the payload goes and the note stays.
+            if (m.role === "assistant") {
+              return [{ role: m.role, content: stripImageMarkers(m.content) }];
+            }
             return [{ role: m.role, content: m.content }];
           }),
       ];
@@ -620,6 +636,7 @@ export const LLMChat = ({
       let messageContent: any[] | null = null;
       let toolResults: any[] | null = null;
       let receivedDone = false;
+      let usedMemory = false;
       let streamError: string | null = null;
       let inactivityTimer: ReturnType<typeof setTimeout> | null = null;
       isTimeoutAbortRef.current = false;
@@ -747,6 +764,17 @@ export const LLMChat = ({
               setContextUsage((prev) =>
                 !prev || data.input_tokens >= prev.input_tokens ? (data as ContextUsage) : prev
               );
+            } else if (data.type === "memory" && projectId) {
+              // covers a memory event arriving for a session that isn't (or is no longer)
+              // filed into a project. fires at most once per session, on the first turn
+              // only. Guarded on projectId: an unfiled session gets no memory server-side,
+              // so this is defense in depth, not the thing that actually prevents the chip
+              // on unfiled chats.
+              usedMemory = true;
+              if (typeof data.project === "string") setMemoryProjectName(data.project);
+              setMessages((prev) =>
+                prev.map((m) => (m.id === assistantMsgId ? { ...m, usedMemory: true } : m))
+              );
             } else if (data.type === "error") {
               streamError = data.error || "A server error occurred";
             }
@@ -773,10 +801,27 @@ export const LLMChat = ({
 
         // streaming completed - notify parent with the completed messages
         if (accumulatedContent) {
+          const turnContentJson = messageContent ? JSON.stringify(messageContent) : null;
+          const turnToolResultsJson = toolResults ? JSON.stringify(toolResults) : null;
+          // the transcript keeps a plot's whole base64 inline in `content` (the [IMAGE:...]
+          // marker), so a message replayed from `content` costs the model those bytes as
+          // text on every later turn — measured at ~180k tokens per plotted turn, which
+          // reached the model's context limit in six turns. contentJson is the same turn
+          // without the image data, and the history builder above prefers it; it was only
+          // ever handed to the save path, so the live session replayed `content` while a
+          // reloaded one (contentJson restored from the backend) did not.
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === assistantMsgId
+                ? { ...m, contentJson: turnContentJson, toolResultsJson: turnToolResultsJson }
+                : m
+            )
+          );
           const completedAssistantMsg: ChatMessage = {
             id: assistantMsgId,
             role: "assistant",
             content: accumulatedContent,
+            usedMemory,
           };
           onStreamingComplete?.(userMsg, completedAssistantMsg, messageContent, literatureBackend, toolProfile, toolResults, instructionSetId, verbosity);
 
@@ -798,6 +843,7 @@ export const LLMChat = ({
               id: assistantMsgId,
               role: "assistant",
               content: accumulatedContent,
+              usedMemory,
             };
             onStreamingComplete?.(userMsg, partialMsg, messageContent, literatureBackend, toolProfile, toolResults, instructionSetId, verbosity);
             if (!hasTriggeredFirstExchange.current) {
@@ -1159,6 +1205,11 @@ export const LLMChat = ({
           void loadInstructionSets(true);
         }}
       />
+      <MemoryDialog
+        open={memoryDialogOpen}
+        onClose={() => setMemoryDialogOpen(false)}
+        projectId={projectId ?? null}
+      />
       <PendingAttachments
         attachments={pendingAttachments}
         onRemove={removeAttachment}
@@ -1443,6 +1494,18 @@ export const LLMChat = ({
                     </Box>
                   )}
                 </Typography>
+                {/* covers the session becoming unfiled after the memory event already
+                    set usedMemory (e.g. removed from the project while the chat stays open) */}
+                {message.role === "assistant" && message.usedMemory && projectId && (
+                  <Chip
+                    icon={<PsychologyIcon />}
+                    label={`Used ${memoryProjectName ?? "project"} memory`}
+                    size="small"
+                    variant="outlined"
+                    onClick={() => setMemoryDialogOpen(true)}
+                    sx={{ mb: 1 }}
+                  />
+                )}
                 {message.attachments && message.attachments.length > 0 && (
                   <MessageAttachments
                     attachments={message.attachments}

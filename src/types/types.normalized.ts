@@ -74,7 +74,8 @@ export type DatasetDataType =
   | "gene_based"
   | "expression"
   | "chromatin_peaks"
-  | "gene_disease";
+  | "gene_disease"
+  | "rcnv";
 
 /**
  * eQTL Catalogue quantification level, parsed from a CS row's trait_original suffix after the
