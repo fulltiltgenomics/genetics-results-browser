@@ -170,7 +170,10 @@ export const MemoryDialog = ({ open, onClose }: MemoryDialogProps) => {
               Turning memory on lets the assistant see an index of your earlier conversations at
               the start of each new one, built from conversation titles, phenotype codes and the
               tool inputs you ran. It never includes tool results, plots, downloads, or anything
-              from a secret chat. Deleting a conversation removes it from the index immediately.
+              from a secret chat. Deleting a conversation removes it from every digest built
+              afterward, including this preview and any conversation you start later. A
+              conversation already in progress keeps the copy of the index it started with until
+              it ends, so it won't reflect that deletion.
             </Alert>
           )}
 
@@ -234,8 +237,10 @@ export const MemoryDialog = ({ open, onClose }: MemoryDialogProps) => {
             Clear
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-            There is no separate delete for memory — it is derived from your conversations, so
-            deleting or unpinning a conversation is what removes it here.
+            There is no separate delete for memory — it is derived from your conversations.
+            Deleting or unpinning a conversation removes it from this preview and any
+            conversation started after that, but a conversation already open keeps its own
+            pinned copy of the index until it ends.
           </Typography>
 
           {pinError && (
