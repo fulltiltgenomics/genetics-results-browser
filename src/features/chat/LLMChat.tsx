@@ -48,6 +48,7 @@ import { SHOW_TOOLS_CONTROL } from "../../config/showToolsControl";
 import { PendingAttachments, MessageAttachments } from "./FileAttachments";
 import { getAttachmentType, isValidAttachmentType } from "./chatHistoryApi";
 import { excelFileToTsv } from "./excelToTsv";
+import { stripImageMarkers } from "./imageMarker";
 import { useSchema } from "./schemaApi";
 import { linkifyViewsPlugin } from "./linkifyViews";
 import { MessageContent } from "./MessageContent";
@@ -555,6 +556,13 @@ export const LLMChat = ({
               }
               return [{ role: m.role, content }];
             }
+            // an assistant turn that ended without `done` (stopped, or the connection
+            // dropped) has no contentJson, so it replays from `content` — where a plot's
+            // whole base64 sits inside the [IMAGE:...] marker. The model cannot read it and
+            // is charged for it on every later turn, so the payload goes and the note stays.
+            if (m.role === "assistant") {
+              return [{ role: m.role, content: stripImageMarkers(m.content) }];
+            }
             return [{ role: m.role, content: m.content }];
           }),
       ];
@@ -773,6 +781,22 @@ export const LLMChat = ({
 
         // streaming completed - notify parent with the completed messages
         if (accumulatedContent) {
+          const turnContentJson = messageContent ? JSON.stringify(messageContent) : null;
+          const turnToolResultsJson = toolResults ? JSON.stringify(toolResults) : null;
+          // the transcript keeps a plot's whole base64 inline in `content` (the [IMAGE:...]
+          // marker), so a message replayed from `content` costs the model those bytes as
+          // text on every later turn — measured at ~180k tokens per plotted turn, which
+          // reached the model's context limit in six turns. contentJson is the same turn
+          // without the image data, and the history builder above prefers it; it was only
+          // ever handed to the save path, so the live session replayed `content` while a
+          // reloaded one (contentJson restored from the backend) did not.
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === assistantMsgId
+                ? { ...m, contentJson: turnContentJson, toolResultsJson: turnToolResultsJson }
+                : m
+            )
+          );
           const completedAssistantMsg: ChatMessage = {
             id: assistantMsgId,
             role: "assistant",
