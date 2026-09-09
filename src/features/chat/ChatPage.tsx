@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo, type MouseEvent as ReactMouseEvent, type ReactNode } from "react";
 import { useParams, useNavigate } from "react-router";
 import { Box, Typography, CircularProgress, Button, Chip, Drawer, IconButton, ListItemIcon, ListItemText, Menu, MenuItem, Popover, Alert, Tooltip, useMediaQuery, useTheme } from "@mui/material";
-import { VisibilityOff, Share as ShareIcon, LinkOff as LinkOffIcon, ForkRight as ForkRightIcon, FileDownload as FileDownloadIcon } from "@mui/icons-material";
+import { VisibilityOff, Share as ShareIcon, LinkOff as LinkOffIcon, ForkRight as ForkRightIcon, FileDownload as FileDownloadIcon, Star as StarIcon, StarBorder as StarBorderIcon } from "@mui/icons-material";
 import MenuIcon from "@mui/icons-material/Menu";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import finnGenieLogo from "../../assets/finngenie-leonardo-gemini-2.5-flash-recraft-vectorized-claude-cropped.svg";
@@ -31,6 +31,7 @@ import {
   uploadAttachment,
   shareSession,
   forkSession,
+  pinSession,
   type ChatSession,
   type SessionDetail,
   type ChatMessageRecord,
@@ -628,6 +629,26 @@ const ChatPage = () => {
     }
   };
 
+  // pin state lives on the session-list entry, not on SessionDetail (the backend only adds
+  // `pinned` to the list response), so read and update it there rather than on activeSession
+  const activeSessionPinned = sessions.find((s) => s.id === activeSessionId)?.pinned ?? false;
+
+  const handleTogglePinSession = async (sessionId: string, wasPinned: boolean) => {
+    const next = !wasPinned;
+    setSessions((prev) => prev.map((s) => (s.id === sessionId ? { ...s, pinned: next } : s)));
+    try {
+      await pinSession(sessionId, next);
+    } catch (err) {
+      console.error("Failed to update pin:", err);
+      setSessions((prev) => prev.map((s) => (s.id === sessionId ? { ...s, pinned: wasPinned } : s)));
+    }
+  };
+
+  const handleTogglePin = () => {
+    if (!activeSessionId) return;
+    handleTogglePinSession(activeSessionId, activeSessionPinned);
+  };
+
   const handleSessionRatingSave = async (rating: number, comment?: string) => {
     if (!activeSessionId) return;
     try {
@@ -804,6 +825,13 @@ const ChatPage = () => {
                   />
                 )}
                 {activeSession?.isOwner && activeSessionId && !isSecretChat && (
+                  <Tooltip title={activeSessionPinned ? "Unpin" : "Pin"}>
+                    <IconButton size="small" onClick={handleTogglePin} aria-label={activeSessionPinned ? "unpin" : "pin"}>
+                      {activeSessionPinned ? <StarIcon fontSize="small" /> : <StarBorderIcon fontSize="small" />}
+                    </IconButton>
+                  </Tooltip>
+                )}
+                {activeSession?.isOwner && activeSessionId && !isSecretChat && (
                   <span ref={shareButtonRef}>
                     {activeSession.shared ? (
                       <Button
@@ -952,6 +980,7 @@ const ChatPage = () => {
             onNewChat={handleNewChat}
             onNewSecretChat={handleNewSecretChat}
             onDeleteSession={handleDeleteSession}
+            onTogglePinSession={handleTogglePinSession}
             loading={loading}
           />
         </Box>
@@ -972,6 +1001,7 @@ const ChatPage = () => {
               onNewChat={handleNewChat}
               onNewSecretChat={handleNewSecretChat}
               onDeleteSession={handleDeleteSession}
+              onTogglePinSession={handleTogglePinSession}
               loading={loading}
               onAfterSelect={() => setMobileDrawerOpen(false)}
             />

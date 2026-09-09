@@ -50,6 +50,23 @@ export interface InstructionSetVersion {
   comment?: string | null;
 }
 
+/** one earlier conversation as it appears in the memory dialog's session list */
+export interface MemorySession {
+  id: string;
+  title: string | null;
+  pinned: boolean;
+  createdAt: string;
+}
+
+/** what GET /chat/v1/memory returns: the digest is rendered fresh and included even when
+ * `enabled` is false, so the dialog can preview what turning memory on would give the model */
+export interface MemoryState {
+  enabled: boolean;
+  digest: string;
+  sessions: MemorySession[];
+  charCap: number;
+}
+
 export type AttachmentType = "image" | "tsv" | "excel";
 
 export interface FileAttachment {

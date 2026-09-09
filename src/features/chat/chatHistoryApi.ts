@@ -20,6 +20,8 @@ export interface ChatSession {
   rating?: number;
   comment?: string;
   phenotypeCode?: string;
+  // optional: older backends omit it on the session-list response, which reads as unpinned
+  pinned?: boolean;
 }
 
 export interface ChatMessageRecord {
@@ -134,6 +136,20 @@ export async function shareSession(
   }
 }
 
+/** secret chats have no server row and so are never a valid sessionId here; the caller hides
+ * the pin control for them rather than relying on this 404ing */
+export async function pinSession(sessionId: string, pinned: boolean): Promise<void> {
+  const response = await fetch(`${chatUrl}/v1/chat/sessions/${sessionId}/pin`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ pinned }),
+  });
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}`);
+  }
+}
+
 export async function forkSession(sessionId: string): Promise<ChatSession> {
   const response = await fetch(`${chatUrl}/v1/chat/sessions/${sessionId}/fork`, {
     method: "POST",
@@ -220,6 +236,7 @@ function mapSession(data: any): ChatSession {
     updatedAt: data.updated_at,
     preview: data.preview,
     rating: data.rating,
+    pinned: Boolean(data.pinned),
   };
 }
 

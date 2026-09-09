@@ -23,6 +23,8 @@ import {
   Delete as DeleteIcon,
   VisibilityOff as VisibilityOffIcon,
   InfoOutlined as InfoOutlinedIcon,
+  Star as StarIcon,
+  StarBorder as StarBorderIcon,
 } from "@mui/icons-material";
 import type { ChatSession } from "./chatHistoryApi";
 
@@ -33,6 +35,7 @@ interface ChatHistorySidebarProps {
   onNewChat: () => void;
   onNewSecretChat: () => void;
   onDeleteSession: (sessionId: string) => void;
+  onTogglePinSession: (sessionId: string, wasPinned: boolean) => void;
   loading: boolean;
   // called after a session, new chat, or new secret chat is picked
   // used by the parent to close the mobile drawer
@@ -92,6 +95,7 @@ export const ChatHistorySidebar = ({
   onNewChat,
   onNewSecretChat,
   onDeleteSession,
+  onTogglePinSession,
   loading,
   onAfterSelect,
 }: ChatHistorySidebarProps) => {
@@ -108,6 +112,11 @@ export const ChatHistorySidebar = ({
     e.stopPropagation();
     setSessionToDelete(sessionId);
     setDeleteDialogOpen(true);
+  };
+
+  const handlePinClick = (e: React.MouseEvent, sessionId: string, wasPinned: boolean) => {
+    e.stopPropagation();
+    onTogglePinSession(sessionId, wasPinned);
   };
 
   const handleConfirmDelete = () => {
@@ -211,20 +220,45 @@ export const ChatHistorySidebar = ({
                 </Typography>
                 <List dense disablePadding>
                   {groupSessions.map((session) => {
-                    const showDelete = isMobile || hoveredId === session.id;
+                    const hovered = isMobile || hoveredId === session.id;
+                    const showDelete = hovered;
+                    // the star is a hover action like delete, but stays visible once pinned so
+                    // pinned status reads as a standing indicator, not only a hover affordance
+                    const showPin = hovered || session.pinned;
                     return (
                     <ListItem
                       key={session.id}
                       disablePadding
                       secondaryAction={
-                        showDelete && (
-                          <IconButton
-                            edge="end"
-                            size="small"
-                            onClick={(e) => handleDeleteClick(e, session.id)}
-                            sx={{ mr: 0.5 }}>
-                            <DeleteIcon fontSize="small" />
-                          </IconButton>
+                        (showPin || showDelete) && (
+                          <Box sx={{ display: "flex", alignItems: "center" }}>
+                            {showPin && (
+                              <IconButton
+                                size="small"
+                                onClick={(e) => handlePinClick(e, session.id, session.pinned ?? false)}
+                                aria-label={
+                                  session.pinned
+                                    ? `unpin conversation: ${session.title || "New Chat"}`
+                                    : `pin conversation: ${session.title || "New Chat"}`
+                                }
+                                sx={{ mr: 0.5 }}>
+                                {session.pinned ? (
+                                  <StarIcon fontSize="small" color="warning" />
+                                ) : (
+                                  <StarBorderIcon fontSize="small" />
+                                )}
+                              </IconButton>
+                            )}
+                            {showDelete && (
+                              <IconButton
+                                edge="end"
+                                size="small"
+                                onClick={(e) => handleDeleteClick(e, session.id)}
+                                sx={{ mr: 0.5 }}>
+                                <DeleteIcon fontSize="small" />
+                              </IconButton>
+                            )}
+                          </Box>
                         )
                       }
                       onMouseEnter={() => setHoveredId(session.id)}
@@ -237,7 +271,7 @@ export const ChatHistorySidebar = ({
                         }}
                         sx={{
                           py: 1,
-                          pr: showDelete ? 5 : 2,
+                          pr: showPin && showDelete ? 9 : showPin || showDelete ? 5 : 2,
                         }}>
                         <ListItemText
                           primary={
