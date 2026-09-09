@@ -108,6 +108,7 @@ export interface ChatMessage {
   verbosity?: string | null; // answer detail this turn was produced under
   instructionSetId?: string | null; // instruction set this turn was produced under
   attachments?: FileAttachment[]; // file attachments (images, TSV, Excel)
+  usedMemory?: boolean; // this turn's system prompt carried the cross-session memory digest
 }
 
 export interface LLMChatProps {

@@ -32,6 +32,7 @@ import {
   KeyboardArrowDown as ArrowDownIcon,
   AttachFile as AttachFileIcon,
   InfoOutlined as InfoIcon,
+  Psychology as PsychologyIcon,
 } from "@mui/icons-material";
 import React, { useRef, useEffect, useState, useCallback, useMemo } from "react";
 import ReactMarkdown from "react-markdown";
@@ -41,6 +42,7 @@ import { fetchEventSource } from "@microsoft/fetch-event-source";
 import type { ChatMessage, LLMChatProps, LiteratureBackend, Verbosity, PendingAttachment, FileAttachment, ContextUsage } from "./chat.types";
 import { MessageRating } from "./MessageRating";
 import InstructionsDialog from "./InstructionsDialog";
+import MemoryDialog from "./MemoryDialog";
 import { useInstructionSetsStore } from "./useInstructionSets";
 import { useChatOptionsStore } from "./useChatOptions";
 import { APP_NAME } from "../../config/appName";
@@ -181,6 +183,7 @@ export const LLMChat = ({
   const loadInstructionSets = useInstructionSetsStore((s) => s.load);
   const selectInstructionSet = useInstructionSetsStore((s) => s.select);
   const [instructionsDialogOpen, setInstructionsDialogOpen] = useState(false);
+  const [memoryDialogOpen, setMemoryDialogOpen] = useState(false);
   const [optionsOpen, setOptionsOpen] = useState(false);
   // keyed off the id, not the looked-up set: the list and the stored selection load together but the
   // name can be momentarily unresolved, and claiming "no instructions" while one is selected would
@@ -620,6 +623,7 @@ export const LLMChat = ({
       let messageContent: any[] | null = null;
       let toolResults: any[] | null = null;
       let receivedDone = false;
+      let usedMemory = false;
       let streamError: string | null = null;
       let inactivityTimer: ReturnType<typeof setTimeout> | null = null;
       isTimeoutAbortRef.current = false;
@@ -747,6 +751,13 @@ export const LLMChat = ({
               setContextUsage((prev) =>
                 !prev || data.input_tokens >= prev.input_tokens ? (data as ContextUsage) : prev
               );
+            } else if (data.type === "memory") {
+              // fires at most once per session, on the first turn only; the chip it drives
+              // just needs to know memory was used, not the counts the event also carries
+              usedMemory = true;
+              setMessages((prev) =>
+                prev.map((m) => (m.id === assistantMsgId ? { ...m, usedMemory: true } : m))
+              );
             } else if (data.type === "error") {
               streamError = data.error || "A server error occurred";
             }
@@ -777,6 +788,7 @@ export const LLMChat = ({
             id: assistantMsgId,
             role: "assistant",
             content: accumulatedContent,
+            usedMemory,
           };
           onStreamingComplete?.(userMsg, completedAssistantMsg, messageContent, literatureBackend, toolProfile, toolResults, instructionSetId, verbosity);
 
@@ -798,6 +810,7 @@ export const LLMChat = ({
               id: assistantMsgId,
               role: "assistant",
               content: accumulatedContent,
+              usedMemory,
             };
             onStreamingComplete?.(userMsg, partialMsg, messageContent, literatureBackend, toolProfile, toolResults, instructionSetId, verbosity);
             if (!hasTriggeredFirstExchange.current) {
@@ -1159,6 +1172,7 @@ export const LLMChat = ({
           void loadInstructionSets(true);
         }}
       />
+      <MemoryDialog open={memoryDialogOpen} onClose={() => setMemoryDialogOpen(false)} />
       <PendingAttachments
         attachments={pendingAttachments}
         onRemove={removeAttachment}
@@ -1443,6 +1457,16 @@ export const LLMChat = ({
                     </Box>
                   )}
                 </Typography>
+                {message.role === "assistant" && message.usedMemory && (
+                  <Chip
+                    icon={<PsychologyIcon />}
+                    label="Using your recent conversations"
+                    size="small"
+                    variant="outlined"
+                    onClick={() => setMemoryDialogOpen(true)}
+                    sx={{ mb: 1 }}
+                  />
+                )}
                 {message.attachments && message.attachments.length > 0 && (
                   <MessageAttachments
                     attachments={message.attachments}
