@@ -58,13 +58,25 @@ export interface MemorySession {
   createdAt: string;
 }
 
-/** what GET /chat/v1/memory returns: the digest is rendered fresh and included even when
- * `enabled` is false, so the dialog can preview what turning memory on would give the model */
+/** what GET /v1/projects/{id}/memory returns: the digest is rendered fresh and included even
+ * when `enabled` is false, so the dialog can preview what turning memory on would give the
+ * model. memoryApi.getMemory() still hits the retired global GET /v1/memory until the memory
+ * dialog is scoped to a project. */
 export interface MemoryState {
   enabled: boolean;
   digest: string;
   sessions: MemorySession[];
   charCap: number;
+}
+
+/** a first-class container conversations can be filed into; the grouping unit for chat memory */
+export interface Project {
+  id: string;
+  name: string;
+  createdAt: string;
+  updatedAt: string;
+  /** most recent session activity filed into this project; null when it has none */
+  lastActivityAt: string | null;
 }
 
 export type AttachmentType = "image" | "tsv" | "excel";
