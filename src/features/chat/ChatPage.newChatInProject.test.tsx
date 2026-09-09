@@ -240,4 +240,75 @@ describe("ChatPage new chat in a project", () => {
     expect(screen.getByText("Project: IBD")).toBeInTheDocument();
     expect(screen.getByTestId("llm-project")).toHaveTextContent("p1");
   });
+
+  it("rolls a failed move back to the project of a row only the sidebar caches", async () => {
+    // the session list is empty: this row reaches the sidebar from the per-project endpoint,
+    // which is the only place its project is known
+    server.use(
+      http.get("*/v1/chat/sessions/:sessionId", ({ params }) =>
+        HttpResponse.json({
+          ...wireSession(params.sessionId as string, "IBD fine-mapping", "p1"),
+          is_owner: true,
+          shared: false,
+          messages: [],
+        }),
+      ),
+      http.get("*/v1/projects/p1/sessions", () =>
+        HttpResponse.json([wireSession("s1", "IBD fine-mapping", "p1")]),
+      ),
+      http.put("*/v1/chat/sessions/:sessionId/project", async ({ params, request }) => {
+        moveBodies.push({ sessionId: params.sessionId as string, body: await request.json() });
+        return HttpResponse.json({ detail: "nope" }, { status: 500 });
+      }),
+      ...baseHandlers([]),
+    );
+    const { container } = renderChatPage("/chat/s1");
+    const section = (id: string) =>
+      container.querySelector(`[data-project-id="${id}"]`) as HTMLElement;
+
+    expect(await screen.findByText("Project: IBD")).toBeInTheDocument();
+    const row = await waitFor(() => within(section("p1")).getByText("IBD fine-mapping"));
+
+    fireEvent.mouseEnter(row);
+    fireEvent.click(screen.getByRole("button", { name: "conversation menu: IBD fine-mapping" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Move to…" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "pQTL network" }));
+
+    await waitFor(() => expect(moveBodies).toHaveLength(1));
+    // the rollback puts it back in IBD, not in the unfiled section it was never in
+    await waitFor(() => expect(screen.getByTestId("llm-project")).toHaveTextContent("p1"));
+    expect(screen.getByText("Project: IBD")).toBeInTheDocument();
+  });
+
+  it("unfiles the open conversation when its project is deleted and its chats are kept", async () => {
+    let listed = [wireSession("s1", "IBD fine-mapping", "p1")];
+    server.use(
+      http.get("*/v1/chat/sessions", () => HttpResponse.json(listed)),
+      http.get("*/v1/chat/sessions/:sessionId", ({ params }) =>
+        HttpResponse.json({
+          ...wireSession(params.sessionId as string, "IBD fine-mapping", "p1"),
+          is_owner: true,
+          shared: false,
+          messages: [],
+        }),
+      ),
+      http.delete("*/v1/projects/p1", () => {
+        // the chats survive the project as unfiled conversations
+        listed = listed.map((s) => ({ ...s, project_id: null }));
+        return HttpResponse.json({ ok: true });
+      }),
+      ...baseHandlers([wireSession("s1", "IBD fine-mapping", "p1")]),
+    );
+    renderChatPage("/chat/s1");
+
+    expect(await screen.findByText("Project: IBD")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId("llm-project")).toHaveTextContent("p1"));
+
+    fireEvent.click(screen.getByRole("button", { name: "Project menu: IBD" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Delete project" }));
+    fireEvent.click(screen.getByRole("button", { name: "Keep chats" }));
+
+    // the detail still carried the deleted project: the chat surface would keep filing into it
+    await waitFor(() => expect(screen.getByTestId("llm-project")).toHaveTextContent("null"));
+  });
 });

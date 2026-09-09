@@ -660,6 +660,9 @@ const ChatPage = () => {
     } catch (err) {
       console.error("Failed to update pin:", err);
       setSessions((prev) => prev.map((s) => (s.id === sessionId ? { ...s, pinned: wasPinned } : s)));
+      // rethrown so the sidebar can undo the same flip in its per-project cache, which the
+      // session list above does not cover
+      throw err;
     }
   };
 
@@ -670,8 +673,19 @@ const ChatPage = () => {
     sessions.find((s) => s.id === activeSessionId)?.projectId ??
     null;
 
-  const handleMoveSession = async (sessionId: string, projectId: string | null) => {
-    const previous = sessions.find((s) => s.id === sessionId)?.projectId ?? null;
+  // `previousProjectId` is the caller's: the sidebar shows rows past the session list's 50-item
+  // cap out of its own per-project cache, and rolling those back off the list alone unfiles them
+  const handleMoveSession = async (
+    sessionId: string,
+    projectId: string | null,
+    previousProjectId?: string | null,
+  ) => {
+    const listed = sessions.find((s) => s.id === sessionId);
+    const previous =
+      previousProjectId !== undefined
+        ? previousProjectId
+        : (listed?.projectId ??
+          (activeSession?.id === sessionId ? (activeSession.projectId ?? null) : null));
     const applyProject = (value: string | null) => {
       setSessions((prev) =>
         prev.map((s) => (s.id === sessionId ? { ...s, projectId: value } : s)),
@@ -696,6 +710,12 @@ const ChatPage = () => {
     if (withSessions && openChatWasFiledHere) {
       // the conversation on screen was deleted with the project; there is nothing to go back to
       handleGoHome();
+    } else if (openChatWasFiledHere) {
+      // the chat stays, unfiled: leaving the id on the detail hands the memory chip and the
+      // next digest a project that no longer exists
+      setActiveSession((prev) =>
+        prev && prev.projectId === projectId ? { ...prev, projectId: null } : prev,
+      );
     }
     if (currentProjectId === projectId) setCurrentProjectId(null);
     // the kept chats come back unfiled, and the deleted ones are gone: either way the
@@ -705,7 +725,8 @@ const ChatPage = () => {
 
   const handleTogglePin = () => {
     if (!activeSessionId) return;
-    handleTogglePinSession(activeSessionId, activeSessionPinned);
+    // already logged and rolled back inside; this caller has nothing left to do with the failure
+    void handleTogglePinSession(activeSessionId, activeSessionPinned).catch(() => {});
   };
 
   const handleSessionRatingSave = async (rating: number, comment?: string) => {

@@ -47,7 +47,8 @@ interface ChatHistorySidebarProps {
   onNewSecretChat: () => void;
   // may be async: the per-project caches here are re-read once the parent's delete has landed
   onDeleteSession: (sessionId: string) => void | Promise<void>;
-  onTogglePinSession: (sessionId: string, wasPinned: boolean) => void;
+  // may be async: a row the sidebar caches on its own needs the failure to undo its star
+  onTogglePinSession: (sessionId: string, wasPinned: boolean) => void | Promise<void>;
   loading: boolean;
   // called after a session, new chat, or new secret chat is picked
   // used by the parent to close the mobile drawer
@@ -60,7 +61,13 @@ interface ChatHistorySidebarProps {
   onCreateProject?: (name: string) => Promise<Project>;
   onRenameProject?: (projectId: string, name: string) => Promise<void>;
   onDeleteProject?: (projectId: string, withSessions: boolean) => Promise<void>;
-  onMoveSession?: (sessionId: string, projectId: string | null) => Promise<void>;
+  // `previousProjectId` is where the row sits now, which only the sidebar knows for a row
+  // past the session list's cap; the parent rolls back to it when the move fails
+  onMoveSession?: (
+    sessionId: string,
+    projectId: string | null,
+    previousProjectId: string | null,
+  ) => Promise<void>;
   onOpenProjectMemory?: (projectId: string) => void;
   // a secret chat is never persisted, so it has nothing to file: hide the filing affordances
   // that would offer to put *this* conversation somewhere
@@ -97,6 +104,9 @@ function groupSessionsByDate(sessions: ChatSession[]): Record<string, ChatSessio
   return groups;
 }
 
+/** dropTarget key for the unfiled section, which has no project id */
+const UNFILED_DROP = "__unfiled__";
+
 const sessionLabel = (session: ChatSession): string =>
   session.title || session.preview || "New Chat";
 
@@ -109,6 +119,13 @@ interface SessionRowProps {
   onDelete: (e: React.MouseEvent, sessionId: string) => void;
   onTogglePin: (e: React.MouseEvent, sessionId: string, wasPinned: boolean) => void;
   onOpenRowMenu?: (e: React.MouseEvent<HTMLElement>, session: ChatSession) => void;
+  // true while this row's own "⋯" menu is open; MUI portals the menu and autofocuses its
+  // list, so the row's onBlur sees a relatedTarget outside itself and must not hide the row
+  menuOpen?: boolean;
+  draggable?: boolean;
+  dragging?: boolean;
+  onDragStart?: (e: React.DragEvent, session: ChatSession) => void;
+  onDragEnd?: () => void;
 }
 
 /** one conversation. Kept a component of its own so a drop target can wrap it without
@@ -122,17 +139,29 @@ const SessionRow = ({
   onDelete,
   onTogglePin,
   onOpenRowMenu,
+  menuOpen = false,
+  draggable = false,
+  dragging = false,
+  onDragStart,
+  onDragEnd,
 }: SessionRowProps) => {
-  const showDelete = hovered;
+  // keep the row revealed while it owns the open menu, or closing the menu (which blurs
+  // its portaled list back to nothing under the row) would unmount its own anchorEl
+  const revealed = hovered || menuOpen;
+  const showDelete = revealed;
   // the star is a hover action like delete, but stays visible once pinned so
   // pinned status reads as a standing indicator, not only a hover affordance
-  const showPin = hovered || session.pinned;
-  const showMenu = hovered && Boolean(onOpenRowMenu);
+  const showPin = revealed || session.pinned;
+  const showMenu = revealed && Boolean(onOpenRowMenu);
   const actionCount = (showPin ? 1 : 0) + (showDelete ? 1 : 0) + (showMenu ? 1 : 0);
 
   return (
     <ListItem
       disablePadding
+      draggable={draggable}
+      onDragStart={(e) => onDragStart?.(e, session)}
+      onDragEnd={onDragEnd}
+      sx={{ opacity: dragging ? 0.4 : 1, cursor: draggable ? "grab" : undefined }}
       secondaryAction={
         actionCount > 0 && (
           <Box sx={{ display: "flex", alignItems: "center" }}>
@@ -179,7 +208,14 @@ const SessionRow = ({
         )
       }
       onMouseEnter={() => onHoverChange(session.id)}
-      onMouseLeave={() => onHoverChange(null)}>
+      onMouseLeave={() => onHoverChange(null)}
+      // keyboard users never hover: reveal the same row actions on focus-within, so tabbing
+      // to a row (or one of its own action buttons) exposes the "⋯" that opens Move to…
+      onFocus={() => onHoverChange(session.id)}
+      onBlur={(e) => {
+        if (menuOpen) return;
+        if (!e.currentTarget.contains(e.relatedTarget as Node)) onHoverChange(null);
+      }}>
       <ListItemButton
         selected={active}
         onClick={() => onSelect(session.id)}
@@ -266,6 +302,12 @@ export const ChatHistorySidebar = ({
   // non-null while the "New project…" field inside the move menu is open
   const [moveNewName, setMoveNewName] = useState<string | null>(null);
   const [newChatProjectAnchor, setNewChatProjectAnchor] = useState<HTMLElement | null>(null);
+  // filing by drag uses the native HTML5 drag events rather than a drag library: the
+  // "Move to…" menu already carries the keyboard and touch path this gesture is weak at, so
+  // the only thing left to cover is the mouse, and that needs no dependency
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  // the project id being hovered, or UNFILED_DROP for the unfiled section
+  const [dropTarget, setDropTarget] = useState<string | null>(null);
 
   const unfiled = sessions.filter((s) => !s.projectId);
   /** what a project section shows: the parent's session list is authoritative (it carries the
@@ -288,6 +330,13 @@ export const ChatHistorySidebar = ({
     Object.keys(projectSessions).find((id) =>
       projectSessions[id].some((s) => s.id === sessionId),
     ) ??
+    null;
+  /** a row by id, wherever the sidebar shows it from */
+  const findSession = (sessionId: string): ChatSession | null =>
+    sessions.find((s) => s.id === sessionId) ??
+    Object.values(projectSessions)
+      .flat()
+      .find((s) => s.id === sessionId) ??
     null;
   const grouped = groupSessionsByDate(unfiled);
   const currentProject = projects.find((p) => p.id === currentProjectId) ?? null;
@@ -322,6 +371,17 @@ export const ChatHistorySidebar = ({
     }
   }, [expanded, projectSessions, projectLoading, loadProjectSessions]);
 
+  // a session list update while a row is mid-drag (a move or delete landing elsewhere) can
+  // unmount the dragged row without ever firing its dragend; left stray, draggingId would
+  // pin the Unfiled heading open and the drop-fallback source open indefinitely
+  useEffect(() => {
+    if (draggingId && !findSession(draggingId)) {
+      setDraggingId(null);
+      setDropTarget(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessions]);
+
   const toggleExpanded = (projectId: string) => {
     setExpanded((prev) => {
       const next = new Set(prev);
@@ -337,19 +397,25 @@ export const ChatHistorySidebar = ({
     setDeleteDialogOpen(true);
   };
 
-  const handlePinClick = (e: React.MouseEvent, sessionId: string, wasPinned: boolean) => {
+  const handlePinClick = async (e: React.MouseEvent, sessionId: string, wasPinned: boolean) => {
     e.stopPropagation();
     // the parent flips its own list; a row past that list's cap lives only in the cache here,
-    // where nothing else would move the star
-    setProjectSessions((prev) =>
-      Object.fromEntries(
-        Object.entries(prev).map(([id, list]) => [
-          id,
-          list.map((s) => (s.id === sessionId ? { ...s, pinned: !wasPinned } : s)),
-        ]),
-      ),
-    );
-    onTogglePinSession(sessionId, wasPinned);
+    // where nothing else would move the star — including back, when the request fails
+    const setCachedPin = (pinned: boolean) =>
+      setProjectSessions((prev) =>
+        Object.fromEntries(
+          Object.entries(prev).map(([id, list]) => [
+            id,
+            list.map((s) => (s.id === sessionId ? { ...s, pinned } : s)),
+          ]),
+        ),
+      );
+    setCachedPin(!wasPinned);
+    try {
+      await onTogglePinSession(sessionId, wasPinned);
+    } catch {
+      setCachedPin(wasPinned);
+    }
   };
 
   /** the cached per-project lists are only correct until the session list changes under them:
@@ -389,7 +455,7 @@ export const ChatHistorySidebar = ({
     const from = session.projectId ?? null;
     closeRowMenus();
     try {
-      await onMoveSession?.(session.id, projectId);
+      await onMoveSession?.(session.id, projectId, from);
     } finally {
       for (const affected of [from, projectId]) {
         if (affected) resyncProject(affected);
@@ -397,7 +463,58 @@ export const ChatHistorySidebar = ({
     }
   };
 
+  /** props for a section that accepts a dragged conversation. `target` is the destination
+   * project, or null for unfiled; a drop where the row already sits is not a move. */
+  const dropZoneProps = (target: string | null) => {
+    if (!filingEnabled) return {};
+    const key = target ?? UNFILED_DROP;
+    const dragged = draggingId ? findSession(draggingId) : null;
+    const accepts = Boolean(dragged) && (dragged!.projectId ?? null) !== target;
+    const active = dropTarget === key;
+    return {
+      "data-drop-active": active ? "true" : undefined,
+      sx: {
+        outline: active ? "2px solid" : "none",
+        outlineColor: "primary.main",
+        outlineOffset: "-2px",
+        bgcolor: active ? "action.hover" : undefined,
+      },
+      onDragOver: (e: React.DragEvent) => {
+        if (!accepts) return;
+        // only a prevented dragover marks the element as a valid drop target
+        e.preventDefault();
+        if (e.dataTransfer) e.dataTransfer.dropEffect = "move";
+        if (!active) setDropTarget(key);
+      },
+      // a child row's dragover/dragleave pair bubbles here too; only clear the target when
+      // the pointer actually leaves the section, not when it crosses between its rows
+      onDragLeave: (e: React.DragEvent) => {
+        if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+        setDropTarget((prev) => (prev === key ? null : prev));
+      },
+      onDrop: (e: React.DragEvent) => {
+        e.preventDefault();
+        setDropTarget(null);
+        // draggingId is absent when the drop lands from outside this render (e.g. a reload
+        // mid-drag), so the private mime type is the fallback source of the id
+        const id = draggingId ?? e.dataTransfer?.getData("application/x-chat-session");
+        setDraggingId(null);
+        const session = id ? findSession(id) : null;
+        if (!session || (session.projectId ?? null) === target) return;
+        void applyMove(session, target);
+      },
+    };
+  };
+
   const deleteCount = projectToDelete ? projectChatCount(projectToDelete.id) : null;
+  /** the dialog names the number of chats at risk, so a collapsed project has to be fetched
+   * here rather than waiting for an expand that may never happen */
+  const openProjectDelete = (project: Project) => {
+    setProjectToDelete(project);
+    if (!(project.id in projectSessions) && !projectLoading[project.id]) {
+      void loadProjectSessions(project.id);
+    }
+  };
 
   const closeProjectDelete = () => {
     setProjectToDelete(null);
@@ -442,6 +559,23 @@ export const ChatHistorySidebar = ({
       onOpenRowMenu={
         filingEnabled ? (e, s) => setRowMenu({ anchor: e.currentTarget, session: s }) : undefined
       }
+      menuOpen={rowMenu?.session.id === session.id}
+      // with no project to drop into, a drag would have nowhere to land
+      draggable={filingEnabled && projects.length > 0}
+      dragging={draggingId === session.id}
+      onDragStart={(e, s) => {
+        // the private type carries the id; text/plain carries a label, so a drop into an
+        // ordinary text field (Firefox requires setData to even start the drag) inserts
+        // something readable rather than a bare UUID
+        e.dataTransfer?.setData("application/x-chat-session", s.id);
+        e.dataTransfer?.setData("text/plain", sessionLabel(s));
+        if (e.dataTransfer) e.dataTransfer.effectAllowed = "move";
+        setDraggingId(s.id);
+      }}
+      onDragEnd={() => {
+        setDraggingId(null);
+        setDropTarget(null);
+      }}
     />
   );
 
@@ -540,7 +674,7 @@ export const ChatHistorySidebar = ({
               const isOpen = expanded.has(project.id);
               const filed = sessionsInProject(project.id);
               return (
-                <Box key={project.id} data-project-id={project.id}>
+                <Box key={project.id} data-project-id={project.id} {...dropZoneProps(project.id)}>
                   <Box
                     sx={{
                       display: "flex",
@@ -645,18 +779,32 @@ export const ChatHistorySidebar = ({
               );
             })}
 
-            {/* unfiled conversations keep the date grouping and the 50-session cap */}
-            {projects.length > 0 && unfiled.length > 0 && <SectionHeading>Unfiled</SectionHeading>}
-            {Object.entries(grouped).map(([group, groupSessions]) =>
-              groupSessions.length > 0 ? (
-                <Box key={group}>
-                  <SectionHeading>{group}</SectionHeading>
-                  <List dense disablePadding>
-                    {groupSessions.map(renderSessionRow)}
-                  </List>
-                </Box>
-              ) : null,
-            )}
+            {/* unfiled conversations keep the date grouping and the 50-session cap. the
+                heading also appears while a filed row is being dragged: with everything filed
+                there would otherwise be nothing on screen to drop onto */}
+            <Box data-unfiled-section="true" {...dropZoneProps(null)}>
+              {projects.length > 0 && (unfiled.length > 0 || draggingId !== null) && (
+                <SectionHeading>Unfiled</SectionHeading>
+              )}
+              {projects.length > 0 && unfiled.length === 0 && draggingId !== null && (
+                <Typography
+                  variant="caption"
+                  color="text.secondary"
+                  sx={{ px: 2, py: 1, display: "block" }}>
+                  Drop here to unfile
+                </Typography>
+              )}
+              {Object.entries(grouped).map(([group, groupSessions]) =>
+                groupSessions.length > 0 ? (
+                  <Box key={group}>
+                    <SectionHeading>{group}</SectionHeading>
+                    <List dense disablePadding>
+                      {groupSessions.map(renderSessionRow)}
+                    </List>
+                  </Box>
+                ) : null,
+              )}
+            </Box>
           </>
         )}
       </Box>
@@ -759,7 +907,7 @@ export const ChatHistorySidebar = ({
         </MenuItem>
         <MenuItem
           onClick={() => {
-            setProjectToDelete(projectMenu!.project);
+            openProjectDelete(projectMenu!.project);
             setProjectMenu(null);
           }}>
           Delete project
@@ -833,11 +981,13 @@ export const ChatHistorySidebar = ({
         <DialogTitle>Delete project?</DialogTitle>
         <DialogContent>
           <DialogContentText>
-            {`"${projectToDelete?.name ?? ""}" will be deleted. ${
-              deleteCount === null
-                ? "Its chats"
-                : `Its ${deleteCount} ${deleteCount === 1 ? "chat" : "chats"}`
-            } can be kept as unfiled conversations, or deleted with it. Deleting them is permanent.`}
+            {deleteCount === 0
+              ? `"${projectToDelete?.name ?? ""}" will be deleted. It has no chats.`
+              : `"${projectToDelete?.name ?? ""}" will be deleted. ${
+                  deleteCount === null
+                    ? "Its chats"
+                    : `Its ${deleteCount} ${deleteCount === 1 ? "chat" : "chats"}`
+                } can be kept as unfiled conversations, or deleted with it. Deleting them is permanent.`}
           </DialogContentText>
           {deleteProjectError && (
             <DialogContentText color="error" sx={{ mt: 1 }}>
@@ -847,9 +997,16 @@ export const ChatHistorySidebar = ({
         </DialogContent>
         <DialogActions>
           <Button onClick={closeProjectDelete}>Cancel</Button>
-          <Button onClick={() => runDeleteProject(false)}>Keep chats</Button>
+          {/* with no chats at stake there is nothing to "keep": offer just Cancel / Delete */}
+          {deleteCount !== 0 && (
+            <Button onClick={() => runDeleteProject(false)}>Keep chats</Button>
+          )}
           <Button color="error" onClick={() => runDeleteProject(true)}>
-            {deleteCount ? `Delete ${deleteCount} ${deleteCount === 1 ? "chat" : "chats"} too` : "Delete chats too"}
+            {deleteCount === 0
+              ? "Delete"
+              : deleteCount
+                ? `Delete ${deleteCount} ${deleteCount === 1 ? "chat" : "chats"} too`
+                : "Delete chats too"}
           </Button>
         </DialogActions>
       </Dialog>

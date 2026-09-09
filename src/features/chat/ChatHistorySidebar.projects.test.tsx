@@ -39,7 +39,7 @@ const FILED: ChatSession = {
 const makeSpies = () => ({
   onSelectSession: vi.fn<(sessionId: string) => void>(),
   onDeleteSession: vi.fn<(sessionId: string) => void | Promise<void>>(),
-  onTogglePinSession: vi.fn<(sessionId: string, wasPinned: boolean) => void>(),
+  onTogglePinSession: vi.fn<(sessionId: string, wasPinned: boolean) => void | Promise<void>>(),
   onNewChatInProject: vi.fn<(projectId: string) => void>(),
   onSelectCurrentProject: vi.fn<(projectId: string | null) => void>(),
   onCreateProject: vi.fn<(name: string) => Promise<Project>>(),
@@ -48,7 +48,9 @@ const makeSpies = () => ({
     .fn<(projectId: string, withSessions: boolean) => Promise<void>>()
     .mockResolvedValue(),
   onMoveSession: vi
-    .fn<(sessionId: string, projectId: string | null) => Promise<void>>()
+    .fn<
+      (sessionId: string, projectId: string | null, previous: string | null) => Promise<void>
+    >()
     .mockResolvedValue(),
   onOpenProjectMemory: vi.fn<(projectId: string) => void>(),
 });
@@ -61,7 +63,7 @@ const renderSidebar = (
   extra: { isSecretChat?: boolean; currentProjectId?: string | null; projects?: Project[] } = {},
 ) => {
   const spies = { ...makeSpies(), ...handlers };
-  render(
+  const { container } = render(
     <ChatHistorySidebar
       sessions={sessions}
       activeSessionId={null}
@@ -74,7 +76,22 @@ const renderSidebar = (
       {...spies}
     />,
   );
-  return spies;
+  return { ...spies, container };
+};
+
+/** jsdom has no DataTransfer at all, so this is a stand-in rather than a patch — it
+ * round-trips the payload the way a real browser's would (Firefox in particular refuses
+ * to start a drag at all unless setData was called). */
+const makeDataTransfer = () => {
+  const store: Record<string, string> = {};
+  return {
+    setData: vi.fn((type: string, value: string) => {
+      store[type] = value;
+    }),
+    getData: vi.fn((type: string) => store[type] ?? ""),
+    effectAllowed: "",
+    dropEffect: "",
+  } as unknown as DataTransfer;
 };
 
 const serveProjectSessions = (byProject: Record<string, ChatSession[]>) =>
@@ -172,7 +189,7 @@ describe("ChatHistorySidebar filing a conversation", () => {
 
     expect(screen.queryByRole("menuitem", { name: "Unfile" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("menuitem", { name: "IBD" }));
-    await waitFor(() => expect(onMoveSession).toHaveBeenCalledWith("s-unfiled", "p1"));
+    await waitFor(() => expect(onMoveSession).toHaveBeenCalledWith("s-unfiled", "p1", null));
   });
 
   it("unfiles a filed conversation and offers only the other projects", async () => {
@@ -184,7 +201,7 @@ describe("ChatHistorySidebar filing a conversation", () => {
     openRowMenu("IBD fine-mapping");
     expect(screen.queryByRole("menuitem", { name: "IBD" })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("menuitem", { name: "Unfile" }));
-    await waitFor(() => expect(onMoveSession).toHaveBeenCalledWith("s-filed", null));
+    await waitFor(() => expect(onMoveSession).toHaveBeenCalledWith("s-filed", null, "p1"));
   });
 
   it("creates the destination project from inside the move menu, then files into it", async () => {
@@ -199,7 +216,7 @@ describe("ChatHistorySidebar filing a conversation", () => {
     fireEvent.keyDown(field, { key: "Enter" });
 
     await waitFor(() => expect(onCreateProject).toHaveBeenCalledWith("Metabolomics"));
-    await waitFor(() => expect(onMoveSession).toHaveBeenCalledWith("s-unfiled", "p3"));
+    await waitFor(() => expect(onMoveSession).toHaveBeenCalledWith("s-unfiled", "p3", null));
   });
 });
 
@@ -253,6 +270,7 @@ describe("ChatHistorySidebar project management", () => {
   });
 
   it("deletes a project in two steps, keeping its chats", async () => {
+    serveProjectSessions({});
     const { onDeleteProject } = renderSidebar([UNFILED]);
     fireEvent.click(screen.getByRole("button", { name: "Project menu: IBD" }));
     fireEvent.click(screen.getByRole("menuitem", { name: "Delete project" }));
@@ -264,6 +282,7 @@ describe("ChatHistorySidebar project management", () => {
   });
 
   it("deletes a project together with its chats on the second choice", async () => {
+    serveProjectSessions({});
     const { onDeleteProject } = renderSidebar([UNFILED]);
     fireEvent.click(screen.getByRole("button", { name: "Project menu: IBD" }));
     fireEvent.click(screen.getByRole("menuitem", { name: "Delete project" }));
@@ -330,6 +349,7 @@ describe("ChatHistorySidebar project errors", () => {
   });
 
   it("keeps the delete dialog open and says why the delete failed", async () => {
+    serveProjectSessions({});
     const onDeleteProject = vi.fn().mockRejectedValue(new ProjectApiError(500, "Server error"));
     renderSidebar([UNFILED], { onDeleteProject });
 
@@ -354,5 +374,291 @@ describe("ChatHistorySidebar project errors", () => {
     expect(within(dialog).getByText(/Its 1 chat can be kept/)).toBeInTheDocument();
     expect(within(dialog).getByText(/Deleting them is permanent/)).toBeInTheDocument();
     expect(within(dialog).getByRole("button", { name: "Delete 1 chat too" })).toBeInTheDocument();
+  });
+
+  it("counts the chats of a collapsed project when the delete dialog opens", async () => {
+    serveProjectSessions({ p1: [FILED] });
+    renderSidebar([UNFILED]);
+
+    // the section is never expanded: the dialog has to fetch the list itself
+    fireEvent.click(screen.getByRole("button", { name: "Project menu: IBD" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Delete project" }));
+
+    expect(await screen.findByText(/Its 1 chat can be kept/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Delete 1 chat too" })).toBeInTheDocument();
+  });
+
+  it("says a project has no chats once an empty list is known", async () => {
+    serveProjectSessions({ p1: [] });
+    renderSidebar([UNFILED]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Project menu: IBD" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Delete project" }));
+
+    expect(await screen.findByText(/It has no chats/)).toBeInTheDocument();
+  });
+
+  it("collapses to Cancel / Delete when the project has no chats to keep", async () => {
+    serveProjectSessions({ p1: [] });
+    renderSidebar([UNFILED]);
+
+    fireEvent.click(screen.getByRole("button", { name: "Project menu: IBD" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Delete project" }));
+
+    await screen.findByText(/It has no chats/);
+    expect(screen.queryByRole("button", { name: "Keep chats" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Delete" })).toBeInTheDocument();
+  });
+
+  it("puts the star back when pinning a cached conversation fails", async () => {
+    const CACHED = { id: "s-old", title: "Older IBD chat", created_at: now, updated_at: now, project_id: "p1" };
+    server.use(http.get("*/v1/projects/p1/sessions", () => HttpResponse.json([CACHED])));
+    let fail: (err: Error) => void = () => {};
+    const onTogglePinSession = vi.fn(
+      () => new Promise<void>((_resolve, reject) => (fail = reject)),
+    );
+    renderSidebar([UNFILED], { onTogglePinSession });
+
+    fireEvent.click(screen.getByRole("button", { name: "Project: IBD" }));
+    fireEvent.mouseEnter(await screen.findByText("Older IBD chat"));
+    fireEvent.click(screen.getByRole("button", { name: "pin conversation: Older IBD chat" }));
+
+    // optimistic while the request is in flight, back to unpinned when it fails
+    expect(
+      await screen.findByRole("button", { name: "unpin conversation: Older IBD chat" }),
+    ).toBeInTheDocument();
+    fail(new Error("nope"));
+    expect(
+      await screen.findByRole("button", { name: "pin conversation: Older IBD chat" }),
+    ).toBeInTheDocument();
+  });
+});
+
+describe("ChatHistorySidebar drag and drop filing", () => {
+  const projectSection = (container: HTMLElement, id: string) =>
+    container.querySelector(`[data-project-id="${id}"]`) as HTMLElement;
+  const unfiledSection = (container: HTMLElement) =>
+    container.querySelector('[data-unfiled-section="true"]') as HTMLElement;
+
+  it("files a conversation dropped on another project's section", async () => {
+    const { onMoveSession, container } = renderSidebar([UNFILED]);
+
+    fireEvent.dragStart(screen.getByText("APOE and lipids"));
+    const target = projectSection(container, "p2");
+    fireEvent.dragOver(target);
+    expect(target).toHaveAttribute("data-drop-active", "true");
+
+    fireEvent.drop(target);
+    await waitFor(() => expect(onMoveSession).toHaveBeenCalledWith("s-unfiled", "p2", null));
+    // the affordance clears with the drop
+    expect(target).not.toHaveAttribute("data-drop-active");
+  });
+
+  it("drops on a collapsed section, and clears the affordance on drag leave", () => {
+    const { onMoveSession, container } = renderSidebar([UNFILED]);
+
+    fireEvent.dragStart(screen.getByText("APOE and lipids"));
+    const target = projectSection(container, "p1");
+    // collapsed: the section shows nothing but its header
+    expect(screen.queryByText("No chats in this project yet")).not.toBeInTheDocument();
+    fireEvent.dragOver(target);
+    expect(target).toHaveAttribute("data-drop-active", "true");
+    fireEvent.dragLeave(target);
+    expect(target).not.toHaveAttribute("data-drop-active");
+
+    fireEvent.dragOver(target);
+    fireEvent.drop(target);
+    expect(onMoveSession).toHaveBeenCalledWith("s-unfiled", "p1", null);
+  });
+
+  it("unfiles a conversation dropped on the unfiled section", async () => {
+    serveProjectSessions({ p1: [FILED] });
+    const { onMoveSession, container } = renderSidebar([FILED]);
+    fireEvent.click(screen.getByRole("button", { name: "Project: IBD" }));
+    const row = await screen.findByText("IBD fine-mapping");
+
+    // everything is filed, so the unfiled section only appears as a drop target
+    expect(screen.queryByText("Unfiled")).not.toBeInTheDocument();
+    fireEvent.dragStart(row);
+    expect(screen.getByText("Unfiled")).toBeInTheDocument();
+    expect(screen.getByText("Drop here to unfile")).toBeInTheDocument();
+
+    fireEvent.drop(unfiledSection(container));
+    await waitFor(() => expect(onMoveSession).toHaveBeenCalledWith("s-filed", null, "p1"));
+  });
+
+  it("ignores a drop on the section the conversation already sits in", async () => {
+    serveProjectSessions({ p1: [FILED] });
+    const { onMoveSession, container } = renderSidebar([FILED]);
+    fireEvent.click(screen.getByRole("button", { name: "Project: IBD" }));
+    fireEvent.dragStart(await screen.findByText("IBD fine-mapping"));
+
+    const target = projectSection(container, "p1");
+    fireEvent.dragOver(target);
+    expect(target).not.toHaveAttribute("data-drop-active");
+    fireEvent.drop(target);
+    expect(onMoveSession).not.toHaveBeenCalled();
+  });
+
+  it("offers no drag handle when the sidebar has no filing surface", () => {
+    render(
+      <ChatHistorySidebar
+        sessions={[UNFILED]}
+        activeSessionId={null}
+        onSelectSession={vi.fn()}
+        onNewChat={vi.fn()}
+        onNewSecretChat={vi.fn()}
+        onDeleteSession={vi.fn()}
+        onTogglePinSession={vi.fn()}
+        loading={false}
+      />,
+    );
+    expect(screen.getByText("APOE and lipids").closest("li")).not.toHaveAttribute(
+      "draggable",
+      "true",
+    );
+  });
+
+  it("offers no drag handle when there are no projects to drop into", () => {
+    renderSidebar([UNFILED], {}, { projects: [] });
+    expect(screen.getByText("APOE and lipids").closest("li")).not.toHaveAttribute(
+      "draggable",
+      "true",
+    );
+  });
+
+  it("stubs the drag payload and reads it back on drop", async () => {
+    const dataTransfer = makeDataTransfer();
+    const { onMoveSession, container } = renderSidebar([UNFILED]);
+
+    fireEvent.dragStart(screen.getByText("APOE and lipids"), { dataTransfer });
+    expect(dataTransfer.setData).toHaveBeenCalledWith("application/x-chat-session", "s-unfiled");
+    expect(dataTransfer.setData).toHaveBeenCalledWith("text/plain", "APOE and lipids");
+
+    const target = projectSection(container, "p2");
+    fireEvent.dragOver(target, { dataTransfer });
+    fireEvent.drop(target, { dataTransfer });
+    await waitFor(() => expect(onMoveSession).toHaveBeenCalledWith("s-unfiled", "p2", null));
+  });
+
+  it("falls back to the dataTransfer payload when draggingId state is absent", async () => {
+    const dataTransfer = makeDataTransfer();
+    dataTransfer.setData("application/x-chat-session", "s-unfiled");
+    const { onMoveSession, container } = renderSidebar([UNFILED]);
+
+    // no dragStart in this render: draggingId never gets set, only the transfer carries the id
+    const target = projectSection(container, "p2");
+    fireEvent.dragOver(target, { dataTransfer });
+    fireEvent.drop(target, { dataTransfer });
+    await waitFor(() => expect(onMoveSession).toHaveBeenCalledWith("s-unfiled", "p2", null));
+  });
+
+  it("does not clear the drop affordance when the pointer moves between an expanded section's own rows", async () => {
+    serveProjectSessions({ p2: [] });
+    const { container } = renderSidebar([UNFILED]);
+    fireEvent.click(screen.getByRole("button", { name: "Project: pQTL network" }));
+    const innerRow = await screen.findByText("No chats in this project yet");
+
+    fireEvent.dragStart(screen.getByText("APOE and lipids"));
+    const target = projectSection(container, "p2");
+    fireEvent.dragOver(target);
+    expect(target).toHaveAttribute("data-drop-active", "true");
+
+    // jsdom has no DragEvent (github.com/jsdom/jsdom/issues/1568), so fireEvent.dragLeave's
+    // init drops `relatedTarget`; MouseEvent, which DragEvent extends, keeps it
+    fireEvent(
+      target,
+      new MouseEvent("dragleave", { bubbles: true, cancelable: false, relatedTarget: innerRow }),
+    );
+    expect(target).toHaveAttribute("data-drop-active", "true");
+
+    fireEvent(
+      target,
+      new MouseEvent("dragleave", {
+        bubbles: true,
+        cancelable: false,
+        relatedTarget: document.body,
+      }),
+    );
+    expect(target).not.toHaveAttribute("data-drop-active");
+  });
+
+  it("clears a stray draggingId when the dragged row unmounts mid-drag", async () => {
+    const spies = makeSpies();
+    const { rerender } = render(
+      <ChatHistorySidebar
+        sessions={[UNFILED]}
+        activeSessionId={null}
+        onNewChat={vi.fn()}
+        onNewSecretChat={vi.fn()}
+        loading={false}
+        projects={PROJECTS}
+        {...spies}
+      />,
+    );
+
+    fireEvent.dragStart(screen.getByText("APOE and lipids"));
+    expect(screen.getByText("Unfiled")).toBeInTheDocument();
+
+    // the row disappears from the session list without a matching dragend
+    rerender(
+      <ChatHistorySidebar
+        sessions={[]}
+        activeSessionId={null}
+        onNewChat={vi.fn()}
+        onNewSecretChat={vi.fn()}
+        loading={false}
+        projects={PROJECTS}
+        {...spies}
+      />,
+    );
+
+    await waitFor(() => expect(screen.queryByText("Unfiled")).not.toBeInTheDocument());
+  });
+});
+
+describe("ChatHistorySidebar keyboard access to row actions", () => {
+  it("reveals a row's actions on focus, not only on hover", () => {
+    renderSidebar([UNFILED]);
+    expect(
+      screen.queryByRole("button", { name: "conversation menu: APOE and lipids" }),
+    ).not.toBeInTheDocument();
+
+    const row = screen.getByText("APOE and lipids").closest("li")!;
+    fireEvent.focusIn(row);
+    expect(
+      screen.getByRole("button", { name: "conversation menu: APOE and lipids" }),
+    ).toBeInTheDocument();
+
+    fireEvent.focusOut(row, { relatedTarget: document.body });
+    expect(
+      screen.queryByRole("button", { name: "conversation menu: APOE and lipids" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("keeps a row revealed while its own menu is open, even though the menu portals outside the row", () => {
+    renderSidebar([UNFILED]);
+    const row = screen.getByText("APOE and lipids").closest("li")!;
+    fireEvent.focusIn(row);
+
+    const menuButton = screen.getByRole("button", { name: "conversation menu: APOE and lipids" });
+    fireEvent.click(menuButton);
+
+    // MUI portals the menu and autofocuses its list, so the row itself sees a focusout
+    // with a relatedTarget outside it — the same shape a real click on the "⋯" produces.
+    // MUI also marks the rest of the page aria-hidden while its modal is open, so this
+    // assertion must reach past that with `hidden: true` — the point under test is that
+    // the anchor button stays mounted (and thus a valid anchorEl), not that it stays
+    // exposed to the accessibility tree while its own menu owns focus.
+    fireEvent.focusOut(row, { relatedTarget: document.body });
+    expect(
+      screen.getByRole("button", { name: "conversation menu: APOE and lipids", hidden: true }),
+    ).toBeInTheDocument();
+
+    fireEvent.keyDown(document.body, { key: "Escape" });
+    fireEvent.focusOut(row, { relatedTarget: document.body });
+    expect(
+      screen.queryByRole("button", { name: "conversation menu: APOE and lipids" }),
+    ).not.toBeInTheDocument();
   });
 });
