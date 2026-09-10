@@ -130,7 +130,6 @@ describe("ChatPage new chat in a project", () => {
     const row = await screen.findByText("APOE and lipids");
     fireEvent.mouseEnter(row);
     fireEvent.click(screen.getByRole("button", { name: "conversation menu: APOE and lipids" }));
-    fireEvent.click(screen.getByRole("menuitem", { name: "Move to…" }));
     fireEvent.click(screen.getByRole("menuitem", { name: "IBD" }));
 
     await waitFor(() => expect(moveBodies).toHaveLength(1));
@@ -145,7 +144,6 @@ describe("ChatPage new chat in a project", () => {
     const row = await screen.findByText("IBD fine-mapping");
     fireEvent.mouseEnter(row);
     fireEvent.click(screen.getByRole("button", { name: "conversation menu: IBD fine-mapping" }));
-    fireEvent.click(screen.getByRole("menuitem", { name: "Move to…" }));
     fireEvent.click(screen.getByRole("menuitem", { name: "Unfile" }));
 
     await waitFor(() => expect(moveBodies).toHaveLength(1));
@@ -165,7 +163,6 @@ describe("ChatPage new chat in a project", () => {
     expect(
       screen.queryByRole("button", { name: "Choose project for new chat" }),
     ).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Move to…" })).not.toBeInTheDocument();
   });
 
   it("keeps the project of a deep-linked conversation the session list has not returned", async () => {
@@ -229,7 +226,6 @@ describe("ChatPage new chat in a project", () => {
 
     fireEvent.mouseEnter(row);
     fireEvent.click(screen.getByRole("button", { name: "conversation menu: IBD fine-mapping" }));
-    fireEvent.click(screen.getByRole("menuitem", { name: "Move to…" }));
     fireEvent.click(screen.getByRole("menuitem", { name: "pQTL network" }));
 
     await waitFor(() => expect(moveBodies).toHaveLength(1));
@@ -271,7 +267,6 @@ describe("ChatPage new chat in a project", () => {
 
     fireEvent.mouseEnter(row);
     fireEvent.click(screen.getByRole("button", { name: "conversation menu: IBD fine-mapping" }));
-    fireEvent.click(screen.getByRole("menuitem", { name: "Move to…" }));
     fireEvent.click(screen.getByRole("menuitem", { name: "pQTL network" }));
 
     await waitFor(() => expect(moveBodies).toHaveLength(1));

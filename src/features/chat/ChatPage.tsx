@@ -904,8 +904,10 @@ const ChatPage = () => {
                     size="small"
                   />
                 )}
-                {activeSession?.isOwner && activeSessionId && !isSecretChat && (
-                  <Tooltip title={activeSessionPinned ? "Unpin" : "Pin"}>
+                {/* a pin only holds a conversation in its project's memory window, so an
+                    unfiled conversation offers none */}
+                {activeSession?.isOwner && activeSessionId && !isSecretChat && activeSession.projectId && (
+                  <Tooltip title={activeSessionPinned ? "Kept in project memory" : "Keep in project memory"}>
                     <IconButton size="small" onClick={handleTogglePin} aria-label={activeSessionPinned ? "unpin" : "pin"}>
                       {activeSessionPinned ? <StarIcon fontSize="small" /> : <StarBorderIcon fontSize="small" />}
                     </IconButton>

@@ -36,6 +36,7 @@ const SESSION = {
   createdAt: "2026-01-01T00:00:00Z",
   updatedAt: "2026-01-01T00:00:00Z",
   pinned: false,
+  projectId: "p1",
 };
 
 const SESSION_DETAIL = {
@@ -88,6 +89,15 @@ describe("ChatPage pin star", () => {
 
     await waitFor(() => expect(pinSession).toHaveBeenCalledWith("s1", true));
     expect(await screen.findByRole("button", { name: "pin" })).toBeInTheDocument();
+  });
+
+  it("shows no star on an unfiled conversation", async () => {
+    getSession.mockResolvedValue({ ...SESSION_DETAIL, projectId: null });
+    listSessions.mockResolvedValue([{ ...SESSION, projectId: null }]);
+    await renderChatPage();
+
+    await screen.findByRole("button", { name: "Share" });
+    expect(screen.queryByRole("button", { name: "pin" })).not.toBeInTheDocument();
   });
 
   it("shows no star and no session yet when no chat has been started", async () => {

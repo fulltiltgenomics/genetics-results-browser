@@ -180,7 +180,6 @@ describe("ChatHistorySidebar filing a conversation", () => {
   const openRowMenu = (title: string) => {
     fireEvent.mouseEnter(screen.getByText(title));
     fireEvent.click(screen.getByRole("button", { name: `conversation menu: ${title}` }));
-    fireEvent.click(screen.getByRole("menuitem", { name: "Move to…" }));
   };
 
   it("moves an unfiled conversation into a project", async () => {

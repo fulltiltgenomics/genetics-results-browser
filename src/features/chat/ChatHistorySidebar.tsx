@@ -5,6 +5,7 @@ import {
   ListItem,
   ListItemButton,
   ListItemText,
+  ListSubheader,
   IconButton,
   Typography,
   Button,
@@ -149,9 +150,10 @@ const SessionRow = ({
   // its portaled list back to nothing under the row) would unmount its own anchorEl
   const revealed = hovered || menuOpen;
   const showDelete = revealed;
-  // the star is a hover action like delete, but stays visible once pinned so
-  // pinned status reads as a standing indicator, not only a hover affordance
-  const showPin = revealed || session.pinned;
+  // a pin holds a conversation in its project's memory window and does nothing for an
+  // unfiled one, so the star is offered only on filed rows. Like delete it is a hover
+  // action, but a pinned row keeps its star as a standing indicator
+  const showPin = Boolean(session.projectId) && (revealed || session.pinned);
   const showMenu = revealed && Boolean(onOpenRowMenu);
   const actionCount = (showPin ? 1 : 0) + (showDelete ? 1 : 0) + (showMenu ? 1 : 0);
 
@@ -166,21 +168,23 @@ const SessionRow = ({
         actionCount > 0 && (
           <Box sx={{ display: "flex", alignItems: "center" }}>
             {showPin && (
-              <IconButton
-                size="small"
-                onClick={(e) => onTogglePin(e, session.id, session.pinned ?? false)}
-                aria-label={
-                  session.pinned
-                    ? `unpin conversation: ${session.title || "New Chat"}`
-                    : `pin conversation: ${session.title || "New Chat"}`
-                }
-                sx={{ mr: 0.5 }}>
-                {session.pinned ? (
-                  <StarIcon fontSize="small" color="warning" />
-                ) : (
-                  <StarBorderIcon fontSize="small" />
-                )}
-              </IconButton>
+              <Tooltip title={session.pinned ? "Kept in project memory" : "Keep in project memory"}>
+                <IconButton
+                  size="small"
+                  onClick={(e) => onTogglePin(e, session.id, session.pinned ?? false)}
+                  aria-label={
+                    session.pinned
+                      ? `unpin conversation: ${session.title || "New Chat"}`
+                      : `pin conversation: ${session.title || "New Chat"}`
+                  }
+                  sx={{ mr: 0.5 }}>
+                  {session.pinned ? (
+                    <StarIcon fontSize="small" color="warning" />
+                  ) : (
+                    <StarBorderIcon fontSize="small" />
+                  )}
+                </IconButton>
+              </Tooltip>
             )}
             {showMenu && (
               <IconButton
@@ -210,7 +214,7 @@ const SessionRow = ({
       onMouseEnter={() => onHoverChange(session.id)}
       onMouseLeave={() => onHoverChange(null)}
       // keyboard users never hover: reveal the same row actions on focus-within, so tabbing
-      // to a row (or one of its own action buttons) exposes the "⋯" that opens Move to…
+      // to a row (or one of its own action buttons) exposes the "⋯" that opens the move menu
       onFocus={() => onHoverChange(session.id)}
       onBlur={(e) => {
         if (menuOpen) return;
@@ -298,7 +302,6 @@ export const ChatHistorySidebar = ({
   const [renameError, setRenameError] = useState<string | null>(null);
   const [deleteProjectError, setDeleteProjectError] = useState<string | null>(null);
   const [rowMenu, setRowMenu] = useState<{ anchor: HTMLElement; session: ChatSession } | null>(null);
-  const [moveAnchor, setMoveAnchor] = useState<HTMLElement | null>(null);
   // non-null while the "New project…" field inside the move menu is open
   const [moveNewName, setMoveNewName] = useState<string | null>(null);
   const [newChatProjectAnchor, setNewChatProjectAnchor] = useState<HTMLElement | null>(null);
@@ -445,7 +448,6 @@ export const ChatHistorySidebar = ({
 
   const closeRowMenus = () => {
     setRowMenu(null);
-    setMoveAnchor(null);
     setMoveNewName(null);
   };
 
@@ -914,11 +916,17 @@ export const ChatHistorySidebar = ({
         </MenuItem>
       </Menu>
 
-      {/* row menu -> Move to… */}
-      <Menu anchorEl={rowMenu?.anchor ?? null} open={Boolean(rowMenu)} onClose={closeRowMenus}>
-        <MenuItem onClick={(e) => setMoveAnchor(e.currentTarget)}>Move to…</MenuItem>
-      </Menu>
-      <Menu anchorEl={moveAnchor} open={Boolean(moveAnchor)} onClose={closeRowMenus}>
+      {/* the row's "⋯" opens the project list directly. It opens to the right of the button,
+          over the chat pane, so it never covers the titles of the rows beneath it */}
+      <Menu
+        anchorEl={rowMenu?.anchor ?? null}
+        open={Boolean(rowMenu)}
+        onClose={closeRowMenus}
+        anchorOrigin={{ vertical: "top", horizontal: "right" }}
+        transformOrigin={{ vertical: "top", horizontal: "left" }}>
+        <ListSubheader disableSticky sx={{ lineHeight: "32px" }}>
+          Move to
+        </ListSubheader>
         {projects
           .filter((p) => p.id !== rowMenu?.session.projectId)
           .map((project) => (
