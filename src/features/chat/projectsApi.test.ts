@@ -10,13 +10,17 @@ const PROJECT = {
   created_at: "2026-01-01T00:00:00Z",
   updated_at: "2026-01-02T00:00:00Z",
   last_activity_at: "2026-01-03T00:00:00Z",
+  session_count: 2,
 };
 
 describe("listProjects", () => {
-  it("maps the list, camelCasing fields and defaulting a missing last_activity_at to null", async () => {
+  it("maps the list, camelCasing fields and defaulting a missing last_activity_at and count", async () => {
     server.use(
       http.get("*/v1/projects", () =>
-        HttpResponse.json([PROJECT, { ...PROJECT, id: "proj-2", last_activity_at: null }]),
+        HttpResponse.json([
+          PROJECT,
+          { ...PROJECT, id: "proj-2", last_activity_at: null, session_count: undefined },
+        ]),
       ),
     );
 
@@ -29,6 +33,7 @@ describe("listProjects", () => {
         createdAt: "2026-01-01T00:00:00Z",
         updatedAt: "2026-01-02T00:00:00Z",
         lastActivityAt: "2026-01-03T00:00:00Z",
+        sessionCount: 2,
       },
       {
         id: "proj-2",
@@ -36,6 +41,7 @@ describe("listProjects", () => {
         createdAt: "2026-01-01T00:00:00Z",
         updatedAt: "2026-01-02T00:00:00Z",
         lastActivityAt: null,
+        sessionCount: 0,
       },
     ]);
   });

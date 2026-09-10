@@ -103,6 +103,10 @@ const ChatPage = () => {
   const isNewSession = useRef(false);
   // track session created inline (during first exchange) to avoid remounting LLMChat
   const inlineSessionIdRef = useRef<string | null>(null);
+  // a chat the sidebar created eagerly (New Chat, or "+" in a project) so it could show it
+  // at once; if the user leaves it before a message exists it is deleted again, or every
+  // mis-click would leave an empty "New Chat" behind in the project
+  const eagerSessionIdRef = useRef<string | null>(null);
   // stable key for LLMChat - only changes when user explicitly switches sessions
   const [chatKey, setChatKey] = useState<string>("new");
   const applyChatOptions = useChatOptionsStore((s) => s.applyFromConversation);
@@ -266,7 +270,21 @@ const ChatPage = () => {
   };
 
   // `projectId` omitted keeps the current project; passing null explicitly starts an unfiled chat
+  /** delete the eagerly created chat the user is leaving if nothing was ever said in it.
+   * `keep` is the chat being navigated to, so re-selecting the same row is not a leave. */
+  const discardEmptyEagerSession = (keep?: string) => {
+    const id = eagerSessionIdRef.current;
+    if (!id || id === keep) return;
+    eagerSessionIdRef.current = null;
+    if (savedMessageIds.current.size > 0 || currentMessagesRef.current.length > 0) return;
+    setSessions((prev) => prev.filter((s) => s.id !== id));
+    deleteSession(id)
+      .then(() => reloadProjects())
+      .catch((err) => console.error("Failed to discard empty chat:", err));
+  };
+
   const handleNewChat = async (projectId?: string | null) => {
+    discardEmptyEagerSession();
     const targetProjectId = projectId === undefined ? currentProjectId : projectId;
     setCurrentProjectId(targetProjectId);
     setIsSecretChat(false);
@@ -275,6 +293,7 @@ const ChatPage = () => {
     try {
       const session = await createSession(undefined, targetProjectId ?? undefined);
       setSessions((prev) => [{ ...session, preview: undefined, rating: undefined }, ...prev]);
+      eagerSessionIdRef.current = session.id;
       isNewSession.current = true;
       inlineSessionIdRef.current = null;
       // clear stale messages before chatKey change triggers LLMChat remount
@@ -304,6 +323,7 @@ const ChatPage = () => {
   // reset to a blank, not-yet-persisted new chat at root; the session is created
   // lazily on the first message (see handleFirstExchange), so the URL stays "/"
   const handleGoHome = () => {
+    discardEmptyEagerSession();
     setIsSecretChat(false);
     setCurrentProjectId(null);
     setSessionError(null);
@@ -320,6 +340,7 @@ const ChatPage = () => {
   };
 
   const handleNewSecretChat = () => {
+    discardEmptyEagerSession();
     setIsSecretChat(true);
     setSeedInput(undefined);
     resetToUserDefaults();
@@ -333,6 +354,7 @@ const ChatPage = () => {
   };
 
   const handleSelectSession = (sessionId: string) => {
+    discardEmptyEagerSession(sessionId);
     setIsSecretChat(false);
     setCurrentProjectId(sessions.find((s) => s.id === sessionId)?.projectId ?? null);
     setSeedInput(undefined);
@@ -347,10 +369,12 @@ const ChatPage = () => {
   const handleDeleteSession = async (sessionId: string) => {
     try {
       await deleteSession(sessionId);
+      if (eagerSessionIdRef.current === sessionId) eagerSessionIdRef.current = null;
       setSessions((prev) => prev.filter((s) => s.id !== sessionId));
       if (activeSessionId === sessionId) {
         setActiveSessionId(null);
       }
+      void reloadProjects();
     } catch (err) {
       console.error("Failed to delete session:", err);
     }
@@ -904,8 +928,10 @@ const ChatPage = () => {
                     size="small"
                   />
                 )}
-                {activeSession?.isOwner && activeSessionId && !isSecretChat && (
-                  <Tooltip title={activeSessionPinned ? "Unpin" : "Pin"}>
+                {/* a pin only holds a conversation in its project's memory window, so an
+                    unfiled conversation offers none */}
+                {activeSession?.isOwner && activeSessionId && !isSecretChat && activeSession.projectId && (
+                  <Tooltip title={activeSessionPinned ? "Kept in project memory" : "Keep in project memory"}>
                     <IconButton size="small" onClick={handleTogglePin} aria-label={activeSessionPinned ? "unpin" : "pin"}>
                       {activeSessionPinned ? <StarIcon fontSize="small" /> : <StarBorderIcon fontSize="small" />}
                     </IconButton>
