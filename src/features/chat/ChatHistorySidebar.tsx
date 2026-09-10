@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Box,
   List,
@@ -163,7 +163,15 @@ const SessionRow = ({
       draggable={draggable}
       onDragStart={(e) => onDragStart?.(e, session)}
       onDragEnd={onDragEnd}
-      sx={{ opacity: dragging ? 0.4 : 1, cursor: draggable ? "grab" : undefined }}
+      sx={{
+        opacity: dragging ? 0.4 : 1,
+        cursor: draggable ? "grab" : undefined,
+        // ListItem gives the button a fixed 48px right padding from this parent selector,
+        // which outranks the button's own sx and is only wide enough for one icon: the title
+        // then runs under the star and the "⋯". Each small icon button is 30px plus its
+        // 4px margin, and the action box sits 16px in from the edge
+        "& > .MuiListItemButton-root": { paddingRight: `${24 + actionCount * 34}px` },
+      }}
       secondaryAction={
         actionCount > 0 && (
           <Box sx={{ display: "flex", alignItems: "center" }}>
@@ -220,10 +228,7 @@ const SessionRow = ({
         if (menuOpen) return;
         if (!e.currentTarget.contains(e.relatedTarget as Node)) onHoverChange(null);
       }}>
-      <ListItemButton
-        selected={active}
-        onClick={() => onSelect(session.id)}
-        sx={{ py: 1, pr: 2 + actionCount * 3.5 }}>
+      <ListItemButton selected={active} onClick={() => onSelect(session.id)} sx={{ py: 1 }}>
         <ListItemText
           primary={
             <Typography variant="body2" noWrap sx={{ fontWeight: active ? 600 : 400 }}>
@@ -373,6 +378,24 @@ export const ChatHistorySidebar = ({
       }
     }
   }, [expanded, projectSessions, projectLoading, loadProjectSessions]);
+
+  // the parent re-reads the projects after anything that files, creates or deletes a chat,
+  // so a project's server count moving is the one signal that its cached list is stale —
+  // including deletions the parent makes on its own, which no sidebar action sees
+  const countsKey = projects.map((p) => `${p.id}:${p.sessionCount}`).join(",");
+  const lastCountsRef = useRef<Record<string, number>>({});
+  useEffect(() => {
+    const previous = lastCountsRef.current;
+    const current: Record<string, number> = {};
+    for (const p of projects) current[p.id] = p.sessionCount;
+    lastCountsRef.current = current;
+    for (const p of projects) {
+      if (p.id in previous && previous[p.id] !== p.sessionCount && p.id in projectSessions) {
+        resyncProject(p.id);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [countsKey]);
 
   // a session list update while a row is mid-drag (a move or delete landing elsewhere) can
   // unmount the dragged row without ever firing its dragend; left stray, draggingId would
@@ -738,7 +761,7 @@ export const ChatHistorySidebar = ({
                             <ExpandMoreIcon fontSize="small" sx={{ mr: 0.5 }} />
                           )}
                           <Typography variant="caption" noWrap sx={{ fontWeight: 600 }}>
-                            {project.name}
+                            {project.name} ({project.sessionCount})
                           </Typography>
                         </ListItemButton>
                         <IconButton

@@ -15,6 +15,7 @@ const PROJECT: Project = {
   createdAt: now,
   updatedAt: now,
   lastActivityAt: now,
+  sessionCount: 1,
 };
 
 const baseSession: ChatSession = {

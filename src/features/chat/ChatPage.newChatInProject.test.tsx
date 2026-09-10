@@ -12,10 +12,14 @@ import ChatPage from "./ChatPage";
 vi.mock("./LLMChat", () => ({
   LLMChat: (props: {
     onEnsureSession?: () => Promise<string | null>;
+    onMessagesChange?: (messages: unknown[]) => void;
     projectId?: string | null;
   }) => (
     <div>
       <button onClick={() => void props.onEnsureSession?.()}>send</button>
+      <button onClick={() => props.onMessagesChange?.([{ id: "m1", role: "user", content: "hi" }])}>
+        type
+      </button>
       <span data-testid="llm-project">{String(props.projectId)}</span>
     </div>
   ),
@@ -38,6 +42,7 @@ const wireProject = (id: string, name: string) => ({
   created_at: now,
   updated_at: now,
   last_activity_at: now,
+  session_count: 0,
 });
 
 const wireSession = (id: string, title: string, projectId: string | null) => ({
@@ -50,6 +55,7 @@ const wireSession = (id: string, title: string, projectId: string | null) => ({
 
 let createBodies: unknown[] = [];
 let moveBodies: Array<{ sessionId: string; body: unknown }> = [];
+let deletedIds: string[] = [];
 
 const baseHandlers = (sessions: ReturnType<typeof wireSession>[]) => [
   http.get("*/v1/chat/sessions", () => HttpResponse.json(sessions)),
@@ -68,8 +74,13 @@ const baseHandlers = (sessions: ReturnType<typeof wireSession>[]) => [
     }),
   ),
   http.post("*/v1/chat/sessions", async ({ request }) => {
-    createBodies.push(await request.json());
-    return HttpResponse.json(wireSession("s-new", "New Chat", null));
+    const body = (await request.json()) as { project_id?: string };
+    createBodies.push(body);
+    return HttpResponse.json(wireSession("s-new", "New Chat", body.project_id ?? null));
+  }),
+  http.delete("*/v1/chat/sessions/:sessionId", ({ params }) => {
+    deletedIds.push(params.sessionId as string);
+    return HttpResponse.json({ ok: true });
   }),
   http.put("*/v1/chat/sessions/:sessionId/project", async ({ params, request }) => {
     moveBodies.push({ sessionId: params.sessionId as string, body: await request.json() });
@@ -90,6 +101,59 @@ const renderChatPage = (initialEntry = "/chat") =>
 beforeEach(() => {
   createBodies = [];
   moveBodies = [];
+  deletedIds = [];
+});
+
+describe("ChatPage discards an empty eager chat", () => {
+  // the sidebar's New Chat button carries the same text as an untitled row, so rows are
+  // looked up inside their project section
+  const section = (container: HTMLElement, id: string) =>
+    container.querySelector(`[data-project-id="${id}"]`) as HTMLElement;
+
+  it("deletes the chat created by a project's + when another conversation is opened", async () => {
+    server.use(...baseHandlers([wireSession("s1", "APOE and lipids", null)]));
+    const { container } = renderChatPage();
+
+    fireEvent.click(await screen.findByRole("button", { name: "New chat in IBD" }));
+    await waitFor(() => expect(createBodies).toHaveLength(1));
+    await waitFor(() => expect(within(section(container, "p1")).getByText("New Chat")).toBeInTheDocument());
+
+    fireEvent.click(screen.getByText("APOE and lipids"));
+    await waitFor(() => expect(deletedIds).toEqual(["s-new"]));
+    await waitFor(() =>
+      expect(within(section(container, "p1")).queryByText("New Chat")).not.toBeInTheDocument(),
+    );
+  });
+
+  it("deletes it when yet another new chat is started, and keeps the new one", async () => {
+    server.use(...baseHandlers([wireSession("s1", "APOE and lipids", null)]));
+    const { container } = renderChatPage();
+
+    fireEvent.click(await screen.findByRole("button", { name: "New chat in IBD" }));
+    await waitFor(() => expect(createBodies).toHaveLength(1));
+    fireEvent.click(await screen.findByRole("button", { name: "New chat in IBD" }));
+    await waitFor(() => expect(createBodies).toHaveLength(2));
+    expect(deletedIds).toEqual(["s-new"]);
+
+    // the second one is still in place and is not deleted by being re-selected
+    const row = await waitFor(() => within(section(container, "p1")).getByText("New Chat"));
+    fireEvent.click(row);
+    expect(deletedIds).toEqual(["s-new"]);
+  });
+
+  it("keeps a chat once something has been typed into it", async () => {
+    server.use(...baseHandlers([wireSession("s1", "APOE and lipids", null)]));
+    const { container } = renderChatPage();
+
+    fireEvent.click(await screen.findByRole("button", { name: "New chat in IBD" }));
+    await waitFor(() => expect(createBodies).toHaveLength(1));
+    fireEvent.click(screen.getByRole("button", { name: "type" }));
+
+    fireEvent.click(screen.getByText("APOE and lipids"));
+    await screen.findByText("APOE and lipids");
+    expect(deletedIds).toEqual([]);
+    expect(within(section(container, "p1")).getByText("New Chat")).toBeInTheDocument();
+  });
 });
 
 describe("ChatPage new chat in a project", () => {

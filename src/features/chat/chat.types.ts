@@ -77,6 +77,8 @@ export interface Project {
   updatedAt: string;
   /** most recent session activity filed into this project; null when it has none */
   lastActivityAt: string | null;
+  /** how many conversations are filed into it, as the server counts them */
+  sessionCount: number;
 }
 
 export type AttachmentType = "image" | "tsv" | "excel";

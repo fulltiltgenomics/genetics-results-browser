@@ -10,12 +10,13 @@ import type { Project } from "./chat.types";
 
 const now = new Date().toISOString();
 
-const project = (id: string, name: string): Project => ({
+const project = (id: string, name: string, sessionCount = 0): Project => ({
   id,
   name,
   createdAt: "2026-01-01T00:00:00Z",
   updatedAt: "2026-01-01T00:00:00Z",
   lastActivityAt: now,
+  sessionCount,
 });
 
 const PROJECTS = [project("p1", "IBD"), project("p2", "pQTL network")];
@@ -114,7 +115,7 @@ describe("ChatHistorySidebar project sections", () => {
     renderSidebar([UNFILED]);
 
     const headers = screen.getAllByRole("button", { name: /^Project: / });
-    expect(headers.map((h) => h.textContent)).toEqual(["IBD", "pQTL network"]);
+    expect(headers.map((h) => h.textContent)).toEqual(["IBD (0)", "pQTL network (0)"]);
     expect(screen.getByText("Unfiled")).toBeInTheDocument();
     // the unfiled list keeps its date grouping
     expect(screen.getByText("Today")).toBeInTheDocument();
@@ -173,6 +174,61 @@ describe("ChatHistorySidebar project sections", () => {
     expect(
       screen.queryByRole("button", { name: "Choose project for new chat" }),
     ).not.toBeInTheDocument();
+  });
+});
+
+describe("ChatHistorySidebar project headings", () => {
+  it("shows the server's conversation count after the name", () => {
+    renderSidebar([UNFILED], {}, { projects: [project("p1", "IBD", 3), project("p2", "pQTL network")] });
+    expect(screen.getByText("IBD (3)")).toBeInTheDocument();
+    expect(screen.getByText("pQTL network (0)")).toBeInTheDocument();
+  });
+
+  it("re-reads an expanded project's list when its count moves", async () => {
+    let served = [FILED];
+    server.use(http.get("*/v1/projects/p1/sessions", () => HttpResponse.json(served)));
+    const spies = makeSpies();
+    const { rerender } = render(
+      <ChatHistorySidebar
+        sessions={[]}
+        activeSessionId={null}
+        onNewChat={vi.fn()}
+        onNewSecretChat={vi.fn()}
+        loading={false}
+        projects={[project("p1", "IBD", 1)]}
+        currentProjectId={null}
+        {...spies}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Project: IBD" }));
+    await screen.findByText("IBD fine-mapping");
+
+    // the parent deleted it on its own and re-read the projects: the count is what tells us
+    served = [];
+    rerender(
+      <ChatHistorySidebar
+        sessions={[]}
+        activeSessionId={null}
+        onNewChat={vi.fn()}
+        onNewSecretChat={vi.fn()}
+        loading={false}
+        projects={[project("p1", "IBD", 0)]}
+        currentProjectId={null}
+        {...spies}
+      />,
+    );
+    await waitFor(() => expect(screen.queryByText("IBD fine-mapping")).not.toBeInTheDocument());
+  });
+
+  it("keeps a hovered row's title clear of every action icon", async () => {
+    serveProjectSessions({ p1: [FILED] });
+    renderSidebar([FILED]);
+    fireEvent.click(screen.getByRole("button", { name: "Project: IBD" }));
+    const row = await screen.findByText("IBD fine-mapping");
+    fireEvent.mouseEnter(row);
+    // star, "⋯" and delete: 16px inset + three 34px buttons + an 8px gap
+    const button = row.closest(".MuiListItemButton-root") as HTMLElement;
+    expect(getComputedStyle(button).paddingRight).toBe("126px");
   });
 });
 

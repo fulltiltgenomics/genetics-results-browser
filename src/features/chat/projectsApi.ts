@@ -100,5 +100,6 @@ function mapProject(data: any): Project {
     createdAt: data.created_at,
     updatedAt: data.updated_at,
     lastActivityAt: data.last_activity_at ?? null,
+    sessionCount: data.session_count ?? 0,
   };
 }
