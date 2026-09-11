@@ -122,8 +122,21 @@ celerybeat.pid
 *.sage.py
 
 # Environments
-.env
-.env.local
+# every .env variant holds real credentials. The build profiles below are the exception:
+# they carry only VITE_ values, which vite bakes into the client bundle anyway, so they
+# are committed and negated back in. Each is named in full and anchored on purpose — a
+# glob wide enough to cover the family (.env.prod*) also covers .env.production.secret,
+# and a profile that is missing a line here fails loudly at commit time, which a
+# silently-committable secret does not.
+.env*
+!.env.example
+!/bff/.env.example
+!/.env.dev
+!/.env.dev.finngen
+!/.env.dev.public
+!/.env.prod
+!/.env.prod.finngen
+!/.env.prod.public
 .venv
 env/
 venv/

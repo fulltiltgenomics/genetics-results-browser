@@ -38,5 +38,3 @@ export const GnomadConsequenceTooltip = (props: {
     </HtmlTooltip>
   );
 };
-
-export default GnomadConsequenceTooltip;

@@ -6,19 +6,8 @@
  *
  * Two-stage model (refactor.md §1):
  *   Stage 1  BFF fetch+normalize  -> NormalizedResponse  (RAW, unfiltered)
- *   Stage 2  client munge (reactive, in munge.ts) -> derived/grouped/summarized views
- *
- * ADDITIVE/non-breaking: this module is introduced alongside the legacy types in types.ts
- * (assoc/AssocRecord/GroupedAssocRecord/TableData). Those stay intact and working until the
- * BFF/serverQuery/munge/store consumers migrate (later tasks .9-.14). The legacy `DataType`
- * enum in types.ts is reused here at the value level — see CredibleSetDataType below.
+ *   Stage 2  client munge (reactive, in munge.normalized.ts) -> derived/grouped/summarized views
  */
-
-// the legacy enum's string values ("GWAS", "eQTL", ...) are the canonical credible-set casing,
-// so we reuse it rather than redefining. note: the enum lacks "caQTL" (added by the new data
-// layer) and carries legacy-only members (asmQTL, NA); the CredibleSetDataType union below is the
-// authoritative set for credible-set rows. enum values are assignable to/from the union as strings.
-export { DataType as LegacyDataTypeEnum } from "./types";
 
 /* ────────────────────────────────────────────────────────────────────────────
  * Shared primitives
@@ -208,7 +197,7 @@ export interface NearestGene {
   geneStrand: "+" | "-";
 }
 
-/** One input variant with all its raw evidence. Mirrors the legacy VariantRecord, minus `assoc`. */
+/** One input variant with all its raw evidence. */
 export interface VariantResult {
   variant: VariantId;
   /** user-supplied beta from tab-separated input (for direction-consistency views). */
@@ -280,7 +269,7 @@ export interface ResourceMeta {
   hasPseudoCredibleSets: boolean;
 }
 
-/** Input parsing results (mirrors the legacy TableData.input_variants, camelCased). */
+/** Input parsing results. */
 export interface InputVariants {
   found: VariantId[];
   notFound: string[];
@@ -313,10 +302,10 @@ export interface NormalizedResponse {
 }
 
 /* ────────────────────────────────────────────────────────────────────────────
- * STAGE 2 — client-derived (produced reactively in munge.ts, NOT from the wire)
+ * STAGE 2 — client-derived (produced reactively in munge.normalized.ts, NOT from the wire)
  * ──────────────────────────────────────────────────────────────────────────── */
 
-/** Credible-set memberships grouped by (resource|dataset|trait|direction). Replaces GroupedFineMappedRecord. */
+/** Credible-set memberships grouped by (resource|dataset|trait|direction). */
 export interface GroupedCredibleSet {
   id: string;
   resource: string;

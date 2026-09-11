@@ -22,7 +22,7 @@ test("annotate controls show PIP + p-value thresholds and react to PIP", async (
   await expect(page.getByLabel("cs_min_r2 threshold")).toHaveCount(0);
 
   // controls gate on useNormalizedQuery (the BFF stage-1 query), so once data loads they are
-  // interactive — not greyed out by the legacy useServerQuery that errors on the new shape.
+  // interactive.
   await expect(page.getByLabel("PIP threshold")).toBeEnabled();
 
   await snapshot(page, "annotate-controls-thresholds");

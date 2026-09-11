@@ -50,5 +50,3 @@ export const DataTypeIcon = ({
     </Tooltip>
   );
 };
-
-export default DataTypeIcon;

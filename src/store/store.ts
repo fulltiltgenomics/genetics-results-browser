@@ -1,7 +1,5 @@
 import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
-import { Phenotype, TableData, DataType, QTLType } from "../types/types";
-import { filterRows } from "./munge";
 import {
   FilterState,
   SelectedPhenotype,
@@ -40,8 +38,8 @@ const buildFilterState = (state: DataState): FilterState => ({
 });
 
 /**
- * stage-2 reactive recompute (mirrors the legacy clientData/filterRows pattern): re-derive
- * filteredVariants from the raw normalizedData + current filters. client-side only — never refetches.
+ * stage-2 reactive recompute: re-derive filteredVariants from the raw normalizedData + current
+ * filters. client-side only — never refetches.
  * returns [] when there is no normalized data yet so consumers can treat it as "empty, not loading".
  */
 const recomputeFilteredVariants = (state: DataState): VariantResult[] =>
@@ -54,21 +52,7 @@ interface DataState {
   setMessage: (message: string | undefined) => void;
   variantInput: string | undefined;
   setVariantInput: (variantInput: string) => void;
-  /** @deprecated legacy fat-aggregation payload; superseded by normalizedData. removed once components migrate (.17+). */
-  serverData: TableData | undefined;
-  /** @deprecated legacy setter; superseded by setNormalizedData. */
-  setServerData: (serverData: TableData) => void;
-  /** @deprecated legacy precomputed table; superseded by filteredVariants. */
-  clientData: TableData | undefined;
   toggledDataTypesTurnedOn: Record<string, boolean>;
-  /** @deprecated legacy GWAS/QTL data-type toggle; superseded by toggledCredibleSetDataTypes. */
-  toggledDataTypes: Record<string, boolean>;
-  /** @deprecated */
-  toggleDataType: (DataType: DataType) => void;
-  toggledGWASTypes: Record<string, boolean>;
-  toggleGWASType: (GWASType: string) => void;
-  toggledQTLTypes: Record<string, boolean>;
-  toggleQTLType: (QTLType: QTLType) => void;
   // cis-window half-width (Mb); shared by the normalized path's cis/trans classification.
   cisWindow: number;
   setCisWindow: (cisWindow: number) => void;
@@ -78,18 +62,10 @@ interface DataState {
   showTransQtl: boolean;
   setShowCisQtl: (show: boolean) => void;
   setShowTransQtl: (show: boolean) => void;
-  /** @deprecated p-value threshold loses meaning with credible-set-only data (refactor.md §4). */
-  pThreshold: number;
-  /** @deprecated */
-  setPThreshold: (pThreshold: number) => void;
   // pipThreshold is REUSED by the normalized path: semantics match munge.normalized (keep pip >= threshold).
   pipThreshold: number;
   setPipThreshold: (pipThreshold: number) => void;
-  /** @deprecated legacy single-phenotype focus (Phenotype); superseded by selectedPhenotype (SelectedPhenotype). */
-  selectedPheno: Phenotype | undefined;
-  /** @deprecated */
-  setSelectedPheno: (pheno: Phenotype | undefined) => void;
-  // shared by both paths: gnomAD population display.
+  // gnomAD population display.
   selectedPopulation: string | undefined;
   setSelectedPopulation: (pop: string | undefined) => void;
   activeTab: string;
@@ -118,8 +94,7 @@ interface DataState {
    * the current FilterState. recomputed on every relevant change WITHOUT refetching. grouping and
    * per-tab summaries (groupCredibleSets/summarizePhenotypes/summarizeTissues) are left to the
    * components: they differ per tab (and the tissue tab manages its own data-type selection,
-   * refactor.md §4), so precomputing them here would be wasted work — this mirrors the legacy store,
-   * which precomputed only the single shared clientData and let components derive the rest.
+   * refactor.md §4), so precomputing them here would be wasted work.
    */
   filteredVariants: VariantResult[];
   /** keep memberships whose p-value <= threshold (refactor.md §4). 1 keeps everything. default 0.05. */
@@ -135,8 +110,8 @@ interface DataState {
   /** eQTL quant-level option; default false = gene-level (ge) only (refactor.md §4). */
   includeAllQuantLevels: boolean;
   setIncludeAllQuantLevels: (includeAllQuantLevels: boolean) => void;
-  /** normalized-path single-trait focus (resource+trait), mirrors legacy selectedPheno. Narrows the
-   * global filteredVariants (and thus every table) to one phenotype. */
+  /** single-trait focus (resource+trait). Narrows the global filteredVariants (and thus every
+   * table) to one phenotype. */
   selectedPhenotype: SelectedPhenotype | undefined;
   setSelectedPhenotype: (pheno: SelectedPhenotype | undefined) => void;
   /** the phenotype the Phenotype search tab should preselect, set by the Phenotype summary handoff.
@@ -152,133 +127,17 @@ export const useDataStore = create<DataState>()(
     setMessage: (message) => set({ message }),
     variantInput: undefined,
     setVariantInput: (variantInput) => set({ variantInput }),
-    serverData: undefined,
-    setServerData: (data: TableData) =>
-      set((state) => ({
-        serverData: data,
-        // filter and group the data when server data changes
-        clientData: filterRows(
-          data,
-          state.toggledDataTypes,
-          state.toggledGWASTypes,
-          state.toggledQTLTypes,
-          state.cisWindow,
-          state.pThreshold,
-          state.pipThreshold,
-          state.selectedPheno,
-          true
-        ),
-      })),
-    clientData: undefined,
     toggledDataTypesTurnedOn: {
       ...config.data_types.reduce((acc, dataType) => {
         acc[dataType] = true;
         return acc;
       }, {} as Record<string, boolean>),
     },
-    toggledDataTypes: {
-      ...config.data_types.reduce((acc, dataType) => {
-        acc[dataType] = dataType === "GWAS";
-        return acc;
-      }, {} as Record<string, boolean>),
-    },
-    toggleDataType: (dataType: string) => {
-      set((state) => {
-        const newDataTypes = {
-          ...state.toggledDataTypes,
-          [dataType]: !state.toggledDataTypes[dataType],
-        } as Record<string, boolean>;
-        return {
-          toggledDataTypes: newDataTypes,
-          clientData: filterRows(
-            state.serverData!,
-            newDataTypes,
-            state.toggledGWASTypes,
-            state.toggledQTLTypes,
-            state.cisWindow,
-            state.pThreshold,
-            state.pipThreshold,
-            state.selectedPheno,
-            true
-          ),
-        };
-      });
-    },
-    toggledQTLTypes: {
-      CIS: true,
-      TRANS: true,
-    },
-    toggleQTLType: (QTLType: string) => {
-      set((state) => {
-        const newQTLTypes = {
-          ...state.toggledQTLTypes,
-          [QTLType]: !state.toggledQTLTypes[QTLType],
-        } as Record<string, boolean>;
-        return {
-          toggledQTLTypes: newQTLTypes,
-          clientData: filterRows(
-            state.serverData!,
-            state.toggledDataTypes,
-            state.toggledGWASTypes,
-            newQTLTypes,
-            state.cisWindow,
-            state.pThreshold,
-            state.pipThreshold,
-            state.selectedPheno,
-            true
-          ),
-        };
-      });
-    },
-    toggledGWASTypes: {
-      "case-control": true,
-      continuous: true,
-    },
-    toggleGWASType: (GWASType: string) => {
-      set((state) => {
-        const newGWASTypes = {
-          ...state.toggledGWASTypes,
-          [GWASType]: !state.toggledGWASTypes[GWASType],
-        } as Record<string, boolean>;
-        return {
-          toggledGWASTypes: newGWASTypes,
-          clientData: filterRows(
-            state.serverData!,
-            state.toggledDataTypes,
-            newGWASTypes,
-            state.toggledQTLTypes,
-            state.cisWindow,
-            state.pThreshold,
-            state.pipThreshold,
-            state.selectedPheno,
-            true
-          ),
-        };
-      });
-    },
     cisWindow: 1.5,
     setCisWindow: (cisWindow) =>
       set((state) => {
         const next = { ...state, cisWindow };
-        return {
-          cisWindow,
-          // guard the dead legacy recompute (serverData is undefined on the normalized path, which
-          // would deref undefined in filterRows); recompute the normalized filteredVariants instead.
-          clientData: state.serverData
-            ? filterRows(
-                state.serverData,
-                state.toggledDataTypes,
-                state.toggledGWASTypes,
-                state.toggledQTLTypes,
-                cisWindow,
-                state.pThreshold,
-                state.pipThreshold,
-                state.selectedPheno,
-                true
-              )
-            : state.clientData,
-          filteredVariants: recomputeFilteredVariants(next),
-        };
+        return { cisWindow, filteredVariants: recomputeFilteredVariants(next) };
       }),
     showCisQtl: true,
     showTransQtl: true,
@@ -292,61 +151,11 @@ export const useDataStore = create<DataState>()(
         const next = { ...state, showTransQtl: show };
         return { showTransQtl: show, filteredVariants: recomputeFilteredVariants(next) };
       }),
-    pThreshold: 5e-8,
-    setPThreshold: (pThreshold) =>
-      set((state) => {
-        return {
-          pThreshold: pThreshold,
-          clientData: filterRows(
-            state.serverData!,
-            state.toggledDataTypes,
-            state.toggledGWASTypes,
-            state.toggledQTLTypes,
-            state.cisWindow,
-            pThreshold,
-            state.pipThreshold,
-            state.selectedPheno,
-            true
-          ),
-        };
-      }),
     pipThreshold: 0.01,
     setPipThreshold: (pipThreshold) =>
       set((state) => ({
-        pipThreshold: pipThreshold,
-        // guard the legacy recompute: pipThreshold is now shared with the normalized path, which can
-        // be active before any legacy serverData exists (filterRows would deref undefined.data).
-        clientData: state.serverData
-          ? filterRows(
-              state.serverData,
-              state.toggledDataTypes,
-              state.toggledGWASTypes,
-              state.toggledQTLTypes,
-              state.cisWindow,
-              state.pThreshold,
-              pipThreshold,
-              state.selectedPheno,
-              true
-            )
-          : state.clientData,
-        // pipThreshold is shared with the normalized path, so recompute filteredVariants too.
+        pipThreshold,
         filteredVariants: recomputeFilteredVariants({ ...state, pipThreshold }),
-      })),
-    selectedPheno: undefined,
-    setSelectedPheno: (pheno) =>
-      set((state) => ({
-        selectedPheno: pheno,
-        clientData: filterRows(
-          state.serverData!,
-          state.toggledDataTypes,
-          state.toggledGWASTypes,
-          state.toggledQTLTypes,
-          state.cisWindow,
-          state.pThreshold,
-          state.pipThreshold,
-          pheno,
-          true
-        ),
       })),
     selectedPopulation: undefined,
     setSelectedPopulation: (pop) => set({ selectedPopulation: pop }),

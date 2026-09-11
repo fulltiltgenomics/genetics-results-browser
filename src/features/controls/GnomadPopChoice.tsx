@@ -2,9 +2,8 @@ import { Autocomplete, TextField } from "@mui/material";
 import { useDataStore } from "../../store/store";
 import { GnomadPop } from "../../types/types.normalized";
 
-// gnomAD populations carried by the new credible-set API (GnomadFreq.byPop). the legacy options came
-// from the dead clientData.meta.gnomad.populations, which is undefined on the normalized path — so
-// the dropdown was empty. these codes match the AF the variant table reads for the selected pop.
+// gnomAD populations carried by the credible-set API (GnomadFreq.byPop); these codes match the AF
+// the variant table reads for the selected pop.
 const POPULATIONS: { code: GnomadPop; label: string }[] = [
   { code: "afr", label: "African / African American" },
   { code: "amr", label: "Admixed American" },

@@ -8,8 +8,7 @@ import CisTransToggles from "./CisTransToggles";
 
 const GlobalControlContainer = () => {
   const variantInput: string = useDataStore((state) => state.variantInput)!;
-  // gate on the normalized BFF query; the legacy useServerQuery now throws on the new
-  // NormalizedResponse shape, which would otherwise keep these controls disabled forever
+  // gate on the normalized BFF query — the single /v1/results cache key the tables read from
   const { isError, isFetching, isLoading } = useNormalizedQuery(variantInput);
   const isNotReadyYet = isError || isFetching || isLoading;
 
@@ -30,9 +29,7 @@ const GlobalControlContainer = () => {
         {/* TODO - add back in and implement when we have more finemapping data
           <GlobalAssocFinemapSwitches isNotReadyYet={isNotReadyYet} />
           <Divider sx={{ margin: "auto" }} orientation="vertical" /> */}
-        {/* data-type/QTL filtering now lives in ResourceFilter on the new path; the legacy
-          GlobalDataTypeSwitches/GlobalQTLSwitches drove the dead clientData/filterRows path
-          and are intentionally no longer mounted here */}
+        {/* data-type/QTL filtering lives in ResourceFilter */}
         <GlobalThresholds isNotReadyYet={isNotReadyYet} />
         <Divider sx={{ margin: "auto" }} orientation="vertical" />
         {/* QTL cis/trans toggles re-added from the pre-refactor controls; cis-window field lives here too. */}

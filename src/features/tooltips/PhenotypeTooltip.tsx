@@ -67,5 +67,3 @@ export const PhenotypeTooltip = (props: {
     </span>
   );
 };
-
-export default PhenotypeTooltip;

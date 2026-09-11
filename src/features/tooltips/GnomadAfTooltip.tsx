@@ -8,9 +8,8 @@ import { Chart, CategoryScale, LinearScale, BarElement, Tooltip } from "chart.js
 
 Chart.register(CategoryScale, LinearScale, BarElement, Tooltip);
 
-// credible-set-model port of the legacy VariantGnomadToolTip: a log-scale bar plot of the per-
-// population gnomAD allele frequency, read from the normalized GnomadFreq (byPop) instead of the old
-// TableData gnomad record. Wraps an arbitrary trigger element (the AF cell text).
+// log-scale bar plot of the per-population gnomAD allele frequency, read from the normalized
+// GnomadFreq (byPop). Wraps an arbitrary trigger element (the AF cell text).
 
 const POPS: GnomadPop[] = ["afr", "amr", "asj", "eas", "fin", "mid", "nfe", "remaining", "sas"];
 const MAX_LOG_FREQ = 5;
@@ -128,5 +127,3 @@ export const GnomadAfTooltip = (props: {
     </HtmlTooltip>
   );
 };
-
-export default GnomadAfTooltip;

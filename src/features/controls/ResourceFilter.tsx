@@ -98,8 +98,7 @@ const ResourceFilter = (props: { isNotReadyYet: boolean }) => {
 
   // distinct CS data types present in the current results. drives the checked/enabled state and the
   // hotkeys (a type with no data gets a greyed, non-hotkeyed toggle — see capableDataTypes below).
-  // these toggles drive the NEW credible-set filter path (toggledCredibleSetDataTypes), not the
-  // legacy DataType switches in GlobalDataTypeSwitches.tsx, which still feed the legacy clientData.
+  // these toggles drive the credible-set filter path (toggledCredibleSetDataTypes).
   const availableDataTypes: CredibleSetDataType[] = useMemo(() => {
     const present = new Set<CredibleSetDataType>();
     for (const v of normalizedData?.variants ?? []) {

@@ -3,18 +3,6 @@ import { useTheme } from "@mui/material";
 import NorthIcon from "@mui/icons-material/North";
 import SouthIcon from "@mui/icons-material/South";
 
-export const UpDownIcons = (props: { up: number; down: number }): ReactElement => {
-  const theme = useTheme();
-  return (
-    <>
-      <NorthIcon sx={{ fontSize: "0.75rem", color: theme.palette.error.main }} />
-      {props.up}
-      <SouthIcon sx={{ fontSize: "0.75rem", color: theme.palette.info.main }} />
-      {props.down}
-    </>
-  );
-};
-
 interface UpOrDownIconProps {
   value: number;
   withValue?: boolean;

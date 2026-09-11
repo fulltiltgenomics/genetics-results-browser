@@ -19,12 +19,11 @@ import { usePhenotypeSearch } from "../../store/serverQuery";
 import { HIDDEN_RESOURCES } from "../../store/munge.normalized";
 import { PhenotypeSearchHit } from "../../types/types.normalized";
 import { formatPhenotypeCounts } from "../table/utils/tableutil";
-import config from "../../config.json";
 import { compressToEncodedURIComponent, decompressFromEncodedURIComponent } from "lz-string";
 import { useNavigate, useSearchParams } from "react-router";
 
 const InputForm = () => {
-  const [searchParams, setSearchParams] = useSearchParams();
+  const [searchParams] = useSearchParams();
   const [formValues, setFormValues] = useState({ variantInput: "" });
   const setVariantInput = useDataStore((state) => state.setVariantInput);
   const setMessage = useDataStore((state) => state.setMessage);

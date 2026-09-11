@@ -9,7 +9,6 @@ import EditNoteIcon from "@mui/icons-material/EditNote";
 import PsychologyIcon from "@mui/icons-material/Psychology";
 import LogoutIcon from "@mui/icons-material/Logout";
 import { useHotkeys } from "react-hotkeys-hook";
-import config from "../../config.json";
 import broadLogo from "../../assets/broad-logo.png";
 import finngenLogo from "../../assets/finngen-logo-400-1.png";
 import { useThemeStore } from "@/store/store.theme";

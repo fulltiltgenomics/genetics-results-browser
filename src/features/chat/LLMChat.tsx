@@ -253,7 +253,6 @@ export const LLMChat = ({
   useEffect(() => {
     const prevSessionId = lastSessionIdRef.current;
     const isFirstMount = prevSessionId === undefined;
-    const isInlineCreation = prevSessionId === null && sessionId !== null;
     const isSessionSwitch =
       prevSessionId !== undefined && prevSessionId !== null && sessionId !== prevSessionId;
 
@@ -277,7 +276,7 @@ export const LLMChat = ({
       }
       setContextUsage(null);
     }
-    // if isInlineCreation, do nothing - keep existing messages
+    // neither case means the session was created inline (null -> id): keep existing messages
   }, [initialMessages, sessionId]);
 
   // notify parent when messages change

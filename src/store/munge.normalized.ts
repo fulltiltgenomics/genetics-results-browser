@@ -4,14 +4,8 @@
  * Pure functions over a NormalizedResponse's RAW per-variant credibleSets:
  *   filterCredibleSets -> groupCredibleSets -> summarizePhenotypes / summarizeTissues.
  *
- * These mirror the SHAPE and intent of the legacy src/store/munge.ts
- * (filterRows / groupFineMappedTraits / summarizePhenotypes / summarizeTissues) but operate on
- * CredibleSetMembership records instead of the old assoc + finemapped split — there is no p-value
- * path anymore, the primary threshold is PIP (refactor.md §4 "Thresholds").
- *
- * ADDITIVE / non-breaking (Strangler Fig): this is a NEW module. The legacy munge.ts and its
- * characterization tests stay intact until the store/components migrate (tasks .14/.17+). Nothing
- * here imports from or mutates the legacy code.
+ * These operate on CredibleSetMembership records: there is no p-value path, the primary threshold
+ * is PIP (refactor.md §4 "Thresholds").
  */
 
 import {
@@ -194,7 +188,7 @@ export const filterCredibleSets = (
   }));
 
 /* ────────────────────────────────────────────────────────────────────────────
- * GROUPING — analogous to legacy groupFineMappedTraits, but credible-set native.
+ * GROUPING — credible-set native.
  *
  * Group key: resource | dataset | trait | direction (and quantLevel, so ge/exon/tx/... never
  * collapse together — the level disambiguates an otherwise-identical gene symbol, refactor.md §4).
@@ -323,8 +317,8 @@ interface PhenoAcc {
 
 /**
  * Summarize filtered variants into per-trait CS-membership rows.
- * Pass variants whose credibleSets have ALREADY been filtered (the store filters then summarizes,
- * exactly as the legacy store called filterRows before summarizePhenotypes).
+ * Pass variants whose credibleSets have ALREADY been filtered (the store filters then
+ * summarizes).
  */
 export const summarizePhenotypes = (
   variants: VariantResult[],

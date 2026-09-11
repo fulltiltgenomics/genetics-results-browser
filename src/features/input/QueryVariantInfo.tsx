@@ -7,9 +7,8 @@ import { useNormalizedQuery } from "../../store/serverQuery";
  * Summary line(s) above the results: how many input variants were found / not found / unparsed, and
  * any rsid-to-multiple-variant notes. The found/not-found counts come from the raw stage-1 payload
  * (they are a lookup fact, filter-independent); the credible-set count comes from stage-2
- * filteredVariants so it always equals the main table's row count. Shares
- * the single useNormalizedQuery cache key — the legacy useServerQuery it used before fired a SECOND
- * /v1/results request (with the old TableData query key) that errored on the new shape and retried.
+ * filteredVariants so it always equals the main table's row count. Shares the single
+ * useNormalizedQuery cache key, so rendering this does not trigger a second /v1/results request.
  */
 const QueryVariantInfo = () => {
   const variantInput: string = useDataStore((state) => state.variantInput)!;

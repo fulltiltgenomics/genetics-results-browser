@@ -1,6 +1,5 @@
 import { CSDatum, GeneModel } from "@/types/types.gene";
 import { isCoding, isLoF } from "@/utils/coding";
-import config from "@/config.json";
 
 /**
  * raw credible-set row shape returned by the new genetics-results-api endpoints
@@ -130,9 +129,9 @@ const isDroppedQuantificationMethod = (row: GeneCSApiRow): boolean =>
   row.resource === "eqtl_catalogue" && !(row.trait_original ?? "").endsWith("|ge");
 
 /**
- * group the new flat JSON rows into one CSDatum per credible set, mirroring the legacy useCSQuery
- * grouping: a CS is identified by resource(dataName)|dataset|trait=cs_id and accumulates its member
- * variants into parallel arrays (variant/pos/pip/mlog10p/beta/se/consequence/af/gene/rsid).
+ * group the flat JSON rows into one CSDatum per credible set: a CS is identified by
+ * resource(dataName)|dataset|trait=cs_id and accumulates its member variants into parallel arrays
+ * (variant/pos/pip/mlog10p/beta/se/consequence/af/gene/rsid).
  *
  * `traitKey` lets the trans path key the trait on the molecular-trait gene (the upstream `trait`
  * already is the gene symbol for QTL rows, so cis and trans share the same key here).
@@ -367,11 +366,6 @@ export const geneModelsFromRegion = (rows: GeneInRegionApiRow[]): GeneModel[] =>
     };
   });
 };
-
-// resolve which config dataNames are GWAS so callers can identify cis GWAS rows if needed
-export const GWAS_DATA_NAMES = new Set(
-  config.gene_view.resources.filter((r) => r.dataType === "GWAS").map((r) => r.dataName)
-);
 
 /** map of affected/affecting gene symbol -> the credible sets backing that gene in a list */
 export type Gene2CS = { [gene: string]: CSDatum[] };

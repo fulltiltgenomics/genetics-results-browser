@@ -9,7 +9,6 @@ import {
 // tests for the normalized credible-set path wired into the Zustand store (.14). we drive the
 // store directly via getState()/the setters and assert filteredVariants recomputes reactively from
 // the raw normalizedData WITHOUT any refetch (stage-2 is client-side, refactor.md §1).
-// the legacy path (serverData/clientData) is untouched and covered elsewhere.
 
 const makeCS = (over: Partial<CredibleSetMembership> = {}): CredibleSetMembership => ({
   resource: "finngen",
