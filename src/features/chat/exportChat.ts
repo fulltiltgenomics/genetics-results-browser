@@ -2,6 +2,8 @@ import { marked } from "marked";
 import type { ChatMessage } from "./chat.types";
 import { APP_NAME } from "../../config/appName";
 import { TOOL_CALL_MARKER_REGEX, decodeToolCallMarker } from "./toolCallMarker";
+import { FILE_MARKER_REGEX, decodeFileName } from "./fileMarker";
+import { downloadBlob } from "./downloadBlob";
 
 const IMAGE_MARKER_REGEX = /\[IMAGE:([^:]+):([^:]+):([^\]]+)\]/g;
 
@@ -24,15 +26,24 @@ function toolCallToMarkdown(encoded: string): string {
 
 /**
  * One stored message's `content` as portable markdown: an image marker becomes an inline
- * data-URL image and a tool-call marker becomes the block above. Exported because the admin
- * conversation export reads the same stored content and, rendering it raw, wrote the base64
- * of both markers into the downloaded file.
+ * data-URL image, a file marker a data-URL link, and a tool-call marker the block above.
+ * Exported because the admin conversation export reads the same stored content and,
+ * rendering it raw, wrote the base64 of the markers into the downloaded file.
+ *
+ * A data URL rather than a note naming the file, because an export is read outside the app:
+ * there is nowhere else for the artifact's bytes to live.
  */
 export function messageContentToMarkdown(content: string): string {
   return content
     .replace(
       IMAGE_MARKER_REGEX,
       (_match, format, alt, base64Data) => `![${alt}](data:image/${format};base64,${base64Data})`,
+    )
+    .replace(
+      FILE_MARKER_REGEX,
+      (_match, mime: string, name: string, base64Data: string) =>
+        // a bracket in the name would close the link text early
+        `[${decodeFileName(name).replace(/[[\]]/g, " ")}](data:${mime};base64,${base64Data})`,
     )
     .replace(TOOL_CALL_MARKER_REGEX, (_match, encoded: string) => toolCallToMarkdown(encoded));
 }
@@ -61,19 +72,9 @@ function makeFilename(title: string, ext: string): string {
   return title.replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-|-$/g, "").toLowerCase() + `-export.${ext}`;
 }
 
-function triggerDownload(content: string, filename: string, mimeType: string) {
-  const blob = new Blob([content], { type: mimeType });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
 export function exportChatAsMarkdown(messages: ChatMessage[], title: string) {
   const markdown = buildChatMarkdown(messages);
-  triggerDownload(markdown, makeFilename(title, "md"), "text/markdown");
+  downloadBlob(markdown, makeFilename(title, "md"), "text/markdown");
 }
 
 export function exportChatAsHtml(messages: ChatMessage[], title: string) {
@@ -115,7 +116,7 @@ ${bodyHtml}
 </body>
 </html>`;
 
-  triggerDownload(html, makeFilename(title, "html"), "text/html");
+  downloadBlob(html, makeFilename(title, "html"), "text/html");
 }
 
 function escapeHtml(text: string): string {

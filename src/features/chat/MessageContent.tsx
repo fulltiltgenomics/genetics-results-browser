@@ -1,27 +1,32 @@
 import { Box } from "@mui/material";
-import ReactMarkdown from "react-markdown";
+import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { PluggableList } from "unified";
+import { FileDownload } from "./FileDownload";
+import { MarkdownTable } from "./MarkdownTable";
 import { ToolCallDisclosure } from "./ToolCallDisclosure";
+import { decodeFileName } from "./fileMarker";
 import { decodeToolCallMarker } from "./toolCallMarker";
 
-// the two embedded-object markers a message's text can carry: [IMAGE:format:alt:base64data]
-// and [TOOLUSE:base64json]. Matched by one alternation so a message holding both still
-// renders its parts in the order they were streamed.
+// the three embedded-object markers a message's text can carry: [IMAGE:format:alt:base64data],
+// [FILE:mime:name:base64data] and [TOOLUSE:base64json]. Matched by one alternation so a message
+// holding several still renders its parts in the order they were streamed.
 const EMBEDDED_MARKER_REGEX =
-  /\[IMAGE:([^:]+):([^:]+):([^\]]+)\]|\[TOOLUSE:([A-Za-z0-9+/=]*)\]/g;
+  /\[IMAGE:([^:]+):([^:]+):([^\]]+)\]|\[FILE:([^:\]]+):([^:\]]+):([^\]]+)\]|\[TOOLUSE:([A-Za-z0-9+/=]*)\]/g;
+
+const MARKDOWN_COMPONENTS: Components = { table: MarkdownTable };
 
 /**
  * Renders message content, handling embedded objects separately from markdown.
  *
- * Two marker shapes are carried inline in the text: [IMAGE:format:alt:base64data] and
- * [TOOLUSE:base64json]. Both live in the message's `content` rather than in component
- * state so that a reopened session renders identically to the live stream — `content` is
- * the only thing this component ever sees.
+ * Three marker shapes are carried inline in the text: [IMAGE:format:alt:base64data],
+ * [FILE:mime:name:base64data] and [TOOLUSE:base64json]. All live in the message's `content`
+ * rather than in component state so that a reopened session renders identically to the live
+ * stream — `content` is the only thing this component ever sees.
  *
  * Its own module rather than a local in LLMChat because the admin conversation viewer reads
  * the same stored `content` and rendered it straight through ReactMarkdown, which spilled
- * both markers as base64 prose. Anything that displays a stored message renders it here.
+ * the markers as base64 prose. Anything that displays a stored message renders it here.
  */
 export const MessageContent = ({
   content,
@@ -30,9 +35,16 @@ export const MessageContent = ({
   content: string;
   rehypePlugins?: PluggableList;
 }) => {
-  if (!content.includes("[IMAGE:") && !content.includes("[TOOLUSE:")) {
+  if (
+    !content.includes("[IMAGE:") &&
+    !content.includes("[FILE:") &&
+    !content.includes("[TOOLUSE:")
+  ) {
     return (
-      <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={rehypePlugins}>
+      <ReactMarkdown
+        remarkPlugins={[remarkGfm]}
+        rehypePlugins={rehypePlugins}
+        components={MARKDOWN_COMPONENTS}>
         {content}
       </ReactMarkdown>
     );
@@ -55,14 +67,15 @@ export const MessageContent = ({
           <ReactMarkdown
             key={`text-${keyIndex++}`}
             remarkPlugins={[remarkGfm]}
-            rehypePlugins={rehypePlugins}>
+            rehypePlugins={rehypePlugins}
+            components={MARKDOWN_COMPONENTS}>
             {textPart}
           </ReactMarkdown>
         );
       }
     }
 
-    const [, format, alt, base64Data, toolCallData] = match;
+    const [, format, alt, base64Data, fileMime, fileName, fileData, toolCallData] = match;
     if (toolCallData !== undefined) {
       const record = decodeToolCallMarker(toolCallData);
       // a marker left half-written by an interrupted stream decodes to null; dropping it
@@ -70,6 +83,15 @@ export const MessageContent = ({
       if (record) {
         parts.push(<ToolCallDisclosure key={`tool-${keyIndex++}`} record={record} />);
       }
+    } else if (fileData !== undefined) {
+      parts.push(
+        <FileDownload
+          key={`file-${keyIndex++}`}
+          mime={fileMime}
+          name={decodeFileName(fileName)}
+          data={fileData}
+        />
+      );
     } else {
       const src = `data:image/${format};base64,${base64Data}`;
       parts.push(
@@ -101,7 +123,8 @@ export const MessageContent = ({
         <ReactMarkdown
           key={`text-${keyIndex++}`}
           remarkPlugins={[remarkGfm]}
-          rehypePlugins={rehypePlugins}>
+          rehypePlugins={rehypePlugins}
+          components={MARKDOWN_COMPONENTS}>
           {remainingText}
         </ReactMarkdown>
       );

@@ -51,6 +51,7 @@ import { PendingAttachments, MessageAttachments } from "./FileAttachments";
 import { getAttachmentType, isValidAttachmentType } from "./chatHistoryApi";
 import { excelFileToTsv } from "./excelToTsv";
 import { stripImageMarkers } from "./imageMarker";
+import { encodeFileMarker, stripFileMarkers } from "./fileMarker";
 import { useSchema } from "./schemaApi";
 import { linkifyViewsPlugin } from "./linkifyViews";
 import { MessageContent } from "./MessageContent";
@@ -565,11 +566,11 @@ export const LLMChat = ({
               return [{ role: m.role, content }];
             }
             // an assistant turn that ended without `done` (stopped, or the connection
-            // dropped) has no contentJson, so it replays from `content` — where a plot's
-            // whole base64 sits inside the [IMAGE:...] marker. The model cannot read it and
+            // dropped) has no contentJson, so it replays from `content` — where a plot's or
+            // an artifact's whole base64 sits inside its marker. The model cannot read it and
             // is charged for it on every later turn, so the payload goes and the note stays.
             if (m.role === "assistant") {
-              return [{ role: m.role, content: stripImageMarkers(m.content) }];
+              return [{ role: m.role, content: stripFileMarkers(stripImageMarkers(m.content)) }];
             }
             return [{ role: m.role, content: m.content }];
           }),
@@ -724,6 +725,17 @@ export const LLMChat = ({
               const imageData = data.image_data || "";
               const imageMarker = `\n\n[IMAGE:${imageFormat}:${imageAlt}:${imageData}]\n\n`;
               accumulatedContent += imageMarker;
+              const newContent = accumulatedContent;
+              setMessages((prev) =>
+                prev.map((m) => (m.id === assistantMsgId ? { ...m, content: newContent } : m))
+              );
+            } else if (data.type === "file" && data.file_data) {
+              // a non-image artifact the analysis wrote, embedded in the text the same way an
+              // image is so that it survives persistence and reload. Guarded on file_data
+              // because a marker with an empty payload does not match the render path's
+              // pattern and would spill into the transcript as prose
+              const fileMarker = encodeFileMarker(data.file_mime, data.file_name, data.file_data);
+              accumulatedContent += `\n\n${fileMarker}\n\n`;
               const newContent = accumulatedContent;
               setMessages((prev) =>
                 prev.map((m) => (m.id === assistantMsgId ? { ...m, content: newContent } : m))
