@@ -99,6 +99,15 @@ npm run e2e       # Playwright end-to-end specs in e2e/ (headless chromium)
 `tsconfig.json` only includes `src/`: `typecheck` covers the frontend and
 `bff:typecheck` covers the BFF. Pull requests run both in CI before the build.
 
+`npm test` runs two vitest projects from one config: **logic** (`src/store/*.test.ts` — zustand
+stores and pure munging) under the node environment with `isolate: false`, and **ui**
+(everything else under `src/`) under jsdom with the MSW setup and per-file isolation. The
+config also sets `VITE_API_URL` for the run: vitest's mode is `test`, there is no `.env.test`
+among the six deploy targets, and without it the axios client gets an undefined base — the MSW
+handlers match on `*/api/v1/…`, so every request missed. `VITE_CHAT_URL` is deliberately left
+unset; the chat features build fetch URLs from it directly and their tests match the shape that
+produces.
+
 `scripts/lint-staged.sh` runs eslint over the **staged** files from the `pre-commit` hook
 and **blocks the commit** on an error. Only errors block: warnings are advisory, and
 `@typescript-eslint/no-explicit-any` and `react-hooks/exhaustive-deps` are deliberately
