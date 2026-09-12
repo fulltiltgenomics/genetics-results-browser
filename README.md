@@ -82,9 +82,11 @@ The chat views do not go through the BFF — they call the chat backend directly
 Since the landing page (`/`) is the chat, that backend (from `../genetics-mcp-server`, listening on
 the port `VITE_CHAT_URL` names) is a fourth process needed for a fully working app.
 
-### Type checking and tests
+### Linting, type checking and tests
 
 ```
+npm run lint      # eslint over the repo (flat config in eslint.config.mjs)
+npm run lint:fix  # eslint --fix
 npm run typecheck # tsc --noEmit over src/
 npm run bff:typecheck # tsc -p bff/tsconfig.json over bff/ (sources + tests)
 npm test          # vitest unit/component tests under src/ (jsdom, MSW-mocked API)
@@ -96,6 +98,20 @@ npm run e2e       # Playwright end-to-end specs in e2e/ (headless chromium)
 `typecheck` scripts are what catch type errors. Two are needed because the root
 `tsconfig.json` only includes `src/`: `typecheck` covers the frontend and
 `bff:typecheck` covers the BFF. Pull requests run both in CI before the build.
+
+`scripts/lint-staged.sh` runs eslint over the **staged** files from the `pre-commit` hook
+and **blocks the commit** on an error. Only errors block: warnings are advisory, and
+`@typescript-eslint/no-explicit-any` and `react-hooks/exhaustive-deps` are deliberately
+warnings rather than errors, being strictness preferences rather than defect detectors.
+eslint here is **not** type-aware — the type-checked presets re-run the TypeScript program
+on every invocation, and the `typecheck` scripts already cover that.
+
+A worktree needs its own `npm install`: eslint resolves the plugins named in
+`eslint.config.mjs` relative to that config, so the main checkout's copy cannot stand in
+for it, and the gate fails the commit rather than passing it unchecked when it finds none.
+`git commit --no-verify` is the deliberate bypass. Run `scripts/install-git-hooks.sh` once
+per clone to wire `core.hooksPath`, which no clone carries; it is shared across worktrees,
+so that one run covers every worktree too.
 
 `npm run e2e` reuses an already-running dev server, or starts one in `dev.public` mode; specs that
 need real data still require the API and the BFF to be up.

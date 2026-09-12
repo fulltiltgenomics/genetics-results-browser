@@ -44,6 +44,9 @@ check '^package\.json$' "$DOCS_ANY" \
 check '^(Dockerfile|bff/Dockerfile|nginx\.(dev|prod)\.conf)$' '^README\.md$' \
     'Dockerfile/nginx confs -> README.md (build args, DEPLOY_ENV/DATA_SOURCE selection)'
 
+check '^(scripts/(lint-staged|install-git-hooks)\.sh|eslint\.config\.mjs)$' "$DOCS_ANY" \
+    'lint gate (scripts/lint-staged.sh, install-git-hooks.sh, eslint.config.mjs) -> README.md + CLAUDE.md (which commits it blocks, that only eslint errors block, that a worktree needs its own npm install)'
+
 if [ "$found" -eq 1 ]; then
     printf '\n  Update the doc in this commit, or note why it does not apply.\n' >&2
     printf '  Not blocking. Mappings live in CLAUDE.md > Documentation ownership.\n\n' >&2

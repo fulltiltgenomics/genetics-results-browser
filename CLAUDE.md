@@ -64,10 +64,21 @@ npm run bff:test   # vitest tests for the BFF
 npm run e2e        # Playwright specs in e2e/ (headless chromium)
 ```
 
-There is no lint script; `tsc` settings live in `tsconfig.json` (strict). `npm run build`
-is `vite build`, which strips types via rolldown *without* checking them, so the
-`typecheck` scripts are the only things that actually type-check. CI runs both on pull
-requests, before the build.
+`npm run lint` is eslint (flat config in `eslint.config.mjs`), and `npm run lint:fix`
+applies what it can fix. It is deliberately **not** type-aware: the type-checked
+typescript-eslint presets re-run the TypeScript program on every invocation, and
+`npm run typecheck` already covers that ground. `tsc` settings live in `tsconfig.json`
+(strict). `npm run build` is `vite build`, which strips types via rolldown *without*
+checking them, so the `typecheck` scripts are the only things that actually type-check.
+CI runs both on pull requests, before the build.
+
+`scripts/lint-staged.sh` runs eslint over the staged files from the `pre-commit` hook and
+**blocks the commit** on an error. Only errors block — warnings are advisory, and
+`@typescript-eslint/no-explicit-any` and `react-hooks/exhaustive-deps` are deliberately
+warnings rather than errors, since they are strictness preferences rather than defect
+detectors. A worktree needs its own `npm install`: eslint resolves the plugins named in
+`eslint.config.mjs` relative to that config, so the main checkout's copy cannot stand in
+for it. `git commit --no-verify` is the bypass.
 
 Type checking is split across two projects because the root `tsconfig.json` has
 `include: ["./src/"]` and so cannot see the BFF: `typecheck` covers `src/`, and
@@ -147,12 +158,19 @@ Changing a path on the left makes the doc on the right wrong until it is updated
 the same commit. `scripts/check-doc-drift.sh` warns (never blocks) on commits that
 violate this; it runs from the `pre-commit` hook.
 
+The same hook also runs `scripts/lint-staged.sh`, which **does** block: a commit whose
+staged files the linter rejects is refused. Neither hook runs until
+`scripts/install-git-hooks.sh` has been run once in the clone — `core.hooksPath` is
+local git config that no clone carries — and because that setting is shared across
+worktrees, one run also covers every worktree, existing and future.
+
 | changed path | doc to update | what to check |
 |---|---|---|
 | `bff/**` | `CLAUDE.md`, `README.md` | architecture overview (stage-1/stage-2 split, BFF routes), BFF env vars, dev startup sequence |
 | `.env.dev*`, `.env.prod*` | `README.md` | the `VITE_*` variable table, the list of available modes |
 | `package.json` | `README.md`, `CLAUDE.md` | documented dev/build/test commands |
 | `Dockerfile`, `bff/Dockerfile`, `nginx.*.conf` | `README.md` | docker build args, `DEPLOY_ENV`/`DATA_SOURCE` selection |
+| `scripts/lint-staged.sh`, `scripts/install-git-hooks.sh`, `eslint.config.mjs` | `README.md`, `CLAUDE.md` | the lint gate: which commits it blocks, that only eslint *errors* block while warnings do not, and that a worktree needs its own `npm install` |
 
 `refactor.md` and `refactor.backend.md` are deliberately *not* drift targets — they are
 historical records of a completed rewrite, not living documentation.
