@@ -64,6 +64,15 @@ npm run bff:test   # vitest tests for the BFF
 npm run e2e        # Playwright specs in e2e/ (headless chromium)
 ```
 
+`npm test` runs two vitest projects from one config: **logic** (`src/store/*.test.ts` — zustand
+stores and pure munging) under the node environment with `isolate: false`, and **ui**
+(everything else under `src/`) under jsdom with the MSW setup and per-file isolation. The
+config also sets `VITE_API_URL` for the run: vitest's mode is `test`, there is no `.env.test`
+among the six deploy targets, and without it the axios client gets an undefined base — the MSW
+handlers match on `*/api/v1/…`, so every request missed. `VITE_CHAT_URL` is deliberately left
+unset; the chat features build fetch URLs from it directly and their tests match the shape that
+produces.
+
 There is no lint script; `tsc` settings live in `tsconfig.json` (strict). `npm run build`
 is `vite build`, which strips types via rolldown *without* checking them, so the
 `typecheck` scripts are the only things that actually type-check. CI runs both on pull
