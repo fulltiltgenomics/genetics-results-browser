@@ -12,7 +12,6 @@ import {
   VariantResult,
 } from "../types/types.normalized";
 import { fetchGnomadForVariants } from "./gnomad";
-import config from "@/config.json";
 
 // per-variant in-flight gnomAD fetches (genetics-results-browser-3lu.1). gnomAD is loaded lazily —
 // per visible page, and in full only when sort/filter/export by the AF column needs every row — so
@@ -52,7 +51,6 @@ interface DataState {
   setMessage: (message: string | undefined) => void;
   variantInput: string | undefined;
   setVariantInput: (variantInput: string) => void;
-  toggledDataTypesTurnedOn: Record<string, boolean>;
   // cis-window half-width (Mb); shared by the normalized path's cis/trans classification.
   cisWindow: number;
   setCisWindow: (cisWindow: number) => void;
@@ -127,12 +125,6 @@ export const useDataStore = create<DataState>()(
     setMessage: (message) => set({ message }),
     variantInput: undefined,
     setVariantInput: (variantInput) => set({ variantInput }),
-    toggledDataTypesTurnedOn: {
-      ...config.data_types.reduce((acc, dataType) => {
-        acc[dataType] = true;
-        return acc;
-      }, {} as Record<string, boolean>),
-    },
     cisWindow: 1.5,
     setCisWindow: (cisWindow) =>
       set((state) => {
