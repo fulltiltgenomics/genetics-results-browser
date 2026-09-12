@@ -26,8 +26,8 @@ export const variantSort = (rowA: any, rowB: any, id: string) => {
 
 export const naInfSort = (rowA: any, rowB: any, id: string) => {
   // https://stackoverflow.com/a/22129960
-  let valA = id.split(".").reduce((p, c) => p[c], rowA.original);
-  let valB = id.split(".").reduce((p, c) => p[c], rowB.original);
+  const valA = id.split(".").reduce((p, c) => p[c], rowA.original);
+  const valB = id.split(".").reduce((p, c) => p[c], rowB.original);
   let a = parseFloat(valA);
   let b = parseFloat(valB);
 

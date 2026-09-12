@@ -156,7 +156,7 @@ export const useServerQuery = (
   return useQuery<TableData>({
     queryKey: ["table-data", variantInput],
     queryFn: async (): Promise<TableData> => {
-      let { data } = await api.post<TableData>(`/v1/results`, {
+      const { data } = await api.post<TableData>(`/v1/results`, {
         query: variantInput,
       });
       if (typeof data !== "object") {

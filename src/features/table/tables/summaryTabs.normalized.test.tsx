@@ -12,7 +12,6 @@ import { NormalizedResponse } from "../../../types/types.normalized";
 // the real fixture (which drives filteredVariants via setNormalizedData) and asserts each tab renders
 // credible-set-derived data, plus the tissue eQTL/caQTL local toggle.
 
-// eslint-disable-next-line @typescript-eslint/no-var-requires
 const fixture = require("../../../test/fixtures/normalized_response.json") as NormalizedResponse;
 
 const seedStore = () => {
