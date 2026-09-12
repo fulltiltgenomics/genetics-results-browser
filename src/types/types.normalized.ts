@@ -495,14 +495,21 @@ export interface GeneExpressionRow {
   //                      categorical ("high"/"medium"/…), which `level` cannot represent
 }
 
-/** One Mendelian gene-disease association from gene_disease (e.g. GenCC submissions). */
+/** One Mendelian gene-disease association from gene_disease (a GenCC or Monarch assertion). */
 export interface GeneDiseaseRow {
-  resource: string; //          e.g. "gencc"
+  resource: string; //          "gencc" or "monarch"
   uuid: string;
   geneSymbol: string;
   diseaseCurie: string;
   diseaseTitle: string;
-  classification: string; //    evidence strength, e.g. "Strong", "Definitive"
+  //                            the endpoint harmonizes per-source vocabularies into shared
+  //                            columns rather than translating them, so these three are read
+  //                            against `resource`: classification is GenCC's evidence strength
+  //                            ("Strong", "Definitive") or Monarch's Biolink predicate
+  //                            ("causes", "gene_associated_with_condition"), submitter is a
+  //                            panel name or an infores curie, and modeOfInheritance is
+  //                            GenCC-only ("NA" on Monarch rows)
+  classification: string;
   modeOfInheritance: string;
   submitter: string;
 }

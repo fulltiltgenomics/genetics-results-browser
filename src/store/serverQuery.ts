@@ -1280,8 +1280,8 @@ interface GeneDiseaseApiRow {
 /**
  * Mendelian gene-disease associations (gene_disease/{gene}, JSON).
  *
- * The endpoint answers 404 ("No disease associations found for gene X") for a gene GenCC has nothing
- * on, which is most genes — that is an empty result, not a failure, so it becomes []. Other statuses
+ * The endpoint answers 404 ("No disease associations found for gene X") for a gene neither source
+ * has anything on, which is most genes — that is an empty result, not a failure, so it becomes []. Other statuses
  * still reject so a real outage stays visible.
  */
 export const useGeneDisease = (
