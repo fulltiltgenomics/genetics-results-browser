@@ -1040,6 +1040,12 @@ export const LLMChat = ({
         maxWidth: "100%",
         width: "100%",
       }}>
+      {!hasMessages && (
+        <Typography variant="body2" color="text.secondary">
+          New in September: Using Claude Fable 5.1 as LLM model. The assistant can write and execute code: you can run small
+          analyses and create plots. Conversations can be grouped into projects.
+        </Typography>
+      )}
       <Box
         sx={{ display: "flex", alignItems: "center", cursor: "pointer", userSelect: "none" }}
         onClick={() => setOptionsOpen((v) => !v)}>

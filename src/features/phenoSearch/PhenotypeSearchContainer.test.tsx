@@ -11,7 +11,6 @@ import { NormalizedResponse } from "../../types/types.normalized";
 // store.selectedPhenotype (the Phenotype summary handoff path), and asserts the summary-stats table
 // renders per-variant rows with the inCredibleSet flag derived from the store's credible sets.
 
-// eslint-disable-next-line @typescript-eslint/no-var-requires
 const fixture = require("../../test/fixtures/normalized_response.json") as NormalizedResponse;
 
 const Wrapper = ({ children }: { children: React.ReactNode }) => {

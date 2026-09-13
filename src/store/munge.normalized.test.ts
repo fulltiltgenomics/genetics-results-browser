@@ -655,7 +655,6 @@ describe("summarizeTissues", () => {
 
 describe("pipeline over the normalized_response fixture", () => {
   // import lazily so the test file stays runnable even if the fixture path changes
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
   const fixture = require("../test/fixtures/normalized_response.json") as NormalizedResponse;
 
   it("filters the exon-level eQTL row out by default and keeps the rest", () => {

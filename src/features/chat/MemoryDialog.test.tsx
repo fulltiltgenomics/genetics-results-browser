@@ -13,6 +13,7 @@ const PROJECT_MEMORY = {
     { id: "s1", title: "APOE and lipids", pinned: false, created_at: "2026-01-01T00:00:00Z" },
   ],
   char_cap: 4000,
+  session_cap: 20,
 };
 
 const renderGlobal = (onClose = vi.fn()) =>
@@ -76,6 +77,7 @@ describe("MemoryDialog global view", () => {
 
     expect(await screen.findByText(/index of your earlier conversations/)).toBeInTheDocument();
     expect(screen.getByText(/never includes tool results, plots, downloads/)).toBeInTheDocument();
+    expect(screen.getByText(/memorize conversations attached to projects/)).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole("button", { name: "Turn on memory" }));
 
@@ -95,9 +97,10 @@ describe("MemoryDialog global view", () => {
     renderGlobal();
 
     expect(
-      await screen.findByText("Memory works inside projects — create one from the sidebar"),
+      await screen.findByText("Memory works inside projects. Create one from the left sidebar."),
     ).toBeInTheDocument();
     expect(screen.queryByText(/index of your earlier conversations/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/memorize conversations attached to projects/)).not.toBeInTheDocument();
     expect(screen.queryByText("Earlier: asked about APOE and lipid traits.")).not.toBeInTheDocument();
   });
 
@@ -109,7 +112,7 @@ describe("MemoryDialog global view", () => {
 
     expect(await screen.findByText("Memory works inside projects.")).toBeInTheDocument();
     expect(
-      screen.queryByText("Memory works inside projects — create one from the sidebar"),
+      screen.queryByText("Memory works inside projects. Create one from the left sidebar."),
     ).not.toBeInTheDocument();
   });
 
@@ -124,6 +127,8 @@ describe("MemoryDialog global view", () => {
     renderGlobal();
     await screen.findByRole("button", { name: "Turn on memory" });
     expect(screen.queryByText(/index of your earlier conversations/)).not.toBeInTheDocument();
+    // the one-line pitch is not the first-open notice: it stays on every off-state open
+    expect(screen.getByText(/memorize conversations attached to projects/)).toBeInTheDocument();
   });
 
   it("does not mark the notice seen for an already-enabled user", async () => {
@@ -154,7 +159,7 @@ describe("MemoryDialog global view", () => {
     fireEvent.click(await screen.findByRole("button", { name: "Turn on memory" }));
 
     expect(
-      await screen.findByText("Memory works inside projects — create one from the sidebar"),
+      await screen.findByText("Memory works inside projects. Create one from the left sidebar."),
     ).toBeInTheDocument();
   });
 
@@ -182,7 +187,7 @@ describe("MemoryDialog project view", () => {
     ).toBeInTheDocument();
   });
 
-  it("explains Clear as unfile/delete, unpin, or turning memory off", async () => {
+  it("explains removal as unfile/delete, unpin, or turning memory off", async () => {
     serveProjectMemory(PROJECT_MEMORY);
 
     renderProject();
@@ -191,6 +196,27 @@ describe("MemoryDialog project view", () => {
     expect(
       screen.getByText(/Unfiling or deleting a conversation, unpinning it, or turning memory off/),
     ).toBeInTheDocument();
+  });
+
+  // the window is the server's to state: quoting it from the payload rather than a constant
+  // here is what keeps the sentence true when memory_gate's cap moves
+  it("quotes the server's session window, and says nothing when the server does not send one", async () => {
+    serveProjectMemory(PROJECT_MEMORY);
+
+    const { unmount } = renderProject();
+
+    expect(
+      await screen.findByText(/20 most recent conversations in each project are memorized/),
+    ).toBeInTheDocument();
+    unmount();
+
+    const older: Partial<typeof PROJECT_MEMORY> = { ...PROJECT_MEMORY };
+    delete older.session_cap;
+    serveProjectMemory(older);
+    renderProject();
+
+    await screen.findByText(PROJECT_MEMORY.digest);
+    expect(screen.queryByText(/most recent conversations in each project/)).not.toBeInTheDocument();
   });
 
   it("toggles pin from the sessions list", async () => {
@@ -246,7 +272,7 @@ describe("MemoryDialog project view", () => {
 
     renderProject();
 
-    expect(await screen.findByText("Preview — what turning this on would give the model")).toBeInTheDocument();
+    expect(await screen.findByText("What turning this on would give the model:")).toBeInTheDocument();
     const turnOnButton = screen.getByRole("button", { name: "Turn on memory" });
 
     fireEvent.click(turnOnButton);

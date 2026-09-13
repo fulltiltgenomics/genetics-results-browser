@@ -53,6 +53,7 @@ function mapMemoryState(data: any): MemoryState {
     digest: data.digest ?? "",
     sessions: (data.sessions ?? []).map(mapMemorySession),
     charCap: typeof data.char_cap === "number" ? data.char_cap : 0,
+    sessionCap: typeof data.session_cap === "number" ? data.session_cap : null,
   };
 }
 

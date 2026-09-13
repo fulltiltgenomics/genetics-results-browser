@@ -51,6 +51,7 @@ Available modes: `dev`, `dev.finngen`, `dev.public`, `prod`, `prod.finngen`, `pr
 | `VITE_CHAT_URL` | base URL of the chat backend, e.g. `http://localhost:4000/chat` |
 | `VITE_APP_NAME` | product name shown in the UI, defaults to `FinnGenie` |
 | `VITE_SHOW_TOOLS_CONTROL` | `false` hides the chat options' Tools row (the Code execution switch); anything else, unset included, shows it. A deployment that hides it picks its users' surface through chat-backend's `DEFAULT_TOOL_PROFILE`; a user's stored choice still applies. The image build sets it from `--build-arg SHOW_TOOLS_CONTROL` |
+| `VITE_SHOW_TOOLS_BUTTON` | `false` hides the Tools button in the chat header (the list of what the assistant can call); anything else, unset included, shows it. Independent of `VITE_SHOW_TOOLS_CONTROL`. The image build sets it from `--build-arg SHOW_TOOLS_BUTTON` |
 
 The BFF reads `GENETICS_API_URL`, `GENETICS_API_TOKEN`, `BFF_PORT`, `RESULTS_CACHE_MAX`,
 `RESULTS_CACHE_TTL_MS` and `LD_API_URL` — see `bff/.env.example`.
@@ -82,9 +83,11 @@ The chat views do not go through the BFF — they call the chat backend directly
 Since the landing page (`/`) is the chat, that backend (from `../genetics-mcp-server`, listening on
 the port `VITE_CHAT_URL` names) is a fourth process needed for a fully working app.
 
-### Type checking and tests
+### Linting, type checking and tests
 
 ```
+npm run lint      # eslint over the repo (flat config in eslint.config.mjs)
+npm run lint:fix  # eslint --fix
 npm run typecheck # tsc --noEmit over src/
 npm run bff:typecheck # tsc -p bff/tsconfig.json over bff/ (sources + tests)
 npm test          # vitest unit/component tests under src/ (jsdom, MSW-mocked API)
@@ -96,6 +99,29 @@ npm run e2e       # Playwright end-to-end specs in e2e/ (headless chromium)
 `typecheck` scripts are what catch type errors. Two are needed because the root
 `tsconfig.json` only includes `src/`: `typecheck` covers the frontend and
 `bff:typecheck` covers the BFF. Pull requests run both in CI before the build.
+
+`npm test` runs two vitest projects from one config: **logic** (`src/store/*.test.ts` — zustand
+stores and pure munging) under the node environment with `isolate: false`, and **ui**
+(everything else under `src/`) under jsdom with the MSW setup and per-file isolation. The
+config also sets `VITE_API_URL` for the run: vitest's mode is `test`, there is no `.env.test`
+among the six deploy targets, and without it the axios client gets an undefined base — the MSW
+handlers match on `*/api/v1/…`, so every request missed. `VITE_CHAT_URL` is deliberately left
+unset; the chat features build fetch URLs from it directly and their tests match the shape that
+produces.
+
+`scripts/lint-staged.sh` runs eslint over the **staged** files from the `pre-commit` hook
+and **blocks the commit** on an error. Only errors block: warnings are advisory, and
+`@typescript-eslint/no-explicit-any` and `react-hooks/exhaustive-deps` are deliberately
+warnings rather than errors, being strictness preferences rather than defect detectors.
+eslint here is **not** type-aware — the type-checked presets re-run the TypeScript program
+on every invocation, and the `typecheck` scripts already cover that.
+
+A worktree needs its own `npm install`: eslint resolves the plugins named in
+`eslint.config.mjs` relative to that config, so the main checkout's copy cannot stand in
+for it, and the gate fails the commit rather than passing it unchecked when it finds none.
+`git commit --no-verify` is the deliberate bypass. Run `scripts/install-git-hooks.sh` once
+per clone to wire `core.hooksPath`, which no clone carries; it is shared across worktrees,
+so that one run covers every worktree too.
 
 `npm run e2e` reuses an already-running dev server, or starts one in `dev.public` mode; specs that
 need real data still require the API and the BFF to be up.

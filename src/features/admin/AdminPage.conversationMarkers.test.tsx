@@ -18,6 +18,7 @@ vi.mock("./adminApi", () => ({
   })),
   fetchAdminSessionDetail: (id: string) => fetchAdminSessionDetail(id),
   fetchUsageAnalytics: vi.fn(async () => ({ period: "week", data: [] })),
+  fetchCostAnalytics: vi.fn(async () => ({ period: "week", daily: [], users: [] })),
   fetchAdminFeedback: vi.fn(async () => ({
     items: [],
     total: 0,
@@ -46,6 +47,7 @@ const SESSION: AdminSession = {
   issueCategories: [],
   llmRating: null,
   successLabel: null,
+  usd: null,
 };
 
 const CODE = 'import genetics\nr = genetics.plots.locuszoom(variant="12:49272869:C:T")';

@@ -16,6 +16,8 @@ export interface AdminSession {
   issueCategories: string[];
   llmRating: number | null;
   successLabel: string | null;
+  // recorded LLM cost at list price; null when no turn is attributed to the conversation
+  usd: number | null;
 }
 
 export interface AdminSessionListResponse {
@@ -54,6 +56,30 @@ export interface UsageDataPoint {
 export interface UsageAnalyticsResponse {
   period: string;
   data: UsageDataPoint[];
+}
+
+export interface CostDataPoint {
+  date: string;
+  usd: number;
+}
+
+// one Usage-tab table row: the user's conversations opened in the period, and every turn
+// they were billed for in it, which need not be turns of those conversations
+export interface UserUsageRow {
+  user: string;
+  conversations: number;
+  avgMessages: number;
+  maxMessages: number;
+  usd: number;
+  // null when none of the user's conversations in the period has a turn attributed to it
+  avgUsd: number | null;
+  maxUsd: number | null;
+}
+
+export interface CostAnalyticsResponse {
+  period: string;
+  daily: CostDataPoint[];
+  users: UserUsageRow[];
 }
 
 // raw per-conversation row from /admin/analytics/quality; aggregated client-side
@@ -147,6 +173,29 @@ export async function fetchUsageAnalytics(
   return response.json();
 }
 
+export async function fetchCostAnalytics(
+  period: "week" | "month" | "year" = "week"
+): Promise<CostAnalyticsResponse> {
+  const response = await fetch(`${chatUrl}/v1/admin/analytics/cost?period=${period}`, {
+    credentials: "include",
+  });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  const data = await response.json();
+  return {
+    period: data.period,
+    daily: data.daily ?? [],
+    users: (data.users ?? []).map((u: any) => ({
+      user: u.user,
+      conversations: u.conversations,
+      avgMessages: u.avg_messages,
+      maxMessages: u.max_messages,
+      usd: u.usd,
+      avgUsd: u.avg_usd ?? null,
+      maxUsd: u.max_usd ?? null,
+    })),
+  };
+}
+
 export async function fetchQualitySeries(): Promise<QualityRow[]> {
   const response = await fetch(`${chatUrl}/v1/admin/analytics/quality`, {
     credentials: "include",
@@ -216,5 +265,6 @@ function mapSession(data: any): AdminSession {
     issueCategories: data.issue_categories ?? [],
     llmRating: data.llm_rating ?? null,
     successLabel: data.success_label ?? null,
+    usd: data.usd ?? null,
   };
 }

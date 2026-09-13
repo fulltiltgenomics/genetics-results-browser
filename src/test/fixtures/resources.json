@@ -106,7 +106,7 @@
     },
     {
       "id": "schema_gene_based",
-      "resource": "schema",
+      "resource": "schema2",
       "gencode_version": 39,
       "metadata": {
         "author": "SCHEMA Consortium",
@@ -116,7 +116,7 @@
     },
     {
       "id": "bipex_gene_based",
-      "resource": "bipex",
+      "resource": "bipex2",
       "gencode_version": 39,
       "metadata": {
         "author": "Bipolar Exomes",

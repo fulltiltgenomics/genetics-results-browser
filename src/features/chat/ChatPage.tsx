@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback, useRef, useMemo, type MouseEvent as ReactMouseEvent, type ReactNode } from "react";
 import { useParams, useNavigate } from "react-router";
 import { Box, Typography, CircularProgress, Button, Chip, Drawer, IconButton, ListItemIcon, ListItemText, Menu, MenuItem, Popover, Alert, Tooltip, useMediaQuery, useTheme } from "@mui/material";
-import { VisibilityOff, Share as ShareIcon, LinkOff as LinkOffIcon, ForkRight as ForkRightIcon, FileDownload as FileDownloadIcon, Star as StarIcon, StarBorder as StarBorderIcon } from "@mui/icons-material";
+import { VisibilityOff, Share as ShareIcon, LinkOff as LinkOffIcon, ForkRight as ForkRightIcon, FileDownload as FileDownloadIcon, Star as StarIcon, StarBorder as StarBorderIcon, DriveFileMove as DriveFileMoveIcon } from "@mui/icons-material";
 import MenuIcon from "@mui/icons-material/Menu";
 import MoreVertIcon from "@mui/icons-material/MoreVert";
 import finnGenieLogo from "../../assets/finngenie-leonardo-gemini-2.5-flash-recraft-vectorized-claude-cropped.svg";
 import { APP_NAME } from "../../config/appName";
+import { SHOW_TOOLS_BUTTON } from "../../config/showToolsButton";
 import { LLMChat } from "./LLMChat";
 import { ChatHistorySidebar } from "./ChatHistorySidebar";
 import { SessionRating } from "./SessionRating";
@@ -980,6 +981,18 @@ const ChatPage = () => {
                     Export
                   </Button>
                 )}
+                {activeSessionId && !isSecretChat && activeSession?.isOwner && projects.length > 0 && (
+                  <Tooltip title="File this conversation in a project">
+                    <Button
+                      size="small"
+                      variant="outlined"
+                      startIcon={<DriveFileMoveIcon />}
+                      onClick={(e) => setTopMoveAnchorEl(e.currentTarget)}
+                    >
+                      {"Move to\u2026"}
+                    </Button>
+                  </Tooltip>
+                )}
               </Box>
 
               {(() => {
@@ -994,20 +1007,13 @@ const ChatPage = () => {
                   { key: "feedback", label: "Feedback", onClick: () => setFeedbackOpen(true) },
                   { key: "tokens", label: "MCP/API Keys", onClick: () => setTokensOpen(true) },
                   { key: "datasets", label: "Datasets", onClick: () => setDatasetsOpen(true) },
-                  {
-                    key: "tools",
-                    label: "Tools",
-                    tooltip: "What the assistant can call",
-                    onClick: () => setToolsOpen(true),
-                  },
-                  ...(activeSessionId && !isSecretChat && activeSession?.isOwner && projects.length > 0
+                  ...(SHOW_TOOLS_BUTTON
                     ? [
                         {
-                          key: "move",
-                          label: "Move to\u2026",
-                          tooltip: "File this conversation in a project",
-                          onClick: (e: ReactMouseEvent<HTMLElement>) =>
-                            setTopMoveAnchorEl(e.currentTarget),
+                          key: "tools",
+                          label: "Tools",
+                          tooltip: "What the assistant can call",
+                          onClick: () => setToolsOpen(true),
                         },
                       ]
                     : []),

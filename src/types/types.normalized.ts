@@ -43,7 +43,8 @@ export type QtlDataType = Exclude<CredibleSetDataType, "GWAS">;
  * The wider /datasets + /search data-type vocabulary, in the RAW lowercase casing those endpoints
  * emit (verified against fixtures/datasets.json data_type and fixtures/search_phenotypes.json).
  * Superset of the credible-set vocabulary: also covers non-CS layers (exome, gene_based, expression,
- * chromatin_peaks, gene_disease, asmqtl) and the "mixed" multi-type dataset marker.
+ * chromatin_peaks, gene_disease, asmqtl, rcnv, open_chromatin, variant_effect, mpra, hla) and the
+ * "mixed" multi-type dataset marker.
  *
  * casing decision: kept lowercase as-is — the BFF does NOT uppercase these. several tokens (mixed,
  * exome, gene_based, expression, chromatin_peaks, gene_disease) have no CredibleSetDataType
@@ -64,13 +65,21 @@ export type DatasetDataType =
   | "expression"
   | "chromatin_peaks"
   | "gene_disease"
-  | "rcnv";
+  | "rcnv"
+  | "open_chromatin"
+  | "variant_effect"
+  | "mpra"
+  | "hla";
 
 /**
  * eQTL Catalogue quantification level, parsed from a CS row's trait_original suffix after the
  * last "|" (e.g. "ENSG00000104859.15_19_45068055_45068058|exon" -> "exon"). "ge" = gene-level.
  * null for non-leveled data (GWAS/pQTL/caQTL). Default view shows ge only; an option exposes the
  * others, and when shown the level is displayed alongside the gene symbol.
+ *
+ * deliberately not every suffix the API emits: "microarray" is an array study's only (gene-level)
+ * quantification and "aptamer" a SomaScan pQTL platform, so neither is a level to toggle against ge.
+ * parseQuantLevel maps both to null and they are shown like ge rows.
  */
 export type QuantLevel = "ge" | "exon" | "tx" | "txrev" | "leafcutter" | "majiq";
 
@@ -408,7 +417,7 @@ export interface ColocPair {
 /**
  * A phenotype hit from GET /search (types=phenotypes). The view uses (resource, dataType) to call
  * summary_stats/{resource}/{data_type}. API fields: code, name, resource, data_type (raw lowercase),
- * has_summary_stats, sample_size, n_cases, n_controls (refactor.backend.md §2).
+ * has_summary_stats, has_credible_sets, sample_size, n_cases, n_controls (refactor.backend.md §2).
  * dataType is the wider DatasetDataType: phenotype search can surface exome/asmqtl/etc. sumstats
  * that never appear as credible-set rows (refactor.md §5).
  */
@@ -484,14 +493,21 @@ export interface GeneExpressionRow {
   //                      categorical ("high"/"medium"/…), which `level` cannot represent
 }
 
-/** One Mendelian gene-disease association from gene_disease (e.g. GenCC submissions). */
+/** One Mendelian gene-disease association from gene_disease (a GenCC or Monarch assertion). */
 export interface GeneDiseaseRow {
-  resource: string; //          e.g. "gencc"
+  resource: string; //          "gencc" or "monarch"
   uuid: string;
   geneSymbol: string;
   diseaseCurie: string;
   diseaseTitle: string;
-  classification: string; //    evidence strength, e.g. "Strong", "Definitive"
+  //                            the endpoint harmonizes per-source vocabularies into shared
+  //                            columns rather than translating them, so these three are read
+  //                            against `resource`: classification is GenCC's evidence strength
+  //                            ("Strong", "Definitive") or Monarch's Biolink predicate
+  //                            ("causes", "gene_associated_with_condition"), submitter is a
+  //                            panel name or an infores curie, and modeOfInheritance is
+  //                            GenCC-only ("NA" on Monarch rows)
+  classification: string;
   modeOfInheritance: string;
   submitter: string;
 }

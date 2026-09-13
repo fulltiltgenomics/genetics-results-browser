@@ -48,17 +48,20 @@ import {
   fetchAdminSessions,
   fetchAdminSessionDetail,
   fetchUsageAnalytics,
+  fetchCostAnalytics,
   fetchAdminFeedback,
   type AdminSession,
   type AdminSessionDetail,
   type UsageDataPoint,
+  type CostAnalyticsResponse,
   type FeedbackItem,
 } from "./adminApi";
-import { fillUsageGaps, formatRelativeTime, parseUtcTimestamp } from "./utils";
+import { fillDateGaps, fillUsageGaps, formatRelativeTime, parseUtcTimestamp } from "./utils";
 import { fetchQualitySeries, type QualityRow } from "./adminApi";
 import { buildAllSeries, type SeriesPanel } from "./qualitySeries";
 import { useLineHighlight, type HighlightHandlers } from "./lineHighlight";
 import ConversationsTable from "./ConversationsTable";
+import UsageTable from "./UsageTable";
 // the transcript renderer and the export converter the chat itself uses: an admin viewing a
 // stored conversation sees exactly what its owner saw, markers included
 import { MessageContent } from "../chat/MessageContent";
@@ -182,6 +185,11 @@ export default function AdminPage() {
   const [analyticsData, setAnalyticsData] = useState<UsageDataPoint[]>([]);
   const [analyticsLoading, setAnalyticsLoading] = useState(false);
 
+  // usage (LLM cost) state — lazy-loaded when the tab is first activated, refetched per period
+  const [costPeriod, setCostPeriod] = useState<"week" | "month" | "year">("week");
+  const [cost, setCost] = useState<CostAnalyticsResponse | null>(null);
+  const [costLoading, setCostLoading] = useState(false);
+
   // feedback state
   const [feedbackItems, setFeedbackItems] = useState<FeedbackItem[]>([]);
   const [feedbackTotal, setFeedbackTotal] = useState(0);
@@ -223,6 +231,17 @@ export default function AdminPage() {
       setAnalyticsLoading(false);
     }
   }, [analyticsPeriod]);
+
+  const loadCost = useCallback(async () => {
+    setCostLoading(true);
+    try {
+      setCost(await fetchCostAnalytics(costPeriod));
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setCostLoading(false);
+    }
+  }, [costPeriod]);
 
   const loadFeedback = useCallback(async () => {
     setFeedbackLoading(true);
@@ -267,9 +286,14 @@ export default function AdminPage() {
     fetchAdminFeedback({ limit: 0 }).then((r) => setFeedbackLatestAt(r.latestAt)).catch(() => {});
   }, []);
 
+  // the Usage tab fetches when opened and again whenever its period changes
+  useEffect(() => {
+    if (activeTab === 1) loadCost();
+  }, [activeTab, loadCost]);
+
   // lazy-load feedback when tab is first selected, refetch on page change
   useEffect(() => {
-    if (activeTab === 1) {
+    if (activeTab === 2) {
       feedbackLoaded.current = true;
       loadFeedback();
     }
@@ -277,7 +301,7 @@ export default function AdminPage() {
 
   // lazy-load quality rows the first time the Quality plots tab is opened
   useEffect(() => {
-    if (activeTab === 2 && !qualityLoaded.current) {
+    if (activeTab === 3 && !qualityLoaded.current) {
       qualityLoaded.current = true;
       loadQuality();
     }
@@ -360,6 +384,27 @@ export default function AdminPage() {
     scales: {
       y: { beginAtZero: true, ticks: { stepSize: 1 } },
     },
+  };
+
+  const costSeries = fillDateGaps(cost?.daily ?? [], (date) => ({ date, usd: 0 }));
+  const costChartData = {
+    labels: costSeries.map((d) => d.date),
+    datasets: [
+      {
+        label: "USD",
+        data: costSeries.map((d) => d.usd),
+        borderColor: "rgb(63, 81, 181)",
+        backgroundColor: "rgba(63, 81, 181, 0.1)",
+        tension: 0.3,
+      },
+    ],
+  };
+  const costChartOptions = {
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: false as const,
+    plugins: { legend: { position: "top" as const } },
+    scales: { y: { beginAtZero: true } },
   };
 
   // filter to conversations on/after the configurable start date before
@@ -496,6 +541,7 @@ export default function AdminPage() {
         sx={{ mb: 2, borderBottom: 1, borderColor: "divider" }}
       >
         <Tab label="Conversations" />
+        <Tab label="Usage" />
         <Tab label={feedbackLabel} />
         <Tab label="Quality plots" />
       </Tabs>
@@ -543,8 +589,42 @@ export default function AdminPage() {
         </>
       )}
 
-      {/* Tab 1: Feedback */}
+      {/* Tab 1: Usage — LLM cost per day and per user over the same period */}
       {activeTab === 1 && (
+        <>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+            The amounts shown are list prices. Any discounts are not considered in these numbers.
+          </Typography>
+          <Paper sx={{ p: 2, mb: 3 }}>
+            <Box sx={{ display: "flex", justifyContent: "flex-end", mb: 1 }}>
+              <ToggleButtonGroup
+                size="small"
+                value={costPeriod}
+                exclusive
+                onChange={(_, v) => v && setCostPeriod(v)}
+              >
+                <ToggleButton value="week">Week</ToggleButton>
+                <ToggleButton value="month">Month</ToggleButton>
+                <ToggleButton value="year">Year</ToggleButton>
+              </ToggleButtonGroup>
+            </Box>
+            <Box sx={{ height: { xs: 200, md: 250 } }}>
+              {costLoading ? (
+                <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100%" }}>
+                  <CircularProgress size={24} />
+                </Box>
+              ) : (
+                <Line data={costChartData} options={costChartOptions} />
+              )}
+            </Box>
+          </Paper>
+
+          <UsageTable users={cost?.users ?? []} isLoading={costLoading} isXs={isXs} />
+        </>
+      )}
+
+      {/* Tab 2: Feedback */}
+      {activeTab === 2 && (
         <Paper sx={{ overflow: "auto" }}>
           {feedbackLoading ? (
             <Box sx={{ display: "flex", justifyContent: "center", py: 4 }}>
@@ -666,8 +746,8 @@ export default function AdminPage() {
         </Paper>
       )}
 
-      {/* Tab 2: Quality plots */}
-      {activeTab === 2 && (
+      {/* Tab 3: Quality plots */}
+      {activeTab === 3 && (
         <>
           {qualityError && (
             <Alert severity="error" sx={{ mb: 2 }} onClose={() => setQualityError(null)}>

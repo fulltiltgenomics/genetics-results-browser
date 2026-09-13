@@ -16,6 +16,8 @@ import {
 import CheckCircleIcon from "@mui/icons-material/CheckCircle";
 import axios from "axios";
 import { SideSheet } from "../../components/SideSheet";
+import { useChatOptionsStore } from "./useChatOptions";
+import { useAvailableTools } from "./toolsApi";
 
 interface Dataset {
   dataset_id: string;
@@ -70,7 +72,7 @@ const categories: Category[] = [
     filter: (d) => d.data_type === "gene_based",
   },
   {
-    label: "QTL datasets (eQTL / pQTL / caQTL / sQTL)",
+    label: "QTL datasets (eQTL / pQTL / caQTL / sQTL / metaboQTL)",
     filter: (d) =>
       ["eqtl", "pqtl", "caqtl", "sqtl", "metaboqtl", "mixed"].includes(d.data_type) &&
       (d.products?.credible_sets !== undefined || d.products?.summary_stats !== undefined),
@@ -84,7 +86,7 @@ const categories: Category[] = [
     filter: (d) => d.data_type === "hla",
   },
   {
-    label: "Rare CNV dosage sensitivity (rCNV2)",
+    label: "Rare CNV dosage sensitivity",
     filter: (d) => d.data_type === "rcnv",
   },
   {
@@ -115,8 +117,12 @@ const categories: Category[] = [
 // Public resources the assistant queries live during a conversation, as opposed to the
 // datasets below which we ingest and serve ourselves. Keep in sync with the external
 // tools in genetics-mcp-server (docs/project-spec.md) — both the natively-called APIs
-// and the proxied external MCP servers.
-const externalResources: { name: string; url: string; description: string }[] = [
+// and the proxied external MCP servers. Resources every deployment offers are listed
+// here unconditionally; the ones a deployment can switch off are appended below only when
+// the chat server's resolved tool list actually carries their tool.
+type ExternalResource = { name: string; url: string; description: string };
+
+const externalResources: ExternalResource[] = [
   {
     name: "gnomAD",
     url: "https://gnomad.broadinstitute.org",
@@ -173,6 +179,16 @@ const externalResources: { name: string; url: string; description: string }[] = 
   },
 ];
 
+// offered only where the deployment has ALPHAGENOME_ENABLED and a key; the chat server withdraws
+// both AlphaGenome tools otherwise, so the presence of this one in the resolved list is the switch
+const ALPHAGENOME_TOOL = "get_alphagenome_variant_predictions";
+const alphaGenomeResource: ExternalResource = {
+  name: "AlphaGenome",
+  url: "https://deepmind.google/science/alphagenome/",
+  description:
+    "Google DeepMind's model predictions of what a variant does to chromatin accessibility, transcription factor binding, transcription and splicing. These are predictions, not measurements, and the assistant consults them only when you ask for them.",
+};
+
 const hasSumstats = (d: Dataset) => (d.products as Record<string, unknown>)?.summary_stats === true;
 const hasCredibleSets = (d: Dataset) => (d.products as Record<string, unknown>)?.credible_sets === true;
 const hasPseudoCredibleSets = (d: Dataset) => d.pseudo_credible_sets === true;
@@ -188,6 +204,14 @@ export const DatasetsDialog = ({ open, onClose }: DatasetsDialogProps) => {
   const [datasets, setDatasets] = useState<Dataset[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const toolProfile = useChatOptionsStore((s) => s.toolProfile);
+  // both profiles carry the AlphaGenome tools when the deployment offers them, so the
+  // conversation's current profile is as good a probe as any and shares ToolsDialog's cache
+  const { data: tools } = useAvailableTools(toolProfile, open);
+  const alphaGenomeOffered = tools?.some((t) => t.name === ALPHAGENOME_TOOL) ?? false;
+  const liveResources = alphaGenomeOffered
+    ? [...externalResources, alphaGenomeResource]
+    : externalResources;
 
   useEffect(() => {
     if (!open) return;
@@ -258,7 +282,7 @@ export const DatasetsDialog = ({ open, onClose }: DatasetsDialogProps) => {
                 </TableRow>
               </TableHead>
               <TableBody>
-                {externalResources.map((r) => (
+                {liveResources.map((r) => (
                   <TableRow key={r.name}>
                     <TableCell>
                       <Link href={r.url} target="_blank" rel="noreferrer">
@@ -309,17 +333,17 @@ export const DatasetsDialog = ({ open, onClose }: DatasetsDialogProps) => {
 const DatasetTable = ({ datasets, category }: { datasets: Dataset[]; category: string }) => {
   const showCredibleSets =
     category === "GWAS credible sets" ||
-    category === "QTL datasets (eQTL / pQTL / caQTL / sQTL)";
+    category === "QTL datasets (eQTL / pQTL / caQTL / sQTL / metaboQTL)";
   const showQtlTypes =
     category !== "Colocalization-only" && datasets.some((d) => d.qtl_types);
   const showSumstats = [
     "GWAS credible sets",
-    "QTL datasets (eQTL / pQTL / caQTL / sQTL)",
+    "QTL datasets (eQTL / pQTL / caQTL / sQTL / metaboQTL)",
     "asmQTL sumstats",
   ].includes(category);
   const showColoc = datasets.some((d) => (d.products as Record<string, unknown>)?.colocalization);
   const showStats =
-    category !== "QTL datasets (eQTL / pQTL / caQTL / sQTL)" &&
+    category !== "QTL datasets (eQTL / pQTL / caQTL / sQTL / metaboQTL)" &&
     datasets.some(
       (d) => d.stats?.n_phenotypes || d.stats?.n_subdatasets || d.n_phenotypes != null
     );

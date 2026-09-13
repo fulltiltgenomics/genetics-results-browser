@@ -9,6 +9,7 @@ const MEMORY_BODY = {
   digest: "Earlier: asked about APOE and lipid traits.",
   sessions: [{ id: "s1", title: "APOE and lipids", pinned: false, created_at: "2026-01-01T00:00:00Z" }],
   char_cap: 4000,
+  session_cap: 20,
 };
 
 describe("getProjectMemory", () => {
@@ -22,7 +23,18 @@ describe("getProjectMemory", () => {
       digest: "Earlier: asked about APOE and lipid traits.",
       sessions: [{ id: "s1", title: "APOE and lipids", pinned: false, createdAt: "2026-01-01T00:00:00Z" }],
       charCap: 4000,
+      sessionCap: 20,
     });
+  });
+
+  it("reads a missing session_cap as null rather than a number", async () => {
+    const older: Partial<typeof MEMORY_BODY> = { ...MEMORY_BODY };
+    delete older.session_cap;
+    server.use(http.get("*/v1/projects/proj-1/memory", () => HttpResponse.json(older)));
+
+    const memory = await getProjectMemory("proj-1");
+
+    expect(memory.sessionCap).toBeNull();
   });
 
   it("maps a 404 (anonymous/service identity, or a foreign project) to MemoryUnavailableError", async () => {

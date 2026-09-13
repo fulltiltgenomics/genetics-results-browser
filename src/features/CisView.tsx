@@ -125,7 +125,7 @@ const CisView = ({ geneName }: { geneName: string }) => {
     const filteredData = data?.filter(
       (d) =>
         ((d.dataType !== "eQTL" && d.dataType !== "pQTL") || d.trait.toLowerCase() === geneName.toLowerCase()) && // only QTLs that affect the input gene
-        d.mlog10p.filter((mlog10p) => mlog10p >= minLeadMlog10p).length > 0 &&
+        d.mlog10p.some((mlog10p) => mlog10p !== null && mlog10p >= minLeadMlog10p) &&
         d.csSize <= maxCsSize &&
         d.variant.length > 0 &&
         (!codingOnly || d.isCoding.some((c) => c))
@@ -334,6 +334,7 @@ const CisView = ({ geneName }: { geneName: string }) => {
       }
 
       const topPipVariantIndex = d.pip.indexOf(Math.max(...d.pip));
+      const topPipBeta = d.beta[topPipVariantIndex];
 
       return (
         <TableRow
@@ -357,7 +358,7 @@ const CisView = ({ geneName }: { geneName: string }) => {
             setHighlightCSs(undefined);
           }}>
           <CleanTableCell>
-            {d.beta[topPipVariantIndex] > 0 ? (
+            {topPipBeta === null ? null : topPipBeta > 0 ? (
               <NorthIcon
                 style={{
                   height: 20,
@@ -452,7 +453,7 @@ const CisView = ({ geneName }: { geneName: string }) => {
                       <TableRow>
                         <CleanTableCell style={{ color: "white" }}>beta</CleanTableCell>
                         <CleanTableCell style={{ color: "white" }}>
-                          {d.beta[topPipVariantIndex].toFixed(2)}
+                          {topPipBeta === null ? "NA" : topPipBeta.toFixed(2)}
                         </CleanTableCell>
                       </TableRow>
                       <TableRow>

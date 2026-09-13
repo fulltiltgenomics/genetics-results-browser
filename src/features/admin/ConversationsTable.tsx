@@ -78,7 +78,7 @@ const makeDayRangeFilter = (what: string) => {
         value={value}
         onChange={(e) => onChange(e.target.value)}
         slotProps={{ htmlInput: { "aria-label": label, style: { fontSize: "0.7rem" } } }}
-        sx={{ minWidth: 118 }}
+        sx={{ minWidth: 108 }}
       />
     );
     return (
@@ -129,7 +129,7 @@ const getColumns = (): MRT_ColumnDef<AdminSession>[] => [
     header: "User",
     filterFn: "contains",
     muiFilterTextFieldProps: { placeholder: "user" },
-    size: 110,
+    size: 95,
     Cell: ({ row }) => (
       <Tooltip title={row.original.userId}>
         <Box component="span" sx={ellipsis}>
@@ -160,6 +160,19 @@ const getColumns = (): MRT_ColumnDef<AdminSession>[] => [
     size: 100,
   },
   {
+    accessorKey: "usd",
+    header: "USD",
+    sortingFn: naInfSort,
+    sortDescFirst: true,
+    filterFn: "greaterThanOrEqualTo",
+    muiFilterTextFieldProps: { placeholder: "min" },
+    size: 75,
+    Cell: ({ cell }) => {
+      const v = cell.getValue<number | null>();
+      return v == null ? "-" : v.toFixed(2);
+    },
+  },
+  {
     id: "createdAt",
     // a Date so "datetime" sorting orders within a day too, not just by calendar day
     accessorFn: (row) => parseUtcTimestamp(row.createdAt),
@@ -168,7 +181,7 @@ const getColumns = (): MRT_ColumnDef<AdminSession>[] => [
     enableGlobalFilter: false,
     filterFn: dayRange("createdAt"),
     Filter: makeDayRangeFilter("created"),
-    size: 140,
+    size: 125,
     Cell: ({ cell }) => <DateCell value={cell.getValue<Date>()} />,
   },
   {
@@ -179,7 +192,7 @@ const getColumns = (): MRT_ColumnDef<AdminSession>[] => [
     enableGlobalFilter: false,
     filterFn: dayRange("updatedAt"),
     Filter: makeDayRangeFilter("updated"),
-    size: 140,
+    size: 125,
     Cell: ({ cell }) => <DateCell value={cell.getValue<Date>()} />,
   },
   {
@@ -288,6 +301,7 @@ const ConversationsTable = ({ sessions, isLoading, isXs, onSelect }: Props) => {
         ? {
             id: false,
             messageCount: false,
+            usd: false,
             createdAt: false,
             disposition: false,
             issueCount: false,
