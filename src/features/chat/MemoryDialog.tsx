@@ -233,6 +233,13 @@ export const MemoryDialog = ({ open, onClose, projectId }: MemoryDialogProps) =>
 
           {globalLoading && enabled === null && <CircularProgress size={20} />}
 
+          {enabled === false && (
+            <Typography variant="body2" sx={{ mb: 2 }}>
+              The assistant can memorize conversations attached to projects. If you turn memory
+              on, you don't have to repeat things from previous conversations in each project.
+            </Typography>
+          )}
+
           {enabled === false && showNotice && (
             <Alert severity="info" sx={{ mb: 2 }}>
               Turning memory on lets the assistant see an index of your earlier conversations at
@@ -268,12 +275,12 @@ export const MemoryDialog = ({ open, onClose, projectId }: MemoryDialogProps) =>
                 <Typography variant="body2">Memory is on</Typography>
               </Box>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-                Turning this off stops the digest from being added to new conversations, but
-                leaves the digests already stored on existing conversations untouched.
+                Turning this off means new conversations no longer see your earlier ones.
+                Conversations that already started with memory keep what they were given.
               </Typography>
               <Typography variant="body2" color="text.secondary">
                 {unfiledCount !== null && unfiledCount >= UNFILED_POINTER_THRESHOLD
-                  ? "Memory works inside projects — create one from the sidebar"
+                  ? "Memory works inside projects. Create one from the left sidebar."
                   : "Memory works inside projects."}
               </Typography>
             </>
@@ -311,7 +318,7 @@ export const MemoryDialog = ({ open, onClose, projectId }: MemoryDialogProps) =>
               <Typography variant="subtitle2" sx={{ mb: 1 }}>
                 {state.enabled
                   ? "Exactly as the model will see it at your next session start"
-                  : "Preview — what turning this on would give the model"}
+                  : "What turning this on would give the model:"}
               </Typography>
               <Box
                 component="pre"
@@ -334,15 +341,19 @@ export const MemoryDialog = ({ open, onClose, projectId }: MemoryDialogProps) =>
                 {state.digest.length} / {state.charCap} characters
               </Typography>
 
-              <Typography variant="subtitle2" sx={{ mb: 1 }}>
-                Clear
-              </Typography>
               <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-                There is no separate delete for memory — it is derived from your conversations.
+                There is no separate delete for memory: it is derived from your conversations.
                 Unfiling or deleting a conversation, unpinning it, or turning memory off all
                 remove it from this preview and any conversation started after that; a
                 conversation already open keeps its own copy of the index until it ends.
               </Typography>
+              {state.sessionCap !== null && (
+                <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+                  {state.sessionCap} most recent conversations in each project are memorized.
+                  Star a conversation below to keep it in memory even if it's not among the
+                  most recent conversations.
+                </Typography>
+              )}
 
               {pinError && (
                 <Alert severity="error" sx={{ mb: 1.5 }} onClose={() => setPinError(null)}>

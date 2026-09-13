@@ -67,6 +67,9 @@ export interface MemoryState {
   digest: string;
   sessions: MemorySession[];
   charCap: number;
+  /** how many of the project's most recent conversations the digest looks at; null from a
+   * backend that predates the field, in which case the dialog says nothing about it */
+  sessionCap: number | null;
 }
 
 /** a first-class container conversations can be filed into; the grouping unit for chat memory */
