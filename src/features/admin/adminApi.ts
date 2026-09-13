@@ -56,6 +56,26 @@ export interface UsageAnalyticsResponse {
   data: UsageDataPoint[];
 }
 
+export interface CostDataPoint {
+  date: string;
+  usd: number;
+}
+
+// one Usage-tab table row: the user's conversations opened in the period, and every turn
+// they were billed for in it, which need not be turns of those conversations
+export interface UserUsageRow {
+  user: string;
+  conversations: number;
+  avgMessages: number;
+  usd: number;
+}
+
+export interface CostAnalyticsResponse {
+  period: string;
+  daily: CostDataPoint[];
+  users: UserUsageRow[];
+}
+
 // raw per-conversation row from /admin/analytics/quality; aggregated client-side
 // into plot series in the Quality plots tab (task .10)
 export interface QualityRow {
@@ -145,6 +165,26 @@ export async function fetchUsageAnalytics(
   });
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   return response.json();
+}
+
+export async function fetchCostAnalytics(
+  period: "week" | "month" | "year" = "week"
+): Promise<CostAnalyticsResponse> {
+  const response = await fetch(`${chatUrl}/v1/admin/analytics/cost?period=${period}`, {
+    credentials: "include",
+  });
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  const data = await response.json();
+  return {
+    period: data.period,
+    daily: data.daily ?? [],
+    users: (data.users ?? []).map((u: any) => ({
+      user: u.user,
+      conversations: u.conversations,
+      avgMessages: u.avg_messages,
+      usd: u.usd,
+    })),
+  };
 }
 
 export async function fetchQualitySeries(): Promise<QualityRow[]> {

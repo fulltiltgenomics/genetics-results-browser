@@ -7,6 +7,11 @@ import type { UsageDataPoint } from "./adminApi";
  * monthly (YYYY-MM). Dates are walked in UTC to avoid timezone/DST drift.
  */
 export function fillUsageGaps(data: UsageDataPoint[]): UsageDataPoint[] {
+  return fillDateGaps(data, (date) => ({ date, unique_users: 0, conversations: 0 }));
+}
+
+/** Same gap fill for any dated series; `zero` builds the point a missing date gets. */
+export function fillDateGaps<T extends { date: string }>(data: T[], zero: (date: string) => T): T[] {
   if (data.length < 2) return data;
 
   const sorted = [...data].sort((a, b) => a.date.localeCompare(b.date));
@@ -36,9 +41,7 @@ export function fillUsageGaps(data: UsageDataPoint[]): UsageDataPoint[] {
     }
   }
 
-  return keys.map(
-    (date) => byDate.get(date) ?? { date, unique_users: 0, conversations: 0 }
-  );
+  return keys.map((date) => byDate.get(date) ?? zero(date));
 }
 
 // matches a trailing UTC marker or numeric offset, i.e. an already-unambiguous instant

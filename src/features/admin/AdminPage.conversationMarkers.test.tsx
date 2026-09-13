@@ -18,6 +18,7 @@ vi.mock("./adminApi", () => ({
   })),
   fetchAdminSessionDetail: (id: string) => fetchAdminSessionDetail(id),
   fetchUsageAnalytics: vi.fn(async () => ({ period: "week", data: [] })),
+  fetchCostAnalytics: vi.fn(async () => ({ period: "week", daily: [], users: [] })),
   fetchAdminFeedback: vi.fn(async () => ({
     items: [],
     total: 0,

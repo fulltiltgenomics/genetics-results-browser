@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { fillUsageGaps, localDayKey, parseUtcTimestamp, withinDayRange } from "./utils";
+import { fillDateGaps, fillUsageGaps, localDayKey, parseUtcTimestamp, withinDayRange } from "./utils";
 
 describe("parseUtcTimestamp", () => {
   it("reads an offset-less admin timestamp as UTC, not local time", () => {
@@ -96,5 +96,22 @@ describe("fillUsageGaps", () => {
     ]);
     expect(filled.map((d) => d.date)).toEqual(["2026-04-01", "2026-04-02", "2026-04-03"]);
     expect(filled[1]).toEqual({ date: "2026-04-02", unique_users: 0, conversations: 0 });
+  });
+});
+
+describe("fillDateGaps", () => {
+  it("fills missing days with the caller's zero point", () => {
+    const filled = fillDateGaps(
+      [
+        { date: "2026-09-12", usd: 2 },
+        { date: "2026-09-10", usd: 1 },
+      ],
+      (date) => ({ date, usd: 0 })
+    );
+    expect(filled).toEqual([
+      { date: "2026-09-10", usd: 1 },
+      { date: "2026-09-11", usd: 0 },
+      { date: "2026-09-12", usd: 2 },
+    ]);
   });
 });
