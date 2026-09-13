@@ -16,7 +16,7 @@ shapes match production 1:1 so MSW mocks reflect real responses.
 | `variant_annotation_finngen.json` | `GET /api/v1/variant_annotation/finngen?variant=19-44908684-T-C&format=json` | full (already tiny) — rsid, AF, enrichment, most_severe |
 | `variant_annotation_gnomad.json` | `POST /api/v1/variant_annotation/gnomad?format=json` body `{"variants":["19-44908684-T-C","17-7676154-G-A"]}` | per-pop gnomAD AF (strings, scientific notation). 19-44908684 returns TWO rows (genome_or_exome g/e; e has larger AN 1415800 vs g 152092) to exercise the merge; 17-7676154 returns a SINGLE exome row. `consequences` (a large verbatim JSON string the BFF does not consume) trimmed out |
 | `nearest_genes.json` | `POST /api/v1/nearest_genes?format=json&n=1` body `{"variants":"19-44908684-T-C"}` | `variants` is a single-variant string, NOT an array |
-| `datasets.json` | `GET /api/v1/datasets` | one dataset per data_type (gwas/pqtl/eqtl/caqtl/asmqtl/mixed/metaboqtl/exome/gene_based/expression/chromatin_peaks/gene_disease) |
+| `datasets.json` | `GET /api/v1/datasets` | one dataset per data_type (gwas/pqtl/eqtl/caqtl/asmqtl/mixed/metaboqtl/exome/gene_based/expression/chromatin_peaks/gene_disease/rcnv/open_chromatin/variant_effect/mpra/hla) |
 | `resources.json` | `GET /api/v1/resources` | object keyed by product category; each list trimmed to 3 entries |
 | `search_phenotypes.json` | `GET /api/v1/search?q=asthma&types=phenotypes` | already carries `data_type` + `has_summary_stats` (backend additions are live) |
 | `summary_stats.json` | `POST /api/v1/summary_stats/finngen/gwas?format=json` body `{"variants":["19-44908684-T-C"],"phenotypes":["ASTHMA_OBESITY"]}` | per-variant per-phenotype sumstat row |

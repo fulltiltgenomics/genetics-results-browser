@@ -86,6 +86,15 @@ describe("groupCredibleSets (new JSON rows -> CSDatum[])", () => {
     }
   });
 
+  it("carries a member's missing statistics through as null", () => {
+    const nulled = { ...cisRows[0], mlog10p: null, beta: null, se: null, cs_min_r2: null };
+    const [d] = groupCredibleSets([nulled]);
+    expect(d.mlog10p).toEqual([null]);
+    expect(d.beta).toEqual([null]);
+    expect(d.se).toEqual([null]);
+    expect(d.csMinR2).toBeNull();
+  });
+
   it("rewrites resource to the legacy dataName and maps the renamed fields", () => {
     const ad = data.find((d) => d.trait === "Alzheimer_disease")!;
     expect(ad.resource).toBe("FinnGen_UKBB"); // finngen_ukbb -> config dataName
@@ -236,6 +245,7 @@ describe("buildAffectedGeneList (cis: variants in input gene affect other genes)
       makeCS({ trait: "FOO", traitCSId: "k1", gene: ["APOE"], mlog10p: [3] }), // below threshold
       makeCS({ trait: "BAR", traitCSId: "k2", gene: ["APOE"], csSize: 999 }), // too large
       makeCS({ trait: "BAZ", traitCSId: "k3", gene: ["APOE"], mlog10p: [50] }), // passes
+      makeCS({ trait: "QUX", traitCSId: "k4", gene: ["APOE"], mlog10p: [null] }), // no lead statistic
     ];
     const res = buildAffectedGeneList(cis, "APOE", NO_FILTER);
     expect(Object.keys(res)).toEqual(["BAZ"]);

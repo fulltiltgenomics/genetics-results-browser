@@ -9,7 +9,7 @@ export const PSEUDO_CS_TOOLTIP =
   "the lead variant, not formal SuSiE fine-mapping. Their PIPs are heuristic and should be " +
   "interpreted with caution.";
 
-export const pValRepr = (mlog10p: number): string => {
+export const pValRepr = (mlog10p: number | null): string => {
   // Open Targets omits mlog10p on many credible-set members; without this a missing value coerces
   // to 0 in the `<= 0` branch below and is reported as a p-value of exactly 1
   if (mlog10p == null || Number.isNaN(mlog10p)) {

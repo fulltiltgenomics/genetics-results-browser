@@ -356,6 +356,8 @@ export const gnomadForVariants = async (
 
 /* ── fan-out + assembly ── */
 
+// the CredibleSetDataType vocabulary: qtlTypes feeds the credible-set data-type toggles, so a
+// /datasets qtl_types token with no credible sets behind it (asmQTL, summary stats only) is dropped
 const QTL_TOKENS: ReadonlySet<string> = new Set([
   "eQTL",
   "pQTL",

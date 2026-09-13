@@ -303,5 +303,104 @@
       "summary_stats": false
     },
     "pseudo_credible_sets": true
+  },
+  {
+    "dataset_id": "marderstein_open_chromatin",
+    "resource": "marderstein",
+    "version": "2026",
+    "description": "Marderstein et al. 2026 (Nature Genetics) fetal and adult brain and heart open-chromatin atlas. scATAC/snATAC peak calls across 132 cell-type contexts (fetal brain, adult brain, fetal heart, adult heart); the tissue and life_stage columns slice the atlas and cell_type carries the source label. Companion ChromBPNet and FLARE variant-effect scores are in the variant_effect product (marderstein_chrombpnet, marderstein_flare).",
+    "author": "Marderstein, Kundu, Kundaje & Montgomery",
+    "publication_date": "2026-01-01",
+    "trait_type": null,
+    "data_type": "open_chromatin",
+    "products": {
+      "open_chromatin": true
+    }
+  },
+  {
+    "dataset_id": "marderstein_chrombpnet",
+    "resource": "marderstein",
+    "version": "2026",
+    "description": "Marderstein et al. 2026 (Nature Genetics) ChromBPNet in-silico variant-effect predictions on chromatin accessibility. Per-cell-type predicted effect of variants on scATAC/snATAC accessibility across the brain and heart contexts (model=chrombpnet), thresholded to variants with a significant/non-zero predicted effect in at least one context. cell_type/tissue give the predicting context.",
+    "author": "Marderstein, Kundu, Kundaje & Montgomery",
+    "publication_date": "2026-01-01",
+    "trait_type": null,
+    "data_type": "variant_effect",
+    "products": {
+      "variant_effect": true
+    }
+  },
+  {
+    "dataset_id": "siraj_mpra",
+    "resource": "siraj_mpra",
+    "version": "2026",
+    "description": "Siraj et al. 2026 massively parallel reporter assay (MPRA). 221K fine-mapped + 86K control variants tested in 5 cell lines (K562, HepG2, SK-N-SH, HCT116, A549) for intrinsic cis-regulatory allelic activity. One row per variant per cell_line (plus a 'meta' cross-cell-line summary); emVar flags allelic modulation of reporter expression and active flags element activity above background. A measured functional-validation layer distinct from in-silico variant_effect and endogenous eQTL/caQTL.",
+    "author": "Siraj et al.",
+    "publication_date": "2026-01-01",
+    "trait_type": null,
+    "data_type": "mpra",
+    "products": {
+      "mpra": true
+    }
+  },
+  {
+    "dataset_id": "finngen_hla",
+    "resource": "finngen",
+    "version": "R14",
+    "description": "FinnGen R14 classical HLA allele associations. The 187 HLA alleles imputed from FinnGen genotype data (4-digit/two-field resolution across HLA-A, -B, -C, -DPB1, -DQA1, -DQB1, -DRB1, -DRB3, -DRB4, -DRB5) tested with REGENIE against the 2,712 core R14 endpoints. The tested unit is presence of an allele, not a nucleotide variant, so these results carry no ref/alt and do not join to variant-keyed data on chr/pos/ref/alt; every allele of a gene shares that gene's anchor position. Each row carries the allele's imputation INFO, which is what separates a real association from a rare badly-imputed allele with a large unstable effect. Source endpoints with no R14 phenotype metadata (96 extra _WIDE codes) are not served, and 4 core endpoints have no HLA run.",
+    "author": "FinnGen Consortium",
+    "publication_date": "2026-05-13",
+    "trait_type": "mixed",
+    "data_type": "hla",
+    "products": {
+      "summary_stats": true
+    },
+    "n_phenotypes": 2712,
+    "stats": {
+      "n_phenotypes": 2717,
+      "n_samples_median": 476133,
+      "n_samples_range": [
+        72271,
+        499755
+      ],
+      "n_cases_range": [
+        50,
+        437906
+      ],
+      "n_controls_range": [
+        61849,
+        499705
+      ]
+    },
+    "metadata_endpoint": "/api/v1/resource_metadata/finngen"
+  },
+  {
+    "dataset_id": "collins_rcnv_2022",
+    "resource": "rcnv",
+    "version": "v0.2",
+    "description": "Collins et al. 2022 cross-disorder rare-CNV dosage sensitivity map (Cell 185:3041-3055, doi 10.1016/j.cell.2022.06.036; Zenodo record 6347673 v0.2, CC-BY 4.0). pHaplo and pTriplo — the probabilities that losing one copy or gaining a third copy of a gene is deleterious — for every autosomal protein-coding gene, learned from rare CNVs in 950,278 individuals tested against 54 HPO phenotypes, together with the per-phenotype DEL/DUP gene association statistics those scores were learned from (54 HPO groups x 2 CNV types x 17,263 genes). Gene-keyed and coordinate-free: both products were built on GENCODE v19 (GRCh37), so only the gene identifiers carry over to the suite's GRCh38 views.",
+    "author": "Collins et al. (Talkowski lab)",
+    "publication_date": "2022-08-04",
+    "trait_type": "binary",
+    "data_type": "rcnv",
+    "products": {},
+    "n_phenotypes": 54,
+    "stats": {
+      "n_phenotypes": 54,
+      "n_samples_median": 429865,
+      "n_samples_range": [
+        61345,
+        950278
+      ],
+      "n_cases_range": [
+        3156,
+        458326
+      ],
+      "n_controls_range": [
+        54481,
+        491952
+      ]
+    },
+    "metadata_endpoint": "/api/v1/resource_metadata/rcnv"
   }
 ]

@@ -64,7 +64,7 @@ const VariantCSInfoBox = ({
               <Typography>CS size</Typography>
               <Typography>{csStatus.csSize}</Typography>
               <Typography>CS min r2</Typography>
-              <Typography>{csStatus.csMinR2.toPrecision(3)}</Typography>
+              <Typography>{csStatus.csMinR2 === null ? "NA" : csStatus.csMinR2.toPrecision(3)}</Typography>
             </Box>
           ) : (
             [0, 1].map((i) => (
@@ -96,7 +96,9 @@ const VariantCSInfoBox = ({
               <Typography>p-value</Typography>
               <Typography>{pValRepr(selectedVariantStats.mlog10p)}</Typography>
               <Typography>beta</Typography>
-              <Typography>{selectedVariantStats.beta.toPrecision(3)}</Typography>
+              <Typography>
+                {selectedVariantStats.beta === null ? "NA" : selectedVariantStats.beta.toPrecision(3)}
+              </Typography>
               <Typography>pip</Typography>
               <Typography>{selectedVariantStats.pip.toPrecision(3)}</Typography>
               <Typography>global af</Typography>
