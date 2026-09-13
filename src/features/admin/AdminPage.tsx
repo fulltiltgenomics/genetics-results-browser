@@ -61,6 +61,7 @@ import { fetchQualitySeries, type QualityRow } from "./adminApi";
 import { buildAllSeries, type SeriesPanel } from "./qualitySeries";
 import { useLineHighlight, type HighlightHandlers } from "./lineHighlight";
 import ConversationsTable from "./ConversationsTable";
+import UsageTable from "./UsageTable";
 // the transcript renderer and the export converter the chat itself uses: an admin viewing a
 // stored conversation sees exactly what its owner saw, markers included
 import { MessageContent } from "../chat/MessageContent";
@@ -405,7 +406,6 @@ export default function AdminPage() {
     plugins: { legend: { position: "top" as const } },
     scales: { y: { beginAtZero: true } },
   };
-  const costTotal = (cost?.users ?? []).reduce((sum, u) => sum + u.usd, 0);
 
   // filter to conversations on/after the configurable start date before
   // aggregating. createdAt is "YYYY-MM-DD ..."; its leading 10 chars sort
@@ -593,7 +593,10 @@ export default function AdminPage() {
       {activeTab === 1 && (
         <>
           <Paper sx={{ p: 2, mb: 3 }}>
-            <Box sx={{ display: "flex", justifyContent: "flex-end", mb: 1 }}>
+            <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 2, mb: 1, flexWrap: "wrap" }}>
+              <Typography variant="body2" color="text.secondary">
+                The amounts shown are list prices. Any discounts are not considered in these numbers.
+              </Typography>
               <ToggleButtonGroup
                 size="small"
                 value={costPeriod}
@@ -616,61 +619,7 @@ export default function AdminPage() {
             </Box>
           </Paper>
 
-          <Paper sx={{ overflow: "auto" }}>
-            <Box component="table" sx={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
-              <thead>
-                <tr>
-                  {["User", "Conversations", "Avg messages per conversation", "USD"].map((h, i) => (
-                    <Box
-                      component="th"
-                      key={h}
-                      sx={{
-                        textAlign: i === 0 ? "left" : "right",
-                        p: 1,
-                        borderBottom: 1,
-                        borderColor: "divider",
-                        fontWeight: 600,
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {h}
-                    </Box>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {!costLoading &&
-                  (cost?.users ?? []).map((u) => (
-                    <tr key={u.user}>
-                      <Box component="td" sx={{ p: 1, borderBottom: 1, borderColor: "divider" }}>
-                        {u.user}
-                      </Box>
-                      <Box component="td" sx={{ p: 1, borderBottom: 1, borderColor: "divider", textAlign: "right" }}>
-                        {u.conversations}
-                      </Box>
-                      <Box component="td" sx={{ p: 1, borderBottom: 1, borderColor: "divider", textAlign: "right" }}>
-                        {u.conversations > 0 ? u.avgMessages.toFixed(1) : "–"}
-                      </Box>
-                      <Box component="td" sx={{ p: 1, borderBottom: 1, borderColor: "divider", textAlign: "right" }}>
-                        {u.usd.toFixed(2)}
-                      </Box>
-                    </tr>
-                  ))}
-                {!costLoading && (cost?.users ?? []).length === 0 && (
-                  <tr>
-                    <Box component="td" colSpan={4} sx={{ p: 3, textAlign: "center" }}>
-                      No usage in this period
-                    </Box>
-                  </tr>
-                )}
-              </tbody>
-            </Box>
-            {!costLoading && cost && cost.users.length > 0 && (
-              <Typography variant="caption" sx={{ display: "block", textAlign: "right", p: 1, color: "text.secondary" }}>
-                {cost.users.length} user{cost.users.length !== 1 ? "s" : ""}, {costTotal.toFixed(2)} USD total
-              </Typography>
-            )}
-          </Paper>
+          <UsageTable users={cost?.users ?? []} isLoading={costLoading} isXs={isXs} />
         </>
       )}
 

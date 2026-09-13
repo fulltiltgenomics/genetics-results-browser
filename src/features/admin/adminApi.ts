@@ -67,7 +67,11 @@ export interface UserUsageRow {
   user: string;
   conversations: number;
   avgMessages: number;
+  maxMessages: number;
   usd: number;
+  // null when none of the user's conversations in the period has a turn attributed to it
+  avgUsd: number | null;
+  maxUsd: number | null;
 }
 
 export interface CostAnalyticsResponse {
@@ -182,7 +186,10 @@ export async function fetchCostAnalytics(
       user: u.user,
       conversations: u.conversations,
       avgMessages: u.avg_messages,
+      maxMessages: u.max_messages,
       usd: u.usd,
+      avgUsd: u.avg_usd ?? null,
+      maxUsd: u.max_usd ?? null,
     })),
   };
 }
