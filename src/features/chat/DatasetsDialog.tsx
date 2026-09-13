@@ -70,7 +70,7 @@ const categories: Category[] = [
     filter: (d) => d.data_type === "gene_based",
   },
   {
-    label: "QTL datasets (eQTL / pQTL / caQTL / sQTL)",
+    label: "QTL datasets (eQTL / pQTL / caQTL / sQTL / metaboQTL)",
     filter: (d) =>
       ["eqtl", "pqtl", "caqtl", "sqtl", "metaboqtl", "mixed"].includes(d.data_type) &&
       (d.products?.credible_sets !== undefined || d.products?.summary_stats !== undefined),
@@ -84,7 +84,7 @@ const categories: Category[] = [
     filter: (d) => d.data_type === "hla",
   },
   {
-    label: "Rare CNV dosage sensitivity (rCNV2)",
+    label: "Rare CNV dosage sensitivity",
     filter: (d) => d.data_type === "rcnv",
   },
   {
@@ -309,17 +309,17 @@ export const DatasetsDialog = ({ open, onClose }: DatasetsDialogProps) => {
 const DatasetTable = ({ datasets, category }: { datasets: Dataset[]; category: string }) => {
   const showCredibleSets =
     category === "GWAS credible sets" ||
-    category === "QTL datasets (eQTL / pQTL / caQTL / sQTL)";
+    category === "QTL datasets (eQTL / pQTL / caQTL / sQTL / metaboQTL)";
   const showQtlTypes =
     category !== "Colocalization-only" && datasets.some((d) => d.qtl_types);
   const showSumstats = [
     "GWAS credible sets",
-    "QTL datasets (eQTL / pQTL / caQTL / sQTL)",
+    "QTL datasets (eQTL / pQTL / caQTL / sQTL / metaboQTL)",
     "asmQTL sumstats",
   ].includes(category);
   const showColoc = datasets.some((d) => (d.products as Record<string, unknown>)?.colocalization);
   const showStats =
-    category !== "QTL datasets (eQTL / pQTL / caQTL / sQTL)" &&
+    category !== "QTL datasets (eQTL / pQTL / caQTL / sQTL / metaboQTL)" &&
     datasets.some(
       (d) => d.stats?.n_phenotypes || d.stats?.n_subdatasets || d.n_phenotypes != null
     );
