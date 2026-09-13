@@ -592,11 +592,11 @@ export default function AdminPage() {
       {/* Tab 1: Usage — LLM cost per day and per user over the same period */}
       {activeTab === 1 && (
         <>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+            The amounts shown are list prices. Any discounts are not considered in these numbers.
+          </Typography>
           <Paper sx={{ p: 2, mb: 3 }}>
-            <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 2, mb: 1, flexWrap: "wrap" }}>
-              <Typography variant="body2" color="text.secondary">
-                The amounts shown are list prices. Any discounts are not considered in these numbers.
-              </Typography>
+            <Box sx={{ display: "flex", justifyContent: "flex-end", mb: 1 }}>
               <ToggleButtonGroup
                 size="small"
                 value={costPeriod}

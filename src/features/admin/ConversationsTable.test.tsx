@@ -27,6 +27,7 @@ const session = (over: Partial<AdminSession> & Pick<AdminSession, "id">): AdminS
   issueCategories: [],
   llmRating: null,
   successLabel: null,
+  usd: null,
   ...over,
 });
 
@@ -51,6 +52,7 @@ const SESSIONS: AdminSession[] = [
     updatedAt: "2026-04-29T09:10:00",
     disposition: "agent_failure",
     llmRating: 2,
+    usd: 0.5,
   }),
   session({
     id: "c",
@@ -60,6 +62,7 @@ const SESSIONS: AdminSession[] = [
     createdAt: "2026-04-30T09:00:00",
     updatedAt: "2026-04-30T09:30:00",
     llmRating: null,
+    usd: 12.345,
   }),
 ];
 
@@ -172,5 +175,25 @@ describe("ConversationsTable", () => {
     const onSelect = renderTable();
     fireEvent.click(screen.getByText("Bravo conversation"));
     expect(onSelect).toHaveBeenCalledWith("b");
+  });
+});
+
+describe("ConversationsTable USD column", () => {
+  it("sits after Messages, shows two decimals or a dash, and sorts unknown last", async () => {
+    renderTable();
+    const headers = screen.getAllByRole("columnheader").map((h) => h.textContent ?? "");
+    const messages = headers.findIndex((h) => h.startsWith("Messages"));
+    expect(headers[messages + 1]).toMatch(/^USD/);
+    expect(headers[messages + 2]).toMatch(/^Created/);
+
+    const usdCells = () =>
+      screen
+        .getAllByRole("row")
+        .slice(1)
+        .map((r) => within(r).getAllByRole("cell")[messages + 1]?.textContent ?? "");
+    expect(new Set(usdCells())).toEqual(new Set(["-", "0.50", "12.35"]));
+
+    fireEvent.click(screen.getByText("USD"));
+    await waitFor(() => expect(usdCells()).toEqual(["12.35", "0.50", "-"]));
   });
 });

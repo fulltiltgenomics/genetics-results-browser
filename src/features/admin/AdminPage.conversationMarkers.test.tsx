@@ -47,6 +47,7 @@ const SESSION: AdminSession = {
   issueCategories: [],
   llmRating: null,
   successLabel: null,
+  usd: null,
 };
 
 const CODE = 'import genetics\nr = genetics.plots.locuszoom(variant="12:49272869:C:T")';

@@ -16,6 +16,8 @@ export interface AdminSession {
   issueCategories: string[];
   llmRating: number | null;
   successLabel: string | null;
+  // recorded LLM cost at list price; null when no turn is attributed to the conversation
+  usd: number | null;
 }
 
 export interface AdminSessionListResponse {
@@ -263,5 +265,6 @@ function mapSession(data: any): AdminSession {
     issueCategories: data.issue_categories ?? [],
     llmRating: data.llm_rating ?? null,
     successLabel: data.success_label ?? null,
+    usd: data.usd ?? null,
   };
 }
