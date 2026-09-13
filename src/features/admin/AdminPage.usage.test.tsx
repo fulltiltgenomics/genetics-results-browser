@@ -28,15 +28,15 @@ const WEEK: CostAnalyticsResponse = {
     { date: "2026-09-12", usd: 2.25 },
   ],
   users: [
-    { user: "ann@example.org", conversations: 3, avgMessages: 4.6667, usd: 3.5 },
-    { user: "bob@example.org", conversations: 0, avgMessages: 0, usd: 0.25 },
+    { user: "ann@example.org", conversations: 3, avgMessages: 4.6667, maxMessages: 9, usd: 3.5, avgUsd: 1.1667, maxUsd: 2.0 },
+    { user: "bob@example.org", conversations: 0, avgMessages: 0, maxMessages: 0, usd: 0.25, avgUsd: null, maxUsd: null },
   ],
 };
 
 const MONTH: CostAnalyticsResponse = {
   period: "month",
   daily: [{ date: "2026-08-20", usd: 10 }],
-  users: [{ user: "cat@example.org", conversations: 1, avgMessages: 2, usd: 10 }],
+  users: [{ user: "cat@example.org", conversations: 1, avgMessages: 2, maxMessages: 2, usd: 10, avgUsd: 10, maxUsd: 10 }],
 };
 
 async function openUsageTab() {
@@ -44,6 +44,11 @@ async function openUsageTab() {
   fireEvent.click(screen.getByRole("tab", { name: "Usage" }));
   await waitFor(() => expect(fetchCostAnalytics).toHaveBeenCalled());
 }
+
+const rowCells = (username: string) =>
+  within(screen.getByText(username).closest("tr")!)
+    .getAllByRole("cell")
+    .map((c) => c.textContent);
 
 describe("AdminPage Usage tab", () => {
   beforeEach(() => {
@@ -61,26 +66,27 @@ describe("AdminPage Usage tab", () => {
     expect(fetchCostAnalytics).not.toHaveBeenCalled();
   });
 
-  it("defaults to week and renders one row per user with the mean rounded to one digit", async () => {
+  it("defaults to week, states the list-price caveat, and renders one row per user", async () => {
     await openUsageTab();
     expect(fetchCostAnalytics).toHaveBeenLastCalledWith("week");
     expect(screen.getByRole("button", { name: "Week", pressed: true })).toBeTruthy();
+    expect(
+      screen.getByText("The amounts shown are list prices. Any discounts are not considered in these numbers.")
+    ).toBeTruthy();
 
-    const ann = await screen.findByText("ann@example.org");
-    const cells = within(ann.closest("tr")!).getAllByRole("cell").map((c) => c.textContent);
-    expect(cells).toEqual(["ann@example.org", "3", "4.7", "3.50"]);
+    // the username only; the full address is the tooltip
+    await screen.findByText("ann");
+    expect(screen.queryByText("ann@example.org")).toBeNull();
+    expect(rowCells("ann")).toEqual(["ann", "3", "4.7", "9", "3.50", "1.17", "2.00"]);
 
-    // spend with no conversation opened in the window is still a row, with no mean to show
-    const bob = screen.getByText("bob@example.org");
-    expect(within(bob.closest("tr")!).getAllByRole("cell").map((c) => c.textContent)).toEqual([
-      "bob@example.org", "0", "–", "0.25",
-    ]);
-    expect(screen.getByText("2 users, 3.75 USD total")).toBeTruthy();
+    // spend with no conversation opened in the window is still a row, with no per-conversation figures
+    expect(rowCells("bob")).toEqual(["bob", "0", "0.0", "0", "0.25", "–", "–"]);
+    expect(screen.getByText(/2 of 2 users, 3\.75 USD total/)).toBeTruthy();
   });
 
   it("plots one USD line over every day of the window, zero-filled", async () => {
     await openUsageTab();
-    await screen.findByText("ann@example.org");
+    await screen.findByText("ann");
     const data = lineProps.mock.calls.at(-1)![0].data;
     expect(data.datasets).toHaveLength(1);
     expect(data.datasets[0].label).toBe("USD");
@@ -90,11 +96,11 @@ describe("AdminPage Usage tab", () => {
 
   it("refetches plot and table together when the period changes", async () => {
     await openUsageTab();
-    await screen.findByText("ann@example.org");
+    await screen.findByText("ann");
     fireEvent.click(screen.getByRole("button", { name: "Month" }));
     await waitFor(() => expect(fetchCostAnalytics).toHaveBeenLastCalledWith("month"));
-    await screen.findByText("cat@example.org");
-    expect(screen.queryByText("ann@example.org")).toBeNull();
+    await screen.findByText("cat");
+    expect(screen.queryByText("ann")).toBeNull();
     expect(lineProps.mock.calls.at(-1)![0].data.labels).toEqual(["2026-08-20"]);
   });
 });
