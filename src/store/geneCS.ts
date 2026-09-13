@@ -19,13 +19,15 @@ export interface GeneCSApiRow {
   pos: number;
   ref: string;
   alt: string;
-  mlog10p: number;
-  beta: number;
-  se: number;
+  // null where the source has no statistic for the member: Open Targets omits mlog10p and se on
+  // many rows, the NMR meta-analysis omits all four
+  mlog10p: number | null;
+  beta: number | null;
+  se: number | null;
   pip: number;
   cs_id: string;
   cs_size: number;
-  cs_min_r2: number;
+  cs_min_r2: number | null;
   aaf: number | null;
   most_severe: string | null;
   gene_most_severe: string | null;
@@ -386,7 +388,9 @@ export interface GeneListFilters {
 // variant. codingOnly is applied differently per list (cis: any coding variant; trans: per-variant)
 // so it is handled by the callers below, not here.
 const passesQualityGate = (d: CSDatum, f: GeneListFilters): boolean =>
-  d.mlog10p.some((m) => m >= f.minLeadMlog10p) && d.csSize <= f.maxCsSize && d.variant.length > 0;
+  d.mlog10p.some((m) => m !== null && m >= f.minLeadMlog10p) &&
+  d.csSize <= f.maxCsSize &&
+  d.variant.length > 0;
 
 /**
  * "Variants in {inputGene} affect these genes" — the cis list.

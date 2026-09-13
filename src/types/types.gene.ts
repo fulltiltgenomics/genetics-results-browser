@@ -14,15 +14,16 @@ export type CSDatum = {
   variant: string[];
   pos: number[];
   pip: number[];
-  mlog10p: number[];
-  beta: number[];
-  se: number[];
+  // null where the API row carried no statistic for that member — see GeneCSApiRow
+  mlog10p: (number | null)[];
+  beta: (number | null)[];
+  se: (number | null)[];
   csId: string; // TODO is this needed
   traitCSId: string;
   csNumber: number;
   numberOfCSs: number;
   csSize: number;
-  csMinR2: number;
+  csMinR2: number | null;
   consequence: string[];
   isCoding: boolean[];
   isLoF: boolean[];
@@ -61,7 +62,7 @@ export type TraitStatus = {
 
 export type CSStatus = {
   csSize: number;
-  csMinR2: number;
+  csMinR2: number | null;
 };
 
 export type SelectedVariantStats = {
@@ -69,9 +70,9 @@ export type SelectedVariantStats = {
   consequence: string;
   isLoF: boolean;
   isCoding: boolean;
-  mlog10p: number;
+  mlog10p: number | null;
   pip: number;
-  beta: number;
-  se: number;
+  beta: number | null;
+  se: number | null;
   af: string;
 };

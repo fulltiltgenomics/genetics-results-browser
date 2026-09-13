@@ -113,7 +113,7 @@ const QTLGeneListItem = ({
                         {pValRepr(cs.mlog10p[topPipIndex])}
                       </CleanTableCell>
                       <CleanTableCell style={{ paddingRight: 20, color: "white" }}>
-                        {cs.beta[topPipIndex]}
+                        {cs.beta[topPipIndex] ?? "NA"}
                       </CleanTableCell>
                       <CleanTableCell style={{ paddingRight: 20, color: "white" }}>
                         {afRepr(cs.af[topPipIndex])}
