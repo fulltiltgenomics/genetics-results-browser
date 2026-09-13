@@ -51,6 +51,7 @@ Available modes: `dev`, `dev.finngen`, `dev.public`, `prod`, `prod.finngen`, `pr
 | `VITE_CHAT_URL` | base URL of the chat backend, e.g. `http://localhost:4000/chat` |
 | `VITE_APP_NAME` | product name shown in the UI, defaults to `FinnGenie` |
 | `VITE_SHOW_TOOLS_CONTROL` | `false` hides the chat options' Tools row (the Code execution switch); anything else, unset included, shows it. A deployment that hides it picks its users' surface through chat-backend's `DEFAULT_TOOL_PROFILE`; a user's stored choice still applies. The image build sets it from `--build-arg SHOW_TOOLS_CONTROL` |
+| `VITE_SHOW_TOOLS_BUTTON` | `false` hides the Tools button in the chat header (the list of what the assistant can call); anything else, unset included, shows it. Independent of `VITE_SHOW_TOOLS_CONTROL`. The image build sets it from `--build-arg SHOW_TOOLS_BUTTON` |
 
 The BFF reads `GENETICS_API_URL`, `GENETICS_API_TOKEN`, `BFF_PORT`, `RESULTS_CACHE_MAX`,
 `RESULTS_CACHE_TTL_MS` and `LD_API_URL` — see `bff/.env.example`.
