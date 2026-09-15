@@ -75,3 +75,33 @@ describe("the session id is resolved before the request", () => {
     expect(screen.getByText(/answered anyway/)).toBeTruthy();
   });
 });
+
+/**
+ * chat-backend keys the turn's recorded cost to `message_id`, so the id on the wire has to be
+ * the one the assistant message is then saved under — otherwise the row joins to nothing.
+ */
+describe("the assistant message id travels with the request", () => {
+  beforeEach(() => {
+    Element.prototype.scrollIntoView = vi.fn();
+    sentBody = undefined;
+    emit = undefined;
+    finish = undefined;
+  });
+
+  it("sends the id the assistant message is saved under", async () => {
+    const onStreamingComplete = vi.fn();
+    await send(<LLMChat sessionId="sess-existing" onStreamingComplete={onStreamingComplete} />);
+
+    expect(typeof sentBody.message_id).toBe("string");
+    expect(sentBody.message_id).not.toBe("");
+
+    await act(async () => {
+      emit!({ type: "content", content: "the answer" });
+      emit!({ type: "done", message_content: [{ type: "text", text: "the answer" }] });
+      finish!();
+    });
+    await waitFor(() => expect(onStreamingComplete).toHaveBeenCalledTimes(1));
+    const [, assistantMsg] = onStreamingComplete.mock.calls[0];
+    expect(assistantMsg.id).toBe(sentBody.message_id);
+  });
+});

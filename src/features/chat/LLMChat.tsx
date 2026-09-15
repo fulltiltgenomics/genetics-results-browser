@@ -672,6 +672,9 @@ export const LLMChat = ({
             instruction_set_id: instructionSetId,
             secret: isSecretChat || false,
             session_id: turnSessionId,
+            // the id the assistant message is saved under, partial content included, so the
+            // turn's recorded cost joins to the message it produced
+            message_id: assistantMsgId,
           }),
           signal: abortControllerRef.current.signal,
           async onopen(response) {
