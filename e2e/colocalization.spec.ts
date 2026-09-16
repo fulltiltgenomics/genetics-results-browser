@@ -10,7 +10,7 @@ const SINGLE = "19-44908684-T-C"; // APOE rs429358 — sits in the AD/dementia G
 test("expanded credible set lazily loads its colocalizations", async ({ page }) => {
   test.setTimeout(120_000);
 
-  await page.goto("/annotate");
+  await page.goto("/anno");
   await page.getByLabel(/Paste GRCh38 variant ids/i).fill(SINGLE);
   await page.getByRole("button", { name: /annotate/i }).click();
 

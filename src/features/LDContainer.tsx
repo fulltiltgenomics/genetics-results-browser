@@ -479,7 +479,7 @@ const LDContainer = () => {
         const variant = cell.getValue<string>();
         // the annotation tool reads ?q= as an lz-compressed variant list (InputForm), so build the
         // link the same way its own submit does — a plain variant string decompresses to ""
-        const href = `/annotate?q=${compressToEncodedURIComponent(variant)}`;
+        const href = `/anno?q=${compressToEncodedURIComponent(variant)}`;
         return (
           <Typography
             component="a"

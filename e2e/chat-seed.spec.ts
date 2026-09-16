@@ -16,7 +16,7 @@ const fillInput = async (page: import("@playwright/test").Page, value: string): 
 
 test("variant table 'Ask the assistant' seeds and prefills the chat input", async ({ page }) => {
   test.setTimeout(90_000);
-  await page.goto("/annotate");
+  await page.goto("/anno");
   await fillInput(page, SINGLE);
 
   // wait for the main table row
@@ -62,7 +62,7 @@ test("gene view 'Ask the assistant' seeds and prefills the chat input", async ({
 // chatKey-bumping handlers, so the next chat must open with an EMPTY input.
 test("starting a new chat after a seeded hand-off does NOT re-prefill the stale seed", async ({ page }) => {
   test.setTimeout(90_000);
-  await page.goto("/annotate");
+  await page.goto("/anno");
   await fillInput(page, SINGLE);
 
   await expect(page.getByText("19:44908684:T:C")).toBeVisible({ timeout: 30_000 });

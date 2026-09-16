@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { snapshot } from "./helpers/screenshot";
 
-// comprehensive verification walk of the fully migrated variant table at /annotate (bd .22,
+// comprehensive verification walk of the fully migrated variant table at /anno (bd .22,
 // refactor.md §4). requires the full dev stack: genetics-results-api :2000, BFF :5000, vite :3000.
 // this spec is a superset visual capture: it drives a single multi-resource variant through the
 // whole flow (controls panel, main table, expanded credible-set detail, all 4 tabs, resource +
@@ -31,7 +31,7 @@ test("annotate full single-variant verification walk + screenshots", async ({ pa
   });
   page.on("pageerror", (err) => consoleErrors.push(`pageerror: ${err.message}`));
 
-  await page.goto("/annotate");
+  await page.goto("/anno");
   await fillInput(page, SINGLE);
 
   // ── stage-1 BFF fetch + stage-2 client filter complete → main table row ──────
@@ -145,7 +145,7 @@ test("annotate full single-variant verification walk + screenshots", async ({ pa
   }
   // benign favicon/network 404s aside, there should be no app-level runtime errors. the chat
   // backend (:4000) is out of scope for this verification and not part of the dev stack here, so
-  // its auth CORS/network errors are filtered out — they are unrelated to the /annotate tool.
+  // its auth CORS/network errors are filtered out — they are unrelated to the /anno tool.
   const appErrors = consoleErrors.filter(
     (e) =>
       !/favicon|net::ERR|Failed to load resource|Network Error/i.test(e) &&
@@ -157,7 +157,7 @@ test("annotate full single-variant verification walk + screenshots", async ({ pa
 test("annotate multi-variant with betas exercises consistent/opposite columns", async ({
   page,
 }) => {
-  await page.goto("/annotate");
+  await page.goto("/anno");
   await fillInput(page, MULTI_WITH_BETAS);
 
   // variant 1 renders. variant 2 (19:45869791:ATT:A) has only a weak eQTL CS (p≈0.15) which the

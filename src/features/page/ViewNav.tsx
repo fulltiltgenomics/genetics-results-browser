@@ -2,7 +2,7 @@ import { Box, Typography } from "@mui/material";
 import { useNavigate } from "react-router";
 
 const VIEWS = [
-  { key: "annotate", label: "Variant tables", path: "/annotate" },
+  { key: "annotate", label: "Variant tables", path: "/anno" },
   { key: "gene", label: "Gene view", path: "/gene" },
   { key: "ld", label: "LD lookup", path: "/ld" },
 ] as const;

@@ -1,12 +1,12 @@
 import { test, expect } from "@playwright/test";
 import { snapshot } from "./helpers/screenshot";
 
-// live verification of the migrated thresholds controls at /annotate (refactor.md §4, .15):
+// live verification of the migrated thresholds controls at /anno (refactor.md §4, .15):
 // PIP + p-value thresholds are shown (cs_min_r2 was replaced by a p-value threshold in commit
 // 3100299), and changing PIP recomputes the table client-side (stage 2, no refetch). requires the
 // full dev stack: api :2000, BFF :5000, vite :3000.
 test("annotate controls show PIP + p-value thresholds and react to PIP", async ({ page }) => {
-  await page.goto("/annotate");
+  await page.goto("/anno");
 
   const input = page.getByLabel(/Paste GRCh38 variant ids/i);
   await input.fill("19-44908684-T-C");

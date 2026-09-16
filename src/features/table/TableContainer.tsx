@@ -55,7 +55,7 @@ const TableContainer = () => {
     setActiveTab(newValue);
   };
 
-  const isVariantPage = window.location.pathname.startsWith("/annotate");
+  const isVariantPage = window.location.pathname.startsWith("/anno");
 
   // a lazy tab chunk suspends for one frame even when preloaded; a bare spinner collapses the panel
   // to ~40px, which clamps the scroll upward and back (the "jump"). reserve panel-sized height so the

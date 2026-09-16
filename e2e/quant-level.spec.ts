@@ -9,7 +9,7 @@ import { snapshot } from "./helpers/screenshot";
 // the bare gene symbol with NO level chip; after toggling "show all quant levels" ON => the exon
 // level appears as a chip next to the gene symbol. stage-2 client refilter, no refetch.
 test("eQTL quant-level toggle reveals non-ge levels with a level chip", async ({ page }) => {
-  await page.goto("/annotate");
+  await page.goto("/anno");
 
   const input = page.getByLabel(/Paste GRCh38 variant ids/i);
   await input.fill("19-44908684-T-C");

@@ -30,7 +30,7 @@ import { PhenotypeSearchExportButton } from "../table/ExportToolbar";
  *   - the in-view search box: debounced /search autocomplete restricted to phenotypes with full sumstats.
  *
  * Input variants come from store.normalizedData.inputVariants.found (the same variants the user queried
- * on /annotate). If none are present we prompt the user to enter variants first.
+ * on /anno). If none are present we prompt the user to enter variants first.
  *
  * inCredibleSet is derived from the per-variant credibleSets ALREADY in store.normalizedData — cheaper
  * and more precise than credible_sets_by_phenotype (which returns every CS member of the trait). A
@@ -258,7 +258,7 @@ const PhenotypeSearchContainer = () => {
     []
   );
 
-  // no input variants: the view depends on them, so guide the user back to /annotate.
+  // no input variants: the view depends on them, so guide the user back to /anno.
   if (inputVariants.length === 0) {
     return (
       <Box sx={{ p: 2 }}>

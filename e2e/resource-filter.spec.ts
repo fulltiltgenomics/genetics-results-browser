@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { snapshot } from "./helpers/screenshot";
 
-// live verification of the lifted, dynamic resource filter in the main /annotate options
+// live verification of the lifted, dynamic resource filter in the main /anno options
 // (refactor.md §4, bd .16). requires the full dev stack: genetics-results-api :2000, BFF :5000,
 // vite :3000. submits a multi-resource variant, asserts the filter lists several resources derived
 // from the data, then toggles one OFF and asserts the main table's "credible sets" count reactively
@@ -9,7 +9,7 @@ import { snapshot } from "./helpers/screenshot";
 test("resource filter lists dynamic resources and reactively refilters the table", async ({
   page,
 }) => {
-  await page.goto("/annotate");
+  await page.goto("/anno");
 
   const input = page.getByLabel(/Paste GRCh38 variant ids/i);
   await input.fill("19-44908684-T-C");

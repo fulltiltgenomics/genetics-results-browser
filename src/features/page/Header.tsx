@@ -93,12 +93,12 @@ const Header = () => {
             use client-side routing (RouterLink), NOT href — an href does a full document load of
             /chat, which the server doesn't serve as a static file (the failing "chat" request). */}
         <Typography variant="h6" sx={{ paddingLeft: "20px" }}>
-          {location.pathname.startsWith("/annotate") ? (
+          {location.pathname.startsWith("/anno") ? (
             <Link component={RouterLink} to="/chat" underline="hover">
               Chat
             </Link>
           ) : (
-            <Link component={RouterLink} to="/annotate" underline="hover">
+            <Link component={RouterLink} to="/anno" underline="hover">
               Anno
             </Link>
           )}

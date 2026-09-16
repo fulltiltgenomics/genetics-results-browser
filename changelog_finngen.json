@@ -2,6 +2,21 @@
   "content": [
     {
       "type": "span",
+      "text": "September 16th 2026:",
+      "children": [
+        {
+          "type": "ul",
+          "children": [
+            {
+              "type": "li",
+              "text": "Moved the variant annotation tool from /annotate to /anno; old /annotate links redirect"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "span",
       "text": "May 31st 2026:",
       "children": [
         {

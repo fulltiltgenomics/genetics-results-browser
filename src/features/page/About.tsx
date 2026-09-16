@@ -81,7 +81,7 @@ const About = () => {
       </Typography>
       <Typography>
         <br />
-        The variant annotation tool is available at <Link href="/annotate">/annotate</Link>, where
+        The variant annotation tool is available at <Link href="/anno">/anno</Link>, where
         you can paste a list of variants or enter a gene. The landing page at{" "}
         <Link href="/">/</Link> is a chat assistant for asking questions about variants and genes in
         natural language.

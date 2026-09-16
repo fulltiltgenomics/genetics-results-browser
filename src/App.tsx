@@ -1,5 +1,5 @@
 import { lazy, Suspense, useMemo } from "react";
-import { BrowserRouter, Routes, Route } from "react-router";
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from "react-router";
 import { createTheme, ThemeProvider } from "@mui/material/styles";
 import CssBaseline from "@mui/material/CssBaseline";
 import { indigo, pink } from "@mui/material/colors";
@@ -17,6 +17,11 @@ const LDContainer = lazy(() => import("./features/LDContainer"));
 const PhenotypeContainer = lazy(() => import("./features/phenotype/PhenotypeContainer"));
 const ChatPage = lazy(() => import("./features/chat/ChatPage"));
 const AdminPage = lazy(() => import("./features/admin/AdminPage"));
+
+const LegacyAnnotateRedirect = () => {
+  const { search } = useLocation();
+  return <Navigate to={`/anno${search}`} replace />;
+};
 
 export const App = () => {
   const prefersDarkMode = useMediaQuery("(prefers-color-scheme: dark)");
@@ -61,9 +66,11 @@ export const App = () => {
               <Suspense fallback={<CircularProgress />}>
                 <Routes>
                   <Route path="/" element={<ChatPage />} />
-                  {/* variant annotation tool moved off / to /annotate; ChatPage owns / (refactor.md §3) */}
+                  {/* variant annotation tool moved off / to /anno; ChatPage owns / (refactor.md §3) */}
                   {/* phenotype search is now a tab inside TableContainer (refactor.md §5), not a route */}
-                  <Route path="/annotate" element={<TableContainer />} />
+                  <Route path="/anno" element={<TableContainer />} />
+                  {/* the tool lived at /annotate before /anno; shared ?q= links still point there */}
+                  <Route path="/annotate" element={<LegacyAnnotateRedirect />} />
                   <Route path="/gene" element={<GeneContainer />} />
                   <Route path="/gene/:geneName" element={<GeneContainer />} />
                   <Route path="/ld" element={<LDContainer />} />

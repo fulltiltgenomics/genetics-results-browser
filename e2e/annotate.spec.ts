@@ -1,11 +1,11 @@
 import { test, expect } from "@playwright/test";
 import { snapshot } from "./helpers/screenshot";
 
-// live verification of the migrated variant-results tab at /annotate (refactor.md §4).
+// live verification of the migrated variant-results tab at /anno (refactor.md §4).
 // requires the full dev stack: genetics-results-api :2000, BFF :5000, vite :3000. submits a known
 // variant, waits for the credible-set main table, expands a row, and screenshots the CS detail.
 test("annotate route renders credible-set data", async ({ page }) => {
-  await page.goto("/annotate");
+  await page.goto("/anno");
 
   // type a known variant (APOE rs429358) into the input and submit
   const input = page.getByLabel(/Paste GRCh38 variant ids/i);

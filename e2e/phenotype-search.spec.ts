@@ -4,14 +4,14 @@ import { snapshot } from "./helpers/screenshot";
 // live verification of the phenotype-search TAB (refactor.md §5).
 // requires the full dev stack: genetics-results-api :2000, BFF :5000, vite :3000.
 //
-// (a) handoff path: from /annotate, submit a variant, open the Phenotype summary tab, click a trait's
+// (a) handoff path: from /anno, submit a variant, open the Phenotype summary tab, click a trait's
 //     search-handoff button, confirm it switches to the Phenotype search tab with that phenotype
 //     preselected and the summary-stats table populated for the input variant(s), incl. the
 //     inCredibleSet flag.
 // (b) in-view search box: type "alzheimer", pick AD_LO_EXMORE, see the per-variant sumstats table.
 
 test("phenotype-search: handoff from Phenotype summary tab", async ({ page }) => {
-  await page.goto("/annotate");
+  await page.goto("/anno");
 
   const input = page.getByLabel(/Paste GRCh38 variant ids/i);
   await input.fill("19-44908684-T-C");
@@ -34,7 +34,7 @@ test("phenotype-search: handoff from Phenotype summary tab", async ({ page }) =>
 });
 
 test("phenotype-search: in-view search box (alzheimer -> AD_LO_EXMORE)", async ({ page }) => {
-  await page.goto("/annotate");
+  await page.goto("/anno");
   await page.getByLabel(/Paste GRCh38 variant ids/i).fill("19-44908684-T-C");
   await page.getByRole("button", { name: /annotate/i }).click();
   await expect(page.getByText("19:44908684:T:C").first()).toBeVisible({ timeout: 30_000 });

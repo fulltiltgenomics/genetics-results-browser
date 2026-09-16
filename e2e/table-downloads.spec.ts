@@ -67,7 +67,7 @@ test.describe("annotation table downloads", () => {
     page,
   }) => {
     test.setTimeout(150_000);
-    await page.goto("/annotate");
+    await page.goto("/anno");
     await fillInput(page, SINGLE);
     await expect(page.getByText("19:44908684:T:C", { exact: true })).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText("rs429358")).toBeVisible();
@@ -222,7 +222,7 @@ test.describe("annotation table downloads", () => {
     page,
   }) => {
     test.setTimeout(120_000);
-    await page.goto("/annotate");
+    await page.goto("/anno");
     await fillInput(page, SINGLE);
     await expect(page.getByText("19:44908684:T:C", { exact: true })).toBeVisible({ timeout: 30_000 });
 
@@ -244,7 +244,7 @@ test.describe("annotation table downloads", () => {
     page,
   }) => {
     test.setTimeout(120_000);
-    await page.goto("/annotate");
+    await page.goto("/anno");
     await fillInput(page, MULTI_WITH_BETAS);
     // variant 2's only CS has p=0.15 (> default 0.05 p-value threshold) so it is correctly filtered
     // out of the main table; it still appears as a beta-grid column (all NA) since the store keeps
