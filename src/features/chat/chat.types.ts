@@ -184,7 +184,28 @@ export interface LLMChatProps {
     verbosity?: string | null,
   ) => void;
 
-  /** callback when streaming completes for a message (for persistence) */
+  /** called with a turn's user message before the request goes out, so the transcript holds
+   *  the question whatever happens to this tab afterwards. Awaited: the answer the server
+   *  writes has to land after it */
+  onUserMessage?: (
+    userMessage: ChatMessage,
+    sessionId: string | null,
+    literatureBackend?: string | null,
+    toolProfile?: string | null,
+    instructionSetId?: string | null,
+    verbosity?: string | null,
+  ) => Promise<void> | void;
+
+  /** a turn the server was still running for this session when it was opened. The component
+   *  reattaches to it on mount and streams it as if it had been sent from here */
+  activeTurn?: { messageId: string } | null;
+
+  /** the server no longer holds a turn the component was attached to; whatever it produced
+   *  is in the session's history, so the parent reloads that */
+  onResumeUnavailable?: () => void;
+
+  /** callback when a turn's stream ends, with what it produced. The assistant message is
+   *  persisted by the server, not through this; the parent uses it for bookkeeping */
   onStreamingComplete?: (
     userMessage: ChatMessage,
     assistantMessage: ChatMessage,

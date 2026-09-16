@@ -40,6 +40,66 @@ import remarkGfm from "remark-gfm";
 import type { PluggableList } from "unified";
 import { fetchEventSource } from "@microsoft/fetch-event-source";
 import type { ChatMessage, LLMChatProps, LiteratureBackend, Verbosity, PendingAttachment, FileAttachment, ContextUsage } from "./chat.types";
+
+/** what one turn has produced so far, however many connections it took to receive it */
+interface TurnRun {
+  assistantMsgId: string;
+  content: string;
+  messageContent: any[] | null;
+  toolResults: any[] | null;
+  receivedDone: boolean;
+  usedMemory: boolean;
+  streamError: string | null;
+  /** the server said the turn was stopped; end-of-stream is then final, not a lost connection */
+  cancelled: boolean;
+  /** the SSE id of the last event applied; the server replays from the one after it */
+  lastSeq: number;
+}
+
+interface TurnRequest {
+  url: string;
+  method: "GET" | "POST";
+  body?: string;
+}
+
+const newTurnRun = (assistantMsgId: string): TurnRun => ({
+  assistantMsgId,
+  content: "",
+  messageContent: null,
+  toolResults: null,
+  receivedDone: false,
+  usedMemory: false,
+  streamError: null,
+  cancelled: false,
+  lastSeq: -1,
+});
+
+/** a stream that goes quiet this long is treated as dead: the turn is cancelled server-side */
+const INACTIVITY_MS = 90_000;
+
+/** the waits between reattach attempts after the connection to a running turn was lost. A
+ *  sleeping laptop wakes into the first ones; a chat-backend deploy (one pod, Recreate) is
+ *  covered by the tail, and a turn evicted meanwhile answers 404, which ends the loop */
+const RESUME_DELAYS_MS = [0, 2_000, 5_000, 10_000, 20_000, 30_000, 30_000, 30_000];
+
+const abortError = () => new DOMException("aborted", "AbortError");
+
+const sleep = (ms: number, signal: AbortSignal) =>
+  new Promise<void>((resolve, reject) => {
+    if (signal.aborted) {
+      reject(abortError());
+      return;
+    }
+    const onAbort = () => {
+      clearTimeout(timer);
+      reject(abortError());
+    };
+    const timer = setTimeout(() => {
+      signal.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+    signal.addEventListener("abort", onAbort, { once: true });
+  });
 import { MessageRating } from "./MessageRating";
 import InstructionsDialog from "./InstructionsDialog";
 import MemoryDialog from "./MemoryDialog";
@@ -56,6 +116,7 @@ import { useSchema } from "./schemaApi";
 import { linkifyViewsPlugin } from "./linkifyViews";
 import { MessageContent } from "./MessageContent";
 import { encodeToolCallMarker, withToolCallOutcome } from "./toolCallMarker";
+import { cancelTurn, turnEventsUrl, TurnGoneError } from "./turnsApi";
 
 // hardcoded fallback used until useSchema() resolves; mirrors known views in genetics-results-db
 const FALLBACK_VIEW_NAMES = [
@@ -139,6 +200,9 @@ export const LLMChat = ({
   initialInput,
   initialAttachments,
   onDraftChange,
+  onUserMessage,
+  activeTurn,
+  onResumeUnavailable,
 }: LLMChatProps) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
@@ -166,6 +230,8 @@ export const LLMChat = ({
   const [error, setError] = useState<string | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   const isTimeoutAbortRef = useRef(false);
+  // the turn the Stop button and the inactivity timer cancel server-side
+  const currentTurnIdRef = useRef<string | null>(null);
   const [contextExpanded, setContextExpanded] = useState(true);
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
   const [hoveredMessageId, setHoveredMessageId] = useState<string | null>(null);
@@ -439,6 +505,367 @@ export const LLMChat = ({
     setPendingAttachments((prev) => prev.filter((a) => a.id !== id));
   }, []);
 
+  /** apply one SSE event to the turn and to what is on screen */
+  const applyTurnEvent = useCallback(
+    (run: TurnRun, event: { id?: string; data: string }) => {
+      if (event.id !== undefined && event.id !== "") {
+        const seq = Number(event.id);
+        if (Number.isFinite(seq)) run.lastSeq = seq;
+      }
+      if (!event.data || event.data.trim() === "") return;
+      let data: any;
+      try {
+        data = JSON.parse(event.data);
+      } catch {
+        return; // ignore unparseable SSE chunks
+      }
+      const assistantMsgId = run.assistantMsgId;
+      const showContent = () => {
+        const newContent = run.content;
+        setMessages((prev) =>
+          prev.map((m) => (m.id === assistantMsgId ? { ...m, content: newContent } : m))
+        );
+      };
+      if (data.type === "thinking") {
+        // reasoning keepalive: carries no content, so it only drives the indicator
+        setIsThinking(true);
+      } else if (data.type === "content" && data.content) {
+        setIsThinking(false);
+        run.content += data.content;
+        showContent();
+      } else if (data.type === "image") {
+        // store image as a special marker that we'll render separately
+        const imageFormat = (data.image_format || "png").replace(/[^\w+.-]/g, "");
+        // the marker is colon-delimited and `alt` is now an artifact FILE NAME, which
+        // the sandbox permits colons and brackets in — an unescaped one would split the
+        // marker and spill base64 into the transcript as prose
+        const imageAlt = (data.image_alt || "Generated image").replace(/[:[\]]/g, " ");
+        const imageData = data.image_data || "";
+        run.content += `\n\n[IMAGE:${imageFormat}:${imageAlt}:${imageData}]\n\n`;
+        showContent();
+      } else if (data.type === "file" && data.file_data) {
+        // a non-image artifact the analysis wrote, embedded in the text the same way an
+        // image is so that it survives persistence and reload. Guarded on file_data
+        // because a marker with an empty payload does not match the render path's
+        // pattern and would spill into the transcript as prose
+        const fileMarker = encodeFileMarker(data.file_mime, data.file_name, data.file_data);
+        run.content += `\n\n${fileMarker}\n\n`;
+        showContent();
+      } else if (data.type === "tool_use" && data.name) {
+        // a tool call, embedded in the text the same way an image is so that it
+        // survives persistence and reload. Rendered collapsed by MessageContent
+        setIsThinking(false);
+        run.content += `\n\n${encodeToolCallMarker({
+          id: data.id ?? "",
+          name: data.name,
+          input: data.input ?? {},
+        })}\n\n`;
+        showContent();
+      } else if (data.type === "script_result" && data.tool_use_id) {
+        // the outcome of a run_analysis that was already written into the content
+        // above; rewrite that one marker so its summary line can show it
+        run.content = withToolCallOutcome(run.content, data.tool_use_id, {
+          ran: Boolean(data.ran),
+          ok: Boolean(data.ok),
+          status: typeof data.status === "string" ? data.status : "unknown",
+          durationMs: typeof data.duration_ms === "number" ? data.duration_ms : null,
+          exception: typeof data.exception === "string" ? data.exception : null,
+        });
+        showContent();
+      } else if (data.type === "done") {
+        run.receivedDone = true;
+        run.messageContent = data.message_content || null;
+        run.toolResults = data.tool_results || null;
+      } else if (data.type === "usage") {
+        // only update if context grew (it should never shrink within a conversation)
+        setContextUsage((prev) =>
+          !prev || data.input_tokens >= prev.input_tokens ? (data as ContextUsage) : prev
+        );
+      } else if (data.type === "memory" && projectId) {
+        // covers a memory event arriving for a session that isn't (or is no longer)
+        // filed into a project. fires at most once per session, on the first turn
+        // only. Guarded on projectId: an unfiled session gets no memory server-side,
+        // so this is defense in depth, not the thing that actually prevents the chip
+        // on unfiled chats.
+        run.usedMemory = true;
+        if (typeof data.project === "string") setMemoryProjectName(data.project);
+        setMessages((prev) =>
+          prev.map((m) => (m.id === assistantMsgId ? { ...m, usedMemory: true } : m))
+        );
+      } else if (data.type === "cancelled") {
+        run.cancelled = true;
+      } else if (data.type === "error") {
+        run.streamError = data.error || "A server error occurred";
+      }
+    },
+    [projectId],
+  );
+
+  /** one connection's worth of a turn: the initial POST, or a reattach GET. Resolves when the
+   *  server closes the stream, which is not necessarily when the turn is over */
+  const streamTurn = useCallback(
+    async (run: TurnRun, request: TurnRequest, signal: AbortSignal) => {
+      let inactivityTimer: ReturnType<typeof setTimeout> | null = null;
+      const resetInactivityTimer = () => {
+        if (inactivityTimer) clearTimeout(inactivityTimer);
+        inactivityTimer = setTimeout(() => {
+          isTimeoutAbortRef.current = true;
+          abortControllerRef.current?.abort();
+          cancelTurn(run.assistantMsgId).catch((err) => console.error("Failed to stop the turn:", err));
+        }, INACTIVITY_MS);
+      };
+      try {
+        await fetchEventSource(request.url, {
+          method: request.method,
+          headers: request.body ? { "Content-Type": "application/json" } : {},
+          credentials: "include",
+          // the gateway answers an expired oauth2-proxy session with 302 -> /oauth2/start.
+          // Followed, that strips this POST's body — the message is discarded and the SSO
+          // landing page resolves as a 200 text/html, which onopen could only report as
+          // "HTTP 200". Kept opaque, it is recognisable as the expired session it is.
+          redirect: "manual",
+          body: request.body,
+          signal,
+          async onopen(response) {
+            if (
+              response.ok &&
+              response.headers.get("content-type")?.includes("text/event-stream")
+            ) {
+              resetInactivityTimer();
+              return;
+            }
+            if (response.type === "opaqueredirect" || response.status === 0) {
+              throw new Error(
+                "Your sign-in expired before the message was sent. Reload the page, then send it again."
+              );
+            }
+            if (request.method === "GET" && response.status === 404) {
+              throw new TurnGoneError();
+            }
+            const contentType = response.headers.get("content-type");
+            if (contentType?.includes("application/json")) {
+              const errorData = await response.json();
+              throw new Error(errorData.detail || errorData.error || `HTTP ${response.status}`);
+            }
+            // statusText is always "" over HTTP/2, so the status has to carry the message
+            throw new Error(`HTTP ${response.status}${response.statusText ? `: ${response.statusText}` : ""}`);
+          },
+          onmessage(event) {
+            resetInactivityTimer();
+            applyTurnEvent(run, event);
+          },
+          onerror(err) {
+            console.error("SSE error:", err);
+            throw err;
+          },
+          openWhenHidden: true,
+        });
+      } finally {
+        if (inactivityTimer) clearTimeout(inactivityTimer);
+      }
+    },
+    [applyTurnEvent],
+  );
+
+  /** the connection went but the turn did not: reattach from the last event seen until the
+   *  turn ends, the attempts run out, or the server no longer has it */
+  const resumeTurn = useCallback(
+    async (run: TurnRun, signal: AbortSignal) => {
+      for (const delay of RESUME_DELAYS_MS) {
+        await sleep(delay, signal);
+        try {
+          await streamTurn(
+            run,
+            { url: turnEventsUrl(run.assistantMsgId, run.lastSeq + 1), method: "GET" },
+            signal,
+          );
+        } catch (err: any) {
+          if (err?.name === "AbortError" || err instanceof TurnGoneError) throw err;
+          console.warn("Reattaching to the turn failed, will retry:", err);
+          continue;
+        }
+        if (run.receivedDone || run.streamError || run.cancelled) return;
+      }
+    },
+    [streamTurn],
+  );
+
+  /** drive a turn to its end and settle what is on screen. `userMsg` is the question this
+   *  turn answers when it was sent from here, null when reattaching to one already running */
+  const runTurn = useCallback(
+    async (
+      run: TurnRun,
+      first: TurnRequest,
+      userMsg: ChatMessage | null,
+      pendingAttachments?: PendingAttachment[],
+    ) => {
+      const assistantMsgId = run.assistantMsgId;
+      const signal = abortControllerRef.current!.signal;
+      isTimeoutAbortRef.current = false;
+      const notifyComplete = (msg: ChatMessage) => {
+        if (userMsg) {
+          onStreamingComplete?.(userMsg, msg, run.messageContent, literatureBackend, toolProfile, run.toolResults, instructionSetId, verbosity);
+        }
+        if (!hasTriggeredFirstExchange.current) {
+          hasTriggeredFirstExchange.current = true;
+          onFirstExchange?.(literatureBackend, toolProfile, instructionSetId, verbosity);
+        }
+      };
+
+      try {
+        await streamTurn(run, first, signal);
+        if (!run.receivedDone && !run.streamError && !run.cancelled) {
+          await resumeTurn(run, signal);
+        }
+
+        // check for errors reported by the backend during streaming
+        if (run.streamError) {
+          throw new Error(run.streamError);
+        }
+
+        if (run.cancelled) {
+          // stopped from elsewhere (another tab, or the server draining): the partial is
+          // what there is, and it can be continued like a locally stopped turn
+          if (run.content) {
+            setWasStopped(true);
+            notifyComplete({
+              id: assistantMsgId,
+              role: "assistant",
+              content: run.content,
+              usedMemory: run.usedMemory,
+            });
+          } else {
+            setMessages((prev) => prev.filter((m) => m.id !== assistantMsgId || m.content));
+          }
+          return;
+        }
+
+        // the connection was lost and could not be regained (connection dropped without "done")
+        if (run.content && !run.receivedDone) {
+          run.content += "\n\n---\n*Response may be incomplete — the connection was interrupted.*";
+          const finalContent = run.content;
+          setMessages((prev) =>
+            prev.map((m) => (m.id === assistantMsgId ? { ...m, content: finalContent } : m))
+          );
+        }
+
+        if (run.content) {
+          const turnContentJson = run.messageContent ? JSON.stringify(run.messageContent) : null;
+          const turnToolResultsJson = run.toolResults ? JSON.stringify(run.toolResults) : null;
+          // the transcript keeps a plot's whole base64 inline in `content` (the [IMAGE:...]
+          // marker), so a message replayed from `content` costs the model those bytes as
+          // text on every later turn — measured at ~180k tokens per plotted turn, which
+          // reached the model's context limit in six turns. contentJson is the same turn
+          // without the image data, and the history builder prefers it
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === assistantMsgId
+                ? { ...m, contentJson: turnContentJson, toolResultsJson: turnToolResultsJson }
+                : m
+            )
+          );
+          notifyComplete({
+            id: assistantMsgId,
+            role: "assistant",
+            content: run.content,
+            usedMemory: run.usedMemory,
+          });
+        }
+      } catch (err: any) {
+        if (err?.name === "AbortError") {
+          if (isTimeoutAbortRef.current) {
+            setError("Server stopped responding. Please try again.");
+          }
+          if (run.content) {
+            // the server keeps the partial under this id; what is left to do here is the
+            // bookkeeping and offering to continue
+            notifyComplete({
+              id: assistantMsgId,
+              role: "assistant",
+              content: run.content,
+              usedMemory: run.usedMemory,
+            });
+            // a timed-out turn is resumable for the same reason a stopped one is
+            setWasStopped(true);
+          } else {
+            // nothing to keep — drop the empty assistant placeholder
+            setMessages((prev) => prev.filter((m) => m.id !== assistantMsgId || m.content));
+          }
+          return;
+        }
+        if (err instanceof TurnGoneError) {
+          // whatever the turn produced is in history now; a parent that keeps history
+          // reloads it from there. Without one, what arrived is all there will be
+          if (onResumeUnavailable) {
+            onResumeUnavailable();
+          } else if (run.content) {
+            run.content += "\n\n---\n*Response may be incomplete — the connection was interrupted.*";
+            const finalContent = run.content;
+            setMessages((prev) =>
+              prev.map((m) => (m.id === assistantMsgId ? { ...m, content: finalContent } : m))
+            );
+          } else {
+            setMessages((prev) => prev.filter((m) => m.id !== assistantMsgId));
+          }
+          return;
+        }
+        console.error("Chat error:", err);
+        setError(err.message || "Failed to send message");
+        if (run.content || !userMsg) {
+          setMessages((prev) => prev.filter((m) => m.id !== assistantMsgId || m.content));
+        } else {
+          // the turn produced nothing, so take it back off the transcript and put it back in
+          // the box, ready to resend. Leaving the user message in `messages` would show it
+          // twice next to the restored draft and replay it in the retry's history. A draft
+          // typed since the failure wins.
+          setMessages((prev) =>
+            prev.filter((m) => m.id !== assistantMsgId && m.id !== userMsg.id)
+          );
+          setInput((current) => (current.trim() ? current : userMsg.content));
+          if (pendingAttachments && pendingAttachments.length > 0) {
+            setPendingAttachments((current) => (current.length > 0 ? current : pendingAttachments));
+          }
+        }
+      } finally {
+        setIsLoading(false);
+        setIsThinking(false);
+      }
+    },
+    [
+      streamTurn,
+      resumeTurn,
+      onStreamingComplete,
+      onFirstExchange,
+      onResumeUnavailable,
+      literatureBackend,
+      toolProfile,
+      instructionSetId,
+      verbosity,
+    ],
+  );
+
+  // a turn the server was still running when this session was opened: show it streaming as
+  // if it had been sent from here. Once per mount, and only when history does not already
+  // hold its message (the turn finished between the session load and this render)
+  const reattachedRef = useRef(false);
+  useEffect(() => {
+    if (!activeTurn || reattachedRef.current || readOnly) return;
+    if ((initialMessages ?? []).some((m) => m.id === activeTurn.messageId)) return;
+    reattachedRef.current = true;
+    const messageId = activeTurn.messageId;
+    const run = newTurnRun(messageId);
+    currentTurnIdRef.current = messageId;
+    setMessages((prev) => [...prev, { id: messageId, role: "assistant", content: "" }]);
+    setIsLoading(true);
+    setError(null);
+    setWasStopped(false);
+    abortControllerRef.current?.abort();
+    abortControllerRef.current = new AbortController();
+    // the question this turn answers is the last one in history, for the completion callback
+    const userMsg = [...(initialMessages ?? [])].reverse().find((m) => m.role === "user") ?? null;
+    void runTurn(run, { url: turnEventsUrl(messageId, 0), method: "GET" }, userMsg);
+  }, [activeTurn, initialMessages, readOnly, runTurn]);
+
   const sendMessage = useCallback(
     async (userMessage: string, attachments?: PendingAttachment[]) => {
       if ((!userMessage.trim() && (!attachments || attachments.length === 0)) || isLoading) return;
@@ -632,35 +1059,24 @@ export const LLMChat = ({
         }
       }
 
-      let accumulatedContent = "";
-      let messageContent: any[] | null = null;
-      let toolResults: any[] | null = null;
-      let receivedDone = false;
-      let usedMemory = false;
-      let streamError: string | null = null;
-      let inactivityTimer: ReturnType<typeof setTimeout> | null = null;
-      isTimeoutAbortRef.current = false;
+      // the question reaches history before the model is asked: a tab that dies mid-answer
+      // then leaves it behind, and the answer the server writes has something to follow. A
+      // failure is logged, not fatal — the turn runs either way
+      if (onUserMessage) {
+        try {
+          await onUserMessage(userMsg, turnSessionId, literatureBackend, toolProfile, instructionSetId, verbosity);
+        } catch (err) {
+          console.error("Failed to save the user message:", err);
+        }
+      }
 
-      const resetInactivityTimer = () => {
-        if (inactivityTimer) clearTimeout(inactivityTimer);
-        inactivityTimer = setTimeout(() => {
-          isTimeoutAbortRef.current = true;
-          abortControllerRef.current?.abort();
-        }, 90_000);
-      };
-
-      try {
-        await fetchEventSource(`${chatUrl}/v1/chat`, {
+      const run = newTurnRun(assistantMsgId);
+      currentTurnIdRef.current = assistantMsgId;
+      await runTurn(
+        run,
+        {
+          url: `${chatUrl}/v1/chat`,
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          credentials: "include",
-          // the gateway answers an expired oauth2-proxy session with 302 -> /oauth2/start.
-          // Followed, that strips this POST's body — the message is discarded and the SSO
-          // landing page resolves as a 200 text/html, which onopen could only report as
-          // "HTTP 200". Kept opaque, it is recognisable as the expired session it is.
-          redirect: "manual",
           body: JSON.stringify({
             messages: messageHistory,
             phenotype_code: phenotypeCode || null,
@@ -676,224 +1092,10 @@ export const LLMChat = ({
             // turn's recorded cost joins to the message it produced
             message_id: assistantMsgId,
           }),
-          signal: abortControllerRef.current.signal,
-          async onopen(response) {
-            if (
-              response.ok &&
-              response.headers.get("content-type")?.includes("text/event-stream")
-            ) {
-              resetInactivityTimer();
-              return;
-            }
-            if (response.type === "opaqueredirect" || response.status === 0) {
-              throw new Error(
-                "Your sign-in expired before the message was sent. Reload the page, then send it again."
-              );
-            }
-            const contentType = response.headers.get("content-type");
-            if (contentType?.includes("application/json")) {
-              const errorData = await response.json();
-              throw new Error(errorData.detail || errorData.error || `HTTP ${response.status}`);
-            }
-            // statusText is always "" over HTTP/2, so the status has to carry the message
-            throw new Error(`HTTP ${response.status}${response.statusText ? `: ${response.statusText}` : ""}`);
-          },
-          onmessage(event) {
-            resetInactivityTimer();
-            if (!event.data || event.data.trim() === "") return;
-            let data: any;
-            try {
-              data = JSON.parse(event.data);
-            } catch {
-              return; // ignore unparseable SSE chunks
-            }
-            if (data.type === "thinking") {
-              // reasoning keepalive: carries no content, so it only drives the indicator
-              setIsThinking(true);
-            } else if (data.type === "content" && data.content) {
-              setIsThinking(false);
-              accumulatedContent += data.content;
-              const newContent = accumulatedContent;
-              setMessages((prev) =>
-                prev.map((m) => (m.id === assistantMsgId ? { ...m, content: newContent } : m))
-              );
-            } else if (data.type === "image") {
-              // store image as a special marker that we'll render separately
-              const imageFormat = (data.image_format || "png").replace(/[^\w+.-]/g, "");
-              // the marker is colon-delimited and `alt` is now an artifact FILE NAME, which
-              // the sandbox permits colons and brackets in — an unescaped one would split the
-              // marker and spill base64 into the transcript as prose
-              const imageAlt = (data.image_alt || "Generated image").replace(/[:[\]]/g, " ");
-              const imageData = data.image_data || "";
-              const imageMarker = `\n\n[IMAGE:${imageFormat}:${imageAlt}:${imageData}]\n\n`;
-              accumulatedContent += imageMarker;
-              const newContent = accumulatedContent;
-              setMessages((prev) =>
-                prev.map((m) => (m.id === assistantMsgId ? { ...m, content: newContent } : m))
-              );
-            } else if (data.type === "file" && data.file_data) {
-              // a non-image artifact the analysis wrote, embedded in the text the same way an
-              // image is so that it survives persistence and reload. Guarded on file_data
-              // because a marker with an empty payload does not match the render path's
-              // pattern and would spill into the transcript as prose
-              const fileMarker = encodeFileMarker(data.file_mime, data.file_name, data.file_data);
-              accumulatedContent += `\n\n${fileMarker}\n\n`;
-              const newContent = accumulatedContent;
-              setMessages((prev) =>
-                prev.map((m) => (m.id === assistantMsgId ? { ...m, content: newContent } : m))
-              );
-            } else if (data.type === "tool_use" && data.name) {
-              // a tool call, embedded in the text the same way an image is so that it
-              // survives persistence and reload. Rendered collapsed by MessageContent
-              setIsThinking(false);
-              accumulatedContent += `\n\n${encodeToolCallMarker({
-                id: data.id ?? "",
-                name: data.name,
-                input: data.input ?? {},
-              })}\n\n`;
-              const newContent = accumulatedContent;
-              setMessages((prev) =>
-                prev.map((m) => (m.id === assistantMsgId ? { ...m, content: newContent } : m))
-              );
-            } else if (data.type === "script_result" && data.tool_use_id) {
-              // the outcome of a run_analysis that was already written into the content
-              // above; rewrite that one marker so its summary line can show it
-              accumulatedContent = withToolCallOutcome(accumulatedContent, data.tool_use_id, {
-                ran: Boolean(data.ran),
-                ok: Boolean(data.ok),
-                status: typeof data.status === "string" ? data.status : "unknown",
-                durationMs: typeof data.duration_ms === "number" ? data.duration_ms : null,
-                exception: typeof data.exception === "string" ? data.exception : null,
-              });
-              const newContent = accumulatedContent;
-              setMessages((prev) =>
-                prev.map((m) => (m.id === assistantMsgId ? { ...m, content: newContent } : m))
-              );
-            } else if (data.type === "done") {
-              receivedDone = true;
-              messageContent = data.message_content || null;
-              toolResults = data.tool_results || null;
-            } else if (data.type === "usage") {
-              // only update if context grew (it should never shrink within a conversation)
-              setContextUsage((prev) =>
-                !prev || data.input_tokens >= prev.input_tokens ? (data as ContextUsage) : prev
-              );
-            } else if (data.type === "memory" && projectId) {
-              // covers a memory event arriving for a session that isn't (or is no longer)
-              // filed into a project. fires at most once per session, on the first turn
-              // only. Guarded on projectId: an unfiled session gets no memory server-side,
-              // so this is defense in depth, not the thing that actually prevents the chip
-              // on unfiled chats.
-              usedMemory = true;
-              if (typeof data.project === "string") setMemoryProjectName(data.project);
-              setMessages((prev) =>
-                prev.map((m) => (m.id === assistantMsgId ? { ...m, usedMemory: true } : m))
-              );
-            } else if (data.type === "error") {
-              streamError = data.error || "A server error occurred";
-            }
-          },
-          onerror(err) {
-            console.error("SSE error:", err);
-            throw err;
-          },
-          openWhenHidden: true,
-        });
-
-        // check for errors reported by the backend during streaming
-        if (streamError) {
-          throw new Error(streamError);
-        }
-
-        // detect premature stream end (connection dropped without "done" event)
-        if (accumulatedContent && !receivedDone) {
-          accumulatedContent += "\n\n---\n*Response may be incomplete — the connection was interrupted.*";
-          setMessages((prev) =>
-            prev.map((m) => (m.id === assistantMsgId ? { ...m, content: accumulatedContent } : m))
-          );
-        }
-
-        // streaming completed - notify parent with the completed messages
-        if (accumulatedContent) {
-          const turnContentJson = messageContent ? JSON.stringify(messageContent) : null;
-          const turnToolResultsJson = toolResults ? JSON.stringify(toolResults) : null;
-          // the transcript keeps a plot's whole base64 inline in `content` (the [IMAGE:...]
-          // marker), so a message replayed from `content` costs the model those bytes as
-          // text on every later turn — measured at ~180k tokens per plotted turn, which
-          // reached the model's context limit in six turns. contentJson is the same turn
-          // without the image data, and the history builder above prefers it; it was only
-          // ever handed to the save path, so the live session replayed `content` while a
-          // reloaded one (contentJson restored from the backend) did not.
-          setMessages((prev) =>
-            prev.map((m) =>
-              m.id === assistantMsgId
-                ? { ...m, contentJson: turnContentJson, toolResultsJson: turnToolResultsJson }
-                : m
-            )
-          );
-          const completedAssistantMsg: ChatMessage = {
-            id: assistantMsgId,
-            role: "assistant",
-            content: accumulatedContent,
-            usedMemory,
-          };
-          onStreamingComplete?.(userMsg, completedAssistantMsg, messageContent, literatureBackend, toolProfile, toolResults, instructionSetId, verbosity);
-
-          // check if this is the first exchange
-          if (!hasTriggeredFirstExchange.current) {
-            hasTriggeredFirstExchange.current = true;
-            onFirstExchange?.(literatureBackend, toolProfile, instructionSetId, verbosity);
-          }
-        }
-      } catch (err: any) {
-        if (err.name === "AbortError") {
-          if (isTimeoutAbortRef.current) {
-            setError("Server stopped responding. Please try again.");
-          }
-          if (accumulatedContent) {
-            // partial content is worth saving however the stream ended — a timeout
-            // abort used to leave it on screen but unsaved, so it vanished on reload.
-            const partialMsg: ChatMessage = {
-              id: assistantMsgId,
-              role: "assistant",
-              content: accumulatedContent,
-              usedMemory,
-            };
-            onStreamingComplete?.(userMsg, partialMsg, messageContent, literatureBackend, toolProfile, toolResults, instructionSetId, verbosity);
-            if (!hasTriggeredFirstExchange.current) {
-              hasTriggeredFirstExchange.current = true;
-              onFirstExchange?.(literatureBackend, toolProfile, instructionSetId, verbosity);
-            }
-            // a timed-out turn is resumable for the same reason a stopped one is
-            setWasStopped(true);
-          } else {
-            // nothing to keep — drop the empty assistant placeholder
-            setMessages((prev) => prev.filter((m) => m.id !== assistantMsgId || m.content));
-          }
-          return;
-        }
-        console.error("Chat error:", err);
-        setError(err.message || "Failed to send message");
-        if (accumulatedContent) {
-          setMessages((prev) => prev.filter((m) => m.id !== assistantMsgId || m.content));
-        } else {
-          // the turn produced nothing and was never persisted, so take it back off the
-          // transcript and put it back in the box, ready to resend. Leaving the user
-          // message in `messages` would show it twice next to the restored draft and
-          // replay it in the retry's history. A draft typed since the failure wins.
-          setMessages((prev) =>
-            prev.filter((m) => m.id !== assistantMsgId && m.id !== userMsgId)
-          );
-          setInput((current) => (current.trim() ? current : userMessage));
-          if (attachments && attachments.length > 0) {
-            setPendingAttachments((current) => (current.length > 0 ? current : attachments));
-          }
-        }
-      } finally {
-        if (inactivityTimer) clearTimeout(inactivityTimer);
-        setIsLoading(false);
-        setIsThinking(false);
-      }
+        },
+        userMsg,
+        attachments,
+      );
     },
     [
       messages,
@@ -905,8 +1107,8 @@ export const LLMChat = ({
       // happened to be every turn, making the staleness invisible rather than absent
       sessionId,
       onEnsureSession,
-      onFirstExchange,
-      onStreamingComplete,
+      onUserMessage,
+      runTurn,
       literatureBackend,
       toolProfile,
       verbosity,
@@ -917,6 +1119,10 @@ export const LLMChat = ({
   const handleStop = () => {
     setWasStopped(true);
     abortControllerRef.current?.abort();
+    // hanging up no longer stops anything: the run outlives its connections by design
+    if (currentTurnIdRef.current) {
+      cancelTurn(currentTurnIdRef.current).catch((err) => console.error("Failed to stop the turn:", err));
+    }
   };
 
   const handleContinue = () => {

@@ -457,10 +457,37 @@ const ChatPage = () => {
   const handleMessagesChange = useCallback((messages: ChatMessage[]) => {
     currentMessagesRef.current = messages;
     setCurrentMessageCount(messages.length);
-    // messages are saved via onStreamingComplete callback, not here
   }, []);
 
-  // called when streaming completes for a message exchange
+  // the question goes into history before the turn runs, so it is there whatever happens to
+  // this tab afterwards; the answer is written by the server under the id LLMChat minted
+  const handleUserMessage = useCallback(
+    async (
+      userMessage: ChatMessage,
+      sessionId: string | null,
+      literatureBackend?: string | null,
+      toolProfile?: string | null,
+      instructionSetId?: string | null,
+      verbosity?: string | null,
+    ) => {
+      if (isSecretChat || !sessionId) return;
+      if (savedMessageIds.current.has(userMessage.id)) return;
+      await saveMessageToBackend(sessionId, userMessage, literatureBackend, toolProfile, instructionSetId, verbosity);
+      savedMessageIds.current.add(userMessage.id);
+    },
+    [saveMessageToBackend, isSecretChat],
+  );
+
+  // the server no longer holds a turn LLMChat was attached to; its message is in history by
+  // now, so the conversation is reloaded from there. A new key remounts LLMChat with it
+  const handleResumeUnavailable = () => {
+    const sessionId = activeSessionId ?? inlineSessionIdRef.current;
+    if (!sessionId) return;
+    void loadSessionDetail(sessionId).then(() => setChatKey(`${sessionId}-${Date.now()}`));
+  };
+
+  // called when a turn's stream ends. The assistant message is the server's to write; this
+  // only covers a user message whose send-time save failed and marks the answer as saved
   const handleStreamingComplete = useCallback(
     async (
       userMessage: ChatMessage,
@@ -476,7 +503,6 @@ const ChatPage = () => {
       console.log("[handleStreamingComplete] literatureBackend:", literatureBackend, "toolProfile:", toolProfile, "instructionSetId:", instructionSetId);
       if (!activeSessionId) return;
 
-      // save user message with literature backend and tool profile
       const hasUserContent = userMessage.content.trim();
       const hasUserAttachments = userMessage.attachments && userMessage.attachments.length > 0;
       if (!savedMessageIds.current.has(userMessage.id) && (hasUserContent || hasUserAttachments)) {
@@ -484,22 +510,7 @@ const ChatPage = () => {
         savedMessageIds.current.add(userMessage.id);
       }
 
-      // save assistant message with full content_json (includes tool calls), literature backend, and tool profile
-      if (!savedMessageIds.current.has(assistantMessage.id) && assistantMessage.content.trim()) {
-        const contentJson = messageContent ? JSON.stringify(messageContent) : null;
-        const toolResultsJson = toolResults ? JSON.stringify(toolResults) : null;
-        await saveMessageToBackend(
-          activeSessionId,
-          {
-            ...assistantMessage,
-            contentJson,
-            toolResultsJson,
-          },
-          literatureBackend,
-          toolProfile,
-          instructionSetId,
-          verbosity,
-        );
+      if (assistantMessage.content.trim()) {
         savedMessageIds.current.add(assistantMessage.id);
       }
     },
@@ -575,9 +586,11 @@ const ChatPage = () => {
         if (!sessionIdToUse) return;
       }
 
-      // save all current messages to the newly created session
+      // a user message whose send-time save did not happen. Assistant messages are the
+      // server's to write, and a second writer here would race its rendering of the turn
       const messages = currentMessagesRef.current;
       for (const msg of messages) {
+        if (msg.role === "assistant") continue;
         const hasContent = msg.content.trim();
         const hasAttachments = msg.attachments && msg.attachments.length > 0;
         if ((hasContent || hasAttachments) && !savedMessageIds.current.has(msg.id)) {
@@ -1182,8 +1195,11 @@ const ChatPage = () => {
                 initialMessages={isSecretChat ? undefined : loadedMessages}
                 onMessagesChange={handleMessagesChange}
                 onEnsureSession={ensureSession}
+                onUserMessage={handleUserMessage}
                 onFirstExchange={handleFirstExchange}
                 onStreamingComplete={handleStreamingComplete}
+                activeTurn={isSecretChat ? null : activeSession?.activeTurn ?? null}
+                onResumeUnavailable={handleResumeUnavailable}
                 onRateMessage={isSecretChat ? undefined : handleRateMessage}
                 placeholder="Ask about phenotypes, genes, variants..."
                 emptyStateTitle={`Welcome to ${APP_NAME}`}
