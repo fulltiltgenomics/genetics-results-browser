@@ -52,6 +52,8 @@ interface TurnRun {
   streamError: string | null;
   /** the server said the turn was stopped; end-of-stream is then final, not a lost connection */
   cancelled: boolean;
+  /** some connection to this turn has opened, so the turn exists server-side */
+  opened: boolean;
   /** the SSE id of the last event applied; the server replays from the one after it */
   lastSeq: number;
 }
@@ -71,8 +73,13 @@ const newTurnRun = (assistantMsgId: string): TurnRun => ({
   usedMemory: false,
   streamError: null,
   cancelled: false,
+  opened: false,
   lastSeq: -1,
 });
+
+/** a fetch that failed at the transport level — the tab woke up, the network went — as opposed
+ *  to a response the server actually sent. fetch rejects these with a TypeError */
+const isConnectionFailure = (err: unknown): boolean => err instanceof TypeError;
 
 /** a stream that goes quiet this long is treated as dead: the turn is cancelled server-side */
 const INACTIVITY_MS = 90_000;
@@ -631,6 +638,7 @@ export const LLMChat = ({
               response.ok &&
               response.headers.get("content-type")?.includes("text/event-stream")
             ) {
+              run.opened = true;
               resetInactivityTimer();
               return;
             }
@@ -698,6 +706,7 @@ export const LLMChat = ({
       first: TurnRequest,
       userMsg: ChatMessage | null,
       pendingAttachments?: PendingAttachment[],
+      userMsgSaved = false,
     ) => {
       const assistantMsgId = run.assistantMsgId;
       const signal = abortControllerRef.current!.signal;
@@ -713,7 +722,16 @@ export const LLMChat = ({
       };
 
       try {
-        await streamTurn(run, first, signal);
+        try {
+          await streamTurn(run, first, signal);
+        } catch (err: any) {
+          if (err?.name === "AbortError" || err instanceof TurnGoneError) throw err;
+          // a connection that drops mid-stream surfaces as a thrown network error, not as a
+          // quiet end of stream — that is what a laptop waking up looks like. Only a response
+          // the server actually sent before the stream opened (a 4xx, an expired sign-in) is
+          // final here; anything after opening, or any transport failure, means reattach
+          if (!run.opened && !isConnectionFailure(err)) throw err;
+        }
         if (!run.receivedDone && !run.streamError && !run.cancelled) {
           await resumeTurn(run, signal);
         }
@@ -793,6 +811,13 @@ export const LLMChat = ({
           }
           return;
         }
+        if (err instanceof TurnGoneError && first.method === "POST" && !run.opened) {
+          // the request never reached the server, and the reattach confirmed no turn was
+          // started: nothing to recover, so report it and leave the question in place
+          setError("Could not reach the server. Use retry to send the message again.");
+          setMessages((prev) => prev.filter((m) => m.id !== assistantMsgId));
+          return;
+        }
         if (err instanceof TurnGoneError) {
           // whatever the turn produced is in history now; a parent that keeps history
           // reloads it from there. Without one, what arrived is all there will be
@@ -811,7 +836,9 @@ export const LLMChat = ({
         }
         console.error("Chat error:", err);
         setError(err.message || "Failed to send message");
-        if (run.content || !userMsg) {
+        if (run.content || !userMsg || userMsgSaved) {
+          // the question is in history once saved, so it stays on screen too; only an empty
+          // placeholder goes. Retry resends it
           setMessages((prev) => prev.filter((m) => m.id !== assistantMsgId || m.content));
         } else {
           // the turn produced nothing, so take it back off the transcript and put it back in
@@ -1062,9 +1089,11 @@ export const LLMChat = ({
       // the question reaches history before the model is asked: a tab that dies mid-answer
       // then leaves it behind, and the answer the server writes has something to follow. A
       // failure is logged, not fatal — the turn runs either way
+      let userMsgSaved = false;
       if (onUserMessage) {
         try {
           await onUserMessage(userMsg, turnSessionId, literatureBackend, toolProfile, instructionSetId, verbosity);
+          userMsgSaved = turnSessionId !== null && !isSecretChat;
         } catch (err) {
           console.error("Failed to save the user message:", err);
         }
@@ -1095,6 +1124,7 @@ export const LLMChat = ({
         },
         userMsg,
         attachments,
+        userMsgSaved,
       );
     },
     [

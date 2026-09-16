@@ -75,6 +75,46 @@ describe("server-owned turns", () => {
     expect(screen.queryByText(/incomplete/)).toBeNull();
   });
 
+  it("reattaches when the connection fails mid-stream with a thrown network error", async () => {
+    // what a laptop waking up looks like: fetch rejects the in-flight read with a TypeError
+    script = async (call, opts) => {
+      await open(opts);
+      if (call.method === "POST") {
+        emit(opts, 0, { type: "tool_use", id: "tu1", name: "search_genes", input: { query: "APOE" } });
+        throw new TypeError("network error");
+      }
+      emit(opts, 1, { type: "content", content: "APOE is" });
+      emit(opts, 2, DONE);
+    };
+    const onStreamingComplete = vi.fn();
+    render(<LLMChat sessionId="s1" onStreamingComplete={onStreamingComplete} />);
+
+    send("Tell me about APOE");
+
+    await waitFor(() => expect(onStreamingComplete).toHaveBeenCalled());
+    expect(calls.map((c) => c.method)).toEqual(["POST", "GET"]);
+    expect(calls[1].url).toContain("from_seq=1");
+    expect(onStreamingComplete.mock.calls[0][1].content).toContain("APOE is");
+    expect(screen.getByText("Tell me about APOE")).toBeTruthy();
+    expect(screen.queryByText(/network error/)).toBeNull();
+  });
+
+  it("keeps a saved question on screen when the request never reached the server", async () => {
+    script = async (call, opts) => {
+      if (call.method === "POST") throw new TypeError("network error");
+      await opts.onopen({ ok: false, status: 404, type: "default", headers: { get: () => "application/json" } });
+    };
+    const onUserMessage = vi.fn(async () => {});
+    render(<LLMChat sessionId="s1" onUserMessage={onUserMessage} />);
+
+    send("a question");
+
+    await waitFor(() => expect(screen.getByText(/Could not reach the server/)).toBeTruthy());
+    expect(calls.map((c) => c.method)).toEqual(["POST", "GET"]);
+    expect(screen.getByText("a question")).toBeTruthy();
+    expect((screen.getByRole("textbox") as HTMLTextAreaElement).value).toBe("");
+  });
+
   it("attaches to a turn that was already running when the session was opened", async () => {
     script = async (_call, opts) => {
       await open(opts);
