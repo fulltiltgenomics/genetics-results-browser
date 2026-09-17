@@ -11,6 +11,11 @@ const sentBodies: any[] = [];
 
 vi.mock("@microsoft/fetch-event-source", () => ({
   fetchEventSource: vi.fn(async (_url: string, opts: any) => {
+    if (opts.method === "GET") {
+      // the reattach after a stream ended without `done`: the server no longer has the turn
+      await opts.onopen({ ok: false, status: 404, type: "default", headers: { get: () => "application/json" } });
+      return;
+    }
     sentBodies.push(JSON.parse(opts.body));
     await opts.onopen({ ok: true, headers: { get: () => "text/event-stream" } });
     emit = (data: unknown) => opts.onmessage({ data: JSON.stringify(data) });

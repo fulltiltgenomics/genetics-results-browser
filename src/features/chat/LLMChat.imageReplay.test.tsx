@@ -16,6 +16,11 @@ const sentBodies: any[] = [];
 let sendDone = true;
 vi.mock("@microsoft/fetch-event-source", () => ({
   fetchEventSource: vi.fn(async (_url: string, init: any) => {
+    if (init.method === "GET") {
+      // the reattach after a stream ended without `done`: the server no longer has the turn
+      await init.onopen({ ok: false, status: 404, type: "default", headers: { get: () => "application/json" } });
+      return;
+    }
     sentBodies.push(JSON.parse(init.body));
     await init.onopen({ ok: true, headers: { get: () => "text/event-stream" } });
     init.onmessage({ data: JSON.stringify({ type: "content", content: "Here is the plot." }) });
@@ -92,6 +97,8 @@ describe("LLMChat generated-image replay", () => {
 
     submit("draw a locus plot");
     await waitFor(() => expect(sentBodies).toHaveLength(1));
+    // the dropped stream is followed by a reattach attempt, which the mock answers 404
+    await waitFor(() => expect(screen.getByRole("textbox")).not.toBeDisabled());
 
     sendDone = true;
     submit("now zoom in");

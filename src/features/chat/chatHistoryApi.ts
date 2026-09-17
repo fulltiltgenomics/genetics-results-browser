@@ -45,6 +45,8 @@ export interface SessionDetail extends ChatSession {
   messages: ChatMessageRecord[];
   isOwner: boolean;
   shared: boolean;
+  /** a turn the server is still running (or has not yet written) for this session; owner only */
+  activeTurn?: { messageId: string } | null;
 }
 
 export async function listSessions(): Promise<ChatSession[]> {
@@ -101,6 +103,7 @@ export async function getSession(sessionId: string): Promise<SessionDetail> {
     shared: data.shared,
     projectId: data.project_id ?? null,
     messages: data.messages.map(mapMessage),
+    activeTurn: data.active_turn ? { messageId: data.active_turn.message_id } : null,
   };
 }
 
