@@ -10,7 +10,8 @@ test("app shell renders and screenshots", async ({ page }) => {
   // theme toggle lives in the Header on every route, independent of data/auth
   await expect(page.getByRole("button", { name: "toggle theme" })).toBeVisible();
 
-  // the FinnGenie disclaimer caption always renders on the landing (chat) page
+  // the FinnGenie disclaimer caption renders on the landing (chat) page at desktop widths
+  // (hidden on phones to leave room for the chat)
   await expect(page.getByText(/FinnGenie is an AI tool/i)).toBeVisible();
 
   const file = await snapshot(page, "smoke-home");
