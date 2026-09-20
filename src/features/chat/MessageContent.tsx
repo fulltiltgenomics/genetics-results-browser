@@ -1,11 +1,14 @@
+import { useMemo } from "react";
 import { Box } from "@mui/material";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { PluggableList } from "unified";
+import { ArtifactLink } from "./ArtifactLink";
 import { FileDownload } from "./FileDownload";
 import { MarkdownTable } from "./MarkdownTable";
 import { ToolCallDisclosure } from "./ToolCallDisclosure";
 import { decodeFileName } from "./fileMarker";
+import { artifactNameFromHref, linkifyArtifactsPlugin } from "./linkifyArtifacts";
 import { decodeToolCallMarker } from "./toolCallMarker";
 
 // the three embedded-object markers a message's text can carry: [IMAGE:format:alt:base64data],
@@ -14,7 +17,31 @@ import { decodeToolCallMarker } from "./toolCallMarker";
 const EMBEDDED_MARKER_REGEX =
   /\[IMAGE:([^:]+):([^:]+):([^\]]+)\]|\[FILE:([^:\]]+):([^:\]]+):([^\]]+)\]|\[TOOLUSE:([A-Za-z0-9+/=]*)\]/g;
 
-const MARKDOWN_COMPONENTS: Components = { table: MarkdownTable };
+type Artifact = { mime: string; data: string };
+
+/**
+ * Every file this message carries, by the name the analysis saved it under.
+ *
+ * Built from the whole message before any of it renders, because the narration that names a
+ * file usually comes AFTER the marker that carries it, and a mention before the marker has to
+ * link too.
+ */
+const collectArtifacts = (content: string): Map<string, Artifact> => {
+  const artifacts = new Map<string, Artifact>();
+  EMBEDDED_MARKER_REGEX.lastIndex = 0;
+  let match;
+  while ((match = EMBEDDED_MARKER_REGEX.exec(content)) !== null) {
+    const [, format, alt, base64Data, fileMime, fileName, fileData] = match;
+    if (fileData !== undefined) {
+      artifacts.set(decodeFileName(fileName), { mime: fileMime, data: fileData });
+    } else if (base64Data !== undefined) {
+      // an image's alt text IS the file name the sandbox wrote, so a mention of the .png
+      // saves the same bytes the transcript is already showing
+      artifacts.set(decodeFileName(alt), { mime: `image/${format}`, data: base64Data });
+    }
+  }
+  return artifacts;
+};
 
 /**
  * Renders message content, handling embedded objects separately from markdown.
@@ -35,16 +62,39 @@ export const MessageContent = ({
   content: string;
   rehypePlugins?: PluggableList;
 }) => {
+  const artifacts = useMemo(() => collectArtifacts(content), [content]);
+
+  const plugins = useMemo<PluggableList | undefined>(() => {
+    if (artifacts.size === 0) return rehypePlugins;
+    return [...(rehypePlugins ?? []), linkifyArtifactsPlugin([...artifacts.keys()])];
+  }, [artifacts, rehypePlugins]);
+
+  const components = useMemo<Components>(
+    () => ({
+      table: MarkdownTable,
+      a: ({ href, children, ...props }) => {
+        const name = artifactNameFromHref(href);
+        const artifact = name === null ? undefined : artifacts.get(name);
+        if (!artifact) {
+          return (
+            <a href={href} {...props}>
+              {children}
+            </a>
+          );
+        }
+        return <ArtifactLink mime={artifact.mime} name={name!} data={artifact.data} />;
+      },
+    }),
+    [artifacts],
+  );
+
   if (
     !content.includes("[IMAGE:") &&
     !content.includes("[FILE:") &&
     !content.includes("[TOOLUSE:")
   ) {
     return (
-      <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
-        rehypePlugins={rehypePlugins}
-        components={MARKDOWN_COMPONENTS}>
+      <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={plugins} components={components}>
         {content}
       </ReactMarkdown>
     );
@@ -67,8 +117,8 @@ export const MessageContent = ({
           <ReactMarkdown
             key={`text-${keyIndex++}`}
             remarkPlugins={[remarkGfm]}
-            rehypePlugins={rehypePlugins}
-            components={MARKDOWN_COMPONENTS}>
+            rehypePlugins={plugins}
+            components={components}>
             {textPart}
           </ReactMarkdown>
         );
@@ -123,8 +173,8 @@ export const MessageContent = ({
         <ReactMarkdown
           key={`text-${keyIndex++}`}
           remarkPlugins={[remarkGfm]}
-          rehypePlugins={rehypePlugins}
-          components={MARKDOWN_COMPONENTS}>
+          rehypePlugins={plugins}
+          components={components}>
           {remainingText}
         </ReactMarkdown>
       );
