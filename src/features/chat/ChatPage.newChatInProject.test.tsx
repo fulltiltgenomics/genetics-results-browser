@@ -35,6 +35,12 @@ vi.mock("./MemoryDialog", () => ({ MemoryDialog: () => null }));
 vi.mock("./schemaApi", () => ({ useSchema: () => ({ data: undefined }) }));
 
 const now = "2026-09-09T00:00:00Z";
+const MOVE_TO = "File this conversation in a project";
+
+// the sidebar's New Chat button carries the same text as an untitled row, so rows are
+// looked up inside their project section
+const section = (container: HTMLElement, id: string) =>
+  container.querySelector(`[data-project-id="${id}"]`) as HTMLElement;
 
 const wireProject = (id: string, name: string) => ({
   id,
@@ -105,11 +111,6 @@ beforeEach(() => {
 });
 
 describe("ChatPage discards an empty eager chat", () => {
-  // the sidebar's New Chat button carries the same text as an untitled row, so rows are
-  // looked up inside their project section
-  const section = (container: HTMLElement, id: string) =>
-    container.querySelector(`[data-project-id="${id}"]`) as HTMLElement;
-
   it("deletes the chat created by a project's + when another conversation is opened", async () => {
     server.use(...baseHandlers([wireSession("s1", "APOE and lipids", null)]));
     const { container } = renderChatPage();
@@ -166,25 +167,18 @@ describe("ChatPage new chat in a project", () => {
     expect(createBodies[0]).toMatchObject({ project_id: "p1" });
   });
 
-  it("inherits the current project on the plain New Chat button, and follows the caret", async () => {
+  it("starts the plain New Chat unfiled even right after a chat in a project", async () => {
     server.use(...baseHandlers([wireSession("s1", "APOE and lipids", null)]));
     renderChatPage();
 
-    // "+" in a section sets the current project; the New Chat button then inherits it
     fireEvent.click(await screen.findByRole("button", { name: "New chat in pQTL network" }));
     await waitFor(() => expect(createBodies).toHaveLength(1));
-    expect(await screen.findByText("Project: pQTL network")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId("llm-project")).toHaveTextContent("p2"));
 
     fireEvent.click(screen.getAllByRole("button", { name: "New Chat" })[0]);
     await waitFor(() => expect(createBodies).toHaveLength(2));
-    expect(createBodies[1]).toMatchObject({ project_id: "p2" });
-
-    // the caret switches it back to unfiled
-    fireEvent.click(screen.getByRole("button", { name: "Choose project for new chat" }));
-    fireEvent.click(screen.getByRole("menuitem", { name: "No project" }));
-    fireEvent.click(screen.getAllByRole("button", { name: "New Chat" })[0]);
-    await waitFor(() => expect(createBodies).toHaveLength(3));
-    expect((createBodies[2] as { project_id?: string }).project_id).toBeUndefined();
+    expect((createBodies[1] as { project_id?: string }).project_id).toBeUndefined();
+    await waitFor(() => expect(screen.getByTestId("llm-project")).toHaveTextContent("null"));
   });
 
   it("files an unfiled conversation from the row menu", async () => {
@@ -219,17 +213,15 @@ describe("ChatPage new chat in a project", () => {
     renderChatPage();
 
     fireEvent.click(await screen.findByRole("button", { name: "New chat in IBD" }));
-    expect(await screen.findByText("Project: IBD")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId("llm-project")).toHaveTextContent("p1"));
+    expect(screen.getByRole("button", { name: MOVE_TO })).toBeInTheDocument();
 
     fireEvent.click(screen.getAllByRole("button", { name: "Secret Chat" })[0]);
     await screen.findByText("Not Saved");
-    expect(screen.queryByText("Project: IBD")).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: "Choose project for new chat" }),
-    ).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: MOVE_TO })).not.toBeInTheDocument();
   });
 
-  it("keeps the project of a deep-linked conversation the session list has not returned", async () => {
+  it("passes a deep-linked conversation's project to the chat, but not to the next New Chat", async () => {
     // msw takes the first matching handler, so the detail override has to precede the base one
     server.use(
       http.get("*/v1/chat/sessions/:sessionId", ({ params }) =>
@@ -242,27 +234,32 @@ describe("ChatPage new chat in a project", () => {
       ),
       ...baseHandlers([]),
     );
-    renderChatPage("/chat/s-filed");
+    const { container } = renderChatPage("/chat/s-filed");
 
-    expect(await screen.findByText("Project: IBD")).toBeInTheDocument();
     await waitFor(() => expect(screen.getByTestId("llm-project")).toHaveTextContent("p1"));
+    // the sidebar opens the section the conversation is filed in
+    await waitFor(() =>
+      expect(within(section(container, "p1")).getByRole("button", { name: "Project: IBD" })).toHaveAttribute(
+        "aria-expanded",
+        "true",
+      ),
+    );
 
     fireEvent.click(screen.getAllByRole("button", { name: "New Chat" })[0]);
     await waitFor(() => expect(createBodies).toHaveLength(1));
-    expect(createBodies[0]).toMatchObject({ project_id: "p1" });
+    expect((createBodies[0] as { project_id?: string }).project_id).toBeUndefined();
   });
 
-  it("files a lazily created session into the current project", async () => {
+  it("creates a lazily created session unfiled", async () => {
     server.use(...baseHandlers([wireSession("s1", "APOE and lipids", null)]));
     renderChatPage();
+    await screen.findByText("APOE and lipids");
 
-    fireEvent.click(await screen.findByRole("button", { name: "Choose project for new chat" }));
-    fireEvent.click(screen.getByRole("menuitem", { name: "IBD" }));
     // no session yet: the first send is what creates one
     fireEvent.click(screen.getByRole("button", { name: "send" }));
 
     await waitFor(() => expect(createBodies).toHaveLength(1));
-    expect(createBodies[0]).toMatchObject({ project_id: "p1" });
+    expect((createBodies[0] as { project_id?: string }).project_id).toBeUndefined();
   });
 
   it("puts a conversation back in its project when the move fails", async () => {
@@ -285,7 +282,7 @@ describe("ChatPage new chat in a project", () => {
     const section = (id: string) =>
       container.querySelector(`[data-project-id="${id}"]`) as HTMLElement;
 
-    expect(await screen.findByText("Project: IBD")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId("llm-project")).toHaveTextContent("p1"));
     const row = await waitFor(() => within(section("p1")).getByText("IBD fine-mapping"));
 
     fireEvent.mouseEnter(row);
@@ -297,7 +294,6 @@ describe("ChatPage new chat in a project", () => {
       expect(within(section("p1")).getByText("IBD fine-mapping")).toBeInTheDocument(),
     );
     expect(section("p2").textContent).not.toContain("IBD fine-mapping");
-    expect(screen.getByText("Project: IBD")).toBeInTheDocument();
     expect(screen.getByTestId("llm-project")).toHaveTextContent("p1");
   });
 
@@ -326,7 +322,7 @@ describe("ChatPage new chat in a project", () => {
     const section = (id: string) =>
       container.querySelector(`[data-project-id="${id}"]`) as HTMLElement;
 
-    expect(await screen.findByText("Project: IBD")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId("llm-project")).toHaveTextContent("p1"));
     const row = await waitFor(() => within(section("p1")).getByText("IBD fine-mapping"));
 
     fireEvent.mouseEnter(row);
@@ -336,7 +332,7 @@ describe("ChatPage new chat in a project", () => {
     await waitFor(() => expect(moveBodies).toHaveLength(1));
     // the rollback puts it back in IBD, not in the unfiled section it was never in
     await waitFor(() => expect(screen.getByTestId("llm-project")).toHaveTextContent("p1"));
-    expect(screen.getByText("Project: IBD")).toBeInTheDocument();
+    expect(within(section("p1")).getByText("IBD fine-mapping")).toBeInTheDocument();
   });
 
   it("unfiles the open conversation when its project is deleted and its chats are kept", async () => {
@@ -360,7 +356,6 @@ describe("ChatPage new chat in a project", () => {
     );
     renderChatPage("/chat/s1");
 
-    expect(await screen.findByText("Project: IBD")).toBeInTheDocument();
     await waitFor(() => expect(screen.getByTestId("llm-project")).toHaveTextContent("p1"));
 
     fireEvent.click(screen.getByRole("button", { name: "Project menu: IBD" }));

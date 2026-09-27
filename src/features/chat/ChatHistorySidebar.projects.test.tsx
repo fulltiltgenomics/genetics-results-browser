@@ -42,7 +42,6 @@ const makeSpies = () => ({
   onDeleteSession: vi.fn<(sessionId: string) => void | Promise<void>>(),
   onTogglePinSession: vi.fn<(sessionId: string, wasPinned: boolean) => void | Promise<void>>(),
   onNewChatInProject: vi.fn<(projectId: string) => void>(),
-  onSelectCurrentProject: vi.fn<(projectId: string | null) => void>(),
   onCreateProject: vi.fn<(name: string) => Promise<Project>>(),
   onRenameProject: vi.fn<(projectId: string, name: string) => Promise<void>>().mockResolvedValue(),
   onDeleteProject: vi
@@ -61,7 +60,7 @@ type Handlers = Partial<ReturnType<typeof makeSpies>>;
 const renderSidebar = (
   sessions: ChatSession[],
   handlers: Handlers = {},
-  extra: { isSecretChat?: boolean; currentProjectId?: string | null; projects?: Project[] } = {},
+  extra: { currentProjectId?: string | null; projects?: Project[] } = {},
 ) => {
   const spies = { ...makeSpies(), ...handlers };
   const { container } = render(
@@ -73,7 +72,6 @@ const renderSidebar = (
       loading={false}
       projects={extra.projects ?? PROJECTS}
       currentProjectId={extra.currentProjectId ?? null}
-      isSecretChat={extra.isSecretChat ?? false}
       {...spies}
     />,
   );
@@ -159,18 +157,9 @@ describe("ChatHistorySidebar project sections", () => {
     expect(onNewChatInProject).toHaveBeenCalledWith("p2");
   });
 
-  it("picks the project the next new chat lands in", () => {
-    const { onSelectCurrentProject } = renderSidebar([UNFILED], {}, { currentProjectId: "p1" });
-    expect(screen.getByText("Project: IBD")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: "Choose project for new chat" }));
-    fireEvent.click(screen.getByRole("menuitem", { name: "No project" }));
-    expect(onSelectCurrentProject).toHaveBeenCalledWith(null);
-  });
-
-  it("hides the filing caption for a secret chat", () => {
-    renderSidebar([UNFILED], {}, { isSecretChat: true, currentProjectId: "p1" });
-    expect(screen.queryByText("Project: IBD")).not.toBeInTheDocument();
+  it("offers no project choice on the New Chat button itself", () => {
+    renderSidebar([UNFILED], {}, { currentProjectId: "p1" });
+    expect(screen.queryByText(/^Project: /)).not.toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Choose project for new chat" }),
     ).not.toBeInTheDocument();

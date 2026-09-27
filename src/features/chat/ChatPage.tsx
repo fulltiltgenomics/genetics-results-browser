@@ -79,8 +79,10 @@ const ChatPage = () => {
   const [actionMenuAnchorEl, setActionMenuAnchorEl] = useState<HTMLElement | null>(null);
   const [datasetsOpen, setDatasetsOpen] = useState(false);
   const { projects, create: createProject, rename: renameProject, remove: removeProject, reload: reloadProjects } = useProjects();
-  // the project a new chat is filed into: set by opening a filed conversation or by a section
-  // "+", cleared at home. Both creation paths (eager below, lazy in ensureSession) read it.
+  // the project of the conversation in view, so the sidebar keeps its section open and a move
+  // or a project deletion can follow it. Neither creation path reads it: a new chat is unfiled
+  // unless started from a section "+", or opening an old filed chat would silently decide where
+  // the next New Chat lands
   const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
   // the sidebar's "Project memory" item; null keeps the dialog closed
   const [memoryProjectId, setMemoryProjectId] = useState<string | null>(null);
@@ -271,7 +273,6 @@ const ChatPage = () => {
     }
   };
 
-  // `projectId` omitted keeps the current project; passing null explicitly starts an unfiled chat
   /** delete the eagerly created chat the user is leaving if nothing was ever said in it.
    * `keep` is the chat being navigated to, so re-selecting the same row is not a leave. */
   const discardEmptyEagerSession = (keep?: string) => {
@@ -285,15 +286,14 @@ const ChatPage = () => {
       .catch((err) => console.error("Failed to discard empty chat:", err));
   };
 
-  const handleNewChat = async (projectId?: string | null) => {
+  const handleNewChat = async (projectId: string | null = null) => {
     discardEmptyEagerSession();
-    const targetProjectId = projectId === undefined ? currentProjectId : projectId;
-    setCurrentProjectId(targetProjectId);
+    setCurrentProjectId(projectId);
     setIsSecretChat(false);
     setSeedInput(undefined);
     resetToUserDefaults();
     try {
-      const session = await createSession(undefined, targetProjectId ?? undefined);
+      const session = await createSession(undefined, projectId ?? undefined);
       setSessions((prev) => [{ ...session, preview: undefined, rating: undefined }, ...prev]);
       eagerSessionIdRef.current = session.id;
       isNewSession.current = true;
@@ -537,7 +537,7 @@ const ChatPage = () => {
     const existing = activeSessionId ?? inlineSessionIdRef.current;
     if (existing) return existing;
 
-    const session = await createSession(undefined, currentProjectId ?? undefined);
+    const session = await createSession();
 
     // adopt the id WITHOUT a chatKey change, which would remount LLMChat mid-send
     inlineSessionIdRef.current = session.id;
@@ -559,7 +559,7 @@ const ChatPage = () => {
     urlSessionLoadedRef.current = true;
     navigate(`/chat/${session.id}`, { replace: true });
     return session.id;
-  }, [activeSessionId, isSecretChat, secretSessionId, currentProjectId, navigate]);
+  }, [activeSessionId, isSecretChat, secretSessionId, navigate]);
 
   // called after first exchange completes - saves the initial messages
   const handleFirstExchange = useCallback(
@@ -1121,14 +1121,12 @@ const ChatPage = () => {
             loading={loading}
             projects={projects}
             currentProjectId={currentProjectId}
-            onSelectCurrentProject={setCurrentProjectId}
             onNewChatInProject={(projectId) => handleNewChat(projectId)}
             onCreateProject={createProject}
             onRenameProject={renameProject}
             onDeleteProject={handleDeleteProject}
             onMoveSession={handleMoveSession}
             onOpenProjectMemory={setMemoryProjectId}
-            isSecretChat={isSecretChat}
           />
         </Box>
         {/* sidebar: temporary drawer on < md */}
@@ -1153,14 +1151,12 @@ const ChatPage = () => {
               onAfterSelect={() => setMobileDrawerOpen(false)}
               projects={projects}
               currentProjectId={currentProjectId}
-              onSelectCurrentProject={setCurrentProjectId}
               onNewChatInProject={(projectId) => handleNewChat(projectId)}
               onCreateProject={createProject}
               onRenameProject={renameProject}
               onDeleteProject={handleDeleteProject}
               onMoveSession={handleMoveSession}
               onOpenProjectMemory={setMemoryProjectId}
-              isSecretChat={isSecretChat}
             />
           </Drawer>
         )}

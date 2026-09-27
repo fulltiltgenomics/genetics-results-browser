@@ -25,7 +25,6 @@ import {
 } from "@mui/material";
 import {
   Add as AddIcon,
-  ArrowDropDown as ArrowDropDownIcon,
   Delete as DeleteIcon,
   VisibilityOff as VisibilityOffIcon,
   InfoOutlined as InfoOutlinedIcon,
@@ -57,7 +56,6 @@ interface ChatHistorySidebarProps {
   // filing surface; absent (the pin/delete-only sidebar) when the parent passes no projects
   projects?: Project[];
   currentProjectId?: string | null;
-  onSelectCurrentProject?: (projectId: string | null) => void;
   onNewChatInProject?: (projectId: string) => void;
   onCreateProject?: (name: string) => Promise<Project>;
   onRenameProject?: (projectId: string, name: string) => Promise<void>;
@@ -70,9 +68,6 @@ interface ChatHistorySidebarProps {
     previousProjectId: string | null,
   ) => Promise<void>;
   onOpenProjectMemory?: (projectId: string) => void;
-  // a secret chat is never persisted, so it has nothing to file: hide the filing affordances
-  // that would offer to put *this* conversation somewhere
-  isSecretChat?: boolean;
 }
 
 // group sessions by date
@@ -271,14 +266,12 @@ export const ChatHistorySidebar = ({
   onAfterSelect,
   projects = [],
   currentProjectId = null,
-  onSelectCurrentProject,
   onNewChatInProject,
   onCreateProject,
   onRenameProject,
   onDeleteProject,
   onMoveSession,
   onOpenProjectMemory,
-  isSecretChat = false,
 }: ChatHistorySidebarProps) => {
   const theme = useTheme();
   // on touch/mobile the delete icon is always visible (no hover); desktop keeps hover-reveal
@@ -309,7 +302,6 @@ export const ChatHistorySidebar = ({
   const [rowMenu, setRowMenu] = useState<{ anchor: HTMLElement; session: ChatSession } | null>(null);
   // non-null while the "New project…" field inside the move menu is open
   const [moveNewName, setMoveNewName] = useState<string | null>(null);
-  const [newChatProjectAnchor, setNewChatProjectAnchor] = useState<HTMLElement | null>(null);
   // filing by drag uses the native HTML5 drag events rather than a drag library: the
   // "Move to…" menu already carries the keyboard and touch path this gesture is weak at, so
   // the only thing left to cover is the mouse, and that needs no dependency
@@ -347,7 +339,6 @@ export const ChatHistorySidebar = ({
       .find((s) => s.id === sessionId) ??
     null;
   const grouped = groupSessionsByDate(unfiled);
-  const currentProject = projects.find((p) => p.id === currentProjectId) ?? null;
 
   const loadProjectSessions = useCallback(async (projectId: string) => {
     setProjectLoading((prev) => ({ ...prev, [projectId]: true }));
@@ -629,19 +620,6 @@ export const ChatHistorySidebar = ({
           {/* spacer to match Secret Chat row's info icon width */}
           <InfoOutlinedIcon fontSize="small" sx={{ visibility: "hidden" }} />
         </Box>
-        {filingEnabled && !isSecretChat && projects.length > 0 && (
-          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, pl: 0.5 }}>
-            <Typography variant="caption" color="text.secondary" noWrap>
-              {currentProject ? `Project: ${currentProject.name}` : "No project"}
-            </Typography>
-            <IconButton
-              size="small"
-              aria-label="Choose project for new chat"
-              onClick={(e) => setNewChatProjectAnchor(e.currentTarget)}>
-              <ArrowDropDownIcon fontSize="small" />
-            </IconButton>
-          </Box>
-        )}
         <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
           <Button
             variant="outlined"
@@ -880,32 +858,6 @@ export const ChatHistorySidebar = ({
           )}
         </Box>
       )}
-
-      {/* which project the next new chat lands in */}
-      <Menu
-        anchorEl={newChatProjectAnchor}
-        open={Boolean(newChatProjectAnchor)}
-        onClose={() => setNewChatProjectAnchor(null)}>
-        <MenuItem
-          selected={currentProjectId === null}
-          onClick={() => {
-            onSelectCurrentProject?.(null);
-            setNewChatProjectAnchor(null);
-          }}>
-          No project
-        </MenuItem>
-        {projects.map((project) => (
-          <MenuItem
-            key={project.id}
-            selected={project.id === currentProjectId}
-            onClick={() => {
-              onSelectCurrentProject?.(project.id);
-              setNewChatProjectAnchor(null);
-            }}>
-            {project.name}
-          </MenuItem>
-        ))}
-      </Menu>
 
       {/* per-project header menu. disableRestoreFocus: closing it would otherwise pull focus
           back to the "⋯" button and blur the inline rename field it just opened */}
