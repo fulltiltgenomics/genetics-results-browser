@@ -998,6 +998,7 @@ export const ChatHistorySidebar = ({
 };
 
 function omit<T>(record: Record<string, T>, key: string): Record<string, T> {
-  const { [key]: _dropped, ...rest } = record;
+  const rest = { ...record };
+  delete rest[key];
   return rest;
 }
