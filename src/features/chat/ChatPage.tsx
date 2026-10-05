@@ -28,7 +28,6 @@ import {
   rateMessage,
   generateTitle,
   getAttachment,
-  getAttachmentText,
   uploadAttachment,
   shareSession,
   forkSession,
@@ -408,13 +407,15 @@ const ChatPage = () => {
       const hasAttachments = msg.attachments && msg.attachments.length > 0;
       if (!hasContent && !hasAttachments) return;
 
+      let uploadedAttachments: FileAttachment[] | undefined;
+
       // for user messages with attachments, upload files and store metadata in contentJson
       let contentJson = msg.contentJson;
       if (msg.role === "user" && hasAttachments) {
         // upload every attachment type, not just images: an un-uploaded data file
         // survives only as long as the page's in-memory File, so reopening the session
         // would leave the model with a filename and no contents
-        const uploadedAttachments = await Promise.all(
+        uploadedAttachments = await Promise.all(
           msg.attachments!.map(async (a) => {
             if (a.serverId) return a;
             // images are re-derived from the preview data URL; data files carry the
@@ -442,6 +443,7 @@ const ChatPage = () => {
           mimeType: a.mimeType,
           serverId: a.serverId,
           status: a.status,
+          preview: a.preview,
         }));
         contentJson = JSON.stringify({ attachments: attachmentMeta });
       }
@@ -451,6 +453,7 @@ const ChatPage = () => {
       } catch (err) {
         console.error("Failed to save message:", err);
       }
+      return uploadedAttachments;
     },
     [],
   );
@@ -473,8 +476,9 @@ const ChatPage = () => {
     ) => {
       if (isSecretChat || !sessionId) return;
       if (savedMessageIds.current.has(userMessage.id)) return;
-      await saveMessageToBackend(sessionId, userMessage, literatureBackend, toolProfile, instructionSetId, verbosity);
+      const uploaded = await saveMessageToBackend(sessionId, userMessage, literatureBackend, toolProfile, instructionSetId, verbosity);
       savedMessageIds.current.add(userMessage.id);
+      return uploaded;
     },
     [saveMessageToBackend, isSecretChat],
   );
@@ -811,8 +815,9 @@ const ChatPage = () => {
     });
   };
 
-  // restore attachment payloads from the server: image previews, and the text of data
-  // files so replayed turns still carry their contents
+  // restore image previews from the server. A data file needs nothing fetched: its preview
+  // is in the message metadata, and a message saved before previews were persisted replays
+  // its reference header alone, which the model can still read the file through
   const loadAttachmentPreviews = useCallback(
     async (sessionId: string, messages: ChatMessage[]): Promise<ChatMessage[]> => {
       const updatedMessages = await Promise.all(
@@ -834,16 +839,6 @@ const ChatPage = () => {
                   return { ...att, previewUrl };
                 } catch (err) {
                   console.error("Failed to load attachment preview:", err);
-                  return att;
-                }
-              }
-              if (att.type !== "image" && att.serverId && !att.textContent) {
-                try {
-                  return { ...att, textContent: await getAttachmentText(sessionId, att.serverId) };
-                } catch (err) {
-                  // pre-fix messages have no serverId at all and are unrecoverable; this
-                  // path only fires when the upload succeeded but the sidecar is missing
-                  console.error("Failed to load attachment text:", err);
                   return att;
                 }
               }

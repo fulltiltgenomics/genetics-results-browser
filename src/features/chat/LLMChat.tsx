@@ -117,6 +117,7 @@ import { SHOW_TOOLS_CONTROL } from "../../config/showToolsControl";
 import { PendingAttachments, MessageAttachments } from "./FileAttachments";
 import { dataFileSizeError, getAttachmentType, isValidAttachmentType } from "./chatHistoryApi";
 import { excelFileToTsv } from "./excelToTsv";
+import { fileReferenceBlock, readFilePreview } from "./fileReference";
 import { stripImageMarkers } from "./imageMarker";
 import { encodeFileMarker, stripFileMarkers } from "./fileMarker";
 import { useSchema } from "./schemaApi";
@@ -397,12 +398,14 @@ export const LLMChat = ({
       const attachmentType = getAttachmentType(file.type, file.name);
 
       // Excel is measured on its TSV conversion, as the backend measures its TSV sidecar,
-      // because the TSV is what the sandbox receives. A workbook that fails to parse here is
-      // left for the upload to judge
+      // because the TSV is what the sandbox receives; the same conversion yields its preview.
+      // A workbook that fails to parse here is left for the upload to judge
       let deliveredBytes = file.size;
+      let excelTsv: string | undefined;
       if (attachmentType === "excel") {
         try {
-          deliveredBytes = new Blob([await excelFileToTsv(file)]).size;
+          excelTsv = await excelFileToTsv(file);
+          deliveredBytes = new Blob([excelTsv]).size;
         } catch {
           // fall through with the raw size
         }
@@ -411,6 +414,15 @@ export const LLMChat = ({
       if (sizeError) {
         setError(sizeError);
         continue;
+      }
+
+      let preview: string | undefined;
+      if (attachmentType !== "image" && (attachmentType !== "excel" || excelTsv !== undefined)) {
+        try {
+          preview = await readFilePreview(file, attachmentType, excelTsv);
+        } catch {
+          // the send path retries
+        }
       }
 
       let previewUrl: string | undefined;
@@ -430,6 +442,7 @@ export const LLMChat = ({
         type: attachmentType,
         mimeType: file.type,
         previewUrl,
+        preview,
         status: "pending",
         file,
       });
@@ -931,27 +944,23 @@ export const LLMChat = ({
 
       setWasStopped(false);
 
-      // read data-file text up front: it is inlined into this turn's content and kept
-      // on the message so later turns can resend it. Reading it lazily per turn would
-      // fail once the local File is gone (after a reload the attachment is metadata only).
-      const fileTexts = new Map<string, string>();
+      // the preview is kept on the message so every later turn can resend it once the local
+      // File is gone. An attachment that did not come through the picker has none yet
+      const previews = new Map<string, string>();
       for (const att of attachments ?? []) {
         if (att.type === "image") continue;
         try {
-          fileTexts.set(
-            att.id,
-            att.type === "excel" ? await excelFileToTsv(att.file) : await att.file.text(),
-          );
+          previews.set(att.id, att.preview ?? (await readFilePreview(att.file, att.type)));
         } catch {
-          fileTexts.set(att.id, "(failed to read)");
+          previews.set(att.id, "(failed to read)");
         }
       }
 
-      // convert pending attachments to file attachments for the message; `file` is kept
-      // so the upload can send the original bytes, and is stripped before serialization
-      const messageAttachments: FileAttachment[] | undefined =
+      // `file` is kept so the upload can send the original bytes, and is stripped before
+      // serialization
+      let messageAttachments: FileAttachment[] | undefined =
         attachments && attachments.length > 0
-          ? attachments.map((a) => ({ ...a, textContent: fileTexts.get(a.id) }))
+          ? attachments.map((a) => (a.type === "image" ? a : { ...a, preview: previews.get(a.id) }))
           : undefined;
 
       const userMsgId = crypto.randomUUID();
@@ -978,6 +987,9 @@ export const LLMChat = ({
       abortControllerRef.current = new AbortController();
 
       // build message history, using contentJson when available for full tool context
+      // only a non-secret chat with a saver uploads, so elsewhere a file with no server id
+      // was never meant to have one
+      const keepsFiles = !!onUserMessage && !isSecretChat;
       const messageHistory = [
         ...messages
           .filter((m) => m.content.trim() !== "" || (m.attachments && m.attachments.length > 0))
@@ -1009,7 +1021,7 @@ export const LLMChat = ({
               }
             }
             // for user messages with attachments, rebuild content with images and the
-            // inlined text of data files — replaying only the images would silently drop
+            // reference blocks of data files — replaying only the images would silently drop
             // an attached TSV/Excel from every turn after the one that first sent it
             if (m.role === "user" && m.attachments && m.attachments.length > 0) {
               const content: any[] = [];
@@ -1024,11 +1036,8 @@ export const LLMChat = ({
                       data: base64Data,
                     },
                   });
-                } else if (att.type !== "image" && att.textContent) {
-                  content.push({
-                    type: "text",
-                    text: `[File: ${att.name}]\n${att.textContent}`,
-                  });
+                } else if (att.type !== "image") {
+                  content.push({ type: "text", text: fileReferenceBlock(att, keepsFiles) });
                 }
               }
               if (m.content.trim()) {
@@ -1046,48 +1055,6 @@ export const LLMChat = ({
             return [{ role: m.role, content: m.content }];
           }),
       ];
-
-      // build current user message content with attachments
-      const userContent: any[] = [];
-
-      // add attachments first (images as base64, data files as references)
-      if (attachments && attachments.length > 0) {
-        for (const attachment of attachments) {
-          if (attachment.type === "image" && attachment.previewUrl) {
-            // for images, send as base64 image content
-            const base64Data = attachment.previewUrl.split(",")[1];
-            const mediaType = attachment.mimeType || "image/png";
-            userContent.push({
-              type: "image",
-              source: {
-                type: "base64",
-                media_type: mediaType,
-                data: base64Data,
-              },
-            });
-          } else {
-            // data files are inlined as text, read once above (Excel is binary and was
-            // parsed to TSV there — reading it as text would yield garbage)
-            userContent.push({
-              type: "text",
-              text: `[File: ${attachment.name}]\n${fileTexts.get(attachment.id) ?? "(failed to read)"}`,
-            });
-          }
-        }
-      }
-
-      // add text content
-      if (userMessage.trim()) {
-        userContent.push({ type: "text", text: userMessage });
-      }
-
-      // add current message to history
-      messageHistory.push({
-        role: "user" as const,
-        content: userContent.length === 1 && userContent[0].type === "text"
-          ? userContent[0].text
-          : userContent,
-      });
 
       // resolved BEFORE the request, not after the exchange: `session_id` becomes the `sid`
       // claim of the per-execution sandbox credential, and run_analysis fails closed without
@@ -1108,14 +1075,60 @@ export const LLMChat = ({
       // then leaves it behind, and the answer the server writes has something to follow. A
       // failure is logged, not fatal — the turn runs either way
       let userMsgSaved = false;
+      let turnUserMsg = userMsg;
       if (onUserMessage) {
         try {
-          await onUserMessage(userMsg, turnSessionId, literatureBackend, toolProfile, instructionSetId, verbosity);
+          const uploaded = await onUserMessage(userMsg, turnSessionId, literatureBackend, toolProfile, instructionSetId, verbosity);
           userMsgSaved = turnSessionId !== null && !isSecretChat;
+          if (uploaded) {
+            // later turns replay from state, and need the server ids as much as this one
+            messageAttachments = uploaded;
+            turnUserMsg = { ...userMsg, attachments: uploaded };
+            setMessages((prev) => prev.map((m) => (m.id === userMsgId ? turnUserMsg : m)));
+          }
         } catch (err) {
           console.error("Failed to save the user message:", err);
         }
       }
+
+      // build current user message content with attachments
+      const userContent: any[] = [];
+
+      // add attachments first (images as base64, data files as references)
+      if (messageAttachments) {
+        for (const attachment of messageAttachments) {
+          if (attachment.type === "image" && attachment.previewUrl) {
+            // for images, send as base64 image content
+            const base64Data = attachment.previewUrl.split(",")[1];
+            const mediaType = attachment.mimeType || "image/png";
+            userContent.push({
+              type: "image",
+              source: {
+                type: "base64",
+                media_type: mediaType,
+                data: base64Data,
+              },
+            });
+          } else if (attachment.type !== "image") {
+            userContent.push({ type: "text", text: fileReferenceBlock(attachment, keepsFiles) });
+          }
+        }
+      }
+
+      // add text content
+      if (userMessage.trim()) {
+        userContent.push({ type: "text", text: userMessage });
+      }
+
+      // add current message to history
+      messageHistory.push({
+        role: "user" as const,
+        // a file block always goes as list content: the backend's per-block gate and its
+        // attachments-per-message count skip string content, and the replay is a list too
+        content: userContent.length === 1 && userContent[0].type === "text" && !userContent[0].text.startsWith("[File: ")
+          ? userContent[0].text
+          : userContent,
+      });
 
       const run = newTurnRun(assistantMsgId);
       currentTurnIdRef.current = assistantMsgId;
@@ -1140,7 +1153,7 @@ export const LLMChat = ({
             message_id: assistantMsgId,
           }),
         },
-        userMsg,
+        turnUserMsg,
         attachments,
         userMsgSaved,
       );
@@ -1156,6 +1169,7 @@ export const LLMChat = ({
       sessionId,
       onEnsureSession,
       onUserMessage,
+      isSecretChat,
       runTurn,
       literatureBackend,
       toolProfile,

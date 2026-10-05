@@ -101,12 +101,12 @@ export interface FileAttachment {
   // error message if upload failed
   error?: string;
   // original file, kept on sent messages so the upload can preserve the real bytes
-  // (an Excel file's textContent is parsed TSV, not something we can re-upload)
+  // (an Excel file's preview is parsed TSV, not something we can re-upload)
   file?: File;
-  // model-ready text for data files, inlined as a "[File: name]" block on every turn.
-  // Cached at send time and refetched from the server sidecar when a session is
-  // restored, so replayed turns don't depend on the local File still being around.
-  textContent?: string;
+  // the head of a data file (TSV for Excel), sent under the "[File: name]" reference on every
+  // turn. Persisted with the message metadata, so a replay needs neither the File nor the
+  // server copy; the model reads the whole file through its attachment id instead
+  preview?: string;
 }
 
 export interface PendingAttachment extends FileAttachment {
@@ -186,7 +186,8 @@ export interface LLMChatProps {
 
   /** called with a turn's user message before the request goes out, so the transcript holds
    *  the question whatever happens to this tab afterwards. Awaited: the answer the server
-   *  writes has to land after it */
+   *  writes has to land after it. Resolves to the attachments as uploaded: their server ids
+   *  are what the request's file references carry, so the request is built after this */
   onUserMessage?: (
     userMessage: ChatMessage,
     sessionId: string | null,
@@ -194,7 +195,7 @@ export interface LLMChatProps {
     toolProfile?: string | null,
     instructionSetId?: string | null,
     verbosity?: string | null,
-  ) => Promise<void> | void;
+  ) => Promise<FileAttachment[] | void> | void;
 
   /** a turn the server was still running for this session when it was opened. The component
    *  reattaches to it on mount and streams it as if it had been sent from here */
