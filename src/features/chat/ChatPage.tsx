@@ -412,9 +412,9 @@ const ChatPage = () => {
       // for user messages with attachments, upload files and store metadata in contentJson
       let contentJson = msg.contentJson;
       if (msg.role === "user" && hasAttachments) {
-        // upload every attachment type, not just images: an un-uploaded data file
-        // survives only as long as the page's in-memory File, so reopening the session
-        // would leave the model with a filename and no contents
+        // upload every attachment type, not just images: the upload is what produces the
+        // attachment_id a data file's [File: ...] block carries, and the model reads the
+        // file only through that id
         uploadedAttachments = await Promise.all(
           msg.attachments!.map(async (a) => {
             if (a.serverId) return a;

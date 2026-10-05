@@ -1059,7 +1059,7 @@ export const LLMChat = ({
       // resolved BEFORE the request, not after the exchange: `session_id` becomes the `sid`
       // claim of the per-execution sandbox credential, and run_analysis fails closed without
       // one — so a chat whose session was created afterwards could not run code on its first
-      // turn at all (genetics-results-suite-vda). A failure here is not fatal to the turn:
+      // turn at all. A failure here is not fatal to the turn:
       // every other tool works without a session, so the turn proceeds unpersisted rather
       // than being refused.
       let turnSessionId = sessionId ?? null;
