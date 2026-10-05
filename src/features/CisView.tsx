@@ -423,7 +423,10 @@ const CisView = ({ geneName }: { geneName: string }) => {
                 <>
                   {/* the row label is clipped at titleWidth, so the tooltip carries the full name */}
                   <Typography style={{ fontWeight: "bold" }}>{traitName}</Typography>
-                  {traitCode !== undefined && <Typography>{traitCode}</Typography>}
+                  {/* a row whose name never resolved is labelled with the code itself */}
+                  {traitCode !== undefined && traitCode !== traitName && (
+                    <Typography>{traitCode}</Typography>
+                  )}
                   <Typography>Credible set size: {d.csSize}</Typography>
                   <Box mb={2} />
                   <Typography style={{ fontWeight: "bold" }}>Top PIP variant</Typography>

@@ -381,6 +381,37 @@ describe("geneViewTraitName (credible-set row label)", () => {
     );
   });
 
+  // the accession is shown beside the name by geneViewTraitCode, so the name must not repeat it
+  it("names an Open Targets study without its accession, whichever shape the row arrives in", () => {
+    const ot = (trait: string) =>
+      makeCS({
+        dataType: "GWAS",
+        resource: "Open_Targets",
+        dataset: "Open_Targets_26.09",
+        trait,
+        traitOriginal: "GCST004602",
+      });
+    const bare = ot("GCST004602");
+    const suffixed = ot("Type_2_diabetes_(GCST004602)");
+    const mapping = { GCST004602: "Type 2 diabetes" };
+
+    expect(geneViewTraitName(bare, mapping)).toBe("Type 2 diabetes");
+    expect(geneViewTraitName(suffixed)).toBe("Type 2 diabetes");
+    expect(geneViewTraitName(suffixed, mapping)).toBe("Type 2 diabetes");
+    expect(needsTraitNameMapping([suffixed])).toBe(false);
+    expect(geneViewTraitCode(bare)).toBe("GCST004602");
+    expect(geneViewTraitCode(suffixed)).toBe("GCST004602");
+
+    // only the row's own accession is cut: a parenthesised ending that belongs to the name stays
+    expect(geneViewTraitName(ot("Diabetes_(type_2)"))).toBe("Diabetes (type 2)");
+    // another resource's name is never trimmed, even when it ends in its own code
+    expect(
+      geneViewTraitName(
+        makeCS({ dataType: "GWAS", resource: "FinnGen", trait: "Asthma_(J10)", traitOriginal: "J10" })
+      )
+    ).toBe("Asthma (J10)");
+  });
+
   it("labels eQTL Catalogue rows with their tissue, dropping the default naive condition", () => {
     const cs = (cellType: string) =>
       makeCS({

@@ -271,6 +271,18 @@ export const geneViewTraitCode = (d: CSDatum, study?: string | null): string | u
 };
 
 /**
+ * an Open Targets `trait` may be the bare accession or the study's name with the accession appended
+ * ("Type_2_diabetes_(GCST004602)"). geneViewTraitCode already puts the accession beside the name, so
+ * the appended copy is cut to keep the two release shapes reading the same.
+ */
+const withoutAccessionSuffix = (d: Pick<CSDatum, "resource" | "trait" | "traitOriginal">): string => {
+  const suffix = `_(${d.traitOriginal})`;
+  return d.resource === OPEN_TARGETS_DATA_NAME && d.trait.endsWith(suffix)
+    ? d.trait.slice(0, -suffix.length)
+    : d.trait;
+};
+
+/**
  * full display name of a credible set's trait. the API stores phenostrings with spaces replaced by
  * underscores ("Dementia_in_Alzheimer_disease"), so they are turned back here; `traitNames` (the
  * /v1/trait_name_mapping dictionary) fills in the phenocodes the API left unresolved. QTL rows get
@@ -283,7 +295,7 @@ export const geneViewTraitName = (
 ): string => {
   const resolved = hasUnresolvedTraitName(d) ? traitNames?.[d.traitOriginal!] : undefined;
   // only the API's name is underscore-encoded; dictionary values are already spaced
-  const name = resolved ?? d.trait.replace(/_/g, " ");
+  const name = resolved ?? withoutAccessionSuffix(d).replace(/_/g, " ");
 
   let context = "";
   if (d.resource === EQTL_CATALOGUE_DATA_NAME) {
