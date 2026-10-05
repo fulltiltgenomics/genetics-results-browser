@@ -412,3 +412,29 @@ export function isValidAttachmentType(mimeType: string, fileName: string): boole
     return false;
   }
 }
+
+// a data file is only analysed by delivering it to the code sandbox, so one over the
+// sandbox's per-input cap is useless here. Mirrors the backend's sandbox_client.MAX_INPUT_BYTES,
+// which its upload route enforces; this copy goes stale if that constant changes
+export const MAX_DATA_FILE_BYTES = 16 * 1024 * 1024;
+
+/**
+ * The refusal for a data file over MAX_DATA_FILE_BYTES, or null when it fits. Images are not
+ * delivered to the sandbox and are not checked. `deliveredBytes` is what the sandbox would
+ * receive: the file itself for TSV/CSV, its TSV conversion for Excel.
+ */
+export function dataFileSizeError(
+  type: AttachmentType,
+  name: string,
+  deliveredBytes: number
+): string | null {
+  if (type === "image" || deliveredBytes <= MAX_DATA_FILE_BYTES) return null;
+  const mib = (n: number) => (n / (1024 * 1024)).toFixed(1);
+  return (
+    `${name} is too large to analyse here (${mib(deliveredBytes)} MiB` +
+    `${type === "excel" ? " as TSV" : ""}; the limit for data files is ` +
+    `${MAX_DATA_FILE_BYTES / (1024 * 1024)} MiB). A complete summary-statistics file is ` +
+    "always over it: upload the region, gene or genome-wide-significant rows the question " +
+    "needs instead."
+  );
+}

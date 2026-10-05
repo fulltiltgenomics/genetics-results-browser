@@ -115,7 +115,7 @@ import { useChatOptionsStore } from "./useChatOptions";
 import { APP_NAME } from "../../config/appName";
 import { SHOW_TOOLS_CONTROL } from "../../config/showToolsControl";
 import { PendingAttachments, MessageAttachments } from "./FileAttachments";
-import { getAttachmentType, isValidAttachmentType } from "./chatHistoryApi";
+import { dataFileSizeError, getAttachmentType, isValidAttachmentType } from "./chatHistoryApi";
 import { excelFileToTsv } from "./excelToTsv";
 import { stripImageMarkers } from "./imageMarker";
 import { encodeFileMarker, stripFileMarkers } from "./fileMarker";
@@ -395,6 +395,24 @@ export const LLMChat = ({
       }
 
       const attachmentType = getAttachmentType(file.type, file.name);
+
+      // Excel is measured on its TSV conversion, as the backend measures its TSV sidecar,
+      // because the TSV is what the sandbox receives. A workbook that fails to parse here is
+      // left for the upload to judge
+      let deliveredBytes = file.size;
+      if (attachmentType === "excel") {
+        try {
+          deliveredBytes = new Blob([await excelFileToTsv(file)]).size;
+        } catch {
+          // fall through with the raw size
+        }
+      }
+      const sizeError = dataFileSizeError(attachmentType, file.name, deliveredBytes);
+      if (sizeError) {
+        setError(sizeError);
+        continue;
+      }
+
       let previewUrl: string | undefined;
 
       if (attachmentType === "image") {
