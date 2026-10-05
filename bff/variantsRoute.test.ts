@@ -281,6 +281,23 @@ describe("POST /v1/results — variant list normalize", () => {
       expect(v.annotation.af).toBeNull();
     });
 
+    it("expands a gene on X into X ids when the source codes the chromosome as 23", async () => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async (url: string | URL) => {
+          const u = String(url);
+          if (u.includes("/v1/variant_annotation/gnomad")) return tsv([{ ...annoGnomad[0], chr: "23" }]);
+          if (u.includes("/v1/datasets")) return json(datasets);
+          return tsv([]);
+        })
+      );
+
+      const res = await request(app).post("/api/v1/results").send({ query: "APOE" });
+
+      expect(res.status).toBe(200);
+      expect(res.body.inputVariants.found).toEqual(["X:44908684:T:C"]);
+    });
+
     it("matches the gene case-insensitively", async () => {
       vi.stubGlobal("fetch", routeFetch());
 
@@ -403,6 +420,33 @@ describe("POST /v1/gnomad — deferred per-page/full gnomAD enrichment", () => {
 
     // variant absent from gnomad -> simply omitted from the map (not fabricated)
     expect(res.body.gnomad["1:55039974:G:T"]).toBeUndefined();
+  });
+
+  it("keys a sex-chromosome row by the id it was asked with, and serves a lone row as it is", async () => {
+    // the source codes X as 23 and Y as 24 and holds one row per variant
+    const oneRowEach = [
+      { ...annoGnomad[1], chr: "23", pos: "5000" },
+      { ...annoGnomad[2], chr: "24", pos: "7000" },
+    ];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string | URL) =>
+        String(url).includes("/v1/variant_annotation/gnomad") ? tsv(oneRowEach) : json({}, 404)
+      )
+    );
+
+    const res = await request(app)
+      .post("/api/v1/gnomad")
+      .send({ variants: ["X:5000:T:C", "Y:7000:G:A"] });
+
+    expect(res.status).toBe(200);
+    expect(Object.keys(res.body.gnomad).sort()).toEqual(["X:5000:T:C", "Y:7000:G:A"]);
+    const x = res.body.gnomad["X:5000:T:C"];
+    expect(x.variant).toBe("X:5000:T:C");
+    // the row's own callset and values, with no second row to weigh it against
+    expect(x.genomeOrExome).toBe(annoGnomad[1].genome_or_exome);
+    expect(x.afOverall).toBeCloseTo(Number(annoGnomad[1].AF));
+    expect(res.body.gnomad["Y:7000:G:A"].genomeOrExome).toBe(annoGnomad[2].genome_or_exome);
   });
 
   it("returns an empty map without hitting the upstream for an empty variant list", async () => {

@@ -20,7 +20,8 @@ export const normalizeVariant = (raw: string): string | null => {
   const tryMatch = (s: string): string | null => {
     const m = VARIANT_RE.exec(s);
     if (!m) return null;
-    const chr = m[1] === "23" ? "X" : m[1].toUpperCase().replace(/^MT$/, "MT");
+    const chr =
+      m[1] === "23" ? "X" : m[1] === "24" ? "Y" : m[1].toUpperCase().replace(/^MT$/, "MT");
     return `${chr}:${m[2]}:${m[3].toUpperCase()}:${m[4].toUpperCase()}`;
   };
   const direct = tryMatch(raw);
@@ -339,10 +340,10 @@ export const maybeExpandGeneCodingVariants = async (
     if (af !== null && Number.isFinite(af) && af <= GENE_CODING_MIN_AF) continue;
     if (!r.chr || !r.pos || !r.ref || !r.alt) continue;
     // canonicalize through the same normalizer resolveInput uses, so the annotation map keys match
-    // the variant ids the fan-out later looks up (chr 23 -> X, casing)
+    // the variant ids the fan-out later looks up (chr 23 -> X, 24 -> Y, casing)
     const id = normalizeVariant(`${r.chr}:${r.pos}:${r.ref}:${r.alt}`);
     if (id === null) continue;
-    // gnomAD lists exome and genome records separately, so the same variant can appear twice
+    // one id per variant even if the source serves a variant's exome and genome records separately
     if (seen.has(id)) continue;
     seen.add(id);
     variants.push(id);

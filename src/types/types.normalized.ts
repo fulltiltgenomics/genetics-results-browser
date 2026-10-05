@@ -170,8 +170,8 @@ export interface VariantAnnotation {
 /**
  * gnomAD per-population allele frequencies.
  * Served by adding "gnomad" as a source on POST variant_annotation/{source} (refactor.backend.md §1).
- * Source file merges genomes+exomes (gnomad.genomes.exomes.v4.0.sites): a variant may return two rows
- * (genome_or_exome g/e) — the BFF picks/merges (e.g. prefer larger AN) into one GnomadFreq per variant.
+ * Source file merges genomes+exomes into one row per variant; genomeOrExome (g/e) names the callset
+ * that row's values come from.
  * No popmax in the file → popmax computed client-side as max over byPop.
  */
 export type GnomadPop = "afr" | "amr" | "asj" | "eas" | "fin" | "mid" | "nfe" | "remaining" | "sas";

@@ -168,15 +168,14 @@ const About = () => {
       </Typography>
       <Typography>
         <br />
-        rsids, variant consequence and gene assignments come from gnomAD v4.0.
+        Variant consequence and gene assignments come from gnomAD v4.1.1. rsids are looked up in
+        gnomAD v4.0.
         <br />
-        The <i>vep.most_severe_consequence</i> gnomAD field is used to determine most severe
+        The <i>vep115.most_severe_consequence</i> gnomAD field (VEP 115, GENCODE 49) is used to
         <br />
-        variant consequence. Note that in gnomAD internally, <i>vep.most_severe_consequence</i> is
+        determine most severe variant consequence. The transcripts it is assigned from are Ensembl
         <br />
-        determined by Ensembl and RefSeq annotations, but only Ensembl annotations are shown in the
-        <br />
-        gnomAD browser.
+        transcripts.
       </Typography>
       <Typography>
         <br />

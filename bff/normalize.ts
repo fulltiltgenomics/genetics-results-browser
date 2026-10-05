@@ -23,6 +23,7 @@ import {
   maybeExpandGeneCodingVariants,
   maybeExpandPhenotypeLeads,
   maybeExpandVariantSet,
+  normalizeVariant,
   resolveInput,
 } from "./inputParse.js";
 import { fetchBatched, Semaphore, withRetry } from "./batch.js";
@@ -107,8 +108,8 @@ interface RawDataset {
 }
 
 // gnomad rows from POST variant_annotation/gnomad (JSON array body, like finngen). all fields are
-// strings; AF_* are in scientific notation (e.g. "1.4757e-01"). genome_or_exome is "g"/"e" and a
-// variant may yield TWO rows (genomes + exomes) which the BFF merges into one GnomadFreq.
+// strings; AF_* are in scientific notation (e.g. "1.4757e-01"). genome_or_exome is "g"/"e": the
+// callset the row's values come from. chr is numeric, with X as 23 and Y as 24.
 interface RawGnomadRow {
   chr: string;
   pos: string;
@@ -237,11 +238,17 @@ const GNOMAD_POPS: readonly GnomadPop[] = [
   "sas",
 ];
 
-const gnomadVariantId = (r: RawGnomadRow): string => `${r.chr}:${r.pos}:${r.ref}:${r.alt}`;
+// the map this id keys is read back by the canonical ids the client asked with, so the source's
+// numeric sex chromosomes go through the same normalizer as the input (23 -> X, 24 -> Y)
+const gnomadVariantId = (r: RawGnomadRow): string => {
+  const raw = `${r.chr}:${r.pos}:${r.ref}:${r.alt}`;
+  return normalizeVariant(raw) ?? raw;
+};
 
-// merge the genome+exome duplicate rows for one variant into a single GnomadFreq. we prefer the row
-// with the larger AN (allele number = the larger genotyped cohort, so AF estimates are tighter — and
-// it correctly discards AN=0 rows where AF is undefined). popmax is computed here as the max over byPop.
+// one GnomadFreq per variant. the source is expected to serve one row per variant; should it serve a
+// genome and an exome row, the one with the larger AN wins (allele number = the larger genotyped
+// cohort, so AF estimates are tighter — and it discards AN=0 rows where AF is undefined).
+// popmax is computed here as the max over byPop.
 const mergeGnomadRows = (rows: RawGnomadRow[]): GnomadFreq => {
   const chosen = rows.reduce((best, r) => ((toNum(r.AN) ?? 0) > (toNum(best.AN) ?? 0) ? r : best));
 
@@ -299,7 +306,7 @@ const mergeGnomadRows = (rows: RawGnomadRow[]): GnomadFreq => {
   return freq;
 };
 
-// group raw gnomad rows by canonical variant id, merging the g/e duplicates into one GnomadFreq each.
+// group raw gnomad rows by canonical variant id, one GnomadFreq each.
 const indexGnomad = (rows: RawGnomadRow[]): Map<string, GnomadFreq> => {
   const byVariant = new Map<string, RawGnomadRow[]>();
   for (const r of rows) {
