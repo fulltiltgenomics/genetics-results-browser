@@ -1,68 +1,90 @@
 # adapted from
 # https://github.com/FINNGEN/commons/blob/master/variant_annotation/scripts/hail_functions.py
 
-# get population AFs and VEP consequences and genes from gnomAD (can re-vep also - as of gnomad 3 newer gencode versions contained more noncoding genes that can overshadow good coding annotations)
-# running gencode v29 (vep 95) gave more coding genes than v35 (vep 101)
-# https://gnomad.broadinstitute.org/help/vep
-# could also use a new gencode version but filtering its transcripts to coding
-# for gnomad 4.0 no re-vep was done
-
-# after running for both genomes and exomes, merged the files (requires a lot of disk space for sorting - TODO better output sorted by chr pos alleles in this script):
-# cat
-# <(zcat gnomad.exomes.v4.0.sites.tsv.bgz | head -1 | awk '{print $0"\tgenome_or_exome"}') \
-# <(sort -m -T . -k1,1V -k2,2g -k3,3 -k4,4 \
-# <(zcat gnomad.exomes.v4.0.sites.tsv.bgz | awk 'NR>1 {print $0"\te"}' | sort -T . -k1,1V -k2,2g -k3,3 -k4,4) \
-# <(zcat gnomad.genomes.v4.0.sites.tsv.bgz | awk 'NR>1 {print $0"\tg"}' | sort -T . -k1,1V -k2,2g -k3,3 -k4,4) \
-# ) | bgzip -@4 > gnomad.genomes.exomes.v4.0.sites.tsv.bgz && \
-# tabix -s 1 -b 2 -e 2 gnomad.genomes.exomes.v4.0.sites.tsv.bgz
-
-# to start a cluster:
-# (only use a high number of workers if sure that this works)
-# hailctl dataproc start gnomad --region europe-west1 --zone europe-west1-b --num-workers 10 --max-idle 30m --subnet projects/finngen-refinery-dev/regions/europe-west1/subnetworks/default
+# exports population AFs and VEP consequences and genes from the gnomAD sites tables, one
+# locus-ordered TSV per data type; genetics-results-munge scripts/build_gnomad_annotation.py
+# merges the genome and exome exports and keeps one row per variant
 #
-# to run the job:
-# hailctl dataproc submit gnomad --region europe-west1 gnomad_tsv.py --overwrite
+# gnomAD's shipped VEP is used as is, no re-VEP. 4.1.1 ships two annotations per variant:
+# `vep` (the 4.1 annotation) and `vep115`; --vep-field picks one, and the choice decides the
+# consequence terms and gene symbols every stamped credible set carries
 #
-# to stop the cluster:
-# (don't rely on the automatic idle shutdown)
-# hailctl dataproc stop gnomad --region europe-west1
+# to start a cluster (only use a high number of workers if sure that this works):
+# hailctl dataproc start gnomad --region us-central1 --zone us-central1-a --num-workers 2 \
+#   --num-secondary-workers 16 --max-idle 30m
+#
+# to run the job, first on one contig, then whole:
+# hailctl dataproc submit gnomad --region us-central1 gnomad_tsv.py --data-type genomes \
+#   --vep-field vep115 --out-prefix gs://BUCKET/PREFIX --tmp-dir gs://BUCKET/TMP --contig chr21
+#
+# to stop the cluster (don't rely on the automatic idle shutdown):
+# hailctl dataproc stop gnomad --region us-central1
+
+import argparse
 
 import hail as hl
 
-DATA_TYPE = "genomes"
+VERSION = "4.1.1"
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--data-type", choices=["genomes", "exomes"], required=True)
+parser.add_argument("--vep-field", choices=["vep", "vep115"], required=True)
+parser.add_argument("--out-prefix", required=True, help="gs:// prefix, no trailing slash")
+parser.add_argument("--contig", help="export one contig only, e.g. chr21, to try the job cheaply")
+parser.add_argument(
+    "--tmp-dir",
+    required=True,
+    # the export stages every partition under the temp dir before concatenating; the default is
+    # cluster HDFS, which only the primary workers hold and the genomes export fills
+    help="gs:// directory for Hail's temporary files",
+)
+args = parser.parse_args()
+
+hl.init(tmp_dir=args.tmp_dir)
 
 
 def filter_table(table):
-    # MUC5B:
-    # return table.filter(
-    #    (table.locus == hl.Locus.parse("chr11:1219991", "GRCh38"))
-    #    & (table.alleles[1] == "T")
-    # )
-    # chr21:
-    # return table.filter(table.locus.contig == "chr21")
-    # passing:
-    # return table.filter(hl.len(table.filters) == 0)
-    # non-passing:
-    # return table.filter(hl.len(table.filters) > 0)
+    if args.contig:
+        return hl.filter_intervals(
+            table, [hl.parse_locus_interval(args.contig, reference_genome="GRCh38")]
+        )
     return table
 
 
 def annotate_table(table):
-    canon_pc = table.vep.transcript_consequences.filter(
-        lambda x: (x.canonical == 1)
-        & (x.biotype == "protein_coding")
-        & (x.gene_symbol_source != "Clone_based_ensembl_gene")
-        & (x.consequence_terms.contains(table.vep.most_severe_consequence))
+    vep = table[args.vep_field]
+
+    # not consequence_terms.contains(): on Hail 0.2.139 each call keeps a memory region until the
+    # partition ends, and a task dies at the off-heap limit a few hundred variants in
+    def has_most_severe(x):
+        return (
+            hl.len(x.consequence_terms.filter(lambda term: term == vep.most_severe_consequence)) > 0
+        )
+
+    # the predicates are coalesced because canonical and gene_symbol_source are missing on many
+    # transcripts, and on Hail 0.2.139 filter(...).first() comes back missing when a missing
+    # predicate precedes the first match
+    canon_pc = vep.transcript_consequences.filter(
+        lambda x: hl.coalesce(
+            (x.canonical == 1)
+            & (x.biotype == "protein_coding")
+            & (x.gene_symbol_source != "Clone_based_ensembl_gene")
+            & has_most_severe(x),
+            False,
+        )
     )
 
-    most_severe = table.vep.transcript_consequences.filter(
-        lambda x: (x.biotype == "protein_coding")
-        & (x.gene_symbol_source != "Clone_based_ensembl_gene")
-        & (x.consequence_terms.contains(table.vep.most_severe_consequence))
+    most_severe = vep.transcript_consequences.filter(
+        lambda x: hl.coalesce(
+            (x.biotype == "protein_coding")
+            & (x.gene_symbol_source != "Clone_based_ensembl_gene")
+            & has_most_severe(x),
+            False,
+        )
     )
 
-    most_severe_others = table.vep.transcript_consequences.filter(
-        lambda x: (x.consequence_terms.contains(table.vep.most_severe_consequence))
+    most_severe_others = vep.transcript_consequences.filter(
+        lambda x: (has_most_severe(x))
     )
 
     return table.annotate(
@@ -85,7 +107,7 @@ def annotate_table(table):
         AF_sas=table.freq[table.freq_index_dict["sas_adj"]].AF,
         consequences=hl.array(
             hl.set(
-                table.vep.transcript_consequences.map(
+                vep.transcript_consequences.map(
                     lambda x: hl.struct(
                         gene_symbol=x.gene_symbol,
                         gene_id=x.gene_id,
@@ -97,23 +119,12 @@ def annotate_table(table):
                 )
             )
         ),
-        most_severe=table.vep.most_severe_consequence,
+        most_severe=vep.most_severe_consequence,
         gene_most_severe=hl.if_else(
-            hl.any(
-                lambda x: (x.canonical == 1)
-                & (x.biotype == "protein_coding")
-                & (x.gene_symbol_source != "Clone_based_ensembl_gene")
-                & (x.consequence_terms.contains(table.vep.most_severe_consequence)),
-                table.vep.transcript_consequences,
-            ),
+            hl.len(canon_pc) > 0,
             canon_pc.first().gene_symbol,
             hl.if_else(
-                hl.any(
-                    lambda x: (x.biotype == "protein_coding")
-                    & (x.gene_symbol_source != "Clone_based_ensembl_gene")
-                    & (x.consequence_terms.contains(table.vep.most_severe_consequence)),
-                    table.vep.transcript_consequences,
-                ),
+                hl.len(most_severe) > 0,
                 most_severe.first().gene_symbol,
                 most_severe_others.first().gene_symbol,
                 missing_false=True,
@@ -124,7 +135,13 @@ def annotate_table(table):
 
 
 def export(table, outfile):
-    table.select(
+    # the table stays keyed by locus until here, so the rows leave in reference order
+    # (chr1..22, X, Y, M); re-keying on the string chr would shuffle all of gnomAD
+    table.key_by().select(
+        "#chr",
+        "pos",
+        "ref",
+        "alt",
         "rsids",
         "filters",
         "AN",
@@ -145,16 +162,16 @@ def export(table, outfile):
 
 
 table = hl.read_table(
-    f"gs://gcp-public-data--gnomad/release/4.0/ht/{DATA_TYPE}/gnomad.{DATA_TYPE}.v4.0.sites.ht"
+    f"gs://gcp-public-data--gnomad/release/{VERSION}/ht/{args.data_type}/"
+    f"gnomad.{args.data_type}.v{VERSION}.sites.ht"
 )
 
-table = filter_table(table)
-# rerun VEP
-# table = hl.vep(table, "gs://hail-eu-vep/vep95-GRCh38-loftee-gcloud.json")
-table = (
-    annotate_table(table).rename({"chr": "#chr"}).key_by("#chr", "pos", "ref", "alt")
-)
+# the release of VEP, GENCODE and MANE behind the chosen annotation goes to the job log
+print(hl.eval(table[f"{args.vep_field}_globals"].drop("vep_help", "vep_config")))
+
+table = annotate_table(filter_table(table)).rename({"chr": "#chr"})
+suffix = f".{args.contig}" if args.contig else ""
 export(
     table,
-    f"gs://gnomad2/{DATA_TYPE}_4.0/gnomad.{DATA_TYPE}.v4.0.sites.v2.tsv.bgz",
+    f"{args.out_prefix}/gnomad.{args.data_type}.v{VERSION}.sites.{args.vep_field}{suffix}.tsv.bgz",
 )
