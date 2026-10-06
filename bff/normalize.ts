@@ -559,8 +559,9 @@ const enrichEqtlCatalogueDatasets = async (
 // PhenotypeMeta keyed by `${resource}|${trait}`. phenostring (the display name) is resolved by the
 // trait IDENTIFIER, trait_original — the trait_name_mapping is keyed by the identifier (finngen
 // phenocodes like I9_AF, Open Targets GCST ids, ATC codes, lab/OMOP ids), NOT the harmonized `trait`
-// (which for FinnGen GWAS is already a display name and for Open Targets is the bare GCST code). Fall
-// back to the upstream display name (trait), then the raw identifier, when the map has no entry.
+// (which for FinnGen GWAS is already a display name and for Open Targets 26.09 is
+// `name_(accession)`). Fall back to the upstream display name (trait), then the raw identifier,
+// when the map has no entry.
 const derivePhenotypes = (
   csRows: RawCsRow[],
   traitNameMap: Record<string, string>
