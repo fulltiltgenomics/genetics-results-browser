@@ -141,12 +141,6 @@ export interface LLMChatProps {
   /** placeholder text for input field */
   placeholder?: string;
 
-  /** title shown in empty state */
-  emptyStateTitle?: string;
-
-  /** description shown in empty state */
-  emptyStateDescription?: string;
-
   /** container height (default: "calc(100dvh - 300px)") */
   height?: string;
 
@@ -160,9 +154,6 @@ export interface LLMChatProps {
 
   /** initial messages to load (when resuming a session) */
   initialMessages?: ChatMessage[];
-
-  /** callback when a new session is created */
-  onSessionCreated?: (sessionId: string) => void;
 
   /**
    * Resolve the session id for a turn, creating the session if there is not one yet.

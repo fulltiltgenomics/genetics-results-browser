@@ -1194,8 +1194,6 @@ const ChatPage = () => {
                 onResumeUnavailable={handleResumeUnavailable}
                 onRateMessage={isSecretChat ? undefined : handleRateMessage}
                 placeholder="Ask about phenotypes, genes, variants..."
-                emptyStateTitle={`Welcome to ${APP_NAME}`}
-                emptyStateDescription=""
                 height="100%"
                 exampleQuestions={[
                   "What do we know about the effects of rs200317762?",

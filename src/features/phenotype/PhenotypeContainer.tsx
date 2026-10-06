@@ -114,8 +114,6 @@ const PhenotypeContainer = () => {
               : undefined
           }
           placeholder={`Ask about ${activePhenocode}...`}
-          emptyStateTitle={`Start a conversation about ${activePhenocode}`}
-          emptyStateDescription="Ask questions about the phenotype, request genetic insights, or query specific data."
         />
       )}
     </Box>
