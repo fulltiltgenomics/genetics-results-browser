@@ -13,6 +13,7 @@ export default tseslint.config(
   {
     ignores: [
       'dist',
+      'static',
       'node_modules',
       'coverage',
       'playwright-report',
