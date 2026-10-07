@@ -195,6 +195,9 @@ export interface LLMChatProps {
   /** the server no longer holds a turn the component was attached to; whatever it produced
    *  is in the session's history, so the parent reloads that */
   onResumeUnavailable?: () => void;
+  /** opens a fresh conversation; offered once the context meter says this one has grown
+   *  large, and the only way on past the point where the input refuses to send */
+  onNewChat?: () => void;
 
   /** callback when a turn's stream ends, with what it produced. The assistant message is
    *  persisted by the server, not through this; the parent uses it for bookkeeping */

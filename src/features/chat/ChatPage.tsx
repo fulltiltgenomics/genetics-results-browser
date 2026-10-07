@@ -1192,6 +1192,9 @@ const ChatPage = () => {
                 onStreamingComplete={handleStreamingComplete}
                 activeTurn={isSecretChat ? null : activeSession?.activeTurn ?? null}
                 onResumeUnavailable={handleResumeUnavailable}
+                onNewChat={() =>
+                  isSecretChat ? handleNewSecretChat() : void handleNewChat(activeSessionProjectId)
+                }
                 onRateMessage={isSecretChat ? undefined : handleRateMessage}
                 placeholder="Ask about phenotypes, genes, variants..."
                 height="100%"

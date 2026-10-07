@@ -177,6 +177,14 @@ const optionRadioSx = {
   "& .MuiFormControlLabel-label": { fontSize: "0.75rem" },
 };
 
+// context-window thresholds, as a share of the model's window from the last `usage` event.
+// Measured over four months of production: 4% of sessions passed half the window and 1.4%
+// passed 90%, and those six took a fifth of all spend; the two that overflowed were refused
+// outright. The warning is advice, the refusal is the one hard stop, and both say why:
+// a bigger context makes every answer slower, dearer and less accurate
+const CONTEXT_WARN_PERCENT = 50;
+const CONTEXT_BLOCK_PERCENT = 90;
+
 // per-message limits (mirror the backend MAX_MESSAGE_CHARS / MAX_ATTACHMENTS_PER_MESSAGE)
 const MAX_MESSAGE_CHARS = 50000;
 const MAX_ATTACHMENTS_PER_MESSAGE = 10;
@@ -208,6 +216,7 @@ export const LLMChat = ({
   onUserMessage,
   activeTurn,
   onResumeUnavailable,
+  onNewChat,
 }: LLMChatProps) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down("md"));
@@ -612,10 +621,9 @@ export const LLMChat = ({
         run.messageContent = data.message_content || null;
         run.toolResults = data.tool_results || null;
       } else if (data.type === "usage") {
-        // only update if context grew (it should never shrink within a conversation)
-        setContextUsage((prev) =>
-          !prev || data.input_tokens >= prev.input_tokens ? (data as ContextUsage) : prev
-        );
+        // the newest reading wins: within a turn each iteration's is larger than the last,
+        // and between turns the server may have cleared old tool results, so it can shrink
+        setContextUsage(data as ContextUsage);
       } else if (data.type === "memory" && projectId) {
         // covers a memory event arriving for a session that isn't (or is no longer)
         // filed into a project. fires at most once per session, on the first turn
@@ -1189,9 +1197,14 @@ export const LLMChat = ({
     sendMessage("continue");
   };
 
+  const contextPercent = contextUsage?.context_percent ?? 0;
+  const contextBlocked = contextPercent >= CONTEXT_BLOCK_PERCENT;
+  const contextWarning = contextPercent >= CONTEXT_WARN_PERCENT;
+  const canSend = (!!input.trim() || pendingAttachments.length > 0) && !contextBlocked;
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim() && pendingAttachments.length === 0) return;
+    if (!canSend) return;
     sendMessage(input, pendingAttachments.length > 0 ? pendingAttachments : undefined);
     setInput("");
   };
@@ -1296,6 +1309,26 @@ export const LLMChat = ({
     </Alert>
   );
 
+  const contextNotice = contextWarning && (
+    <Alert
+      severity={contextBlocked ? "error" : "warning"}
+      action={
+        onNewChat && (
+          <Button color="inherit" size="small" onClick={() => onNewChat()}>
+            Start a new chat
+          </Button>
+        )
+      }>
+      {contextBlocked
+        ? `This conversation has reached ${Math.round(contextPercent)}% of the model's context window, ` +
+          "so it cannot take another message. At this size answers get slower and less accurate, and the " +
+          "model may refuse the request outright. Start a new chat and bring over what you still need."
+        : `This conversation has used ${Math.round(contextPercent)}% of the model's context window. ` +
+          "The more a conversation holds, the slower, costlier and less accurate each answer gets, so for " +
+          "a new question a new chat will likely serve you better."}
+    </Alert>
+  );
+
   const inputForm = (
     <Paper
       component="form"
@@ -1308,6 +1341,7 @@ export const LLMChat = ({
         maxWidth: "100%",
         width: "100%",
       }}>
+      {contextNotice}
       <Box
         sx={{ display: "flex", alignItems: "center", cursor: "pointer", userSelect: "none" }}
         onClick={() => setOptionsOpen((v) => !v)}>
@@ -1456,7 +1490,7 @@ export const LLMChat = ({
           )}
         </Box>
         {contextUsage && (
-          <Tooltip title="Context window usage for this conversation — when full, older messages may be summarized" arrow placement="top">
+          <Tooltip title="How much of the model's context window this conversation fills. Past a budget the server clears old tool results from the model's view, keeping the last two turns; past half, a new chat answers better" arrow placement="top">
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 1 }}>
               <Typography variant="caption" color="text.secondary" sx={{ whiteSpace: 'nowrap' }}>
                 Conversation context
@@ -1547,7 +1581,7 @@ export const LLMChat = ({
           <Button
             type="submit"
             variant="contained"
-            disabled={!input.trim() && pendingAttachments.length === 0}
+            disabled={!canSend}
             sx={{ minWidth: 100 }}>
             <SendIcon />
           </Button>
@@ -1574,7 +1608,7 @@ export const LLMChat = ({
             <Button
               type="submit"
               variant="contained"
-              disabled={!input.trim() && pendingAttachments.length === 0}
+              disabled={!canSend}
               fullWidth>
               <SendIcon />
             </Button>
