@@ -129,15 +129,6 @@ export interface ChatMessage {
 }
 
 export interface LLMChatProps {
-  /** optional phenotype code for context */
-  phenotypeCode?: string;
-
-  /** optional pre-loaded content to display above chat */
-  contextContent?: {
-    title: string;
-    markdown: string;
-  };
-
   /** placeholder text for input field */
   placeholder?: string;
 

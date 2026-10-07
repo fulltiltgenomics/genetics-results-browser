@@ -35,8 +35,6 @@ import {
   Psychology as PsychologyIcon,
 } from "@mui/icons-material";
 import React, { useRef, useEffect, useState, useCallback, useMemo } from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
 import type { PluggableList } from "unified";
 import { fetchEventSource } from "@microsoft/fetch-event-source";
 import type { ChatMessage, LLMChatProps, LiteratureBackend, Verbosity, PendingAttachment, FileAttachment, ContextUsage } from "./chat.types";
@@ -183,13 +181,10 @@ const MAX_ATTACHMENTS_PER_MESSAGE = 10;
 
 /**
  * Reusable LLM chat component with SSE streaming.
- * Can be used standalone or embedded with phenotype context.
  * Supports session persistence via callbacks.
  */
 export const LLMChat = ({
-  phenotypeCode,
   projectId,
-  contextContent,
   placeholder = "Ask a question...",
   height = "calc(100dvh - 300px)",
   sessionId,
@@ -237,7 +232,6 @@ export const LLMChat = ({
   const isTimeoutAbortRef = useRef(false);
   // the turn the Stop button and the inactivity timer cancel server-side
   const currentTurnIdRef = useRef<string | null>(null);
-  const [contextExpanded, setContextExpanded] = useState(true);
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
   const [hoveredMessageId, setHoveredMessageId] = useState<string | null>(null);
   // shared stores, not component state: these survive the remount ChatPage does on every
@@ -1136,7 +1130,6 @@ export const LLMChat = ({
           method: "POST",
           body: JSON.stringify({
             messages: messageHistory,
-            phenotype_code: phenotypeCode || null,
             provider: "anthropic",
             enable_mcp: true,
             literature_backend: literatureBackend,
@@ -1157,7 +1150,6 @@ export const LLMChat = ({
     },
     [
       messages,
-      phenotypeCode,
       chatUrl,
       isLoading,
       // both are read when the turn resolves its session id. `sessionId` was previously
@@ -1615,34 +1607,6 @@ export const LLMChat = ({
         onDragOver={handleDragOver}
         onDrop={handleDrop}>
         {dropZoneOverlay}
-        {/* optional context content (e.g., phenotype markdown) */}
-        {contextContent && (
-          <Paper sx={{ mb: 2, width: "100%" }}>
-            <Box
-              sx={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                p: 1.5,
-                cursor: "pointer",
-                bgcolor: theme.palette.mode === "dark" ? "grey.800" : "grey.100",
-                borderRadius: contextExpanded ? "4px 4px 0 0" : 1,
-              }}
-              onClick={() => setContextExpanded(!contextExpanded)}>
-              <Typography variant="subtitle1" fontWeight="medium">
-                {contextContent.title}
-              </Typography>
-              <IconButton size="small">
-                {contextExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-              </IconButton>
-            </Box>
-            <Collapse in={contextExpanded}>
-              <Box sx={{ p: 2, maxHeight: 300, overflow: "auto", ...markdownStyles }}>
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{contextContent.markdown}</ReactMarkdown>
-              </Box>
-            </Collapse>
-          </Paper>
-        )}
         {errorBanner}
         {!readOnly && inputForm}
 
@@ -1692,35 +1656,6 @@ export const LLMChat = ({
       onDragOver={handleDragOver}
       onDrop={handleDrop}>
       {dropZoneOverlay}
-      {/* optional context content (e.g., phenotype markdown) */}
-      {contextContent && (
-        <Paper sx={{ mb: 2 }}>
-          <Box
-            sx={{
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "space-between",
-              p: 1.5,
-              cursor: "pointer",
-              bgcolor: theme.palette.mode === "dark" ? "grey.800" : "grey.100",
-              borderRadius: contextExpanded ? "4px 4px 0 0" : 1,
-            }}
-            onClick={() => setContextExpanded(!contextExpanded)}>
-            <Typography variant="subtitle1" fontWeight="medium">
-              {contextContent.title}
-            </Typography>
-            <IconButton size="small">
-              {contextExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
-            </IconButton>
-          </Box>
-          <Collapse in={contextExpanded}>
-            <Box sx={{ p: 2, maxHeight: 300, overflow: "auto", ...markdownStyles }}>
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>{contextContent.markdown}</ReactMarkdown>
-            </Box>
-          </Collapse>
-        </Paper>
-      )}
-
       {/* messages area */}
       <Paper
         ref={messagesContainerRef}
