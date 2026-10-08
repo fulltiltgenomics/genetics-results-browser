@@ -92,6 +92,13 @@
         "color": "#17becf"
       },
       {
+        "dataName": "Open_Targets_QTL",
+        "label": "OT QTL",
+        "resource": "Open Targets QTL",
+        "dataType": "eQTL",
+        "color": "#ff7f0e"
+      },
+      {
         "dataName": "FinnGen_caQTL",
         "label": "FinnGen",
         "resource": "FinnGen",

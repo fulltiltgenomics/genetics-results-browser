@@ -43,6 +43,11 @@ describe("mapToDataName (new resource ids -> legacy config dataName)", () => {
     expect(mapToDataName("open_targets", "Open_Targets_26.06", "GWAS")).toBe("Open_Targets");
   });
 
+  it("maps open targets QTLs to a bucket apart from its GWAS", () => {
+    expect(mapToDataName("open_targets", "Open_Targets_QTL_26.09", "eQTL")).toBe("Open_Targets_QTL");
+    expect(mapToDataName("open_targets", "Open_Targets_QTL_26.09", "sQTL")).toBe("Open_Targets_QTL");
+  });
+
   it("maps QTL datasets/resources to their config buckets", () => {
     expect(mapToDataName("finngen", "FinnGen_Olink", "pQTL")).toBe("FinnGen_pQTL");
     expect(mapToDataName("ukbb", "UKB_PPP", "pQTL")).toBe("UKBB_pQTL");
@@ -173,6 +178,28 @@ describe("groupCredibleSets (new JSON rows -> CSDatum[])", () => {
     expect(cat[0].traitOriginal).toBe("ENSG00000104859|ge");
     // the same gene from FinnGen's own eQTL data is unaffected (no quantification suffix there)
     expect(data.some((d) => d.resource === "FinnGen_eQTL" && d.trait === "CLASRP")).toBe(true);
+  });
+
+  it("keeps only the ge quantification of Open Targets QTLs, and every Open Targets GWAS row", () => {
+    const base = cisRows.find((r) => r.resource === "eqtl_catalogue")!;
+    const otRow = (data_type: string, trait_original: string, cs_id: string): GeneCSApiRow => ({
+      ...base,
+      resource: "open_targets",
+      dataset: data_type === "GWAS" ? "Open_Targets_26.09" : "Open_Targets_QTL_26.09",
+      data_type,
+      trait_original,
+      cs_id,
+    });
+    const ot = groupCredibleSets([
+      otRow("eQTL", "ENSG00000104859|ge", "a"),
+      otRow("eQTL", "ENSG00000104859|exon", "b"),
+      otRow("sQTL", "1:100:200:clu_1_+|leafcutter", "c"),
+      otRow("GWAS", "GCST004602", "d"),
+    ]);
+    expect(ot.map((d) => [d.resource, d.traitOriginal])).toEqual([
+      ["Open_Targets_QTL", "ENSG00000104859|ge"],
+      ["Open_Targets", "GCST004602"],
+    ]);
   });
 
   it("emits finngen caQTL rows under the FinnGen_caQTL bucket (peak-id trait kept verbatim)", () => {
@@ -428,6 +455,18 @@ describe("geneViewTraitName (credible-set row label)", () => {
     );
     // no cell type available -> the bare gene symbol, never a duplicated one
     expect(geneViewTraitName(cs(""))).toBe("NECTIN2");
+  });
+
+  it("labels Open Targets QTL rows with their tissue or cell type", () => {
+    const cs = makeCS({
+      dataType: "eQTL",
+      resource: "Open_Targets_QTL",
+      dataset: "Open_Targets_QTL_26.09",
+      trait: "NECTIN2",
+      traitOriginal: "ENSG00000130202|ge",
+      cellType: "CD4+_CRM|naive",
+    });
+    expect(geneViewTraitName(cs)).toBe("NECTIN2 CD4+ CRM");
   });
 
   // the gene's own QTLs would only repeat the gene the page is already about; the sQTL rows of

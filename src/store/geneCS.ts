@@ -47,6 +47,9 @@ export interface GeneCSApiRow {
 // than by dataset, so the naming path needs to recognise them (see geneViewTraitName)
 export const EQTL_CATALOGUE_DATA_NAME = "eQTL_Catalogue_R7";
 const OPEN_TARGETS_DATA_NAME = "Open_Targets";
+// Open Targets' GTEx v10 and IBDverse QTLs share the open_targets resource with its GWAS but are
+// labelled by tissue like eQTL Catalogue's
+const OPEN_TARGETS_QTL_DATA_NAME = "Open_Targets_QTL";
 
 export const mapToDataName = (
   resource: string,
@@ -82,7 +85,7 @@ export const mapToDataName = (
     case "eqtl_catalogue":
       return EQTL_CATALOGUE_DATA_NAME;
     case "open_targets":
-      return OPEN_TARGETS_DATA_NAME;
+      return dataType === "GWAS" ? OPEN_TARGETS_DATA_NAME : OPEN_TARGETS_QTL_DATA_NAME;
     case "finngen":
       if (dataType === "eQTL") return "FinnGen_eQTL";
       if (dataType === "pQTL") return "FinnGen_pQTL";
@@ -125,10 +128,13 @@ const CS_NUMBER_REGEX = /_L?(\d+)$/;
  * eQTL Catalogue publishes each study/tissue at several quantification methods — encoded as the
  * suffix of trait_original (|ge, |exon, |tx, |txrev, |leafcutter, |majiq, |microarray, |aptamer).
  * they all report the same gene symbol as `trait`, so on a row labelled by gene + tissue the extra
- * methods are indistinguishable duplicates; this view keeps gene-level expression (ge) only.
+ * methods are indistinguishable duplicates; this view keeps gene-level expression (ge) only. Open
+ * Targets QTLs carry the same suffixes and are treated the same way.
  */
 const isDroppedQuantificationMethod = (row: GeneCSApiRow): boolean =>
-  row.resource === "eqtl_catalogue" && !(row.trait_original ?? "").endsWith("|ge");
+  (row.resource === "eqtl_catalogue" ||
+    (row.resource === "open_targets" && row.data_type !== "GWAS")) &&
+  !(row.trait_original ?? "").endsWith("|ge");
 
 /**
  * group the flat JSON rows into one CSDatum per credible set: a CS is identified by
@@ -298,10 +304,10 @@ export const geneViewTraitName = (
   const name = resolved ?? withoutAccessionSuffix(d).replace(/_/g, " ");
 
   let context = "";
-  if (d.resource === EQTL_CATALOGUE_DATA_NAME) {
+  if (d.resource === EQTL_CATALOGUE_DATA_NAME || d.resource === OPEN_TARGETS_QTL_DATA_NAME) {
     // every eQTL Catalogue dataset is one tissue/condition of one study, and the QTD dataset id says
     // nothing; the tissue is what tells the many same-gene rows apart (the study is shown separately,
-    // in place of the resource label)
+    // in place of the resource label). Open Targets QTLs are one dataset for all tissues.
     context = formatCellType(d.cellType);
   } else if (d.dataType === "pQTL") {
     // FinnGen carries its platform inline in the dataset id (FinnGen_Olink, FinnGen_Olink_5K);
