@@ -415,7 +415,7 @@ const DatasetTable = ({ datasets, category }: { datasets: Dataset[]; category: s
                     if (d.stats?.n_samples_range) {
                       return (
                         <Tooltip
-                          title={`${d.collection ? "Per-study" : "Per-phenotype"} range: ${formatRange(d.stats.n_samples_range)}`}
+                          title={`${d.collection || d.stats.n_subdatasets != null ? "Per-study" : "Per-phenotype"} range: ${formatRange(d.stats.n_samples_range)}`}
                           arrow
                           slotProps={{ tooltip: { sx: { fontSize: "0.875rem" } } }}
                         >
