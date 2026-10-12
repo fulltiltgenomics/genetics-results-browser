@@ -11,12 +11,18 @@ import {
 import { alpha } from "@mui/material/styles";
 import { MaterialReactTable, MRT_ColumnDef } from "material-react-table";
 import { useDataStore } from "../../store/store";
-import { usePhenotypeSearch, useSummaryStats } from "../../store/serverQuery";
+import {
+  usePhenotypeSearch,
+  useResourceMetadata,
+  useSummaryStats,
+} from "../../store/serverQuery";
 import { PhenoSearchRow, PhenotypeSearchHit } from "../../types/types.normalized";
 import { naInfSort } from "../table/utils/sorting";
 import { formatPhenotypeCounts, pValRepr } from "../table/utils/tableutil";
 import GeneTooltip from "../tooltips/GeneToolTip";
 import { PhenotypeSearchExportButton } from "../table/ExportToolbar";
+import { CohortChips } from "../tooltips/CohortChips";
+import { cohortLabel, cohortLines, pickCohortColumns } from "../../store/cohorts";
 
 /**
  * Phenotype search tab (refactor.md §5).
@@ -59,6 +65,55 @@ interface ChosenPhenotype {
  */
 const sumstatsPhenoId = (dataType: string, trait: string, traitOriginal: string): string =>
   dataType.toLowerCase() === "gwas" ? traitOriginal : trait;
+
+const num = (v: number | null, digits = 3): string => (v == null ? "NA" : v.toPrecision(digits));
+
+// reuse the table's p-value formatter so a cohort p reads like the main p-value column; a raw float
+// that underflowed to 0 gets the double-precision bound rather than "0"
+const cohortP = (p: number | null): string =>
+  p == null ? "NA" : p <= 0 ? "< 1e-308" : pValRepr(-Math.log10(p));
+
+/**
+ * The expandable per-row detail of a multi-cohort meta-analysis row: one line per contributing
+ * cohort, then the leave-one-out meta-analyses. Cohorts whose columns are absent or all null did not
+ * contribute and get no line.
+ */
+const CohortDetail = ({ row }: { row: PhenoSearchRow }) => {
+  const { cohorts, leaveOneOut } = cohortLines(row.cohortColumns ?? {});
+  if (cohorts.length === 0 && leaveOneOut.length === 0) return null;
+  return (
+    <Box data-testid="cohort-detail" sx={{ fontSize: "0.75rem", pl: 2, py: 0.5 }}>
+      {cohorts.map((c) => (
+        <div key={c.token}>
+          <b>{c.label}</b>: beta {num(c.beta)} ± {num(c.se)}, p {cohortP(c.pval)}, AF {num(c.af)}
+          {c.r2 != null ? `, r2 ${num(c.r2)}` : ""}
+        </div>
+      ))}
+      {leaveOneOut.map((l) => (
+        <div key={l.family}>
+          <b>leave out {l.label}</b>: beta {num(l.beta)} ± {num(l.se)}, p{" "}
+          {l.mlog10p != null ? pValRepr(l.mlog10p) : cohortP(l.pval)}
+          {l.n != null ? `, N ${l.n.toLocaleString()}` : ""}
+          {l.het_p != null ? `, het p ${num(l.het_p, 2)}` : ""}
+        </div>
+      ))}
+    </Box>
+  );
+};
+
+const hasCohortDetail = (row: PhenoSearchRow): boolean => {
+  const { cohorts, leaveOneOut } = cohortLines(row.cohortColumns ?? {});
+  return cohorts.length > 0 || leaveOneOut.length > 0;
+};
+
+// cohorts of one autocomplete option, read from the metadata cache only (enabled: false): opening the
+// list must not fetch every hit's resource, so a caption appears once the header line or a tooltip
+// hover has already fetched that resource
+const OptionCohorts = ({ resource, code }: { resource: string; code: string }) => {
+  const { data: meta } = useResourceMetadata(resource, false);
+  const cohorts = meta?.[code]?.contributingCohorts;
+  return cohorts ? <> · cohorts {cohorts.map(cohortLabel).join(", ")}</> : null;
+};
 
 const PhenotypeSearchContainer = () => {
   const normalizedData = useDataStore((state) => state.normalizedData);
@@ -121,6 +176,13 @@ const PhenotypeSearchContainer = () => {
     chosen?.code
   );
 
+  const { data: chosenMeta } = useResourceMetadata(chosen?.resource, !!chosen);
+  const chosenInfo = chosen ? chosenMeta?.[chosen.code] : undefined;
+  // per-cohort discovery (detail panel and export columns) only for a phenotype whose metadata lists
+  // its contributing cohorts: an R13 meta or a pQTL table has fg_*/ukbb_*/leave_* columns of other
+  // shapes, and reading them through the R14 patterns would drop blocks and mislabel the rest
+  const withCohorts = !!chosenInfo?.contributingCohorts;
+
   // map each summary-stat row to a PhenoSearchRow, joining the CS-membership flag from the store.
   const rows = useMemo<PhenoSearchRow[]>(() => {
     if (!chosen) return [];
@@ -159,14 +221,17 @@ const PhenotypeSearchContainer = () => {
         inCredibleSet: cs !== undefined,
         csId: cs?.csId,
         pip: cs?.pip,
+        ...(withCohorts ? { cohortColumns: pickCohortColumns(r) } : {}),
       };
     });
-  }, [sumstatRows, normalizedData, chosen]);
+  }, [sumstatRows, normalizedData, chosen, withCohorts]);
 
   // how many of the input variants the chosen phenotype's summary stats actually cover. The endpoint
   // is queried with the input variants and returns a row only for those it has, so the distinct
   // variant count here is the "found in sumstats" tally (often < inputVariants for sparse phenotypes).
   const foundCount = useMemo(() => new Set(rows.map((r) => r.variant)).size, [rows]);
+  // only a multi-cohort meta-analysis gets the expand column; every other resource keeps its table
+  const anyCohortDetail = useMemo(() => rows.some(hasCohortDetail), [rows]);
 
   // column order mirrors the Variant results table: variant, rsid, AF, most severe, most severe gene,
   // p-value, beta, se, then the per-phenotype in-credible-set flag.
@@ -305,6 +370,7 @@ const PhenotypeSearchContainer = () => {
                 <Typography variant="caption" color="text.secondary">
                   {option.code} · {option.resource} · {option.dataType}
                   {counts ? ` · ${counts}` : ""}
+                  <OptionCohorts resource={option.resource} code={option.code} />
                 </Typography>
               </Box>
             </li>
@@ -341,6 +407,11 @@ const PhenotypeSearchContainer = () => {
           )}
         </Typography>
       )}
+      {chosen && chosenInfo?.contributingCohorts && (
+        <Box sx={{ mb: 1 }}>
+          <CohortChips cohorts={chosenInfo.contributingCohorts} nByCohort={chosenInfo.nByCohort} />
+        </Box>
+      )}
 
       {chosen && sumstatsFetching && (
         <Box display="flex" alignItems="center" gap={1}>
@@ -369,6 +440,7 @@ const PhenotypeSearchContainer = () => {
               rows={rows}
               phenoCode={chosen.code}
               phenoResource={chosen.resource}
+              withCohorts={withCohorts}
             />
           )}
           enableColumnFilters={false}
@@ -384,6 +456,13 @@ const PhenotypeSearchContainer = () => {
           muiTableProps={{ sx: { tableLayout: "fixed" } }}
           muiPaginationProps={{ rowsPerPageOptions: [10, 20, 100, 1000] }}
           muiTableBodyCellProps={{ sx: { fontSize: "0.75rem" } }}
+          renderDetailPanel={
+            anyCohortDetail ? ({ row }) => <CohortDetail row={row.original} /> : undefined
+          }
+          muiExpandButtonProps={({ row }) => ({
+            disabled: !hasCohortDetail(row.original),
+            title: "per-cohort and leave-one-out estimates",
+          })}
           renderEmptyRowsFallback={() => (
             <Box sx={{ p: 2 }}>
               <Typography variant="body2">

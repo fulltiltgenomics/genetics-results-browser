@@ -303,6 +303,19 @@ describe("tissue exports", () => {
   });
 });
 
+const PHENO_SEARCH_HEADER = [
+  "variant",
+  "rsid",
+  "af",
+  "most_severe",
+  "most_severe_gene",
+  "p-value",
+  "beta",
+  "se",
+  "in_credible_set",
+  "pip",
+];
+
 describe("buildPhenotypeSearchRows", () => {
   it("renders p-value, yes/no membership, NA for missing", () => {
     const searchRows: PhenoSearchRow[] = [
@@ -350,5 +363,62 @@ describe("buildPhenotypeSearchRows", () => {
       in_credible_set: "no",
       pip: "NA",
     });
+  });
+
+  it("appends the discovered cohort columns as a union header, NA where a row lacks one", () => {
+    const base: PhenoSearchRow = {
+      variant: "19:1:A:T",
+      rsid: null,
+      gene: null,
+      consequence: "",
+      pval: 1e-8,
+      mlog10p: 8,
+      beta: 0.1,
+      se: 0.01,
+      af: 0.2,
+      inCredibleSet: false,
+    };
+    const rows = buildPhenotypeSearchRows([
+      {
+        ...base,
+        cohortColumns: {
+          leave_aou_beta: 0.3,
+          aou_eur_beta: 0.2,
+          fg_se: 0.02,
+          fg_beta: 0.1,
+          mvp_afr_beta: null,
+        },
+      },
+      { ...base, variant: "19:2:A:T", cohortColumns: { fg_beta: 0.5 } },
+      // a row without cohort columns still gets the union header
+      { ...base, variant: "19:3:A:T" },
+    ], true);
+    // an all-null column (a cohort that did not contribute) is not exported
+    expect(Object.keys(rows[0]).slice(-4)).toEqual([
+      "fg_beta",
+      "fg_se",
+      "aou_eur_beta",
+      "leave_aou_beta",
+    ]);
+    expect(rows[1]).toMatchObject({ fg_beta: 0.5, fg_se: "NA", aou_eur_beta: "NA" });
+    expect(rows[2]).toMatchObject({ fg_beta: "NA", leave_aou_beta: "NA" });
+    expect(Object.keys(rows[2])).toEqual(Object.keys(rows[0]));
+  });
+
+  it("keeps the fixed header without the cohort gate, whatever the rows carry", () => {
+    const row: PhenoSearchRow = {
+      variant: "19:1:A:T",
+      rsid: null,
+      gene: null,
+      consequence: "",
+      pval: 1e-8,
+      mlog10p: 8,
+      beta: 0.1,
+      se: 0.01,
+      af: 0.2,
+      inCredibleSet: false,
+      cohortColumns: { fg_beta: 0.1, leave_ukbb_beta: 0.2 },
+    };
+    expect(Object.keys(buildPhenotypeSearchRows([row])[0])).toEqual(PHENO_SEARCH_HEADER);
   });
 });

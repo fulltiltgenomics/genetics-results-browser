@@ -230,16 +230,18 @@ export const PhenotypeSearchExportButton = ({
   rows,
   phenoCode,
   phenoResource,
+  withCohorts = false,
 }: {
   rows: PhenoSearchRow[];
   phenoCode: string;
   phenoResource: string;
+  withCohorts?: boolean;
 }) => (
   <Box sx={toolbarSx}>
     <DownloadButton
       label="DOWNLOAD SEARCH RESULTS"
       disabled={rows.length === 0}
-      onClick={() => exportPhenotypeSearch(rows, phenoCode, phenoResource)}
+      onClick={() => exportPhenotypeSearch(rows, phenoCode, phenoResource, withCohorts)}
     />
   </Box>
 );

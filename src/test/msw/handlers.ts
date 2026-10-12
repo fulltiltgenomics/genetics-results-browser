@@ -27,6 +27,17 @@ import normalizedResponse from "../fixtures/normalized_response.json";
 // the path suffix with a leading wildcard — works whatever base the axios client is configured with.
 const api = (suffix: string): string => `*/api/v1/${suffix}`;
 
+const r14CohortKeys = {
+  contributing_cohorts: ["fg", "aou_eur", "ukbb_eur", "mvp_afr"],
+  cohort_families: ["fg", "aou", "ukbb", "mvp"],
+  n_by_cohort: {
+    fg: { n_cases: 70000, n_controls: 400000 },
+    aou_eur: { n_cases: 60000, n_controls: 300000 },
+    ukbb_eur: { n_cases: 50000, n_controls: 350000 },
+    mvp_afr: { n_cases: 120000, n_controls: 150000 },
+  },
+};
+
 export const handlers = [
   // the BFF stage-1 endpoint the frontend's useNormalizedQuery hits; the granular handlers below mock
   // the upstream calls the BFF itself fans out to (used by the bff-side tests, not the browser hook).
@@ -108,7 +119,7 @@ export const handlers = [
   ),
 
   // harmonized per-phenotype metadata (counts) used lazily by PhenotypeTooltip on hover
-  http.get(api("resource_metadata/:resource"), () =>
+  http.get(api("resource_metadata/:resource"), ({ params }) =>
     HttpResponse.json([
       {
         phenotype_code: "G6_ALZHEIMER",
@@ -117,6 +128,17 @@ export const handlers = [
         n_cases: 9301,
         n_controls: 402880,
         trait_type: "binary",
+      },
+      // only finngen_mvp_ukbb_aou (the FinnGen R14 four-cohort meta) carries the cohort keys; the
+      // shape follows results-api's finngen_meta harmonizer. Every other resource gets a plain row
+      {
+        phenotype_code: "T2D",
+        phenotype_string: "Type 2 diabetes",
+        n_samples: 1500000,
+        n_cases: 300000,
+        n_controls: 1200000,
+        trait_type: "binary",
+        ...(params.resource === "finngen_mvp_ukbb_aou" ? r14CohortKeys : {}),
       },
     ])
   ),

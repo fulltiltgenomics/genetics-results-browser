@@ -14,6 +14,7 @@ import {
 import { cleanConsequence, formatTissue, formatTraitName, pValRepr } from "./tableutil";
 import { gnomadAf } from "../tables/VariantMainTable.columns.normalized";
 import { classifyCisTrans } from "../../../store/munge.normalized";
+import { cohortColumnOrder } from "../../../store/cohorts";
 
 /**
  * TSV exports for the credible-set-native annotation tables (re-instates the legacy ExportToolbar
@@ -454,8 +455,16 @@ export const exportTissueWithVariants = (
  * Phenotype search — the per-variant summary-stat results for one chosen phenotype.
  * ──────────────────────────────────────────────────────────────────────────── */
 
-export const buildPhenotypeSearchRows = (rows: PhenoSearchRow[]): ExportRow[] =>
-  rows.map((r) => ({
+// a multi-cohort meta-analysis (withCohorts: the phenotype's metadata lists contributing_cohorts)
+// adds its discovered per-cohort and leave-one-out columns after the fixed ones; the header is the
+// union over the rows, so a cohort one row lacks is NA there. Every other resource keeps the fixed
+// header even when its rows carry similarly named columns (an R13 meta's ukbb_*, a pQTL's leave_*)
+export const buildPhenotypeSearchRows = (
+  rows: PhenoSearchRow[],
+  withCohorts = false
+): ExportRow[] => {
+  const cohortCols = withCohorts ? cohortColumnOrder(rows.map((r) => r.cohortColumns ?? {})) : [];
+  return rows.map((r) => ({
     variant: toDashVariant(r.variant),
     rsid: r.rsid ?? NA,
     af: r.af === null || Number.isNaN(r.af) ? NA : r.af,
@@ -466,14 +475,17 @@ export const buildPhenotypeSearchRows = (rows: PhenoSearchRow[]): ExportRow[] =>
     se: Number.isNaN(r.se) ? NA : r.se,
     in_credible_set: r.inCredibleSet ? "yes" : "no",
     pip: r.pip ?? NA,
+    ...Object.fromEntries(cohortCols.map((c) => [c, r.cohortColumns?.[c] ?? NA])),
   }));
+};
 
 export const exportPhenotypeSearch = (
   rows: PhenoSearchRow[],
   phenoCode: string,
-  phenoResource: string
+  phenoResource: string,
+  withCohorts = false
 ): void => {
-  const exportRows = buildPhenotypeSearchRows(rows);
+  const exportRows = buildPhenotypeSearchRows(rows, withCohorts);
   writeTsv(
     exportRows,
     `phenotype_search_${phenoResource}_${phenoCode}_${exportRows.length}_variants_${shortHash(

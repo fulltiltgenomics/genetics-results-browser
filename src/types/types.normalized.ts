@@ -448,6 +448,8 @@ export interface PhenoSearchRow {
   inCredibleSet: boolean;
   csId?: string;
   pip?: number;
+  /** per-cohort and leave-one-out columns discovered in a multi-cohort meta-analysis row; empty otherwise. */
+  cohortColumns?: Record<string, number | null>;
 }
 
 /* ────────────────────────────────────────────────────────────────────────────

@@ -228,5 +228,28 @@
     "aaf": 0.00611,
     "most_severe": "intron_variant",
     "gene_most_severe": "CLASRP"
+  },
+  {
+    "resource": "finngen_mvp_ukbb_aou",
+    "version": "R14",
+    "dataset": "FinnGen_R14_MVP_UKBB_AOU",
+    "data_type": "GWAS",
+    "trait": "Type_2_diabetes",
+    "trait_original": "T2D",
+    "cell_type": null,
+    "chr": 19,
+    "pos": 45041200,
+    "ref": "G",
+    "alt": "A",
+    "mlog10p": 12.4,
+    "beta": 0.061,
+    "se": 0.0085,
+    "pip": 0.81,
+    "cs_id": "chr19_45041200_G_A",
+    "cs_size": 3,
+    "cs_min_r2": 0.88,
+    "aaf": 0.214,
+    "most_severe": "intron_variant",
+    "gene_most_severe": "CLASRP"
   }
 ]

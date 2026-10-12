@@ -75,6 +75,13 @@ describe("mapToDataName (new resource ids -> legacy config dataName)", () => {
 describe("groupCredibleSets (new JSON rows -> CSDatum[])", () => {
   const data = groupCredibleSets(cisRows);
 
+  it("puts a FinnGen R14 four-cohort meta-analysis row in the FinnGen_MVP_UKBB_AOU bucket", () => {
+    const r14 = data.filter((d) => d.dataset === "FinnGen_R14_MVP_UKBB_AOU");
+    expect(r14).toHaveLength(1);
+    expect(r14[0]).toMatchObject({ resource: "FinnGen_MVP_UKBB_AOU", traitOriginal: "T2D" });
+    expect(r14[0].variant).toEqual(["19:45041200:G:A"]);
+  });
+
   it("groups rows into one CSDatum per resource|dataset|trait=cs_id", () => {
     // every row in the fixture is from a distinct credible set, minus the ones dropped for an
     // unmodelled resource or a non-ge eQTL Catalogue quantification

@@ -3,11 +3,13 @@ import { Typography } from "@mui/material";
 import { HtmlTooltip } from "./HtmlTooltip";
 import { useResourceMetadata } from "../../store/serverQuery";
 import { formatTraitName } from "../table/utils/tableutil";
+import { CohortChips } from "./CohortChips";
 
 /**
  * Hover tooltip for a phenotype / "top association" / trait cell (refactor port of the legacy
  * PhenoTooltip). Shows the resolved name, the raw phenocode, data type, dataset, and — fetched
- * lazily on hover via useResourceMetadata — the case / control / sample counts and trait type.
+ * lazily on hover via useResourceMetadata — the case / control / sample counts and trait type, and
+ * for a multi-cohort meta-analysis the cohorts that contributed to this phenotype.
  *
  * The counts come from /v1/resource_metadata/{resource}, keyed by phenocode; that fetch is gated on
  * hover (per resource, cached forever) so the large open_targets metadata isn't pulled until needed.
@@ -60,6 +62,9 @@ export const PhenotypeTooltip = (props: {
             </div>
             {info?.traitType ? <div>{info.traitType}</div> : null}
             {counts}
+            {info?.contributingCohorts ? (
+              <CohortChips cohorts={info.contributingCohorts} nByCohort={info.nByCohort} />
+            ) : null}
           </div>
         }>
         {props.content}

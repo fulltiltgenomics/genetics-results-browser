@@ -20,6 +20,7 @@ import {
 } from "./geneCS";
 import api from "./api";
 import { isAxiosError } from "axios";
+import { CohortN } from "./cohorts";
 
 // the gene view's window padding around the gene body (legacy used the same value)
 const GENE_VIEW_PADDING = config.gene_view.gene_padding;
@@ -371,6 +372,10 @@ export interface PhenotypeMetadata {
   // the row's `author`. for eQTL Catalogue, keyed by QTD id, this is the study a sub-dataset belongs
   // to ("GTEx", "GENCORD", "Alasoo_2018") — the name worth showing in place of the resource label.
   study: string | null;
+  // multi-cohort meta-analyses only (finngen_mvp_ukbb_aou); absent for every other resource
+  contributingCohorts?: string[];
+  cohortFamilies?: string[];
+  nByCohort?: Record<string, CohortN>;
 }
 
 // raw resource_metadata row (snake_case TSV-derived JSON; numeric fields can be the string "NA").
@@ -382,6 +387,9 @@ interface ResourceMetadataApiRow {
   n_controls: number | string;
   trait_type: string;
   author?: string;
+  contributing_cohorts?: string[];
+  cohort_families?: string[];
+  n_by_cohort?: Record<string, CohortN>;
 }
 
 const metaNum = (v: number | string | undefined): number | null => {
@@ -418,6 +426,11 @@ export const useResourceMetadata = (
             nSamples: metaNum(row.n_samples),
             traitType: row.trait_type ?? null,
             study: row.author && row.author !== "NA" ? row.author : null,
+            ...(row.contributing_cohorts?.length
+              ? { contributingCohorts: row.contributing_cohorts }
+              : {}),
+            ...(row.cohort_families?.length ? { cohortFamilies: row.cohort_families } : {}),
+            ...(row.n_by_cohort ? { nByCohort: row.n_by_cohort } : {}),
           };
         }
         return out;
@@ -605,6 +618,9 @@ export interface SummaryStatApiRow {
   af: number | null;
   af_cases?: number | null;
   af_controls?: number | null;
+  // a multi-cohort meta-analysis adds per-cohort and leave-one-out columns whose set varies per
+  // phenotype (see store/cohorts.ts); anything not typed above is one of those or ignored
+  [column: string]: string | number | null | undefined;
 }
 
 /** "19:44908684:T:C" (internal) -> "19-44908684-T-C" (the API's dash variant format). */

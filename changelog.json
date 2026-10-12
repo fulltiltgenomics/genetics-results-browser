@@ -10,6 +10,10 @@
             {
               "type": "li",
               "text": "Added the FinnGen R14 + MVP + UKB + AoU meta-analysis (FG+MVP+UKB+AoU) to the gene view and resource filter"
+            },
+            {
+              "type": "li",
+              "text": "For the FinnGen R14 + MVP + UKB + AoU meta-analysis, the phenotype tooltip and the phenotype search tab show which cohorts contributed to each phenotype, and the search tab's rows expand to per-cohort and leave-one-out estimates, which are also in its download"
             }
           ]
         }

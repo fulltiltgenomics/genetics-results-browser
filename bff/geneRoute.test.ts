@@ -44,9 +44,9 @@ describe("GET /v1/gene_results/:gene — gene query normalize", () => {
 
     expect(res.status).toBe(200);
     expect(res.body.queryType).toBe("gene");
-    // 10 fixture rows over 7 distinct variants -> 7 VariantResults; found mirrors the members
-    expect(res.body.variants).toHaveLength(7);
-    expect(res.body.inputVariants.found).toHaveLength(7);
+    // 11 fixture rows over 8 distinct variants -> 8 VariantResults; found mirrors the members
+    expect(res.body.variants).toHaveLength(8);
+    expect(res.body.inputVariants.found).toHaveLength(8);
     // a gene query has no parsed variant input
     expect(res.body.inputVariants.notFound).toEqual([]);
     expect(res.body.inputVariants.unparsed).toEqual([]);
@@ -64,6 +64,26 @@ describe("GET /v1/gene_results/:gene — gene query normalize", () => {
     expect(multi.annotation.af).toBeNull();
     // gnomAD deferred for the gene path
     expect(multi.gnomad).toBeUndefined();
+  });
+
+  it("carries a FinnGen R14 four-cohort meta-analysis row through under its own resource, flagged pseudo", async () => {
+    vi.stubGlobal("fetch", routeFetch());
+
+    const res = await request(app).get("/api/v1/gene_results/CLASRP");
+    const r14 = res.body.variants.find(
+      (v: { variant: string }) => v.variant === "19:45041200:G:A"
+    );
+    expect(r14.credibleSets).toHaveLength(1);
+    expect(r14.credibleSets[0]).toMatchObject({
+      resource: "finngen_mvp_ukbb_aou",
+      dataset: "FinnGen_R14_MVP_UKBB_AOU",
+      dataType: "GWAS",
+      traitOriginal: "T2D",
+    });
+    const resource = res.body.resources.find(
+      (r: { resource: string }) => r.resource === "finngen_mvp_ukbb_aou"
+    );
+    expect(resource.hasPseudoCredibleSets).toBe(true);
   });
 
   it("parses quantLevel from trait_original and coerces numerics, keeping nulls", async () => {
