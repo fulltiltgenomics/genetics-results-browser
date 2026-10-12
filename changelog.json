@@ -2,6 +2,21 @@
   "content": [
     {
       "type": "span",
+      "text": "October 12th 2026:",
+      "children": [
+        {
+          "type": "ul",
+          "children": [
+            {
+              "type": "li",
+              "text": "Added the FinnGen R14 + MVP + UKB + AoU meta-analysis (FG+MVP+UKB+AoU) to the gene view and resource filter"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "span",
       "text": "September 16th 2026:",
       "children": [
         {

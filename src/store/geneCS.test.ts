@@ -62,6 +62,9 @@ describe("mapToDataName (new resource ids -> legacy config dataName)", () => {
       "FinnGen_MVP_UKBB"
     );
     expect(mapToDataName("finngen_ukbb", "FinnGen_R13_UKBB", "GWAS")).toBe("FinnGen_UKBB");
+    expect(mapToDataName("finngen_mvp_ukbb_aou", "FinnGen_R14_MVP_UKBB_AOU", "GWAS")).toBe(
+      "FinnGen_MVP_UKBB_AOU"
+    );
   });
 
   it("drops resources not modelled in the gene-view config", () => {
@@ -593,11 +596,12 @@ describe("pseudoDataNames (/v1/datasets flags -> gene view dataNames)", () => {
     const rows = [
       { resource: "finngen_mvp_ukbb", dataType: "gwas", hasPseudoCredibleSets: true },
       { resource: "finngen_ukbb", dataType: "gwas", hasPseudoCredibleSets: true },
+      { resource: "finngen_mvp_ukbb_aou", dataType: "gwas", hasPseudoCredibleSets: true },
       // flagged but not modelled in the gene view config — must not leak in as undefined
       { resource: "covid_hgi", dataType: "gwas", hasPseudoCredibleSets: true },
       { resource: "finngen", dataType: "gwas", hasPseudoCredibleSets: false },
     ];
-    expect(pseudoDataNames(rows)).toEqual(new Set(["FinnGen_MVP_UKBB", "FinnGen_UKBB"]));
+    expect(pseudoDataNames(rows)).toEqual(new Set(["FinnGen_MVP_UKBB", "FinnGen_UKBB", "FinnGen_MVP_UKBB_AOU"]));
     expect(pseudoDataNames(undefined)).toEqual(new Set());
   });
 });

@@ -396,11 +396,11 @@ const CisView = ({ geneName }: { geneName: string }) => {
             }}>
             <DataTypeIcon dataType={d.dataType as CredibleSetDataType} size={14} />
           </CleanTableCell>
-          {/* wide enough for the longest resource labels ("Open Targets", "FG+MVP+UKB") */}
+          {/* this cell and the trait-name cell below share the row's titleWidth, so their widths move together; this one must hold the longest bucket label ("FG+MVP+UKB+AoU") */}
           <CleanTableCell
             align="right"
             style={{
-              width: "80px",
+              width: "105px",
               marginRight: "5px",
               color: color,
               overflow: "scroll",
@@ -410,7 +410,7 @@ const CisView = ({ geneName }: { geneName: string }) => {
           </CleanTableCell>
           <CleanTableCell
             style={{
-              width: config.gene_view.titleWidth - 123,
+              width: config.gene_view.titleWidth - 148,
               overflow: "hidden",
               display: "inline-flex",
               alignItems: "center",

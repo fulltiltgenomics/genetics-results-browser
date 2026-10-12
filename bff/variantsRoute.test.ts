@@ -137,6 +137,10 @@ describe("POST /v1/results — variant list normalize", () => {
     expect(pseudo).toBeDefined();
     expect(pseudo.hasCredibleSets).toBe(true);
     expect(pseudo.hasPseudoCredibleSets).toBe(true);
+    const pseudoAou = res.body.resources.find(
+      (r: { resource: string }) => r.resource === "finngen_mvp_ukbb_aou"
+    );
+    expect(pseudoAou.hasPseudoCredibleSets).toBe(true);
 
     // eqtl_catalogue is data_type "mixed" but has NO products.summary_stats -> false (regression pin)
     const eqtlCat = res.body.resources.find(

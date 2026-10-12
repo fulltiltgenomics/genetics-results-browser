@@ -54,12 +54,12 @@ export const cleanConsequence = (consequence: string): string => {
 // still used unchanged for API matching / navigation; this is display-only.
 export const formatTraitName = (name: string): string => name.replace(/_/g, " ");
 
-// frontend display overrides for dataset ids whose raw name (a column value baked into the credible-set
-// data) lacks the proteomics platform that FinnGen's dataset names carry inline. UKB-PPP is Olink
-// Explore 3072 (3K), so surfacing the panel explains why a protein may have a FinnGen pQTL but no UKBB
-// one (e.g. only on the 5K panel). Remove once the API can rename datasets (genetics-results-api issue).
+// frontend display overrides for dataset ids whose raw name is not what we want shown: UKB_PPP lacks the
+// proteomics platform (Olink 3K, which explains a FinnGen pQTL with no UKBB one on the 5K panel), and
+// FinnGen_R14_MVP_UKBB_AOU is renamed to a readable form. Remove once the API can rename datasets.
 const DATASET_LABEL_OVERRIDES: Record<string, string> = {
   UKB_PPP: "UKBB PPP (Olink 3K)",
+  FinnGen_R14_MVP_UKBB_AOU: "FinnGen+MVP+UKB+AoU (R14)",
 };
 
 // canonical dataset display name, shared by every view so the same dataset reads identically in the

@@ -21,6 +21,16 @@
       }
     },
     {
+      "id": "finngen_mvp_ukbb_aou",
+      "resource": "finngen_mvp_ukbb_aou",
+      "gencode_version": 49,
+      "metadata": {
+        "author": "FinnGen Consortium",
+        "publication_date": "2026-10-12",
+        "version_label": "R14"
+      }
+    },
+    {
       "id": "finngen_ukbb",
       "resource": "finngen_ukbb",
       "gencode_version": 49,

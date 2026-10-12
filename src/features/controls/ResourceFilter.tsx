@@ -21,7 +21,7 @@ const DATA_TYPE_HOTKEYS: Record<CredibleSetDataType, string> = {
 // preferred display order for the resource toggles, by column. ids not listed fall AFTER these
 // (alphabetically), so resources added to the API later appear at the end without code changes.
 const REAL_RESOURCE_ORDER = ["finngen", "open_targets", "eqtl_catalogue", "ukbb"];
-const PSEUDO_RESOURCE_ORDER = ["finngen_mvp_ukbb", "finngen_ukbb"];
+const PSEUDO_RESOURCE_ORDER = ["finngen_mvp_ukbb_aou", "finngen_mvp_ukbb", "finngen_ukbb"];
 
 const byPreferredOrder = (order: string[]) => (a: string, b: string): number => {
   const ia = order.indexOf(a);

@@ -43,6 +43,13 @@
         "color": "#1f77b4"
       },
       {
+        "dataName": "FinnGen_MVP_UKBB_AOU",
+        "label": "FG+MVP+UKB+AoU",
+        "resource": "FinnGen",
+        "dataType": "GWAS",
+        "color": "#d62728"
+      },
+      {
         "dataName": "FinnGen_MVP_UKBB",
         "label": "FG+MVP+UKB",
         "resource": "FinnGen",

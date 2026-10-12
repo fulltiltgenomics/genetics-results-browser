@@ -117,7 +117,7 @@ const DatasetOptions = ({ data }: { data: CSDatum[] | undefined }) => {
                           "& .MuiFormControlLabel-label": {
                             color: resource.color,
                             userSelect: "none",
-                            // a long count + label ("375 FG+MVP+UKB") must not wrap away from its
+                            // a long count + label ("375 FG+MVP+UKB+AoU") must not wrap away from its
                             // switch, so the column grows to fit instead of the text breaking
                             minWidth: 70,
                             whiteSpace: "nowrap",

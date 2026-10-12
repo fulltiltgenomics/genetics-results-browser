@@ -477,6 +477,16 @@
       "hasSummaryStats": false,
       "hasCredibleSets": true,
       "hasPseudoCredibleSets": true
+    },
+    {
+      "id": "finngen_mvp_ukbb_aou",
+      "resource": "finngen_mvp_ukbb_aou",
+      "dataTypes": [
+        "gwas"
+      ],
+      "hasSummaryStats": false,
+      "hasCredibleSets": true,
+      "hasPseudoCredibleSets": true
     }
   ],
   "hasBetas": false,

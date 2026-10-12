@@ -298,6 +298,7 @@ describe("ResourceFilter", () => {
       r("zzz_new_real", false),
       r("eqtl_catalogue", false),
       r("finngen_mvp_ukbb", true),
+      r("finngen_mvp_ukbb_aou", true),
       r("open_targets", false),
     ];
     useDataStore.getState().setNormalizedData(response);
@@ -315,6 +316,7 @@ describe("ResourceFilter", () => {
       "eqtl_catalogue",
       "ukbb",
       "zzz_new_real",
+      "finngen_mvp_ukbb_aou",
       "finngen_mvp_ukbb",
       "finngen_ukbb",
       "covid_hgi",

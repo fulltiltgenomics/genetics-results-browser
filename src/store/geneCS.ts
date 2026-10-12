@@ -75,6 +75,9 @@ export const mapToDataName = (
   }
   // combined FinnGen meta-analyses (R13 + MVP + UKBB, with/without labs) are GWAS; surface them
   // under their own config buckets so they stay visible and individually toggleable.
+  if (resource === "finngen_mvp_ukbb_aou") {
+    return "FinnGen_MVP_UKBB_AOU";
+  }
   if (resource === "finngen_mvp_ukbb") {
     return "FinnGen_MVP_UKBB";
   }
