@@ -511,3 +511,55 @@ export interface GeneDiseaseRow {
   modeOfInheritance: string;
   submitter: string;
 }
+
+/**
+ * One cell_type_expression row at the summary level: normal tissue pooled across datasets per
+ * (cell type, tissue). Means are log1p CP10K, not TPM. `meanLog1pCp10k` is the primary measure;
+ * the donor pseudobulk pair is secondary and null where the pooled group has no usable donors.
+ */
+export interface CellTypeExpressionSummaryRow {
+  geneId: string;
+  geneName: string;
+  cellType: string;
+  cellTypeId: string;
+  tissue: string;
+  tissueId: string;
+  nCells: number | null;
+  nDonors: number | null;
+  nDatasets: number | null;
+  meanLog1pCp10k: number | null;
+  fracExpressing: number | null;
+  donorPseudobulkMeanCp10k: number | null;
+  donorPseudobulkNDonors: number | null;
+  tau: number | null;
+}
+
+/**
+ * One cell_type_expression row at the dataset level. `measured_no_row` is a placeholder for a
+ * dataset that measured the gene and has a kept group but no stored row: expression is 0 there and
+ * the group columns are null.
+ */
+export interface CellTypeExpressionDatasetRow {
+  geneId: string;
+  geneName: string;
+  datasetId: string;
+  status: "present" | "measured_no_row";
+  tissue: string | null;
+  tissueGeneral: string | null;
+  cellType: string | null;
+  cellTypeRollup: string | null;
+  disease: string | null;
+  assay: string | null;
+  suspensionType: string | null;
+  nCells: number | null;
+  nDonors: number | null;
+  meanLog1pCp10k: number | null;
+  fracExpressing: number | null;
+  donorPseudobulkMeanCp10k: number | null;
+}
+
+/** Rows plus the release name from the X-Dataset-Version response header. */
+export interface CellTypeExpressionResult<T> {
+  rows: T[];
+  release: string | null;
+}

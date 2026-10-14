@@ -125,6 +125,13 @@ export const handlers = [
   http.get(api("gene_based/:gene"), () =>
     HttpResponse.text(geneBasedTsv, { headers: { "Content-Type": "text/tab-separated-values" } })
   ),
+  // the default deployment has no single-cell data, which hides the section; tests opt in with server.use
+  http.get(api("cell_type_expression/:gene"), () =>
+    HttpResponse.json(
+      { detail: "Cell-type expression data is not configured for this deployment" },
+      { status: 404 }
+    )
+  ),
   http.get(api("expression_by_gene/:gene"), () => HttpResponse.json(expressionByGene)),
   http.get(api("gene_disease/:gene"), () => HttpResponse.json(geneDisease)),
 
