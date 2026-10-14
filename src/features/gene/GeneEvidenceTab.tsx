@@ -25,6 +25,7 @@ import {
 } from "@/types/types.normalized";
 import { naInfSort } from "../table/utils/sorting";
 import { datasetDisplayName, formatTraitName, pValRepr } from "../table/utils/tableutil";
+import CellTypeExpressionSection from "./CellTypeExpressionSection";
 import GeneExpressionPlot from "./GeneExpressionPlot";
 import { gtexTissueLabel } from "./gtexTissues";
 import { hpaLevelLabel, hpaLevelRank, hpaTissueLabel } from "./hpa";
@@ -374,6 +375,8 @@ const GeneEvidenceTab = ({ geneName }: { geneName: string }) => {
           )}
         />
       </Section>
+
+      <CellTypeExpressionSection geneName={geneName} />
 
       <Section
         title="Gene-disease (Mendelian)"

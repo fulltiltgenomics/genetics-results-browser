@@ -1,5 +1,8 @@
 import { useQuery, useQueries, UseQueryResult } from "@tanstack/react-query";
 import {
+  CellTypeExpressionDatasetRow,
+  CellTypeExpressionResult,
+  CellTypeExpressionSummaryRow,
   ColocPair,
   CredibleSetDataType,
   DatasetDataType,
@@ -727,6 +730,129 @@ export const useGeneBurden = (gene: string | undefined): UseQueryResult<GeneBurd
     staleTime: 5 * 60 * 1000,
   });
 };
+
+// raw cell_type_expression JSON row; NA arrives as null or the string "NA" depending on the column
+type CellTypeApiRow = Record<string, string | number | boolean | null>;
+
+const naNum = (v: unknown): number | null => {
+  if (v == null || v === "" || v === "NA") {
+    return null;
+  }
+  const n = Number(v);
+  return Number.isNaN(n) ? null : n;
+};
+const naStr = (v: unknown): string | null => (v == null || v === "" || v === "NA" ? null : String(v));
+
+/** The deployment has no cell-type expression data (finngen): the gene page hides the section. */
+export class CellTypeExpressionNotConfigured extends Error {}
+/** The deployment is configured but no release has loaded yet: the section says so quietly. */
+export class CellTypeExpressionNotYetAvailable extends Error {}
+
+const fetchCellTypeExpression = async (
+  gene: string,
+  level: "summary" | "dataset"
+): Promise<{ rows: CellTypeApiRow[]; release: string | null }> => {
+  try {
+    const res = await api.get<CellTypeApiRow[]>(
+      `/v1/cell_type_expression/${encodeURIComponent(gene)}`,
+      { params: { level, format: "json" } }
+    );
+    return { rows: res.data, release: (res.headers?.["x-dataset-version"] as string) ?? null };
+  } catch (e) {
+    const err = e as { response?: { status?: number; data?: { detail?: string } } };
+    const status = err.response?.status;
+    const detail = String(err.response?.data?.detail ?? "");
+    // an unknown gene is also a 404, so only the deployment-level message hides the section
+    if (status === 404 && /not configured/i.test(detail)) {
+      throw new CellTypeExpressionNotConfigured(detail);
+    }
+    if (status === 404) {
+      return { rows: [], release: null };
+    }
+    if (status === 503) {
+      throw new CellTypeExpressionNotYetAvailable(detail);
+    }
+    throw e;
+  }
+};
+
+const cellTypeRetry = (failures: number, error: Error): boolean =>
+  !(error instanceof CellTypeExpressionNotConfigured) &&
+  !(error instanceof CellTypeExpressionNotYetAvailable) &&
+  failures < 2;
+
+/** Single-cell expression per cell type x tissue, pooled across datasets (cell_type_expression, summary). */
+export const useCellTypeExpressionSummary = (
+  gene: string | undefined
+): UseQueryResult<CellTypeExpressionResult<CellTypeExpressionSummaryRow>, Error> =>
+  useQuery({
+    queryKey: ["cell-type-expression", "summary", gene],
+    queryFn: async () => {
+      const { rows, release } = await fetchCellTypeExpression(gene!, "summary");
+      return {
+        release,
+        rows: rows.map(
+          (r): CellTypeExpressionSummaryRow => ({
+            geneId: String(r.gene_id),
+            geneName: String(r.gene_name),
+            cellType: String(r.cell_type_rollup),
+            cellTypeId: String(r.cell_type_rollup_ontology_term_id),
+            tissue: String(r.tissue_general),
+            tissueId: String(r.tissue_general_ontology_term_id),
+            nCells: naNum(r.n_cells),
+            nDonors: naNum(r.n_donors),
+            nDatasets: naNum(r.n_datasets),
+            meanLog1pCp10k: naNum(r.mean_log1p_cp10k),
+            fracExpressing: naNum(r.frac_expressing),
+            donorPseudobulkMeanCp10k: naNum(r.donor_pseudobulk_mean_cp10k),
+            donorPseudobulkNDonors: naNum(r.donor_pseudobulk_n_donors),
+            tau: naNum(r.tau),
+          })
+        ),
+      };
+    },
+    enabled: !!gene,
+    staleTime: 5 * 60 * 1000,
+    retry: cellTypeRetry,
+  });
+
+/** Per-dataset drill-down (cell_type_expression, level=dataset); fetched only when `enabled`. */
+export const useCellTypeExpressionDatasets = (
+  gene: string | undefined,
+  enabled: boolean
+): UseQueryResult<CellTypeExpressionResult<CellTypeExpressionDatasetRow>, Error> =>
+  useQuery({
+    queryKey: ["cell-type-expression", "dataset", gene],
+    queryFn: async () => {
+      const { rows, release } = await fetchCellTypeExpression(gene!, "dataset");
+      return {
+        release,
+        rows: rows.map(
+          (r): CellTypeExpressionDatasetRow => ({
+            geneId: String(r.gene_id),
+            geneName: String(r.gene_name),
+            datasetId: String(r.dataset_id),
+            status: r.status === "measured_no_row" ? "measured_no_row" : "present",
+            tissue: naStr(r.tissue),
+            tissueGeneral: naStr(r.tissue_general),
+            cellType: naStr(r.cell_type),
+            cellTypeRollup: naStr(r.cell_type_rollup),
+            disease: naStr(r.disease),
+            assay: naStr(r.assay),
+            suspensionType: naStr(r.suspension_type),
+            nCells: naNum(r.n_cells),
+            nDonors: naNum(r.n_donors),
+            meanLog1pCp10k: naNum(r.mean_log1p_cp10k),
+            fracExpressing: naNum(r.frac_expressing),
+            donorPseudobulkMeanCp10k: naNum(r.donor_pseudobulk_mean_cp10k),
+          })
+        ),
+      };
+    },
+    enabled: !!gene && enabled,
+    staleTime: 5 * 60 * 1000,
+    retry: cellTypeRetry,
+  });
 
 // raw expression_by_gene JSON row; level is a numeric string the hook parses to a number.
 interface GeneExpressionApiRow {
