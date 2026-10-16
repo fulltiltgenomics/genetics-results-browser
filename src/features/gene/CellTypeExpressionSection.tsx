@@ -261,7 +261,7 @@ const CellTypeExpressionSection = ({ geneName }: { geneName: string }) => {
               </Typography>
               <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1 }}>
                 each link opens the dataset in the CELLxGENE explorer, whose page carries its citation.
-                Datasets that did not measure this gene are absent.
+                Datasets that did not measure this gene, or whose every group was suppressed, are absent.
               </Typography>
               <MaterialReactTable
                 {...tableProps}
