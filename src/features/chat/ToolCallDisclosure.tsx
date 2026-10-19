@@ -80,7 +80,7 @@ export const ToolCallDisclosure = ({ record }: { record: ToolCallRecord }) => {
           </Typography>
         )}
         {label && (
-          <Typography variant="caption" color={outcome?.ok ? "text.secondary" : "error.main"}>
+          <Typography variant="caption" color="text.secondary">
             {label}
           </Typography>
         )}
@@ -88,7 +88,8 @@ export const ToolCallDisclosure = ({ record }: { record: ToolCallRecord }) => {
           (outcome.ok ? (
             <OkIcon sx={{ fontSize: 15, color: "success.main" }} />
           ) : (
-            <FailIcon sx={{ fontSize: 15, color: "error.main" }} />
+            // gray, not red: a failed call is usually one the agent corrects on its next turn
+            <FailIcon sx={{ fontSize: 15, color: "text.secondary" }} />
           ))}
         <Box sx={{ flexGrow: 1 }} />
         <Typography variant="caption" color="text.disabled">
