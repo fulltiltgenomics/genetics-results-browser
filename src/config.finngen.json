@@ -51,20 +51,6 @@
         "color": "#d62728"
       },
       {
-        "dataName": "FinnGen_MVP_UKBB",
-        "label": "FG+MVP+UKB",
-        "resource": "FinnGen",
-        "dataType": "GWAS",
-        "color": "#9467bd"
-      },
-      {
-        "dataName": "FinnGen_UKBB",
-        "label": "FG+UKB",
-        "resource": "FinnGen",
-        "dataType": "GWAS",
-        "color": "#8c564b"
-      },
-      {
         "dataName": "Open_Targets",
         "label": "OT",
         "resource": "Open Targets",

@@ -1,8 +1,8 @@
 [
   {
-    "resource": "finngen_ukbb",
-    "version": "R13",
-    "dataset": "FinnGen_R13_UKBB",
+    "resource": "finngen_mvp_ukbb_aou",
+    "version": "R14",
+    "dataset": "FinnGen_R14_MVP_UKBB_AOU",
     "data_type": "GWAS",
     "trait": "Alzheimer_disease",
     "trait_original": "G6_ALZHEIMER",

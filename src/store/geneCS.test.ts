@@ -33,9 +33,8 @@ describe("mapToDataName (new resource ids -> legacy config dataName)", () => {
   it("maps any FinnGen core release to FG Core without swallowing the meta-analyses", () => {
     expect(mapToDataName("finngen", "FinnGen_R14", "GWAS")).toBe("FinnGen");
     expect(mapToDataName("finngen", "FinnGen_R99", "GWAS")).toBe("FinnGen");
-    expect(mapToDataName("finngen_ukbb", "FinnGen_R13_UKBB", "GWAS")).toBe("FinnGen_UKBB");
-    expect(mapToDataName("finngen_mvp_ukbb", "FinnGen_R13_MVP_UKBB_labs", "GWAS")).toBe(
-      "FinnGen_MVP_UKBB"
+    expect(mapToDataName("finngen_mvp_ukbb_aou", "FinnGen_R14_MVP_UKBB_AOU", "GWAS")).toBe(
+      "FinnGen_MVP_UKBB_AOU"
     );
   });
 
@@ -57,11 +56,7 @@ describe("mapToDataName (new resource ids -> legacy config dataName)", () => {
     expect(mapToDataName("finngen", "FinnGen_ATACseq", "caQTL")).toBe("FinnGen_caQTL");
   });
 
-  it("maps the combined FinnGen meta-analyses to their own buckets", () => {
-    expect(mapToDataName("finngen_mvp_ukbb", "FinnGen_R13_MVP_UKBB", "GWAS")).toBe(
-      "FinnGen_MVP_UKBB"
-    );
-    expect(mapToDataName("finngen_ukbb", "FinnGen_R13_UKBB", "GWAS")).toBe("FinnGen_UKBB");
+  it("maps the combined FinnGen meta-analysis to its own bucket", () => {
     expect(mapToDataName("finngen_mvp_ukbb_aou", "FinnGen_R14_MVP_UKBB_AOU", "GWAS")).toBe(
       "FinnGen_MVP_UKBB_AOU"
     );
@@ -76,7 +71,9 @@ describe("groupCredibleSets (new JSON rows -> CSDatum[])", () => {
   const data = groupCredibleSets(cisRows);
 
   it("puts a FinnGen R14 four-cohort meta-analysis row in the FinnGen_MVP_UKBB_AOU bucket", () => {
-    const r14 = data.filter((d) => d.dataset === "FinnGen_R14_MVP_UKBB_AOU");
+    const r14 = data.filter(
+      (d) => d.dataset === "FinnGen_R14_MVP_UKBB_AOU" && d.traitOriginal === "T2D"
+    );
     expect(r14).toHaveLength(1);
     expect(r14[0]).toMatchObject({ resource: "FinnGen_MVP_UKBB_AOU", traitOriginal: "T2D" });
     expect(r14[0].variant).toEqual(["19:45041200:G:A"]);
@@ -112,7 +109,7 @@ describe("groupCredibleSets (new JSON rows -> CSDatum[])", () => {
 
   it("rewrites resource to the legacy dataName and maps the renamed fields", () => {
     const ad = data.find((d) => d.trait === "Alzheimer_disease")!;
-    expect(ad.resource).toBe("FinnGen_UKBB"); // finngen_ukbb -> config dataName
+    expect(ad.resource).toBe("FinnGen_MVP_UKBB_AOU"); // finngen_mvp_ukbb_aou -> config dataName
     expect(ad.dataType).toBe("GWAS");
     expect(ad.variant[0]).toBe("19:45039089:T:A");
     // aaf -> af (string), most_severe kept verbatim, rsid not provided
@@ -385,7 +382,7 @@ describe("geneViewTraitName (credible-set row label)", () => {
   it("turns the underscores in an API-resolved GWAS name back into spaces", () => {
     const cs = makeCS({
       dataType: "GWAS",
-      resource: "FinnGen_UKBB",
+      resource: "FinnGen_MVP_UKBB_AOU",
       trait: "Dementia_in_Alzheimer_disease",
       traitOriginal: "F5_ALZHDEMENT",
     });
@@ -601,14 +598,12 @@ describe("geneViewTraitCode (upstream id shown in the row tooltip)", () => {
 describe("pseudoDataNames (/v1/datasets flags -> gene view dataNames)", () => {
   it("maps flagged resources to their config buckets and ignores the rest", () => {
     const rows = [
-      { resource: "finngen_mvp_ukbb", dataType: "gwas", hasPseudoCredibleSets: true },
-      { resource: "finngen_ukbb", dataType: "gwas", hasPseudoCredibleSets: true },
       { resource: "finngen_mvp_ukbb_aou", dataType: "gwas", hasPseudoCredibleSets: true },
       // flagged but not modelled in the gene view config — must not leak in as undefined
       { resource: "covid_hgi", dataType: "gwas", hasPseudoCredibleSets: true },
       { resource: "finngen", dataType: "gwas", hasPseudoCredibleSets: false },
     ];
-    expect(pseudoDataNames(rows)).toEqual(new Set(["FinnGen_MVP_UKBB", "FinnGen_UKBB", "FinnGen_MVP_UKBB_AOU"]));
+    expect(pseudoDataNames(rows)).toEqual(new Set(["FinnGen_MVP_UKBB_AOU"]));
     expect(pseudoDataNames(undefined)).toEqual(new Set());
   });
 });

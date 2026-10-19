@@ -69,20 +69,14 @@ export const mapToDataName = (
   }
   // the FinnGen core GWAS dataset carries its release inline (FinnGen_R13, FinnGen_R14, ...), so
   // match any release: pinning one release silently emptied the whole FG Core bucket when the API
-  // moved on. anchored, so the FinnGen_R13_UKBB* meta-analyses below are not swallowed here.
+  // moved on. anchored, so the FinnGen_R14_MVP_UKBB_AOU meta-analysis below is not swallowed here.
   if (/^FinnGen_R\d+$/.test(dataset)) {
     return "FinnGen";
   }
-  // combined FinnGen meta-analyses (R13 + MVP + UKBB, with/without labs) are GWAS; surface them
-  // under their own config buckets so they stay visible and individually toggleable.
+  // the combined FinnGen meta-analysis is GWAS; surface it under its own config bucket so it
+  // stays visible and individually toggleable.
   if (resource === "finngen_mvp_ukbb_aou") {
     return "FinnGen_MVP_UKBB_AOU";
-  }
-  if (resource === "finngen_mvp_ukbb") {
-    return "FinnGen_MVP_UKBB";
-  }
-  if (resource === "finngen_ukbb") {
-    return "FinnGen_UKBB";
   }
   switch (resource) {
     case "eqtl_catalogue":
