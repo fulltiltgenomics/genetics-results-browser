@@ -5,6 +5,7 @@ import { http, HttpResponse } from "msw";
 
 import { server } from "../../test/msw/server";
 import ChatPage from "./ChatPage";
+import { useAuthStore } from "../../store/useAuth";
 
 // the chat surface is irrelevant to the header; stubbed out like the other ChatPage tests
 vi.mock("./LLMChat", () => ({ LLMChat: () => null }));
@@ -16,6 +17,7 @@ vi.mock("./SessionRating", () => ({ SessionRating: () => null }));
 vi.mock("./FeedbackDialog", () => ({ FeedbackDialog: () => null }));
 vi.mock("./AboutDialog", () => ({ AboutDialog: () => null }));
 vi.mock("./MemoryDialog", () => ({ MemoryDialog: () => null }));
+vi.mock("./AccessGrantDialog", () => ({ AccessGrantDialog: () => null }));
 vi.mock("./schemaApi", () => ({ useSchema: () => ({ data: undefined }) }));
 
 // the flag is read from the build's env at module load, so the mock hands out a getter that
@@ -33,6 +35,7 @@ const now = "2026-09-13T00:00:00Z";
 // tooltip, not its caption
 const MOVE_TO = "File this conversation in a project";
 const TOOLS = "What the assistant can call";
+const GRANT = "Grant temporary access";
 
 const wireProject = (id: string, name: string) => ({
   id,
@@ -56,6 +59,7 @@ const renderChatPage = () =>
 
 beforeEach(() => {
   toolsButton.shown = true;
+  useAuthStore.setState({ accessGrants: null });
   server.use(
     http.get("*/v1/chat/sessions", () => HttpResponse.json([session])),
     http.get("*/v1/projects", () =>
@@ -97,5 +101,23 @@ describe("ChatPage header buttons", () => {
     renderChatPage();
     await screen.findByRole("button", { name: "Share" });
     expect(screen.queryByRole("button", { name: TOOLS })).not.toBeInTheDocument();
+  });
+
+  it("has no access-grant button unless the server configured one for this admin", async () => {
+    renderChatPage();
+    await screen.findByRole("button", { name: "Share" });
+    expect(screen.queryByRole("button", { name: GRANT })).not.toBeInTheDocument();
+  });
+
+  it("shows the configured access-grant button after Tables, filled so it stands out", async () => {
+    useAuthStore.setState({ accessGrants: { label: "ASHG special", expiresAt: "2026-10-25T03:59:59+00:00" } });
+    renderChatPage();
+    await screen.findByRole("button", { name: "Share" });
+    const grant = screen.getByRole("button", { name: GRANT });
+    expect(grant).toHaveTextContent("ASHG special");
+    expect(grant.className).toContain("MuiButton-contained");
+    const tables = screen.getByRole("button", { name: "Database tables" });
+    expect(tables.className).not.toContain("MuiButton-contained");
+    expect(tables.compareDocumentPosition(grant) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });

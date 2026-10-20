@@ -13,6 +13,13 @@ interface AuthResponse {
   authenticated: boolean;
   user: string | null;
   is_admin: boolean;
+  // present only for admins of a deployment that configured the temporary-access button
+  access_grants?: { label: string; expires_at: string } | null;
+}
+
+export interface AccessGrantsConfig {
+  label: string;
+  expiresAt: string;
 }
 
 interface MeResponse {
@@ -23,6 +30,7 @@ interface AuthState {
   isAuthenticated: boolean | null;
   isAuthorized: boolean | null;
   isAdmin: boolean;
+  accessGrants: AccessGrantsConfig | null;
   isLoading: boolean;
   hasError: boolean;
   user: string | null;
@@ -35,6 +43,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   isAuthenticated: null,
   isAuthorized: null,
   isAdmin: false,
+  accessGrants: null,
   isLoading: true,
   hasError: false,
   user: null,
@@ -59,6 +68,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({
         isAuthenticated: isAuth,
         isAdmin: response.data.is_admin ?? false,
+        accessGrants: response.data.access_grants
+          ? { label: response.data.access_grants.label, expiresAt: response.data.access_grants.expires_at }
+          : null,
         user: user ?? null,
         hasError: false,
       });
@@ -91,11 +103,12 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 }));
 
 export function useAuth() {
-  const { isAuthenticated, isAuthorized, isAdmin, isLoading, hasError, user, login, logout } = useAuthStore(
+  const { isAuthenticated, isAuthorized, isAdmin, accessGrants, isLoading, hasError, user, login, logout } = useAuthStore(
     useShallow((s) => ({
       isAuthenticated: s.isAuthenticated,
       isAuthorized: s.isAuthorized,
       isAdmin: s.isAdmin,
+      accessGrants: s.accessGrants,
       isLoading: s.isLoading,
       hasError: s.hasError,
       user: s.user,
@@ -108,6 +121,7 @@ export function useAuth() {
     isAuthenticated: isAuthenticated ?? false,
     isAuthorized: isAuthorized ?? false,
     isAdmin,
+    accessGrants,
     isLoading: isLoading || isAuthenticated === null,
     user,
     login,

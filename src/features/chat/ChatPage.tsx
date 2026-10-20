@@ -16,6 +16,8 @@ import McpTokenDialog from "../page/McpTokenDialog";
 import { DatasetsDialog } from "./DatasetsDialog";
 import { ToolsDialog } from "./ToolsDialog";
 import { SchemaDrawer } from "./SchemaDrawer";
+import { AccessGrantDialog } from "./AccessGrantDialog";
+import { useAuth } from "../../store/useAuth";
 import { useSchema } from "./schemaApi";
 import { useSchemaHashRoute } from "./useSchemaHashRoute";
 import {
@@ -77,6 +79,9 @@ const ChatPage = () => {
   const [exportMenuAnchor, setExportMenuAnchor] = useState<HTMLElement | null>(null);
   const [actionMenuAnchorEl, setActionMenuAnchorEl] = useState<HTMLElement | null>(null);
   const [datasetsOpen, setDatasetsOpen] = useState(false);
+  // the temporary-access button: null for everyone but admins of a deployment that configured it
+  const { accessGrants } = useAuth();
+  const [accessGrantOpen, setAccessGrantOpen] = useState(false);
   const { projects, create: createProject, rename: renameProject, remove: removeProject, reload: reloadProjects } = useProjects();
   // the project of the conversation in view, so the sidebar keeps its section open and a move
   // or a project deletion can follow it. Neither creation path reads it: a new chat is unfiled
@@ -1011,6 +1016,8 @@ const ChatPage = () => {
                   icon?: ReactNode;
                   tooltip?: string;
                   onClick: (e: ReactMouseEvent<HTMLElement>) => void;
+                  // drawn to stand out from the informational buttons: it changes who can log in
+                  highlight?: boolean;
                 }> = [
                   { key: "about", label: "About", onClick: () => setAboutOpen(true) },
                   { key: "feedback", label: "Feedback", onClick: () => setFeedbackOpen(true) },
@@ -1032,6 +1039,17 @@ const ChatPage = () => {
                     tooltip: "Database tables",
                     onClick: () => schemaRoute.openEmpty(),
                   },
+                  ...(accessGrants
+                    ? [
+                        {
+                          key: "access-grant",
+                          label: accessGrants.label,
+                          tooltip: "Grant temporary access",
+                          onClick: () => setAccessGrantOpen(true),
+                          highlight: true,
+                        },
+                      ]
+                    : []),
                 ];
 
                 return (
@@ -1059,7 +1077,9 @@ const ChatPage = () => {
                               }}
                             >
                               {a.icon && <ListItemIcon>{a.icon}</ListItemIcon>}
-                              <ListItemText>{a.label}</ListItemText>
+                              <ListItemText primaryTypographyProps={a.highlight ? { fontWeight: 600 } : undefined}>
+                                {a.label}
+                              </ListItemText>
                             </MenuItem>
                           ))}
                         </Menu>
@@ -1070,6 +1090,8 @@ const ChatPage = () => {
                           <Button
                             key={a.key}
                             size="small"
+                            variant={a.highlight ? "contained" : undefined}
+                            color={a.highlight ? "secondary" : undefined}
                             startIcon={a.icon}
                             onClick={a.onClick}
                           >
@@ -1285,6 +1307,14 @@ const ChatPage = () => {
       <McpTokenDialog open={tokensOpen} onClose={() => setTokensOpen(false)} />
       <DatasetsDialog open={datasetsOpen} onClose={() => setDatasetsOpen(false)} />
       <ToolsDialog open={toolsOpen} onClose={() => setToolsOpen(false)} />
+      {accessGrants && (
+        <AccessGrantDialog
+          open={accessGrantOpen}
+          onClose={() => setAccessGrantOpen(false)}
+          label={accessGrants.label}
+          expiresAt={accessGrants.expiresAt}
+        />
+      )}
       <SchemaDrawer
         open={schemaRoute.open}
         onClose={schemaRoute.close}
