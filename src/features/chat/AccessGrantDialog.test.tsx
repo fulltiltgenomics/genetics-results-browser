@@ -34,7 +34,7 @@ beforeEach(() => {
 describe("AccessGrantDialog", () => {
   it("asks for an e-mail and offers Grant access, with the deadline in Eastern time", async () => {
     renderDialog();
-    expect(screen.getByText("Enter an e-mail")).toBeInTheDocument();
+    expect(screen.getByText("Enter a Google/Apple/Microsoft e-mail")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Grant access" })).toBeInTheDocument();
     expect(await screen.findByText(/Access until Sat, Oct 24, 2026, 11:59 PM EDT/)).toBeInTheDocument();
   });
@@ -92,7 +92,7 @@ describe("AccessGrantDialog", () => {
     typeAndSubmit("x@uni.edu");
 
     expect(
-      await screen.findByText(/x@uni.edu does not look like a Google or Apple address/),
+      await screen.findByText(/x@uni.edu does not look like a Google, Apple or Microsoft address/),
     ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Grant anyway" }));
 

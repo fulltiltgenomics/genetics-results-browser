@@ -1,6 +1,12 @@
 const apiUrl = import.meta.env.VITE_CHAT_URL;
 
-export type AccessGrantProvider = "google" | "apple" | "google-workspace" | "unknown";
+export type AccessGrantProvider =
+  | "google"
+  | "apple"
+  | "microsoft"
+  | "google-workspace"
+  | "microsoft-365"
+  | "unknown";
 
 export interface AccessGrant {
   email: string;

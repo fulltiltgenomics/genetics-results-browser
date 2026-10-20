@@ -144,8 +144,8 @@ export const AccessGrantDialog = ({ open, onClose, label, expiresAt }: AccessGra
             </Button>
           }
         >
-          {outcome.email} does not look like a Google or Apple address. The recipient must sign in
-          with Google or Apple using exactly this address.
+          {outcome.email} does not look like a Google, Apple or Microsoft address. The recipient
+          must sign in with Google, Apple or Microsoft using exactly this address.
         </Alert>
       );
     }
@@ -210,7 +210,7 @@ export const AccessGrantDialog = ({ open, onClose, label, expiresAt }: AccessGra
       {renderOutcome()}
 
       <Typography variant="body1" gutterBottom>
-        Enter an e-mail
+        Enter a Google/Apple/Microsoft e-mail
       </Typography>
       <TextField
         type="email"
@@ -226,8 +226,8 @@ export const AccessGrantDialog = ({ open, onClose, label, expiresAt }: AccessGra
         slotProps={{ htmlInput: { "aria-label": "e-mail address" } }}
       />
       <Typography variant="body2" color="text.secondary" sx={{ mt: 1, mb: 3 }}>
-        Access until {formatDeadline(expiresAt)}. The recipient signs in with Google or Apple using
-        this address; any MCP/API keys they create stop working at the same time.
+        Access until {formatDeadline(expiresAt)}. The recipient signs in with Google, Apple or
+        Microsoft using this address; any MCP/API keys they create stop working at the same time.
       </Typography>
 
       {grants.length > 0 ? (
