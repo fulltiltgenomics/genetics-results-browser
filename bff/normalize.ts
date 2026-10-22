@@ -102,8 +102,8 @@ interface RawDataset {
     colocalization?: unknown;
   };
   // true when the dataset's credible sets are PSEUDO (approximate, LD-based) rather than formally
-  // fine-mapped (SuSiE/FINEMAP). set on meta-analysis datasets (finngen_mvp_ukbb, finngen_ukbb) and
-  // external GWAS (pgc/gp2/ibd_gwas/covid_hgi). always paired with products.credible_sets === true.
+  // fine-mapped (SuSiE/FINEMAP), as results-api's /datasets row reports it. always
+  // paired with products.credible_sets === true.
   pseudo_credible_sets?: boolean;
 }
 
@@ -410,8 +410,8 @@ const deriveResources = (datasets: RawDataset[]): ResourceMeta[] => {
     dataTypes: [...e.dataTypes],
     hasSummaryStats: e.hasSummaryStats,
     hasCredibleSets: e.hasCredibleSets,
-    // a resource is flagged pseudo only when it has pseudo CS and NO formally fine-mapped CS dataset
-    // (the pseudo resources — finngen_mvp_ukbb/finngen_ukbb/pgc/gp2/ibd_gwas/covid_hgi — never mix).
+    // a resource is flagged pseudo only when it has pseudo CS and NO formally fine-mapped CS dataset,
+    // so a resource that holds both kinds is not flagged.
     hasPseudoCredibleSets: e.hasPseudoCs && !e.hasRealCs,
   }));
 };
