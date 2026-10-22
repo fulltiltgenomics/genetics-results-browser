@@ -50,6 +50,9 @@ export default defineConfig({
           env,
           environment: "jsdom",
           globals: true,
+          // whole-page mounts (AdminPage, ChatPage, LLMChat) take 2-3 s alone in jsdom and
+          // overran the 5 s default once the suite's workers contended for the CPU
+          testTimeout: 20_000,
           setupFiles: ["./src/test/setup.ts"],
           include: ["src/**/*.{test,spec}.{ts,tsx}"],
           // e2e/ specs use @playwright/test, not vitest — keep them out of `npm test`

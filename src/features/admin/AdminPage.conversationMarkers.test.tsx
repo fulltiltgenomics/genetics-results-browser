@@ -84,9 +84,7 @@ async function openConversation() {
   await waitFor(() => expect(fetchAdminSessionDetail).toHaveBeenCalledWith("s-1"));
 }
 
-// each test mounts the whole AdminPage (MUI tabs, tables, dialog) in jsdom: ~2.5 s alone, past
-// the 5 s default once the full suite's workers contend for the CPU
-describe("the admin conversation viewer", { timeout: 20_000 }, () => {
+describe("the admin conversation viewer", () => {
   beforeEach(() => {
     fetchAdminSessionDetail.mockReset();
     fetchAdminSessionDetail.mockResolvedValue(DETAIL);
