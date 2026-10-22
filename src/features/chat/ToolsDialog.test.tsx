@@ -12,19 +12,19 @@ const TOOLS = [
   {
     name: "search_genes",
     description: "Look up gene symbols and positions.",
-    category: "general",
+    group: "lookup",
     source: "local",
   },
   {
     name: "query_database",
     description: "Execute a **SQL** query against the genetics database.",
-    category: "bigquery",
+    group: "sql",
     source: "local",
   },
   {
     name: "gnomad_variant",
     description: "Population frequencies from gnomAD.",
-    category: null,
+    group: null,
     source: "external",
   },
 ];
@@ -84,11 +84,25 @@ describe("ToolsDialog", () => {
     expect(await screen.findByText("query_database")).toBeInTheDocument();
     expect(screen.getByText("Lookup and search")).toBeInTheDocument();
     expect(screen.getByText("Database (SQL)")).toBeInTheDocument();
-    // proxied tools carry no category and would be dropped by a category-only grouping
+    // proxied tools carry no group and would be dropped by a group-only grouping
     expect(screen.getByText("External MCP servers")).toBeInTheDocument();
     expect(screen.getByText("gnomad_variant")).toBeInTheDocument();
     // the model-facing descriptions use markdown emphasis; the asterisks must not show
     expect(screen.getByText("SQL").tagName).toBe("STRONG");
+  });
+
+  it("files a tool under its section when the backend still spells the group `category`", async () => {
+    server.use(
+      http.get("*/v1/tools", () =>
+        HttpResponse.json([{ ...TOOLS[0], group: undefined, category: "lookup" }])
+      )
+    );
+    useChatOptionsStore.setState({ toolProfile: "nocode" });
+
+    renderDialog();
+
+    expect(await screen.findByText("search_genes")).toBeInTheDocument();
+    expect(screen.getByText("Lookup and search")).toBeInTheDocument();
   });
 
   it("filters on name and description", async () => {

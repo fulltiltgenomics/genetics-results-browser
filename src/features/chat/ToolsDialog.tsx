@@ -20,29 +20,29 @@ interface ToolsDialogProps {
   onClose: () => void;
 }
 
-/** how each group of tools is introduced. Keyed by `source:category` for local tools — the pair
- * the server groups by — and by source alone for the proxied ones, which have no category. */
+/** how each group of tools is introduced. Keyed by `source:group` for local tools — the pair
+ * the server groups by — and by source alone for the proxied ones, which have no group. */
 const GROUPS: { key: string; label: string; blurb: string }[] = [
   {
-    key: "local:general",
+    key: "local:lookup",
     label: "Lookup and search",
     blurb:
       "Finding the right identifier, and the searches that are not about our own results: genes, phenotypes, variants, proteins, literature, the web.",
   },
   {
-    key: "local:api",
+    key: "local:results",
     label: "Genetics results",
     blurb:
       "The hosted results themselves — credible sets, colocalization, QTLs, exome and burden tests, HLA, chromatin, expression — queried one gene, variant, phenotype or region at a time.",
   },
   {
-    key: "local:bigquery",
+    key: "local:sql",
     label: "Database (SQL)",
     blurb:
       "Direct SQL against the same results, for questions that span many phenotypes or genes at once rather than a single lookup.",
   },
   {
-    key: "local:orchestration",
+    key: "local:analysis",
     label: "Analysis and orchestration",
     blurb:
       "Running analysis code in the sandbox, reading back what it produced, and splitting a broad question across parallel subagents.",
@@ -61,7 +61,7 @@ const GROUPS: { key: string; label: string; blurb: string }[] = [
 ];
 
 const groupKey = (tool: AvailableTool) =>
-  tool.source === "local" ? `local:${tool.category ?? "other"}` : tool.source;
+  tool.source === "local" ? `local:${tool.group ?? "other"}` : tool.source;
 
 export const ToolsDialog = ({ open, onClose }: ToolsDialogProps) => {
   const toolProfile = useChatOptionsStore((s) => s.toolProfile);
@@ -79,7 +79,7 @@ export const ToolsDialog = ({ open, onClose }: ToolsDialogProps) => {
         )
       : tools;
     // a group the server sends that GROUPS does not name still gets shown, under its raw key:
-    // a new tool category must not silently vanish from a panel whose whole job is completeness
+    // a new tool group must not silently vanish from a panel whose whole job is completeness
     const known = GROUPS.map((g) => ({ ...g, tools: matching.filter((t) => groupKey(t) === g.key) }));
     const namedKeys = new Set(GROUPS.map((g) => g.key));
     const rest = matching.filter((t) => !namedKeys.has(groupKey(t)));

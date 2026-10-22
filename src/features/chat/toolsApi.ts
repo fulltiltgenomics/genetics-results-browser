@@ -3,16 +3,17 @@ import type { ToolProfile } from "./chat.types";
 
 const chatUrl = import.meta.env.VITE_CHAT_URL;
 
-/** where a tool comes from, and the only thing that says whether `category` means anything.
+/** where a tool comes from, and the only thing that says whether `group` means anything.
  * local tools are defined in the chat server; external and RAG tools are proxied from remote MCP
- * servers, which have no notion of our categories */
+ * servers, which have no notion of our panel groups */
 export type ToolSource = "local" | "external" | "rag";
 
 export interface AvailableTool {
   name: string;
   description: string;
-  /** the profile category this tool is filtered by; null for every proxied tool */
-  category: string | null;
+  /** the tools-panel section this tool is shown under, purely presentational — nothing about
+   * which tools the model is handed reads it; null for every proxied tool */
+  group: string | null;
   source: ToolSource;
 }
 
@@ -30,15 +31,16 @@ export async function fetchAvailableTools(profile: ToolProfile): Promise<Availab
   if (!response.ok) {
     throw new Error(`HTTP ${response.status}`);
   }
-  const tools = (await response.json()) as Partial<AvailableTool>[];
+  const tools = (await response.json()) as Partial<AvailableTool & { category: string }>[];
   // the browser deploys independently of the chat backend: a backend that predates `resolved`
-  // ignores the parameter and answers with the raw catalogue, whose entries carry a category but
-  // no source. Reading a missing source as local keeps that answer grouped and readable — it is
-  // every local tool, unfiltered — rather than collapsing the whole panel into one unnamed group
+  // ignores the parameter and answers with the raw catalogue, whose entries carry a group but
+  // no source, and one that predates the rename still spells the group `category`. Reading a
+  // missing source as local keeps that answer grouped and readable — it is every local tool,
+  // unfiltered — rather than collapsing the whole panel into one unnamed group
   return tools.map((t) => ({
     name: t.name ?? "",
     description: t.description ?? "",
-    category: t.category ?? null,
+    group: t.group ?? t.category ?? null,
     source: t.source ?? "local",
   }));
 }
