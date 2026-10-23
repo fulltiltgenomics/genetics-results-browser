@@ -27,6 +27,7 @@ interface McpTokenDialogProps {
 const McpTokenDialog = ({ open, onClose }: McpTokenDialogProps) => {
   const [tokens, setTokens] = useState<TokenInfo[]>([]);
   const [newTokenValue, setNewTokenValue] = useState<string | null>(null);
+  const [newTokenId, setNewTokenId] = useState<number | null>(null);
   const [tokenName, setTokenName] = useState("");
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -34,7 +35,7 @@ const McpTokenDialog = ({ open, onClose }: McpTokenDialogProps) => {
   const loadTokens = useCallback(async () => {
     try {
       setTokens(await listTokens());
-    } catch (e) {
+    } catch {
       setError("Failed to load keys");
     }
   }, []);
@@ -43,6 +44,7 @@ const McpTokenDialog = ({ open, onClose }: McpTokenDialogProps) => {
     if (open) {
       loadTokens();
       setNewTokenValue(null);
+      setNewTokenId(null);
       setTokenName("");
       setCopied(false);
       setError(null);
@@ -54,10 +56,11 @@ const McpTokenDialog = ({ open, onClose }: McpTokenDialogProps) => {
       setError(null);
       const result = await createToken(tokenName || undefined);
       setNewTokenValue(result.token);
+      setNewTokenId(result.id);
       setTokenName("");
       setCopied(false);
       await loadTokens();
-    } catch (e) {
+    } catch {
       setError("Failed to create key");
     }
   };
@@ -72,8 +75,14 @@ const McpTokenDialog = ({ open, onClose }: McpTokenDialogProps) => {
     try {
       setError(null);
       await revokeToken(tokenId);
+      // the plaintext is only useful while its key is active; an older key being revoked
+      // leaves the new, possibly still uncopied one on screen
+      if (tokenId === newTokenId) {
+        setNewTokenValue(null);
+        setNewTokenId(null);
+      }
       await loadTokens();
-    } catch (e) {
+    } catch {
       setError("Failed to revoke key");
     }
   };
