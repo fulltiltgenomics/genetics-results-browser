@@ -124,7 +124,7 @@ export interface ChatMessage {
   literatureBackend?: string | null; // literature search backend used
   verbosity?: string | null; // answer detail this turn was produced under
   instructionSetId?: string | null; // instruction set this turn was produced under
-  attachments?: FileAttachment[]; // file attachments (images, TSV, Excel)
+  attachments?: FileAttachment[]; // file attachments (images, text tables, Excel)
   usedMemory?: boolean; // this turn's system prompt carried the cross-session memory digest
 }
 

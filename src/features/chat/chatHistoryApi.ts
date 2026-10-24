@@ -365,8 +365,10 @@ export function getAttachmentType(mimeType: string, fileName: string): Attachmen
   if (
     mimeType === "text/tab-separated-values" ||
     mimeType === "text/csv" ||
+    mimeType === "text/plain" ||
     fileName.endsWith(".tsv") ||
-    fileName.endsWith(".csv")
+    fileName.endsWith(".csv") ||
+    fileName.endsWith(".txt")
   ) {
     return "tsv";
   }
@@ -388,6 +390,22 @@ export function isValidAttachmentType(mimeType: string, fileName: string): boole
   } catch {
     return false;
   }
+}
+
+// TextEdit saves rich text unless told otherwise, so a table pasted into it and saved as .tsv
+// is "{\rtf1..." with every cell wrapped in formatting codes. The server refuses it too, but an
+// upload refusal never reaches the user as text (the turn goes on with an "upload failed"
+// block), so the file is read here, where the message can be shown
+export const RTF_SIGNATURE = "{\\rtf";
+export const RTF_ERROR =
+  " is a rich-text (RTF) document, not a plain-text table. In TextEdit choose " +
+  "Format > Make Plain Text and save it again, or export the table as TSV or CSV.";
+
+/** The refusal for a text data file that is really an RTF document, or null. */
+export async function richTextError(file: File, type: AttachmentType): Promise<string | null> {
+  if (type !== "tsv") return null;
+  const head = await file.slice(0, 64).text();
+  return head.trimStart().startsWith(RTF_SIGNATURE) ? `${file.name}${RTF_ERROR}` : null;
 }
 
 // a data file is only analysed by delivering it to the code sandbox, so one over the

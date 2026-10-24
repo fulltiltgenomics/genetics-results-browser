@@ -113,7 +113,12 @@ import { useChatOptionsStore } from "./useChatOptions";
 import { APP_NAME } from "../../config/appName";
 import { SHOW_TOOLS_CONTROL } from "../../config/showToolsControl";
 import { PendingAttachments, MessageAttachments } from "./FileAttachments";
-import { dataFileSizeError, getAttachmentType, isValidAttachmentType } from "./chatHistoryApi";
+import {
+  dataFileSizeError,
+  getAttachmentType,
+  isValidAttachmentType,
+  richTextError,
+} from "./chatHistoryApi";
 import { excelFileToTsv } from "./excelToTsv";
 import { fileReferenceBlock, readFilePreview } from "./fileReference";
 import { stripImageMarkers } from "./imageMarker";
@@ -391,11 +396,17 @@ export const LLMChat = ({
 
     for (const file of Array.from(files)) {
       if (!isValidAttachmentType(file.type, file.name)) {
-        setError(`Unsupported file type: ${file.name}. Supported: images, TSV, CSV, Excel`);
+        setError(`Unsupported file type: ${file.name}. Supported: images, TSV, CSV, TXT, Excel`);
         continue;
       }
 
       const attachmentType = getAttachmentType(file.type, file.name);
+
+      const rtfError = await richTextError(file, attachmentType);
+      if (rtfError) {
+        setError(rtfError);
+        continue;
+      }
 
       // Excel is measured on its TSV conversion, as the backend measures its TSV sidecar,
       // because the TSV is what the sandbox receives; the same conversion yields its preview.
@@ -1525,7 +1536,7 @@ export const LLMChat = ({
           type="file"
           ref={fileInputRef}
           onChange={handleFileSelect}
-          accept="image/*,.tsv,.csv,.xlsx,.xls"
+          accept="image/*,.tsv,.csv,.txt,.xlsx,.xls"
           multiple
           style={{ display: "none" }}
         />
@@ -1533,7 +1544,7 @@ export const LLMChat = ({
           onClick={() => fileInputRef.current?.click()}
           disabled={isLoading}
           sx={{ mb: 0.5 }}
-          title="Attach files (images, TSV, Excel)">
+          title="Attach files (images, TSV, CSV, TXT, Excel)">
           <AttachFileIcon />
         </IconButton>
         <TextField
