@@ -45,6 +45,7 @@ export const McpAppFrame = ({ record }: { record: McpAppRecord }) => {
       (fetched) => {
         if (cancelled) return;
         viewRef.current = fetched;
+        hostRef.current?.update({ tool: fetched.tool });
         setView(fetched);
       },
       (e: unknown) => {

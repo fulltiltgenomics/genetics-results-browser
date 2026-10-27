@@ -16,6 +16,14 @@ export interface AppViewCsp {
   baseUriDomains?: string[];
 }
 
+/** an MCP tool definition as the server lists it; the view's SDK wants it whole */
+export interface McpToolDefinition {
+  name: string;
+  description?: string;
+  inputSchema: Record<string, unknown>;
+  [key: string]: unknown;
+}
+
 export interface AppView {
   uri: string;
   html: string;
@@ -24,6 +32,7 @@ export interface AppView {
     permissions?: Record<string, unknown>;
     prefersBorder?: boolean;
   };
+  tool?: McpToolDefinition;
 }
 
 const views = new Map<string, Promise<AppView>>();

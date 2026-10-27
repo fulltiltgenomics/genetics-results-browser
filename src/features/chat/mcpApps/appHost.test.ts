@@ -42,7 +42,10 @@ describe("McpAppHost", () => {
     expect(reply.result.hostInfo).toEqual({ name: "test-host", version: "0" });
     expect(reply.result.hostContext.theme).toBe("light");
     expect(reply.result.hostContext.containerDimensions).toEqual({ width: 640, maxHeight: 1200 });
-    expect(reply.result.hostContext.toolInfo).toEqual({ id: "tu-1", tool: { name: record.tool } });
+    expect(reply.result.hostContext.toolInfo).toEqual({
+      id: "tu-1",
+      tool: { name: record.tool, inputSchema: { type: "object" } },
+    });
     expect(h.host.ready).toBe(false);
   });
 
@@ -113,6 +116,13 @@ describe("McpAppHost", () => {
     h.host.handle({ jsonrpc: "1.0", id: 1, method: "ping" });
     h.host.handle({ jsonrpc: "2.0", id: "teardown-1", result: {} });
     expect(h.posted).toHaveLength(0);
+  });
+
+  it("hands the view its tool as the server defines it, once the host has it", () => {
+    const tool = { name: "show_plot", description: "d", inputSchema: { type: "object", properties: {} } };
+    h.host.update({ tool });
+    h.host.handle({ jsonrpc: "2.0", id: 1, method: "ui/initialize", params: {} });
+    expect(h.posted[0].result.hostContext.toolInfo.tool).toEqual(tool);
   });
 
   it("tells an initialized view about a context change, and asks it to tear down", () => {

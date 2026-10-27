@@ -28,7 +28,9 @@
     return list.filter(function (d) { return typeof d === "string" && DOMAIN.test(d); }).join(" ");
   }
 
-  // the spec's default policy, widened only by what the view declared
+  // the spec's default policy, widened by what the view declared and by eval: the view is
+  // untrusted code from end to end and has no origin, so eval adds nothing it could not do
+  // already, and DepMap's Data Explorer refuses to draw without it
   function buildCsp(csp) {
     var resources = domains(csp, "resourceDomains");
     var connect = domains(csp, "connectDomains");
@@ -36,7 +38,7 @@
     var base = domains(csp, "baseUriDomains");
     return [
       "default-src 'none'",
-      "script-src 'self' 'unsafe-inline' " + resources,
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' 'wasm-unsafe-eval' " + resources,
       "style-src 'self' 'unsafe-inline' " + resources,
       "img-src 'self' data: blob: " + resources,
       "font-src 'self' data: " + resources,
@@ -79,8 +81,10 @@
   }
 
   function mount(params) {
-    if (inner) { inner.remove(); inner = null; }
-    if (typeof params.html !== "string") return;
+    // one view per proxy page: a second resource-ready is the host answering an earlier
+    // announcement, not a new view, and must not restart the one running
+    if (inner || typeof params.html !== "string") return;
+    clearInterval(announcing);
     inner = document.createElement("iframe");
     inner.setAttribute("sandbox", buildSandbox(params.sandbox));
     var allow = buildAllow(params.permissions);
@@ -107,7 +111,13 @@
     }
   });
 
-  host.postMessage({ jsonrpc: "2.0", method: "ui/notifications/sandbox-proxy-ready", params: {} }, "*");
+  // announced until the host answers with the view: the host page may still be parsing when
+  // this frame has already loaded, so a single announcement can fire before anyone listens
+  function announce() {
+    host.postMessage({ jsonrpc: "2.0", method: "ui/notifications/sandbox-proxy-ready", params: {} }, "*");
+  }
+  var announcing = setInterval(announce, 300);
+  announce();
 })();
 </script>
 </body>

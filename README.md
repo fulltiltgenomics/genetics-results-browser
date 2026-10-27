@@ -13,7 +13,8 @@ explicit CSP source.
 The one page served under a different policy is `/mcp-app-sandbox.html` (from `public/`): the
 chat embeds it, sandboxed without `allow-same-origin`, to host an external MCP server's HTML
 view (an MCP App, e.g. DepMap's Data Explorer plots), and a view is inline script by nature.
-Its `location` in `nginx.prod.conf` allows that and `frame-ancestors 'self'`; the view inside it
+Its `location` in `nginx.prod.conf` allows that, and eval (DepMap's plots need it, and the frame
+has no origin for it to matter), and `frame-ancestors 'self'`; the view inside it
 then runs under the narrower policy the proxy page builds from what the server declared
 (`src/features/chat/mcpApps/`).
 

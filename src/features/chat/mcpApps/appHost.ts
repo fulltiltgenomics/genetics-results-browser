@@ -15,6 +15,7 @@
  */
 
 import type { McpAppRecord, McpCallToolResult } from "../mcpAppMarker";
+import type { McpToolDefinition } from "./mcpAppsApi";
 
 export const PROTOCOL_VERSION = "2026-01-26";
 
@@ -44,6 +45,9 @@ export interface HostContext {
   /** the frame's width in CSS pixels; a view lays itself out to it */
   width: number;
   maxHeight: number;
+  /** the tool whose result the view shows, as its server defines it; the view's SDK
+   *  validates `toolInfo.tool` as a whole tool, inputSchema included */
+  tool?: McpToolDefinition;
 }
 
 export interface AppHostOptions {
@@ -120,9 +124,12 @@ export class McpAppHost {
   }
 
   private hostContext() {
-    const { theme, width, maxHeight } = this.opts.context;
+    const { theme, width, maxHeight, tool } = this.opts.context;
     return {
-      toolInfo: { id: this.opts.record.id, tool: { name: this.opts.record.tool } },
+      toolInfo: {
+        id: this.opts.record.id,
+        tool: tool ?? { name: this.opts.record.tool, inputSchema: { type: "object" } },
+      },
       theme,
       displayMode: "inline",
       availableDisplayModes: ["inline"],
