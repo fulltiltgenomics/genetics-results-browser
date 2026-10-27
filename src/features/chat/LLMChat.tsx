@@ -127,6 +127,7 @@ import { useSchema } from "./schemaApi";
 import { linkifyViewsPlugin } from "./linkifyViews";
 import { MessageContent } from "./MessageContent";
 import { encodeToolCallMarker, withToolCallOutcome } from "./toolCallMarker";
+import { encodeMcpAppMarker, stripMcpAppMarkers } from "./mcpAppMarker";
 import { cancelTurn, turnEventsUrl, TurnGoneError } from "./turnsApi";
 
 // hardcoded fallback used until useSchema() resolves; mirrors known views in genetics-results-db
@@ -610,6 +611,16 @@ export const LLMChat = ({
           input: data.input ?? {},
         })}\n\n`;
         showContent();
+      } else if (data.type === "mcp_app" && data.tool && data.result) {
+        // an external tool whose result its own server renders: embedded like an image so
+        // the view comes back on reload, drawn by MessageContent in a sandboxed frame
+        run.content += `\n\n${encodeMcpAppMarker({
+          id: data.tool_use_id ?? "",
+          tool: data.tool,
+          input: data.input ?? {},
+          result: data.result,
+        })}\n\n`;
+        showContent();
       } else if (data.type === "script_result" && data.tool_use_id) {
         // the outcome of a run_analysis that was already written into the content
         // above; rewrite that one marker so its summary line can show it
@@ -1060,7 +1071,12 @@ export const LLMChat = ({
             // an artifact's whole base64 sits inside its marker. The model cannot read it and
             // is charged for it on every later turn, so the payload goes and the note stays.
             if (m.role === "assistant") {
-              return [{ role: m.role, content: stripFileMarkers(stripImageMarkers(m.content)) }];
+              return [
+                {
+                  role: m.role,
+                  content: stripMcpAppMarkers(stripFileMarkers(stripImageMarkers(m.content))),
+                },
+              ];
             }
             return [{ role: m.role, content: m.content }];
           }),

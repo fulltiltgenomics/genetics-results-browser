@@ -34,7 +34,7 @@ export interface ToolCallRecord {
 
 export const TOOL_CALL_MARKER_REGEX = /\[TOOLUSE:([A-Za-z0-9+/=]*)\]/g;
 
-function toBase64(text: string): string {
+export function toBase64(text: string): string {
   const bytes = new TextEncoder().encode(text);
   // chunked: String.fromCharCode(...bytes) blows the argument limit on a large script
   let binary = "";
@@ -44,7 +44,7 @@ function toBase64(text: string): string {
   return btoa(binary);
 }
 
-function fromBase64(encoded: string): string {
+export function fromBase64(encoded: string): string {
   const binary = atob(encoded);
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);

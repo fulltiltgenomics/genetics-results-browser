@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>MCP App sandbox</title>
+<style>html,body{margin:0;height:100%;overflow:hidden;background:transparent}iframe{border:0;width:100%;height:100%;display:block}</style>
+</head>
+<body>
+<script>
+// The sandbox proxy of the MCP Apps spec: the one document between the chat page and a
+// view an external tool's server wrote. The chat page loads it in a frame sandboxed without
+// allow-same-origin, which gives it an opaque origin, and this page's own CSP comes from the
+// response header, not from the chat page's — a frame written with srcdoc inherits its
+// parent's policy, and the chat page's forbids the inline script every view is. So the view
+// is written here, as srcdoc, with the policy its server declared, and every message is
+// relayed between the two windows unchanged except the two sandbox-* ones, which are the
+// proxy's own. It never originates a request to either side.
+(function () {
+  var host = window.parent;
+  if (host === window) return;
+  var inner = null;
+
+  // a source expression a view may name: a scheme-prefixed host, nothing a policy string
+  // could be broken with
+  var DOMAIN = /^(https?:\/\/|wss?:\/\/)[A-Za-z0-9.*:-]+(\/[A-Za-z0-9._~\/-]*)?$/;
+  function domains(csp, key) {
+    var list = csp && Array.isArray(csp[key]) ? csp[key] : [];
+    return list.filter(function (d) { return typeof d === "string" && DOMAIN.test(d); }).join(" ");
+  }
+
+  // the spec's default policy, widened only by what the view declared
+  function buildCsp(csp) {
+    var resources = domains(csp, "resourceDomains");
+    var connect = domains(csp, "connectDomains");
+    var frames = domains(csp, "frameDomains");
+    var base = domains(csp, "baseUriDomains");
+    return [
+      "default-src 'none'",
+      "script-src 'self' 'unsafe-inline' " + resources,
+      "style-src 'self' 'unsafe-inline' " + resources,
+      "img-src 'self' data: blob: " + resources,
+      "font-src 'self' data: " + resources,
+      "media-src 'self' data: " + resources,
+      "connect-src " + (connect || "'none'"),
+      "frame-src " + (frames || "'none'"),
+      "base-uri " + (base || "'self'"),
+      "object-src 'none'",
+      "form-action 'none'"
+    ].map(function (d) { return d.replace(/\s+$/, ""); }).join("; ");
+  }
+
+  function buildAllow(permissions) {
+    var names = { camera: "camera", microphone: "microphone", geolocation: "geolocation", clipboardWrite: "clipboard-write" };
+    var out = [];
+    for (var key in names) {
+      if (permissions && Object.prototype.hasOwnProperty.call(permissions, key)) out.push(names[key]);
+    }
+    return out.join("; ");
+  }
+
+  // the sandbox the view runs in; whatever the host asked for, never same-origin or
+  // top navigation
+  function buildSandbox(requested) {
+    var tokens = typeof requested === "string" && requested.trim()
+      ? requested.trim().split(/\s+/)
+      : ["allow-scripts", "allow-forms", "allow-popups", "allow-popups-to-escape-sandbox", "allow-downloads"];
+    return tokens.filter(function (t) {
+      return t !== "allow-same-origin" && t.indexOf("allow-top-navigation") !== 0;
+    }).join(" ");
+  }
+
+  function withCsp(html, csp) {
+    var meta = '<meta http-equiv="Content-Security-Policy" content="' + csp.replace(/"/g, "&quot;") + '">';
+    var head = /<head[^>]*>/i.exec(html);
+    if (head) return html.slice(0, head.index + head[0].length) + meta + html.slice(head.index + head[0].length);
+    var root = /<html[^>]*>/i.exec(html);
+    if (root) return html.slice(0, root.index + root[0].length) + "<head>" + meta + "</head>" + html.slice(root.index + root[0].length);
+    return "<!DOCTYPE html><html><head>" + meta + "</head><body>" + html + "</body></html>";
+  }
+
+  function mount(params) {
+    if (inner) { inner.remove(); inner = null; }
+    if (typeof params.html !== "string") return;
+    inner = document.createElement("iframe");
+    inner.setAttribute("sandbox", buildSandbox(params.sandbox));
+    var allow = buildAllow(params.permissions);
+    if (allow) inner.setAttribute("allow", allow);
+    inner.setAttribute("title", "MCP App view");
+    inner.srcdoc = withCsp(params.html, buildCsp(params.csp));
+    document.body.appendChild(inner);
+  }
+
+  function isProxyMessage(data) {
+    return typeof data.method === "string" && data.method.indexOf("ui/notifications/sandbox-") === 0;
+  }
+
+  window.addEventListener("message", function (ev) {
+    var data = ev.data;
+    if (!data || typeof data !== "object" || data.jsonrpc !== "2.0") return;
+    if (ev.source === host) {
+      if (data.method === "ui/notifications/sandbox-resource-ready") { mount(data.params || {}); return; }
+      if (isProxyMessage(data)) return;
+      if (inner && inner.contentWindow) inner.contentWindow.postMessage(data, "*");
+    } else if (inner && ev.source === inner.contentWindow) {
+      if (isProxyMessage(data)) return;
+      host.postMessage(data, "*");
+    }
+  });
+
+  host.postMessage({ jsonrpc: "2.0", method: "ui/notifications/sandbox-proxy-ready", params: {} }, "*");
+})();
+</script>
+</body>
+</html>

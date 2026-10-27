@@ -9,13 +9,16 @@ import { MarkdownTable } from "./MarkdownTable";
 import { ToolCallDisclosure } from "./ToolCallDisclosure";
 import { decodeFileName } from "./fileMarker";
 import { artifactNameFromHref, linkifyArtifactsPlugin } from "./linkifyArtifacts";
+import { decodeMcpAppMarker } from "./mcpAppMarker";
+import { McpAppFrame } from "./mcpApps/McpAppFrame";
 import { decodeToolCallMarker } from "./toolCallMarker";
 
-// the three embedded-object markers a message's text can carry: [IMAGE:format:alt:base64data],
-// [FILE:mime:name:base64data] and [TOOLUSE:base64json]. Matched by one alternation so a message
-// holding several still renders its parts in the order they were streamed.
+// the four embedded-object markers a message's text can carry: [IMAGE:format:alt:base64data],
+// [FILE:mime:name:base64data], [TOOLUSE:base64json] and [MCPAPP:base64json]. Matched by one
+// alternation so a message holding several still renders its parts in the order they were
+// streamed.
 const EMBEDDED_MARKER_REGEX =
-  /\[IMAGE:([^:]+):([^:]+):([^\]]+)\]|\[FILE:([^:\]]+):([^:\]]+):([^\]]+)\]|\[TOOLUSE:([A-Za-z0-9+/=]*)\]/g;
+  /\[IMAGE:([^:]+):([^:]+):([^\]]+)\]|\[FILE:([^:\]]+):([^:\]]+):([^\]]+)\]|\[TOOLUSE:([A-Za-z0-9+/=]*)\]|\[MCPAPP:([A-Za-z0-9+/=]*)\]/g;
 
 type Artifact = { mime: string; data: string };
 
@@ -46,8 +49,8 @@ const collectArtifacts = (content: string): Map<string, Artifact> => {
 /**
  * Renders message content, handling embedded objects separately from markdown.
  *
- * Three marker shapes are carried inline in the text: [IMAGE:format:alt:base64data],
- * [FILE:mime:name:base64data] and [TOOLUSE:base64json]. All live in the message's `content`
+ * Four marker shapes are carried inline in the text: [IMAGE:format:alt:base64data],
+ * [FILE:mime:name:base64data], [TOOLUSE:base64json] and [MCPAPP:base64json]. All live in the message's `content`
  * rather than in component state so that a reopened session renders identically to the live
  * stream — `content` is the only thing this component ever sees.
  *
@@ -91,7 +94,8 @@ export const MessageContent = ({
   if (
     !content.includes("[IMAGE:") &&
     !content.includes("[FILE:") &&
-    !content.includes("[TOOLUSE:")
+    !content.includes("[TOOLUSE:") &&
+    !content.includes("[MCPAPP:")
   ) {
     return (
       <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={plugins} components={components}>
@@ -125,8 +129,14 @@ export const MessageContent = ({
       }
     }
 
-    const [, format, alt, base64Data, fileMime, fileName, fileData, toolCallData] = match;
-    if (toolCallData !== undefined) {
+    const [, format, alt, base64Data, fileMime, fileName, fileData, toolCallData, mcpAppData] =
+      match;
+    if (mcpAppData !== undefined) {
+      const record = decodeMcpAppMarker(mcpAppData);
+      if (record) {
+        parts.push(<McpAppFrame key={`app-${record.id || keyIndex}-${keyIndex++}`} record={record} />);
+      }
+    } else if (toolCallData !== undefined) {
       const record = decodeToolCallMarker(toolCallData);
       // a marker left half-written by an interrupted stream decodes to null; dropping it
       // is better than rendering the base64 as prose

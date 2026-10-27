@@ -10,6 +10,12 @@ The production nginx config (`nginx.prod.conf`) serves a CSP with `connect-src '
 cannot call external hosts directly — the LD lookup goes through the BFF's `GET /api/v1/ld` proxy
 (`LD_API_URL`). Anything else the browser must reach off-origin needs either a BFF route or an
 explicit CSP source.
+The one page served under a different policy is `/mcp-app-sandbox.html` (from `public/`): the
+chat embeds it, sandboxed without `allow-same-origin`, to host an external MCP server's HTML
+view (an MCP App, e.g. DepMap's Data Explorer plots), and a view is inline script by nature.
+Its `location` in `nginx.prod.conf` allows that and `frame-ancestors 'self'`; the view inside it
+then runs under the narrower policy the proxy page builds from what the server declared
+(`src/features/chat/mcpApps/`).
 
 Running the tool requires running the [backend API](https://github.com/fulltiltgenomics/genetics-results-api).
 The chat views additionally require the chat backend (`../genetics-mcp-server`).
