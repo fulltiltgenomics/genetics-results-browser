@@ -1,4 +1,4 @@
-import { defineConfig } from "vite";
+import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import tsconfigPaths from "vite-tsconfig-paths";
 
@@ -8,11 +8,25 @@ const buildDate = new Date().toLocaleDateString("en-US", {
   year: "numeric",
 });
 
+// one id per build, baked into the bundle and written beside it as version.json so a running
+// tab can tell when a newer build has been deployed (src/features/page/NewVersionBanner.tsx).
+// Time plus randomness rather than the git sha: the Docker build context has no .git, and a
+// rebuild of the same commit is still a new deployment the tab should pick up
+const buildId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+
+const versionFile = (): Plugin => ({
+  name: "version-file",
+  generateBundle() {
+    this.emitFile({ type: "asset", fileName: "version.json", source: JSON.stringify({ build: buildId }) });
+  },
+});
+
 export default defineConfig({
   define: {
     __BUILD_DATE__: JSON.stringify(buildDate),
+    __BUILD_ID__: JSON.stringify(buildId),
   },
-  plugins: [react(), tsconfigPaths()],
+  plugins: [react(), tsconfigPaths(), versionFile()],
   build: {
     outDir: "static",
     target: "esnext",

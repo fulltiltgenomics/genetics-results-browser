@@ -18,6 +18,11 @@ has no origin for it to matter), and `frame-ancestors 'self'`; the view inside i
 then runs under the narrower policy the proxy page builds from what the server declared
 (`src/features/chat/mcpApps/`).
 
+A tab left open across a deploy keeps running the bundle it loaded. Each build bakes a fresh
+id into the bundle and emits it as `/version.json` (served no-store like `index.html`); the app
+re-reads it when the tab becomes visible and every five minutes and, when the ids differ,
+shows a banner offering a reload (`src/features/page/NewVersionBanner.tsx`).
+
 Running the tool requires running the [backend API](https://github.com/fulltiltgenomics/genetics-results-api).
 The chat views additionally require the chat backend (`../genetics-mcp-server`).
 

@@ -4,6 +4,7 @@ import { createTheme, ThemeProvider } from "@mui/material/styles";
 import CssBaseline from "@mui/material/CssBaseline";
 import { indigo, pink } from "@mui/material/colors";
 import Header from "./features/page/Header";
+import { NewVersionBanner } from "./features/page/NewVersionBanner";
 import CircularProgress from "@mui/material/CircularProgress"; // Import a component for fallback
 import { Box, useMediaQuery } from "@mui/material";
 import GeneContainer from "./features/GeneContainer";
@@ -60,6 +61,7 @@ export const App = () => {
         <ThemeProvider theme={theme}>
           <CssBaseline enableColorScheme />
           <AuthProvider>
+            <NewVersionBanner />
             <Box p={1.5}>
               <Header />
               <Suspense fallback={<CircularProgress />}>
