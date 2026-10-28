@@ -1253,6 +1253,9 @@ export const LLMChat = ({
   };
 
   const markdownStyles = {
+    // a bare URL or a long token is one unbreakable word; without this it runs past the
+    // message column (DepMap's Data Explorer links carry the whole plot spec in the query)
+    overflowWrap: "anywhere",
     "& p": { margin: "0.5em 0" },
     "& pre": {
       bgcolor: theme.palette.mode === "dark" ? "grey.800" : "grey.100",
