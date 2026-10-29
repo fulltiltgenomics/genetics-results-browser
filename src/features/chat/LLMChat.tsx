@@ -1364,6 +1364,11 @@ export const LLMChat = ({
         width: "100%",
       }}>
       {contextNotice}
+      {!hasMessages && (
+        <Typography variant="body2" color="text.secondary">
+          Tip: Keep conversations focused. Start a new conversation when switching topics for better results.
+        </Typography>
+      )}
       <Box
         sx={{ display: "flex", alignItems: "center", cursor: "pointer", userSelect: "none" }}
         onClick={() => setOptionsOpen((v) => !v)}>
