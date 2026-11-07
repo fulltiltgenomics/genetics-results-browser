@@ -58,6 +58,17 @@ describe("CellTypeExpressionSection", () => {
     await waitFor(() => expect(container).toBeEmptyDOMElement());
   });
 
+  it("renders nothing where the route does not exist", async () => {
+    // a results-api without a release pointer registers no route, so the 404 is FastAPI's own
+    server.use(
+      http.get("*/api/v1/cell_type_expression/:gene", () =>
+        HttpResponse.json({ detail: "Not Found" }, { status: 404 })
+      )
+    );
+    const { container } = render(<CellTypeExpressionSection geneName="PCSK9" />, { wrapper });
+    await waitFor(() => expect(container).toBeEmptyDOMElement());
+  });
+
   it("says data is not yet available on a 503", async () => {
     server.use(
       http.get("*/api/v1/cell_type_expression/:gene", () =>

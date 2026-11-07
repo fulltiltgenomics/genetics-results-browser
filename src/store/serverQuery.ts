@@ -762,8 +762,9 @@ const fetchCellTypeExpression = async (
     const err = e as { response?: { status?: number; data?: { detail?: string } } };
     const status = err.response?.status;
     const detail = String(err.response?.data?.detail ?? "");
-    // an unknown gene is also a 404, so only the deployment-level message hides the section
-    if (status === 404 && /not configured/i.test(detail)) {
+    // the deployment-level answer, or no route at all (a results-api with no release pointer
+    // registers none): both hide the section. An unknown gene is also a 404, so the detail decides
+    if (status === 404 && (/not configured/i.test(detail) || detail === "Not Found")) {
       throw new CellTypeExpressionNotConfigured(detail);
     }
     if (status === 404) {
