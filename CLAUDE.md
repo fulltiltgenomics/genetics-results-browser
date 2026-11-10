@@ -119,7 +119,7 @@ The annotation path is split in two stages so that changing a UI control never r
   Everything else under `/api` falls through `bff/passthrough.ts` to the API unchanged — except
   that both upstream paths attach `Authorization: Bearer $GENETICS_API_TOKEN`
   (`upstream.ts` for the assembled routes, `passthrough.ts` for the rest, and only when the
-  caller sent no `Authorization` of their own). results-api honours the forwarded
+  caller sent no bearer `Authorization` of their own; a non-Bearer one is replaced). results-api honours the forwarded
   `X-Goog-Authenticated-User-Email` **only** from a caller presenting that secret, so dropping
   the bearer from the passthrough 401s every browser request. **Deploy ordering: bff ships
   before results-api** — see the suite repo's README, "Deploying the trusted-proxy marker".
@@ -137,7 +137,7 @@ The annotation path is split in two stages so that changing a UI control never r
 Layout:
 
 - `src/features/**` — views, grouped by feature (`table`, `gene`, `phenoSearch`, `chat`, `controls`,
-  `admin`, `input`, `page`)
+  `admin`, `input`, `page`, `auth`, `tooltips`)
 - `src/store/**` — zustand store, server queries, munging
 - `src/types/**` — `types.normalized.ts` is the current credible-set-primary contract; `types.ts` and
   `types.gene.ts` still hold legacy pre-refactor types

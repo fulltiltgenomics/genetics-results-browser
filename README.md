@@ -66,7 +66,9 @@ Available modes: `dev`, `dev.finngen`, `dev.public`, `prod`, `prod.finngen`, `pr
 | `VITE_SHOW_TOOLS_BUTTON` | `false` hides the Tools button in the chat header (the list of what the assistant can call); anything else, unset included, shows it. Independent of `VITE_SHOW_TOOLS_CONTROL`. The image build sets it from `--build-arg SHOW_TOOLS_BUTTON` |
 
 The BFF reads `GENETICS_API_URL`, `GENETICS_API_TOKEN`, `BFF_PORT`, `RESULTS_CACHE_MAX`,
-`RESULTS_CACHE_TTL_MS` and `LD_API_URL` — see `bff/.env.example`.
+`RESULTS_CACHE_TTL_MS` and `LD_API_URL` — see `bff/.env.example`. It also reads `NODE_ENV`:
+anything but `production` (which `bff/Dockerfile` sets) reflects the request origin as permissive
+CORS, so the dev browser can call the BFF cross-origin at `http://localhost:5000/api`.
 
 `GENETICS_API_TOKEN` is the shared internal secret and is sent as `Authorization: Bearer` on
 **every** call to genetics-results-api, including the generic `/api` passthrough. (The `/api/v1/ld`
@@ -74,8 +76,9 @@ proxy is the one upstream call that does not carry it — it targets the externa
 genetics-results-api.) It is not just service
 credentials: it is the trusted-proxy marker that makes results-api believe the forwarded
 `X-Goog-Authenticated-User-Email`, so an auth-enforcing API rejects browser traffic without it.
-Unset in dev, where the dev API runs without auth. A caller's own `Authorization` header is
-never overwritten.
+Unset in dev, where the dev API runs without auth. A caller's own bearer `Authorization` is
+never overwritten; a non-Bearer one (e.g. Basic) is replaced, since the two cannot share one
+header and results-api has no Basic path.
 
 ### Local dev startup sequence
 
