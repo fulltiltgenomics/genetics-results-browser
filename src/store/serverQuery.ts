@@ -508,7 +508,9 @@ export const useTraitNameMapping = (enabled: boolean): UseQueryResult<Record<str
   return useQuery<Record<string, string>>({
     queryKey: ["trait-name-mapping"],
     queryFn: async (): Promise<Record<string, string>> => {
-      const { data } = await api.get<Record<string, string>>("/v1/trait_name_mapping");
+      const { data } = await api.get<Record<string, string>>("/v1/trait_name_mapping", {
+        params: { format: "json" },
+      });
       return data;
     },
     enabled,

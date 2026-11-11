@@ -47,7 +47,7 @@ export type QuantLevel = "ge" | "exon" | "tx" | "txrev" | "leafcutter";
 export interface CredibleSetMembership {
   // provenance
   resource: string; // e.g. "finngen", "eqtl_catalogue", "ukbb"  (NOTE: the resource *filter* value)
-  version: string; // e.g. "R12", "R7"
+  version: string; // e.g. "R12", "R8_pre"
   dataset: string; // dataset/file id, e.g. "FinnGen_kanta", "QTD000435", "FinnGen_ATACseq"
   dataType: DataType;
 

@@ -445,7 +445,7 @@ let traitNameMapCache: Record<string, string> | null = null;
 const getTraitNameMap = async (): Promise<Record<string, string>> => {
   if (traitNameMapCache) return traitNameMapCache;
   try {
-    const m = (await upstreamJson<Record<string, string>>("/v1/trait_name_mapping")) ?? {};
+    const m = (await upstreamJson<Record<string, string>>("/v1/trait_name_mapping?format=json")) ?? {};
     traitNameMapCache = m;
     return m;
   } catch {
