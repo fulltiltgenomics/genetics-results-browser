@@ -1,5 +1,5 @@
-import { useMemo } from "react";
-import { Box } from "@mui/material";
+import { lazy, Suspense, useMemo } from "react";
+import { Box, Typography } from "@mui/material";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import type { PluggableList } from "unified";
@@ -12,6 +12,11 @@ import { artifactNameFromHref, linkifyArtifactsPlugin } from "./linkifyArtifacts
 import { decodeMcpAppMarker } from "./mcpAppMarker";
 import { McpAppFrame } from "./mcpApps/McpAppFrame";
 import { decodeToolCallMarker } from "./toolCallMarker";
+import { isStructureViewName } from "../structure/viewSpec";
+
+// lazy, so a reader who never opens a conversation with a structure in it never fetches the
+// viewer, and Mol* sits behind a second dynamic import inside it
+const StructureViewer = lazy(() => import("../structure/StructureViewer"));
 
 // the four embedded-object markers a message's text can carry: [IMAGE:format:alt:base64data],
 // [FILE:mime:name:base64data], [TOOLUSE:base64json] and [MCPAPP:base64json]. Matched by one
@@ -50,7 +55,8 @@ const collectArtifacts = (content: string): Map<string, Artifact> => {
  * Renders message content, handling embedded objects separately from markdown.
  *
  * Four marker shapes are carried inline in the text: [IMAGE:format:alt:base64data],
- * [FILE:mime:name:base64data], [TOOLUSE:base64json] and [MCPAPP:base64json]. All live in the message's `content`
+ * [FILE:mime:name:base64data], [TOOLUSE:base64json] and [MCPAPP:base64json]. A FILE whose name
+ * ends `.structure-view.json` is drawn as a 3D structure instead of offered as a download. All live in the message's `content`
  * rather than in component state so that a reopened session renders identically to the live
  * stream — `content` is the only thing this component ever sees.
  *
@@ -144,14 +150,26 @@ export const MessageContent = ({
         parts.push(<ToolCallDisclosure key={`tool-${keyIndex++}`} record={record} />);
       }
     } else if (fileData !== undefined) {
-      parts.push(
-        <FileDownload
-          key={`file-${keyIndex++}`}
-          mime={fileMime}
-          name={decodeFileName(fileName)}
-          data={fileData}
-        />
-      );
+      const name = decodeFileName(fileName);
+      // dispatched on the name alone: the sandbox reports any .json as application/json, so
+      // the mime cannot tell a view-spec from data the user is meant to save
+      if (isStructureViewName(name)) {
+        parts.push(
+          <Suspense
+            key={`structure-${keyIndex++}`}
+            fallback={
+              <Typography variant="body2" color="text.secondary" sx={{ my: 1 }}>
+                Loading the structure viewer…
+              </Typography>
+            }>
+            <StructureViewer name={name} data={fileData} />
+          </Suspense>
+        );
+      } else {
+        parts.push(
+          <FileDownload key={`file-${keyIndex++}`} mime={fileMime} name={name} data={fileData} />
+        );
+      }
     } else {
       const src = `data:image/${format};base64,${base64Data}`;
       parts.push(
