@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Box, Button, CircularProgress, Link, Typography, useTheme } from "@mui/material";
 import { downloadBlob } from "../chat/downloadBlob";
 import { base64ByteLength, base64ToBytes } from "../chat/fileMarker";
@@ -7,9 +7,13 @@ import {
   StructureReleaseUnavailable,
   useStructureModel,
 } from "./structureApi";
-import type { Scene } from "./molstarScene";
+import type { LiveDrawn, Scene } from "./molstarScene";
+import { useNearViewport } from "./useNearViewport";
 import {
   AF3_SOURCE_LABEL,
+  LIVE_ATOMS_MAX,
+  LIVE_LIST_MAX,
+  SELECTION_COLOUR,
   MAX_SPEC_BYTES,
   NEIGHBOURHOOD_COLOUR,
   ROLE_COLOURS,
@@ -38,13 +42,6 @@ const PLDDT_RANGES: Record<string, string> = {
 };
 
 const CANVAS_HEIGHT = 440;
-// a browser keeps only so many WebGL contexts alive (16 in Chromium) and silently drops the
-// oldest, so a long transcript holds one only for the viewers around the viewport: built when
-// within NEAR of it, released when further than FAR. The gap keeps a viewer at the edge from
-// being rebuilt on every small scroll
-const NEAR = "300px";
-const FAR = "1500px";
-const SETTLE_MS = 250;
 
 type SceneState =
   | { status: "parked" }
@@ -60,46 +57,6 @@ const decodeUtf8 = (base64: string): string | null => {
   } catch {
     return null;
   }
-};
-
-/** `near`: within NEAR of the viewport now; `seen`: has been at least once. */
-const useNearViewport = (ref: RefObject<HTMLElement | null>) => {
-  // no observer (an old browser, jsdom): behave as if always on screen
-  const supported = typeof IntersectionObserver !== "undefined";
-  const [near, setNear] = useState(!supported);
-  const [seen, setSeen] = useState(!supported);
-  useEffect(() => {
-    const el = ref.current;
-    if (!supported || !el) return;
-    // a transcript that opens by scrolling to its end carries every viewer through the
-    // viewport once; only one that stays near it for a moment counts
-    let settle: ReturnType<typeof setTimeout> | undefined;
-    const enter = new IntersectionObserver(
-      ([entry]) => {
-        clearTimeout(settle);
-        if (!entry.isIntersecting) return;
-        settle = setTimeout(() => {
-          setNear(true);
-          setSeen(true);
-        }, SETTLE_MS);
-      },
-      { rootMargin: NEAR },
-    );
-    const leave = new IntersectionObserver(
-      ([entry]) => {
-        if (!entry.isIntersecting) setNear(false);
-      },
-      { rootMargin: FAR },
-    );
-    enter.observe(el);
-    leave.observe(el);
-    return () => {
-      clearTimeout(settle);
-      enter.disconnect();
-      leave.disconnect();
-    };
-  }, [ref, supported]);
-  return { near, seen };
 };
 
 const Swatch = ({ colour, round, children }: { colour: string; round?: boolean; children: React.ReactNode }) => (
@@ -134,12 +91,45 @@ const overlaySx = {
   pointerEvents: "none",
 } as const;
 
-const Canvas = ({ spec, pdbText, active }: { spec: ViewSpec; pdbText: string; active: boolean }) => {
+/** residues a host page selects while the viewer is up; `focus` also moves the camera to them */
+export interface LiveSelection {
+  /** residue numbers as written in the model file */
+  positions: number[];
+  focus: boolean;
+}
+/** the residue under the pointer or clicked, by file position; null when a hover leaves */
+export type ResidueHandler = (kind: "hover" | "click", filePosition: number | null) => void;
+
+interface HostLink {
+  live?: LiveSelection;
+  onResidue?: ResidueHandler;
+}
+
+// the held positions for a host to read: listed while they are few, else a count and range
+const liveSummary = (positions: number[]): string =>
+  positions.length <= LIVE_LIST_MAX
+    ? positions.join(",")
+    : `${positions.length} residues ${positions[0]}-${positions[positions.length - 1]}`;
+
+const Canvas = ({
+  spec,
+  pdbText,
+  active,
+  live,
+  onResidue,
+}: { spec: ViewSpec; pdbText: string; active: boolean } & HostLink) => {
   const theme = useTheme();
   const host = useRef<HTMLDivElement>(null);
   const [state, setState] = useState<SceneState>({ status: "parked" });
   const [hover, setHover] = useState<string | null>(null);
   const [attempt, setAttempt] = useState(0);
+  const [liveHeld, setLiveHeld] = useState<{ scene: Scene; positions: number[]; drawn: LiveDrawn }>();
+  // read through a ref so a host re-rendering with a new function does not rebuild the scene
+  const residueHandler = useRef(onResidue);
+  useEffect(() => {
+    residueHandler.current = onResidue;
+  }, [onResidue]);
+  const linked = onResidue !== undefined;
 
   useEffect(() => {
     if (!active) {
@@ -164,6 +154,13 @@ const Canvas = ({ spec, pdbText, active }: { spec: ViewSpec; pdbText: string; ac
             scene = undefined;
             setState({ status: "context-lost" });
           },
+          ...(linked
+            ? {
+                onResidue: (kind: "hover" | "click", filePosition: number | null) => {
+                  if (!disposed) residueHandler.current?.(kind, filePosition);
+                },
+              }
+            : {}),
         });
         // the effect was torn down while Mol* was building: nothing owns this scene any more
         if (disposed) scene.dispose();
@@ -183,7 +180,23 @@ const Canvas = ({ spec, pdbText, active }: { spec: ViewSpec; pdbText: string; ac
       disposed = true;
       scene?.dispose();
     };
-  }, [spec, pdbText, active, attempt]);
+  }, [spec, pdbText, active, attempt, linked]);
+
+  const readyScene = state.status === "ready" ? state.scene : undefined;
+  // applied to the running scene, and again to each one built after a scroll away and back
+  useEffect(() => {
+    if (!readyScene || !live) return;
+    let superseded = false;
+    readyScene.setLive(live.positions, live.focus).then(
+      (held) => {
+        if (!superseded) setLiveHeld({ scene: readyScene, ...held });
+      },
+      () => {},
+    );
+    return () => {
+      superseded = true;
+    };
+  }, [readyScene, live]);
 
   // the wheel scrolls the transcript unless Ctrl or ⌘ is held: Mol* listens on its canvas and
   // cancels every wheel event it sees, so the ones meant for the page are stopped on the way
@@ -198,7 +211,8 @@ const Canvas = ({ spec, pdbText, active }: { spec: ViewSpec; pdbText: string; ac
     return () => el.removeEventListener("wheel", gate, { capture: true });
   }, []);
 
-  const scene = state.status === "ready" ? state.scene : undefined;
+  const scene = readyScene;
+  const held = live && scene && liveHeld?.scene === scene ? liveHeld : undefined;
   const missing = scene
     ? spec.residues.filter((r) => !scene.highlighted.includes(r.filePosition)).length
     : 0;
@@ -243,6 +257,8 @@ const Canvas = ({ spec, pdbText, active }: { spec: ViewSpec; pdbText: string; ac
           data-colour-theme={scene?.colourTheme}
           data-sphere={scene ? String(scene.sphereDrawn) : undefined}
           data-labels={scene?.labelsDrawn}
+          data-live={held ? liveSummary(held.positions) : undefined}
+          data-live-drawn={held?.drawn}
           sx={{
             // Mol* positions its canvas absolutely inside this box
             position: "absolute",
@@ -295,6 +311,20 @@ const Canvas = ({ spec, pdbText, active }: { spec: ViewSpec; pdbText: string; ac
               within {spec.sphere.radius} Å of residue {spec.sphere.centre} (indicative)
             </Swatch>
           )}
+          {held?.drawn === "atoms" && (
+            <Swatch colour={SELECTION_COLOUR} round>
+              selection
+            </Swatch>
+          )}
+          {held?.drawn === "cartoon" && (
+            <>
+              <Swatch colour={SELECTION_COLOUR}>selection</Swatch>
+              <Note>
+                the {held.positions.length.toLocaleString()} selected residues are shown by colouring
+                the cartoon; a selection of up to {LIVE_ATOMS_MAX} residues is drawn as atoms
+              </Note>
+            </>
+          )}
           {missing > 0 && (
             <Note>
               {missing} of {spec.residues.length} listed residues are outside this model and not
@@ -323,7 +353,13 @@ const Canvas = ({ spec, pdbText, active }: { spec: ViewSpec; pdbText: string; ac
   );
 };
 
-const Model = ({ spec, seen, near }: { spec: ViewSpec; seen: boolean; near: boolean }) => {
+const Model = ({
+  spec,
+  seen,
+  near,
+  live,
+  onResidue,
+}: { spec: ViewSpec; seen: boolean; near: boolean } & HostLink) => {
   const model = useStructureModel(spec.modelFileId, seen);
 
   // not yet scrolled to: hold the space, fetch nothing
@@ -352,7 +388,7 @@ const Model = ({ spec, seen, near }: { spec: ViewSpec; seen: boolean; near: bool
       </Alert>
     );
   }
-  return <Canvas spec={spec} pdbText={model.data} active={near} />;
+  return <Canvas spec={spec} pdbText={model.data} active={near} live={live} onResidue={onResidue} />;
 };
 
 const Attribution = ({ modelFileId }: { modelFileId: string }) => {
@@ -441,6 +477,38 @@ export default function StructureViewer({ name, data }: { name: string; data: st
           onClick={() => downloadBlob(base64ToBytes(data), name, "application/json")}>
           Download the view spec
         </Link>
+      </Typography>
+    </Box>
+  );
+}
+
+/**
+ * The same viewer for a page that builds the view itself and stays linked to it: `live` is
+ * the page's current selection, applied without rebuilding the scene, and `onResidue` hears
+ * which residue the pointer is over or clicked. A new `spec` object is a new scene, so the
+ * host keeps it stable for as long as the same model is shown.
+ */
+export function StructureView({ spec, live, onResidue }: { spec: ViewSpec } & HostLink) {
+  const theme = useTheme();
+  const frame = useRef<HTMLDivElement>(null);
+  const { near, seen } = useNearViewport(frame);
+  const border = `1px solid ${theme.palette.divider}`;
+  return (
+    <Box
+      ref={frame}
+      data-testid="structure-viewer"
+      sx={{ my: 1.5, border, borderRadius: 1, overflow: "hidden", width: "100%", maxWidth: 760 }}>
+      <Typography variant="body2" sx={{ px: 1.5, py: 0.75, fontWeight: 500, borderBottom: border }}>
+        {[spec.gene, spec.accession, spec.modelFileId].filter(Boolean).join(" · ")}
+      </Typography>
+      <Model spec={spec} seen={seen} near={near} live={live} onResidue={onResidue} />
+      <Typography
+        variant="caption"
+        color="text.secondary"
+        component="div"
+        data-testid="structure-footer"
+        sx={{ px: 1.5, py: 0.75, borderTop: border }}>
+        <Attribution modelFileId={spec.modelFileId} />
       </Typography>
     </Box>
   );

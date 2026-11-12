@@ -14,7 +14,8 @@ vi.mock("./molstarScene", () => {
   return { WebGLUnavailableError, createScene: (...args: unknown[]) => createScene(...args) };
 });
 
-import StructureViewer from "./StructureViewer";
+import StructureViewer, { StructureView } from "./StructureViewer";
+import type { ViewSpec } from "./viewSpec";
 
 const SPEC = {
   version: 1,
@@ -192,5 +193,86 @@ describe("StructureViewer", () => {
     createScene.mockRejectedValueOnce(new WebGLUnavailableError("no context"));
     show(b64(SPEC));
     expect(await screen.findByText(/could not start WebGL/)).toBeInTheDocument();
+  });
+
+  it("gives the chat's scene no residue callback and no live selection", async () => {
+    server.use(http.get(ROUTE, () => HttpResponse.text("ATOM      1")));
+    const setLive = vi.fn();
+    createScene.mockResolvedValueOnce({ ...READY, setLive, dispose: vi.fn() });
+    show(b64(SPEC));
+    await screen.findByTestId("structure-legend");
+    expect(Object.keys(createScene.mock.lastCall?.[3]).sort()).toEqual(["onContextLost", "onHover"]);
+    expect(setLive).not.toHaveBeenCalled();
+    expect(screen.getByTestId("structure-canvas")).not.toHaveAttribute("data-live");
+  });
+
+  describe("linked to a host page", () => {
+    const HOST_SPEC: ViewSpec = {
+      version: 1,
+      modelFileId: "AF-TEST-F1-model_v6",
+      gene: "GENE1",
+      residues: [],
+      colourMode: "plddt",
+      omitted: { residues: 0, labels: 0 },
+    };
+    const host = (props: Partial<Parameters<typeof StructureView>[0]>) => (
+      <QueryClientProvider client={client}>
+        <StructureView spec={HOST_SPEC} {...props} />
+      </QueryClientProvider>
+    );
+    const client = new QueryClient();
+
+    it("updates the live selection on the running scene instead of building another", async () => {
+      server.use(http.get(ROUTE, () => HttpResponse.text("ATOM      1")));
+      const setLive = vi.fn(async (positions: number[]) => {
+        const held = positions.filter((p) => p < 100);
+        return { positions: held, drawn: held.length > 50 ? "cartoon" : held.length > 0 ? "atoms" : "none" };
+      });
+      createScene.mockResolvedValueOnce({ ...READY, highlighted: [], setLive, dispose: vi.fn() });
+      const built = createScene.mock.calls.length;
+      const view = render(host({ live: { positions: [], focus: false }, onResidue: vi.fn() }));
+      await screen.findByTestId("structure-legend");
+      expect(setLive).toHaveBeenLastCalledWith([], false);
+
+      view.rerender(host({ live: { positions: [43, 900], focus: true }, onResidue: vi.fn() }));
+      await vi.waitFor(() =>
+        expect(screen.getByTestId("structure-canvas")).toHaveAttribute("data-live", "43"),
+      );
+      expect(setLive).toHaveBeenLastCalledWith([43, 900], true);
+      expect(screen.getByTestId("structure-canvas")).toHaveAttribute("data-live-drawn", "atoms");
+
+      // a long selection is summarised, not listed, and the legend says how it is shown
+      const range = Array.from({ length: 60 }, (_, i) => i + 10);
+      view.rerender(host({ live: { positions: range, focus: true }, onResidue: vi.fn() }));
+      await vi.waitFor(() =>
+        expect(screen.getByTestId("structure-canvas")).toHaveAttribute("data-live", "60 residues 10-69"),
+      );
+      expect(screen.getByTestId("structure-canvas")).toHaveAttribute("data-live-drawn", "cartoon");
+      expect(screen.getByTestId("structure-legend")).toHaveTextContent(
+        "the 60 selected residues are shown by colouring the cartoon; a selection of up to 50 residues is drawn as atoms",
+      );
+      expect(createScene.mock.calls.length).toBe(built + 1);
+      expect(screen.getByTestId("structure-footer")).not.toHaveTextContent("Download the view spec");
+    });
+
+    it("passes residue hovers and clicks to the host's current handler", async () => {
+      server.use(http.get(ROUTE, () => HttpResponse.text("ATOM      1")));
+      createScene.mockResolvedValueOnce({ ...READY, setLive: vi.fn(async () => ({ positions: [], drawn: "none" })), dispose: vi.fn() });
+      const first = vi.fn();
+      const second = vi.fn();
+      const built = createScene.mock.calls.length;
+      const view = render(host({ onResidue: first }));
+      await screen.findByTestId("structure-legend");
+      view.rerender(host({ onResidue: second }));
+      const events = createScene.mock.lastCall?.[3];
+      act(() => events.onResidue("click", 43));
+      act(() => events.onResidue("hover", null));
+      expect(first).not.toHaveBeenCalled();
+      expect(second.mock.calls).toEqual([
+        ["click", 43],
+        ["hover", null],
+      ]);
+      expect(createScene.mock.calls.length).toBe(built + 1);
+    });
   });
 });

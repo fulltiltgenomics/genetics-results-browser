@@ -97,10 +97,11 @@ catch a BFF type error. `bff/tsconfig.json` sets `"types": ["node"]`, which is w
 `@types/node` is an explicit devDependency rather than a transitive one (npm hoisting is
 not guaranteed under `npm ci`).
 
-`e2e/structure-view.spec.ts` is the one spec that does not use the dev server: it serves the
-production bundle from `static/` by route interception under the CSP read out of
-`nginx.prod.conf`, because Mol* under that policy is the thing it exists to prove. It needs
-`npx vite build --mode prod` first and fails with that instruction when `static/` is missing.
+`e2e/structure-view.spec.ts` and `e2e/protein-section.spec.ts` do not use the dev server: they
+serve the production bundle from `static/` by route interception under the CSP read out of
+`nginx.prod.conf` (`e2e/helpers/structureHarness.ts`), because Mol* under that policy is the
+thing they exist to prove. They need `npx vite build --mode prod` first and fail with that
+instruction when `static/` is missing.
 
 See `README.md` for the full dev startup sequence and environment variables.
 
@@ -160,6 +161,23 @@ lazy-loaded from `MessageContent`, and Mol* itself (`molstarScene.ts`, ~3 MB) is
 dynamic import behind a spec that parsed, a model that arrived and a viewer that is near
 the viewport (the Mol* plugin is released again once it has scrolled well away). `vite.config.mts` prepends
 Mol*'s MIT notice to that chunk, since the minifier strips the per-file headers.
+
+The gene page's Gene evidence tab uses the same viewer through its named export
+`StructureView`, which takes a spec built in code plus the two things a linked page needs: a
+live selection applied to the running scene (`Scene.setLive`, no rebuild; atoms up to
+`LIVE_ATOMS_MAX` residues, a colour over the cartoon beyond) and a callback for the residue
+hovered or clicked. The chat's default export passes neither, and its scene gets no click
+subscription; a linked scene also drops Mol*'s own click-focus representation, whose state
+update would race the host's selection, and its click-to-centre, so the camera moves only
+for a selection made on the host's side. `src/features/gene/ProteinSection.tsx` is that page's section — a
+track on the amino-acid axis (`ProteinTrack.tsx`, shaping in `proteinTrack.ts`, hooks in
+`proteinApi.ts`) linked both ways to the structure. It is lazy-loaded from `GeneEvidenceTab`,
+asks only for the gene's model list until it is near the viewport (`structure/useNearViewport.ts`,
+the viewer's own hook), counts the credible sets the Credible sets tab shows at its default
+controls (`passesSetFilters` in `store/geneCS.ts`, shared with `CisView`) whatever the resource
+switches say, hides itself where results-api registers no protein-structure routes (FastAPI's own
+`Not Found`, the same test the CELLxGENE section uses), and places variants only where the
+release's variant-to-residue map (`POST /api/v1/variant_annotation/protein`) has a row.
 
 `refactor.md` and `refactor.backend.md` document the credible-set-only rewrite that produced this
 architecture; they are historical design records, not a to-do list.

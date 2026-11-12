@@ -8,6 +8,9 @@
 import { PluginContext } from "molstar/lib/mol-plugin/context";
 import { DefaultPluginSpec } from "molstar/lib/mol-plugin/spec";
 import { PluginConfig } from "molstar/lib/mol-plugin/config";
+import { PluginBehaviors } from "molstar/lib/mol-plugin/behavior";
+import { StateTransforms } from "molstar/lib/mol-plugin-state/transforms";
+import { StructureFocusRepresentation } from "molstar/lib/mol-plugin/behavior/dynamic/selection/structure-focus-representation";
 import { PLDDTConfidenceColorThemeProvider } from "molstar/lib/extensions/model-archive/quality-assessment/color/plddt";
 import {
   Structure,
@@ -31,16 +34,24 @@ import { addSphere } from "molstar/lib/mol-geo/geometry/mesh/builder/sphere";
 import { ParamDefinition as PD } from "molstar/lib/mol-util/param-definition";
 import { Color } from "molstar/lib/mol-util/color";
 import { Vec3 } from "molstar/lib/mol-math/linear-algebra";
-import { NEIGHBOURHOOD_COLOUR, type ViewSpec } from "./viewSpec";
+import { LIVE_ATOMS_MAX, NEIGHBOURHOOD_COLOUR, SELECTION_COLOUR, type ViewSpec } from "./viewSpec";
 
 export interface SceneEvents {
   /** what the pointer is over ("LYS 22 · p.K22R"), or null when it is over nothing */
   onHover: (text: string | null) => void;
   /** the browser took the WebGL context away; the canvas is blank from here on */
   onContextLost: () => void;
+  /**
+   * the residue under the pointer or clicked, by file position; null when a hover leaves the
+   * structure. Only a host that wants the residue itself passes it
+   */
+  onResidue?: (kind: "hover" | "click", filePosition: number | null) => void;
 }
 
 export class WebGLUnavailableError extends Error {}
+
+/** how a live selection is on screen: as atoms, as a colour over the cartoon, or not at all */
+export type LiveDrawn = "atoms" | "cartoon" | "none";
 
 export interface Scene {
   /** file positions of the spec's residues that Mol* holds a highlight component for */
@@ -51,10 +62,18 @@ export interface Scene {
   labelsDrawn: number;
   /** the pLDDT theme's own legend rows; empty when the cartoon is not coloured by it */
   plddtLegend: { name: string; colour: string }[];
+  /**
+   * Replaces the live selection, which is separate from the spec's highlights, in the running
+   * plugin: the model, the cartoon and the camera's owner all stay. `focus` moves the camera
+   * to the selection, or back to the whole model when it is empty. Resolves to the file
+   * positions the model has among them and to how Mol*'s state tree now shows them.
+   */
+  setLive: (positions: number[], focus: boolean) => Promise<{ positions: number[]; drawn: LiveDrawn }>;
   dispose: () => void;
 }
 
 const HIGHLIGHT_TAG = "view-spec-highlight";
+const LIVE_TAG = "live-selection";
 const UNIFORM_CARTOON = Color(0xb0b8c0);
 const SPHERE_OPACITY = 0.22;
 
@@ -165,6 +184,19 @@ export const createScene = async (
     ...(pluginSpec.config ?? []),
     [PluginConfig.General.AllowMajorPerformanceCaveat, true],
   ];
+  // a click normally makes Mol* build its own focus representation around the residue, as a
+  // state update of its own. A linked host answers the same click with setLive, and two
+  // updates built from one tree undo each other's nodes, so there the host's selection is
+  // the only thing a click draws. Mol* would also centre the camera on the clicked residue:
+  // the reader is already looking at it, and the host moves the camera only for a selection
+  // made somewhere the reader was not looking
+  if (events.onResidue) {
+    pluginSpec.behaviors = pluginSpec.behaviors.filter(
+      (b) =>
+        b.transformer !== StructureFocusRepresentation &&
+        b.transformer !== PluginBehaviors.Camera.FocusLoci,
+    );
+  }
   const plugin = new PluginContext(pluginSpec);
   try {
     await plugin.init();
@@ -186,6 +218,7 @@ export const createScene = async (
     const structure = structureCell.data;
     if (!structure) throw new Error("the model file holds no structure");
 
+    let cartoonRef: string | undefined;
     let colourTheme = "uniform";
     let plddtLegend: Scene["plddtLegend"] = [];
     const polymer = await builders.structure.tryCreateComponentStatic(structureCell, "polymer");
@@ -199,6 +232,7 @@ export const createScene = async (
           ? { type: "cartoon", color: PLDDTConfidenceColorThemeProvider.name as "uniform" }
           : { type: "cartoon", color: "uniform", colorParams: { value: UNIFORM_CARTOON } },
       );
+      cartoonRef = cartoon.ref;
       colourTheme = cartoon.cell?.transform.params?.colorTheme.name ?? colourTheme;
       const legend = usePlddt
         ? PLDDTConfidenceColorThemeProvider.factory({ structure }, PLDDTConfidenceColorThemeProvider.defaultValues).legend
@@ -304,17 +338,91 @@ export const createScene = async (
     });
 
     const labelAt = new Map(spec.residues.map((r) => [r.filePosition, r.label?.trim()]));
+    const locationOf = (loci: Loci) =>
+      StructureElement.Loci.is(loci) && !StructureElement.Loci.isEmpty(loci)
+        ? StructureElement.Loci.getFirstLocation(loci)
+        : undefined;
     const hover = plugin.behaviors.interaction.hover.subscribe(({ current }) => {
-      const { loci } = current;
-      const location =
-        StructureElement.Loci.is(loci) && !StructureElement.Loci.isEmpty(loci)
-          ? StructureElement.Loci.getFirstLocation(loci)
-          : undefined;
-      if (!location) return events.onHover(null);
+      const location = locationOf(current.loci);
+      if (!location) {
+        events.onResidue?.("hover", null);
+        return events.onHover(null);
+      }
       const at = StructureProperties.residue.auth_seq_id(location);
       const name = `${StructureProperties.atom.label_comp_id(location)} ${at}`;
+      events.onResidue?.("hover", at);
       events.onHover(labelAt.get(at) ? `${name} · ${labelAt.get(at)}` : name);
     });
+    const { onResidue } = events;
+    const click = onResidue
+      ? plugin.behaviors.interaction.click.subscribe(({ current }) => {
+          const location = locationOf(current.loci);
+          if (location) onResidue("click", StructureProperties.residue.auth_seq_id(location));
+        })
+      : undefined;
+
+    const whole = Structure.toStructureElementLoci(structure);
+    const tagged = () => plugin.state.data.selectQ((q) => q.root.subtree().withTag(LIVE_TAG));
+    const applyLive = async (
+      positions: number[],
+      focus: boolean,
+    ): Promise<{ positions: number[]; drawn: LiveDrawn }> => {
+      const stale = tagged();
+      if (stale.length > 0) {
+        const update = plugin.build();
+        stale.forEach((cell) => update.delete(cell.transform.ref));
+        await update.commit();
+      }
+      const loci = positions.length > 0 ? lociOf(structure, residuesAt(positions)) : undefined;
+      const held =
+        loci && !StructureElement.Loci.isEmpty(loci)
+          ? positionsIn(StructureElement.Loci.toStructure(loci)).sort((a, b) => a - b)
+          : [];
+      if (loci && held.length > LIVE_ATOMS_MAX && cartoonRef) {
+        const layer = {
+          bundle: StructureElement.Bundle.fromLoci(loci),
+          color: hex(SELECTION_COLOUR),
+          clear: false,
+        };
+        await plugin
+          .build()
+          .to(cartoonRef)
+          .apply(
+            StateTransforms.Representation.OverpaintStructureRepresentation3DFromBundle,
+            { layers: [layer] },
+            { tags: LIVE_TAG },
+          )
+          .commit();
+      } else if (held.length > 0) {
+        const component = await builders.structure.tryCreateComponentFromExpression(
+          structureCell,
+          residuesAt(held),
+          LIVE_TAG,
+          { label: "selection", tags: [LIVE_TAG] },
+        );
+        if (component?.data) {
+          await builders.structure.representation.addRepresentation(component, {
+            type: "spacefill",
+            color: "uniform",
+            colorParams: { value: hex(SELECTION_COLOUR) },
+          });
+        }
+      }
+      if (focus) {
+        plugin.managers.camera.focusLoci(loci && held.length > 0 ? loci : whole, {
+          extraRadius: held.length > 0 ? 8 : 0,
+          durationMs: 250,
+        });
+      }
+      // read back from the state tree: a structure cell is the atoms component, anything else
+      // under the tag is the cartoon's overpaint
+      const cells = tagged();
+      const drawn: LiveDrawn =
+        cells.length === 0 ? "none" : cells.some((c) => c.obj?.data instanceof Structure) ? "atoms" : "cartoon";
+      return { positions: drawn === "none" ? [] : held, drawn };
+    };
+    // one update at a time: two interleaved would each delete what the other had just built
+    let liveQueue: Promise<unknown> = Promise.resolve();
     const canvas = host.querySelector("canvas");
     const lost = () => events.onContextLost();
     canvas?.addEventListener("webglcontextlost", lost);
@@ -322,18 +430,21 @@ export const createScene = async (
     // the canvas resets its camera when the first objects are committed, which would undo a
     // focus requested before that
     plugin.canvas3d?.commit(true);
-    plugin.managers.camera.focusLoci(Structure.toStructureElementLoci(structure), {
-      extraRadius: 0,
-      durationMs: 0,
-    });
+    plugin.managers.camera.focusLoci(whole, { extraRadius: 0, durationMs: 0 });
     return {
       highlighted: [...highlighted].sort((a, b) => a - b),
       colourTheme,
       sphereDrawn,
       labelsDrawn: labels.length,
       plddtLegend,
+      setLive: (positions, focus) => {
+        const run = liveQueue.catch(() => undefined).then(() => applyLive(positions, focus));
+        liveQueue = run;
+        return run;
+      },
       dispose: () => {
         hover.unsubscribe();
+        click?.unsubscribe();
         canvas?.removeEventListener("webglcontextlost", lost);
         plugin.dispose();
       },

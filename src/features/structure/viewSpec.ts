@@ -45,6 +45,14 @@ export const ROLE_COLOURS: Record<ViewRole, string> = {
   neutral: "#7f7f7f",
 };
 export const NEIGHBOURHOOD_COLOUR = "#ff7f0e";
+// a host page's live selection, on the structure and on whatever the host draws beside it;
+// none of the role colours, so a selection never reads as a role
+export const SELECTION_COLOUR = "#e6007e";
+// a live selection of up to this many residues is drawn as atoms; a longer one colours the
+// cartoon over its range instead, which costs no geometry
+export const LIVE_ATOMS_MAX = 50;
+// a host reads back which residues are held; past this many it gets a count and a range
+export const LIVE_LIST_MAX = 20;
 
 export interface ViewResidue {
   /** residue number as written in the model file */

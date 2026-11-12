@@ -20,10 +20,13 @@ import {
 import {
   buildAffectedGeneList,
   buildAffectingGeneList,
+  DEFAULT_MAX_CS_SIZE,
+  DEFAULT_MIN_LEAD_MLOG10P,
   EQTL_CATALOGUE_DATA_NAME,
   geneViewTraitCode,
   geneViewTraitName,
   needsTraitNameMapping,
+  passesSetFilters,
 } from "@/store/geneCS";
 import CSPlot from "./CSPlot";
 import { useEffect, useMemo, useState } from "react";
@@ -105,8 +108,8 @@ const CisView = ({ geneName }: { geneName: string }) => {
   const [selectedVariantStats, setSelectedVariantStats] = useState<
     SelectedVariantStats | undefined
   >(undefined);
-  const [maxCsSize, setMaxCsSize] = useState<number>(50);
-  const [minLeadMlog10p, setMinLeadMlog10p] = useState<number>(10);
+  const [maxCsSize, setMaxCsSize] = useState<number>(DEFAULT_MAX_CS_SIZE);
+  const [minLeadMlog10p, setMinLeadMlog10p] = useState<number>(DEFAULT_MIN_LEAD_MLOG10P);
   const [highlightedVariant, setHighlightedVariant] = useState<string | undefined>(undefined);
   const [mouseOverTrait, setMouseOverTrait] = useState<string | undefined>(undefined);
   const [highlightCSs, setHighlightCSs] = useState<Set<string> | undefined>(undefined);
@@ -124,10 +127,7 @@ const CisView = ({ geneName }: { geneName: string }) => {
     console.time("filter data");
     const filteredData = data?.filter(
       (d) =>
-        ((d.dataType !== "eQTL" && d.dataType !== "pQTL") || d.trait.toLowerCase() === geneName.toLowerCase()) && // only QTLs that affect the input gene
-        d.mlog10p.some((mlog10p) => mlog10p !== null && mlog10p >= minLeadMlog10p) &&
-        d.csSize <= maxCsSize &&
-        d.variant.length > 0 &&
+        passesSetFilters(d, geneName, { maxCsSize, minLeadMlog10p }) &&
         (!codingOnly || d.isCoding.some((c) => c))
     );
     // `?? true` keeps this in step with the switch in DatasetOptions, which renders an unknown

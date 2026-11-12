@@ -1,4 +1,4 @@
-import type { Page } from "@playwright/test";
+import type { Page, Request } from "@playwright/test";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 
@@ -48,12 +48,19 @@ export interface Harness {
   molstarChunks: () => string[];
 }
 
+/** an `/api` answer for one request, or undefined to leave it to the harness's own routes */
+export type ApiMock = (
+  pathname: string,
+  request: Request,
+) => { status?: number; contentType: string; body: string; headers?: Record<string, string> } | undefined;
+
 export const serve = async (
   page: Page,
   /** session id → the assistant message's content */
   sessions: Record<string, string>,
   /** model file id → PDB bytes; any other id is a 404 */
   models: Record<string, Buffer>,
+  api?: ApiMock,
 ): Promise<Harness> => {
   if (!existsSync(path.join(STATIC, "index.html"))) {
     throw new Error("no production build in static/ — run `npx vite build --mode prod` first");
@@ -88,6 +95,14 @@ export const serve = async (
     // every other chat-backend call (options, tools, memory, projects) is decoration here
     if (pathname.startsWith("/chat/v1/")) return json({ detail: "not mocked" }, 404);
 
+    const mocked = pathname.startsWith("/api/") ? api?.(pathname, route.request()) : undefined;
+    if (mocked) {
+      return route.fulfill({
+        status: mocked.status ?? 200,
+        headers: { ...mocked.headers, "content-type": mocked.contentType },
+        body: mocked.body,
+      });
+    }
     const model = pathname.match(/^\/api\/v1\/protein_structure\/structure\/([^/]+)$/);
     if (model && models[model[1]]) {
       return route.fulfill({

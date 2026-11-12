@@ -119,6 +119,26 @@ export const pseudoDataNames = (
   return out;
 };
 
+// where the Credible sets tab's two set-level controls start
+export const DEFAULT_MAX_CS_SIZE = 50;
+export const DEFAULT_MIN_LEAD_MLOG10P = 10;
+
+/**
+ * Whether a credible set counts as evidence about this gene at all: an eQTL or pQTL set only
+ * when the gene is its molecular trait, a lead at least as strong as the threshold, and a set
+ * no larger than the cap.
+ */
+export const passesSetFilters = (
+  d: CSDatum,
+  geneName: string,
+  { maxCsSize, minLeadMlog10p }: { maxCsSize: number; minLeadMlog10p: number }
+): boolean =>
+  ((d.dataType !== "eQTL" && d.dataType !== "pQTL") ||
+    d.trait.toLowerCase() === geneName.toLowerCase()) &&
+  d.mlog10p.some((mlog10p) => mlog10p !== null && mlog10p >= minLeadMlog10p) &&
+  d.csSize <= maxCsSize &&
+  d.variant.length > 0;
+
 const CS_NUMBER_REGEX = /_L?(\d+)$/;
 
 /**
