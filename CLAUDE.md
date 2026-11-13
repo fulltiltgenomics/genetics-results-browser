@@ -97,6 +97,12 @@ catch a BFF type error. `bff/tsconfig.json` sets `"types": ["node"]`, which is w
 `@types/node` is an explicit devDependency rather than a transitive one (npm hoisting is
 not guaranteed under `npm ci`).
 
+`e2e/structure-view.spec.ts` and `e2e/protein-section.spec.ts` do not use the dev server: they
+serve the production bundle from `static/` by route interception under the CSP read out of
+`nginx.prod.conf` (`e2e/helpers/structureHarness.ts`), because Mol* under that policy is the
+thing they exist to prove. They need `npx vite build --mode prod` first and fail with that
+instruction when `static/` is missing.
+
 See `README.md` for the full dev startup sequence and environment variables.
 
 ## Architecture Overview
@@ -131,19 +137,47 @@ The annotation path is split in two stages so that changing a UI control never r
   `inputVariants.expandedFromGene`. Order matters — all three are bare tokens, so a curated set named
   after a gene stays a set. `GET /api/v1/gene_results/:gene` is a different thing (all credible-set
   member variants in a gene region, `queryType: "gene"`) and currently has no caller in `src/`.
+  The passthrough buffers the upstream body and drops `Content-Encoding`, because Node's fetch
+  has already decoded it — so a protein-structure model that results-api sends as stored gzip
+  (`/api/v1/protein_structure/structure/{id}`) reaches the browser as plain PDB text.
 - **stage 2, in the browser** — pure filter/group/summarize functions in `src/store/munge.normalized.ts`
   recompute reactively from the normalized records held in the zustand store.
 
 Layout:
 
 - `src/features/**` — views, grouped by feature (`table`, `gene`, `phenoSearch`, `chat`, `controls`,
-  `admin`, `input`, `page`, `auth`, `tooltips`)
+  `admin`, `input`, `page`, `auth`, `tooltips`, `structure`)
 - `src/store/**` — zustand store, server queries, munging
 - `src/types/**` — `types.normalized.ts` is the current credible-set-primary contract; `types.ts` and
   `types.gene.ts` still hold legacy pre-refactor types
 - `src/test/**` — vitest setup, MSW handlers, API fixtures (see `src/test/fixtures/README.md`)
 - `bff/**` — BFF sources and their vitest suite
 - `e2e/**` — Playwright specs
+
+The chat draws a `[FILE:]` artifact named `*.structure-view.json` as a 3D protein structure
+(`src/features/structure`). The view-spec contract is genetics-results-munge's
+`docs/protein-structure.md`; `viewSpec.ts` validates it without Mol*, `StructureViewer.tsx` is
+lazy-loaded from `MessageContent`, and Mol* itself (`molstarScene.ts`, ~3 MB) is a second
+dynamic import behind a spec that parsed, a model that arrived and a viewer that is near
+the viewport (the Mol* plugin is released again once it has scrolled well away). `vite.config.mts` prepends
+Mol*'s MIT notice to that chunk, since the minifier strips the per-file headers.
+
+The gene page's Gene evidence tab uses the same viewer through its named export
+`StructureView`, which takes a spec built in code plus the two things a linked page needs: a
+live selection applied to the running scene (`Scene.setLive`, no rebuild; atoms up to
+`LIVE_ATOMS_MAX` residues, a colour over the cartoon beyond) and a callback for the residue
+hovered or clicked. The chat's default export passes neither, and its scene gets no click
+subscription; a linked scene also drops Mol*'s own click-focus representation, whose state
+update would race the host's selection, and its click-to-centre, so the camera moves only
+for a selection made on the host's side. `src/features/gene/ProteinSection.tsx` is that page's section — a
+track on the amino-acid axis (`ProteinTrack.tsx`, shaping in `proteinTrack.ts`, hooks in
+`proteinApi.ts`) linked both ways to the structure. It is lazy-loaded from `GeneEvidenceTab`,
+asks only for the gene's model list until it is near the viewport (`structure/useNearViewport.ts`,
+the viewer's own hook), counts the credible sets the Credible sets tab shows at its default
+controls (`passesSetFilters` in `store/geneCS.ts`, shared with `CisView`) whatever the resource
+switches say, hides itself where results-api registers no protein-structure routes (FastAPI's own
+`Not Found`, the same test the CELLxGENE section uses), and places variants only where the
+release's variant-to-residue map (`POST /api/v1/variant_annotation/protein`) has a row.
 
 `refactor.md` and `refactor.backend.md` document the credible-set-only rewrite that produced this
 architecture; they are historical design records, not a to-do list.

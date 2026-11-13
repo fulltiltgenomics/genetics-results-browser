@@ -154,6 +154,10 @@ export const handlers = [
       { status: 404 }
     )
   ),
+  // likewise no protein structures: a results-api without a release pointer has no such route
+  http.get(api("protein_structure/models/:gene"), () =>
+    HttpResponse.json({ detail: "Not Found" }, { status: 404 })
+  ),
   http.get(api("expression_by_gene/:gene"), () => HttpResponse.json(expressionByGene)),
   http.get(api("gene_disease/:gene"), () => HttpResponse.json(geneDisease)),
 

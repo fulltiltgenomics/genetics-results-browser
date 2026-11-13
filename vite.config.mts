@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { defineConfig, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import tsconfigPaths from "vite-tsconfig-paths";
@@ -21,12 +22,30 @@ const versionFile = (): Plugin => ({
   },
 });
 
+// Mol* is MIT, which requires its notice to travel with every copy, and the minifier drops
+// the per-file headers that carry it. Added after minification, to whichever chunks hold
+// Mol* modules, from the installed package's own LICENSE so the text cannot drift from the
+// version shipped
+const molstarLicence = (): Plugin => ({
+  name: "molstar-licence",
+  generateBundle(_options, bundle) {
+    const pkg = JSON.parse(readFileSync("node_modules/molstar/package.json", "utf8"));
+    const licence = readFileSync("node_modules/molstar/LICENSE", "utf8").replace(/\*\//g, "* /");
+    const banner = `/*! molstar ${pkg.version} (https://molstar.org)\n${licence}\n*/\n`;
+    for (const chunk of Object.values(bundle)) {
+      if (chunk.type === "chunk" && chunk.moduleIds.some((id) => id.includes("/node_modules/molstar/"))) {
+        chunk.code = banner + chunk.code;
+      }
+    }
+  },
+});
+
 export default defineConfig({
   define: {
     __BUILD_DATE__: JSON.stringify(buildDate),
     __BUILD_ID__: JSON.stringify(buildId),
   },
-  plugins: [react(), tsconfigPaths(), versionFile()],
+  plugins: [react(), tsconfigPaths(), versionFile(), molstarLicence()],
   build: {
     outDir: "static",
     target: "esnext",

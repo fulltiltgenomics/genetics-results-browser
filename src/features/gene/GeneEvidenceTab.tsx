@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { lazy, Suspense, useMemo, useState } from "react";
 import {
   Box,
   CircularProgress,
@@ -31,6 +31,9 @@ import { gtexTissueLabel } from "./gtexTissues";
 import { hpaLevelLabel, hpaLevelRank, hpaTissueLabel } from "./hpa";
 import { DownloadButton, toolbarSx } from "../table/ExportToolbar";
 import { exportGeneBurden, exportGtexExpression, exportHpaExpression } from "./geneEvidenceExport";
+
+// the gene page is part of the main bundle; the protein track and its data shaping are not
+const ProteinSection = lazy(() => import("./ProteinSection"));
 
 /**
  * Gene evidence tab (refactor.md §6). Surfaces gene-level evidence that is relevant to the gene but
@@ -377,6 +380,11 @@ const GeneEvidenceTab = ({ geneName }: { geneName: string }) => {
       </Section>
 
       <CellTypeExpressionSection geneName={geneName} />
+
+      {/* keyed by gene: a selection or a chosen window means nothing on another protein */}
+      <Suspense fallback={null}>
+        <ProteinSection key={geneName} geneName={geneName} />
+      </Suspense>
 
       <Section
         title="Gene-disease (Mendelian)"

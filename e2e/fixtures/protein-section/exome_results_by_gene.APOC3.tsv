@@ -1,0 +1,88 @@
+resource	version	dataset	chr	pos	ref	alt	gene	annotation	mlog10p	beta	se	af_overall	af_cases	af_controls	ac	an	n_cases	n_controls	trait	trait_original
+genebass	NA	genebass	11	116830637	C	T	APOC3	pLoF	4.61330e+00	3.311e-01	7.844e-02	1.904e-04	NA	NA	146	789682	383467	NA	Red blood cell (erythrocyte) distribution width	continuous_30070_both_sexes__irnt
+genebass	NA	genebass	11	116830637	C	T	APOC3	pLoF	3.41040e+00	2.807e-01	7.912e-02	1.922e-04	NA	NA	145	789682	377154	NA	Mean reticulocyte volume	continuous_30260_both_sexes__irnt
+genebass	NA	genebass	11	116830637	C	T	APOC3	pLoF	1.59135e+01	6.488e-01	7.834e-02	1.866e-04	NA	NA	128	789682	343018	NA	Apolipoprotein A	continuous_30630_both_sexes__irnt
+genebass	NA	genebass	11	116830637	C	T	APOC3	pLoF	3.10170e+00	-2.717e-01	8.098e-02	1.853e-04	NA	NA	139	789682	374968	NA	Apolipoprotein B	continuous_30640_both_sexes__irnt
+genebass	NA	genebass	11	116830637	C	T	APOC3	pLoF	2.36100e+01	7.684e-01	7.548e-02	1.928e-04	NA	NA	133	789682	344938	NA	HDL cholesterol	continuous_30760_both_sexes__irnt
+genebass	NA	genebass	11	116830637	C	T	APOC3	pLoF	6.20868e+01	-1.322e+00	7.906e-02	1.846e-04	NA	NA	139	789682	376509	NA	Triglycerides	continuous_30870_both_sexes__irnt
+genebass	NA	genebass	11	116830637	C	T	APOC3	pLoF	7.13678e+01	-1.489e+00	8.292e-02	1.936e-04	NA	NA	133	789682	343470	NA	Ratio of circulating triglycerides to circulating HDL	continuous_ratio_TG_HDL_custom_both_sexes__custom
+genebass	NA	genebass	11	116830638	G	A	APOC3	pLoF	3.48140e+00	1.029e+00	2.866e-01	2.273e-03	4.883e-03	2.258e-03	1795	789682	2355	392428	Non-cancer illness code, self-reported | bladder problem (not cancer)	categorical_20002_both_sexes_1201_
+genebass	NA	genebass	11	116830638	G	A	APOC3	pLoF	6.90760e+00	-3.691e-01	6.979e-02	2.273e-03	1.538e-03	2.376e-03	1795	789682	48438	346345	Non-cancer illness code, self-reported | high cholesterol	categorical_20002_both_sexes_1473_
+genebass	NA	genebass	11	116830638	G	A	APOC3	pLoF	4.26830e+00	1.067e+00	2.641e-01	2.273e-03	5.459e-03	2.253e-03	1795	789682	2473	392310	Treatment/medication code | co-dydramol	categorical_20003_both_sexes_1140923350_
+genebass	NA	genebass	11	116830638	G	A	APOC3	pLoF	4.16530e+00	-5.222e-01	1.311e-01	2.273e-03	1.053e-03	2.311e-03	1795	789682	11874	382909	Treatment/medication code | atorvastatin	categorical_20003_both_sexes_1141146234_
+genebass	NA	genebass	11	116830638	G	A	APOC3	pLoF	3.22470e+00	-3.420e-01	9.961e-02	2.194e-03	1.523e-03	2.291e-03	933	789682	26921	185712	Medication for cholesterol, blood pressure, diabetes, or take exogenous hormones | Cholesterol lowering medication	categorical_6153_both_sexes_1_
+genebass	NA	genebass	11	116830638	G	A	APOC3	pLoF	9.23550e+00	-5.020e-01	8.102e-02	2.345e-03	1.512e-03	2.596e-03	842	789682	41662	137885	Medication for cholesterol, blood pressure or diabetes | Cholesterol lowering medication	categorical_6177_both_sexes_1_
+genebass	NA	genebass	11	116830638	G	A	APOC3	pLoF	3.13390e+00	-5.761e-02	1.706e-02	2.269e-03	NA	NA	1788	789682	393937	NA	Sitting height	continuous_20015_both_sexes__irnt
+genebass	NA	genebass	11	116830638	G	A	APOC3	pLoF	3.09120e+00	-6.775e-02	2.023e-02	2.277e-03	NA	NA	1767	789682	387978	NA	Weight	continuous_23098_both_sexes__irnt
+genebass	NA	genebass	11	116830638	G	A	APOC3	pLoF	3.82220e+00	-5.385e-02	1.421e-02	2.277e-03	NA	NA	1767	789682	387945	NA	Whole body fat-free mass	continuous_23101_both_sexes__irnt
+genebass	NA	genebass	11	116830638	G	A	APOC3	pLoF	3.80360e+00	-5.383e-02	1.424e-02	2.277e-03	NA	NA	1767	789682	387974	NA	Whole body water mass	continuous_23102_both_sexes__irnt
+genebass	NA	genebass	11	116830638	G	A	APOC3	pLoF	3.90280e+00	-5.720e-02	1.491e-02	2.277e-03	NA	NA	1767	789682	387962	NA	Basal metabolic rate	continuous_23105_both_sexes__irnt
+genebass	NA	genebass	11	116830638	G	A	APOC3	pLoF	4.28830e+00	-5.938e-02	1.467e-02	2.277e-03	NA	NA	1767	789682	387932	NA	Leg fat-free mass (right)	continuous_23113_both_sexes__irnt
+genebass	NA	genebass	11	116830638	G	A	APOC3	pLoF	4.16450e+00	-5.802e-02	1.457e-02	2.277e-03	NA	NA	1767	789682	387931	NA	Leg predicted mass (right)	continuous_23114_both_sexes__irnt
+genebass	NA	genebass	11	116830638	G	A	APOC3	pLoF	3.98880e+00	-5.727e-02	1.474e-02	2.278e-03	NA	NA	1767	789682	387906	NA	Leg fat-free mass (left)	continuous_23117_both_sexes__irnt
+genebass	NA	genebass	11	116830638	G	A	APOC3	pLoF	3.96250e+00	-5.668e-02	1.465e-02	2.278e-03	NA	NA	1767	789682	387901	NA	Leg predicted mass (left)	continuous_23118_both_sexes__irnt
+genebass	NA	genebass	11	116830638	G	A	APOC3	pLoF	3.52580e+00	-5.140e-02	1.421e-02	2.278e-03	NA	NA	1766	789682	387653	NA	Trunk fat-free mass	continuous_23129_both_sexes__irnt
+genebass	NA	genebass	11	116830638	G	A	APOC3	pLoF	3.51520e+00	-5.114e-02	1.416e-02	2.278e-03	NA	NA	1766	789682	387613	NA	Trunk predicted mass	continuous_23130_both_sexes__irnt
+genebass	NA	genebass	11	116830638	G	A	APOC3	pLoF	3.95980e+00	4.157e-01	1.075e-01	2.034e-03	NA	NA	74	789682	18188	NA	Volume of grey matter in Central Opercular Cortex (left)	continuous_25864_both_sexes__irnt
+genebass	NA	genebass	11	116830638	G	A	APOC3	pLoF	3.28280e+00	-7.669e-02	2.211e-02	2.262e-03	NA	NA	1735	789682	383466	NA	Mean corpuscular haemoglobin	continuous_30050_both_sexes__irnt
+genebass	NA	genebass	11	116830638	G	A	APOC3	pLoF	7.54370e+00	-1.283e-01	2.312e-02	2.262e-03	NA	NA	1735	789682	383462	NA	Mean corpuscular haemoglobin concentration	continuous_30060_both_sexes__irnt
+genebass	NA	genebass	11	116830638	G	A	APOC3	pLoF	3.75431e+01	2.950e-01	2.280e-02	2.262e-03	NA	NA	1735	789682	383467	NA	Red blood cell (erythrocyte) distribution width	continuous_30070_both_sexes__irnt
+genebass	NA	genebass	11	116830638	G	A	APOC3	pLoF	6.99080e+00	1.187e-01	2.229e-02	2.261e-03	NA	NA	1734	789682	383466	NA	Platelet count	continuous_30080_both_sexes__irnt
+genebass	NA	genebass	11	116830638	G	A	APOC3	pLoF	5.77730e+00	1.057e-01	2.206e-02	2.261e-03	NA	NA	1734	789682	383462	NA	Platelet crit	continuous_30090_both_sexes__irnt
+genebass	NA	genebass	11	116830638	G	A	APOC3	pLoF	1.57795e+01	-1.853e-01	2.248e-02	2.261e-03	NA	NA	1734	789682	383461	NA	Platelet distribution width	continuous_30110_both_sexes__irnt
+genebass	NA	genebass	11	116830638	G	A	APOC3	pLoF	8.68770e+00	1.392e-01	2.323e-02	2.262e-03	NA	NA	1732	789682	382765	NA	Eosinophill count	continuous_30150_both_sexes__irnt
+genebass	NA	genebass	11	116830638	G	A	APOC3	pLoF	7.20490e+00	1.255e-01	2.319e-02	2.262e-03	NA	NA	1732	789682	382770	NA	Eosinophill percentage	continuous_30210_both_sexes__irnt
+genebass	NA	genebass	11	116830638	G	A	APOC3	pLoF	4.72260e+00	-1.008e-01	2.356e-02	2.271e-03	NA	NA	1713	789682	377154	NA	Reticulocyte percentage	continuous_30240_both_sexes__irnt
+genebass	NA	genebass	11	116830638	G	A	APOC3	pLoF	3.73490e+00	-8.696e-02	2.325e-02	2.271e-03	NA	NA	1713	789682	377154	NA	Reticulocyte count	continuous_30250_both_sexes__irnt
+genebass	NA	genebass	11	116830638	G	A	APOC3	pLoF	8.83640e+00	1.396e-01	2.307e-02	2.271e-03	NA	NA	1713	789682	377154	NA	Mean reticulocyte volume	continuous_30260_both_sexes__irnt
+genebass	NA	genebass	11	116830638	G	A	APOC3	pLoF	1.17697e+01	1.617e-01	2.291e-02	2.271e-03	NA	NA	1713	789682	377155	NA	Mean sphered cell volume	continuous_30270_both_sexes__irnt
+genebass	NA	genebass	11	116830638	G	A	APOC3	pLoF	6.78330e+00	1.270e-01	2.425e-02	2.251e-03	NA	NA	1554	789682	345108	NA	Albumin	continuous_30600_both_sexes__irnt
+genebass	NA	genebass	11	116830638	G	A	APOC3	pLoF	3.53950e+00	8.158e-02	2.250e-02	2.254e-03	NA	NA	1699	789682	376833	NA	Alkaline phosphatase	continuous_30610_both_sexes__irnt
+genebass	NA	genebass	11	116830638	G	A	APOC3	pLoF	3.00980e+00	-5.657e-02	1.716e-02	2.265e-03	NA	NA	1631	789682	360076	NA	Forced vital capacity (FVC)	continuous_3062_both_sexes__irnt
+genebass	NA	genebass	11	116830638	G	A	APOC3	pLoF	2.04101e+02	6.997e-01	2.291e-02	2.191e-03	NA	NA	1503	789682	343018	NA	Apolipoprotein A	continuous_30630_both_sexes__irnt
+genebass	NA	genebass	11	116830638	G	A	APOC3	pLoF	1.47064e+01	-1.846e-01	2.324e-02	2.260e-03	NA	NA	1695	789682	374968	NA	Apolipoprotein B	continuous_30640_both_sexes__irnt
+genebass	NA	genebass	11	116830638	G	A	APOC3	pLoF	3.67350e+00	8.392e-02	2.265e-02	2.255e-03	NA	NA	1698	789682	376551	NA	Urea	continuous_30670_both_sexes__irnt
+genebass	NA	genebass	11	116830638	G	A	APOC3	pLoF	3.43180e+00	8.745e-02	2.456e-02	2.251e-03	NA	NA	1553	789682	344966	NA	Calcium	continuous_30680_both_sexes__irnt
+genebass	NA	genebass	11	116830638	G	A	APOC3	pLoF	6.33560e+00	9.513e-02	1.887e-02	2.256e-03	NA	NA	1699	789682	376624	NA	Creatinine	continuous_30700_both_sexes__irnt
+genebass	NA	genebass	11	116830638	G	A	APOC3	pLoF	6.65970e+00	1.218e-01	2.350e-02	2.257e-03	NA	NA	1697	789682	376005	NA	C-reactive protein	continuous_30710_both_sexes__irnt
+genebass	NA	genebass	11	116830638	G	A	APOC3	pLoF	5.61690e+00	1.003e-01	2.127e-02	2.253e-03	NA	NA	1698	789682	376784	NA	Cystatin C	continuous_30720_both_sexes__irnt
+genebass	NA	genebass	11	116830638	G	A	APOC3	pLoF	3.30530e+00	7.657e-02	2.198e-02	2.292e-03	NA	NA	1728	789682	376931	NA	Glycated haemoglobin (HbA1c)	continuous_30750_both_sexes__irnt
+genebass	NA	genebass	11	116830638	G	A	APOC3	pLoF	2.96913e+02	8.171e-01	2.216e-02	2.247e-03	NA	NA	1550	789682	344938	NA	HDL cholesterol	continuous_30760_both_sexes__irnt
+genebass	NA	genebass	11	116830638	G	A	APOC3	pLoF	1.17853e+01	-1.643e-01	2.326e-02	2.253e-03	NA	NA	1695	789682	376106	NA	LDL direct	continuous_30780_both_sexes__irnt
+genebass	NA	genebass	11	116830638	G	A	APOC3	pLoF	3.19190e+00	-9.211e-02	2.699e-02	2.259e-03	NA	NA	1695	789682	375237	NA	Total bilirubin	continuous_30840_both_sexes__irnt
+genebass	NA	genebass	11	116830638	G	A	APOC3	pLoF	3.67020e+00	9.068e-02	2.449e-02	2.251e-03	NA	NA	1552	789682	344688	NA	Total protein	continuous_30860_both_sexes__irnt
+genebass	NA	genebass	11	116830638	G	A	APOC3	pLoF	Infinity	-1.161e+00	0.000e+00	2.255e-03	NA	NA	1698	789682	376509	NA	Triglycerides	continuous_30870_both_sexes__irnt
+genebass	NA	genebass	11	116830638	G	A	APOC3	pLoF	5.71860e+00	-7.419e-02	1.558e-02	2.269e-03	NA	NA	1788	789682	393982	NA	Standing height	continuous_50_both_sexes__irnt
+genebass	NA	genebass	11	116830638	G	A	APOC3	pLoF	3.24030e+00	-6.082e-02	1.766e-02	2.269e-03	NA	NA	1788	789682	393937	NA	Seated height	continuous_51_both_sexes__irnt
+genebass	NA	genebass	11	116830638	G	A	APOC3	pLoF	4.07260e+00	-8.934e-02	2.273e-02	2.269e-03	NA	NA	1786	789682	393490	NA	Hip circumference adjusted for body mass index (HCadjBMI)	continuous_HCadjBMI_custom_both_sexes__custom
+genebass	NA	genebass	11	116830638	G	A	APOC3	pLoF	3.13140e+00	-1.227e-01	3.636e-02	2.198e-03	NA	NA	936	789682	212928	NA	Hip circumference adjusted for body mass index (HCadjBMI) female	continuous_HCadjBMI_female_custom_females__custom
+genebass	NA	genebass	11	116830638	G	A	APOC3	pLoF	4.68740e+00	-1.621e-01	3.806e-02	2.355e-03	NA	NA	837	789682	177739	NA	Whole body fat free mass adjusted for body mass index (WBFFMadjBMI) male	continuous_WBFFMadjBMI_male_custom_males__custom
+genebass	NA	genebass	11	116830638	G	A	APOC3	pLoF	3.85220e+00	-5.409e-02	1.421e-02	2.277e-03	NA	NA	1767	789682	387945	NA	Whole body fat free mass	continuous_WBfatfreemass_custom_both_sexes__custom
+genebass	NA	genebass	11	116830638	G	A	APOC3	pLoF	3.45200e+00	-1.339e-01	3.749e-02	2.357e-03	NA	NA	838	789682	177788	NA	Whole body fat free mass male	continuous_WBfatfreemass_male_custom_males__custom
+genebass	NA	genebass	11	116830638	G	A	APOC3	pLoF	3.61770e+00	-1.836e-01	5.000e-02	2.015e-03	NA	NA	382	789682	94796	NA	Glucose (NMR metabolite)	continuous_glucose_NMR_both_sexes__custom
+genebass	NA	genebass	11	116830638	G	A	APOC3	pLoF	5.95440e+00	-7.587e-02	1.558e-02	2.269e-03	NA	NA	1788	789682	393982	NA	Standing height	continuous_height_custom_both_sexes__custom
+genebass	NA	genebass	11	116830638	G	A	APOC3	pLoF	6.92480e+00	-2.064e-01	3.897e-02	2.354e-03	NA	NA	851	789682	180788	NA	Standing height male	continuous_height_male_custom_males__custom
+genebass	NA	genebass	11	116830638	G	A	APOC3	pLoF	Infinity	-1.402e+00	0.000e+00	2.248e-03	NA	NA	1544	789682	343470	NA	Ratio of circulating triglycerides to circulating HDL	continuous_ratio_TG_HDL_custom_both_sexes__custom
+genebass	NA	genebass	11	116830638	G	A	APOC3	pLoF	3.43090e+00	-1.325e-01	3.721e-02	2.351e-03	NA	NA	850	789682	180770	NA	Sitting height male	continuous_sitting_height_male_custom_males__custom
+genebass	NA	genebass	11	116830638	G	A	APOC3	pLoF	3.96906e+01	-7.091e-01	5.328e-02	2.018e-03	NA	NA	383	789682	94910	NA	Total fatty acids	continuous_total_fatty_acids_both_sexes__custom
+genebass	NA	genebass	11	116830638	G	A	APOC3	pLoF	9.32690e+00	-3.569e-01	5.730e-02	2.274e-03	1.660e-03	2.434e-03	1796	789682	81328	313513	Date E78 first reported (disorders of lipoprotein metabolism and other lipidaemias)	icd_first_occurrence_130814_both_sexes__
+genebass	NA	genebass	11	116830638	G	T	APOC3	pLoF	4.64010e+00	1.032e+00	2.436e-01	1.857e-05	NA	NA	14	789682	376931	NA	Glycated haemoglobin (HbA1c)	continuous_30750_both_sexes__irnt
+genebass	NA	genebass	11	116830638	G	T	APOC3	pLoF	4.94190e+00	-1.121e+00	2.555e-01	2.038e-05	NA	NA	14	789682	343470	NA	Ratio of circulating triglycerides to circulating HDL	continuous_ratio_TG_HDL_custom_both_sexes__custom
+genebass	NA	genebass	11	116830787	G	A	APOC3	missense	3.01570e+00	-7.229e-01	2.190e-01	4.761e-05	NA	NA	20	789680	210019	NA	Appendicular fat free mass index female	continuous_appendicularFFMI_female_custom_females__custom
+genebass	NA	genebass	11	116830806	G	GCTTCAT	APOC3	missense	3.37690e+00	6.012e-01	1.704e-01	5.868e-05	NA	NA	45	789654	383461	NA	Mean platelet (thrombocyte) volume	continuous_30100_both_sexes__irnt
+genebass	NA	genebass	11	116830806	G	GCTTCAT	APOC3	missense	3.75220e+00	-5.209e-01	1.389e-01	5.976e-05	NA	NA	45	789654	376509	NA	Triglycerides	continuous_30870_both_sexes__irnt
+genebass	NA	genebass	11	116830806	G	GCTTCAT	APOC3	missense	3.35430e+00	5.049e-01	1.437e-01	6.245e-05	NA	NA	45	789654	360290	NA	Vitamin D	continuous_30890_both_sexes__irnt
+genebass	NA	genebass	11	116830806	G	GCTTCAT	APOC3	missense	4.17790e+00	-6.187e-01	1.551e-01	5.532e-05	NA	NA	38	789654	343470	NA	Ratio of circulating triglycerides to circulating HDL	continuous_ratio_TG_HDL_custom_both_sexes__custom
+genebass	NA	genebass	11	116830833	C	A	APOC3	missense	4.90610e+00	1.098e+00	2.513e-01	1.740e-05	NA	NA	12	789650	344938	NA	HDL cholesterol	continuous_30760_both_sexes__irnt
+genebass	NA	genebass	11	116830833	C	A	APOC3	missense	6.52120e+00	-1.276e+00	2.491e-01	1.859e-05	NA	NA	14	789650	376509	NA	Triglycerides	continuous_30870_both_sexes__irnt
+genebass	NA	genebass	11	116830833	C	A	APOC3	missense	7.87920e+00	-1.569e+00	2.760e-01	1.747e-05	NA	NA	12	789650	343470	NA	Ratio of circulating triglycerides to circulating HDL	continuous_ratio_TG_HDL_custom_both_sexes__custom
+genebass	NA	genebass	11	116830844	G	A	APOC3	missense	1.30411e+01	4.952e-01	6.644e-02	2.595e-04	NA	NA	178	789656	343018	NA	Apolipoprotein A	continuous_30630_both_sexes__irnt
+genebass	NA	genebass	11	116830844	G	A	APOC3	missense	1.72271e+01	5.618e-01	6.507e-02	2.595e-04	NA	NA	179	789656	344938	NA	HDL cholesterol	continuous_30760_both_sexes__irnt
+genebass	NA	genebass	11	116830844	G	A	APOC3	missense	3.81257e+01	-8.681e-01	6.658e-02	2.603e-04	NA	NA	196	789656	376509	NA	Triglycerides	continuous_30870_both_sexes__irnt
+genebass	NA	genebass	11	116830844	G	A	APOC3	missense	4.40398e+01	-1.009e+00	7.189e-02	2.577e-04	NA	NA	177	789656	343470	NA	Ratio of circulating triglycerides to circulating HDL	continuous_ratio_TG_HDL_custom_both_sexes__custom
+genebass	NA	genebass	11	116830844	G	A	APOC3	missense	4.11780e+00	-5.551e-01	1.403e-01	2.898e-04	NA	NA	55	789656	94910	NA	Total fatty acids	continuous_total_fatty_acids_both_sexes__custom
+genebass	NA	genebass	11	116830897	G	T	APOC3	pLoF	4.10000e+00	9.029e-01	2.288e-01	2.186e-05	NA	NA	15	789674	343018	NA	Apolipoprotein A	continuous_30630_both_sexes__irnt
+genebass	NA	genebass	11	116830897	G	T	APOC3	pLoF	3.45960e+00	8.039e-01	2.247e-01	2.174e-05	NA	NA	15	789674	344938	NA	HDL cholesterol	continuous_30760_both_sexes__irnt
+genebass	NA	genebass	11	116830897	G	T	APOC3	pLoF	9.83560e+00	-1.493e+00	2.330e-01	2.125e-05	NA	NA	16	789674	376509	NA	Triglycerides	continuous_30870_both_sexes__irnt
+genebass	NA	genebass	11	116830897	G	T	APOC3	pLoF	1.16993e+01	-1.737e+00	2.469e-01	2.184e-05	NA	NA	15	789674	343470	NA	Ratio of circulating triglycerides to circulating HDL	continuous_ratio_TG_HDL_custom_both_sexes__custom
+genebass	NA	genebass	11	116832859	G	C	APOC3	missense	3.06210e+00	-5.269e-01	1.582e-01	3.365e-05	NA	NA	20	789682	297213	NA	Forced expiratory volume in 1-second (FEV1), Best measure	continuous_20150_both_sexes__irnt
