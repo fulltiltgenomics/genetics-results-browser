@@ -15,40 +15,12 @@
 import pandas as pd
 import numpy as np
 
+from chromosomes import chr_set
+
 soma_info_file = "/mnt/disks/data/Soma_info_all.csv"
 entrez_file = "/mnt/disks/data/mart_export_entrez.tsv"
 olink_probe_file = "/mnt/disks/data/all_olink_probes"
 gene_name_file = "/mnt/disks/data/mart_export_gene_name.tsv"
-
-chr_set = set(
-    [
-        "1",
-        "2",
-        "3",
-        "4",
-        "5",
-        "6",
-        "7",
-        "8",
-        "9",
-        "10",
-        "11",
-        "12",
-        "13",
-        "14",
-        "15",
-        "16",
-        "17",
-        "18",
-        "19",
-        "20",
-        "21",
-        "22",
-        "X",
-        "Y",
-        "MT",
-    ]
-)
 
 # SomaScan
 

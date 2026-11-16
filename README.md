@@ -124,6 +124,10 @@ handlers match on `*/api/v1/…`, so every request missed. `VITE_CHAT_URL` is de
 unset; the chat features build fetch URLs from it directly and their tests match the shape that
 produces.
 
+`scripts/install-git-hooks.sh` and `scripts/doc-drift-lib.sh` are copies written by
+genetics-results-suite's `scripts/vendor.py`; edit them there. `scripts/lint-staged.sh` is
+this repo's own.
+
 `scripts/lint-staged.sh` runs eslint over the **staged** files from the `pre-commit` hook
 and **blocks the commit** on an error. Only errors block: warnings are advisory, and
 `@typescript-eslint/no-explicit-any` and `react-hooks/exhaustive-deps` are deliberately
