@@ -168,12 +168,6 @@ const McpTokenDialog = ({ open, onClose }: McpTokenDialogProps) => {
           </List>
         )}
 
-        {activeTokens.length === 0 && !newTokenValue && (
-          <Typography variant="body2" color="text.secondary" sx={{ py: 1 }}>
-            No active keys. Create one to connect MCP clients.
-          </Typography>
-        )}
-
         {activeTokens.length > 0 && (
           <Typography variant="body2" color="text.secondary" sx={{ py: 1 }}>
             Keys are personal and provide access to embargoed FinnGen data. Do not share your keys.
@@ -186,7 +180,12 @@ const McpTokenDialog = ({ open, onClose }: McpTokenDialogProps) => {
             MCP access
           </Typography>
           <Typography variant="body2" color="text.secondary">
-            Use this configuration to add {APP_NAME} MCP to Claude, Cursor, etc. Replace &lt;TOKEN&gt; with a created key:
+            There are two ways to connect an MCP client (Claude, Cursor, etc.) to {APP_NAME}.
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>
+            <strong>1. OAuth login (no key needed).</strong> Add the server by URL and sign in
+            through your browser when the client prompts. For Claude Code, run this in your
+            terminal:
           </Typography>
           <Box
             component="pre"
@@ -201,9 +200,31 @@ const McpTokenDialog = ({ open, onClose }: McpTokenDialogProps) => {
               whiteSpace: "pre-wrap",
             }}
           >
-        {`{
+{`claude mcp add --transport http ${APP_NAME} ${origin}/mcp`}
+          </Box>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+            Then run <code>/mcp</code> in a Claude Code session and authenticate the server.
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>
+            <strong>2. Key.</strong> Use this configuration and replace &lt;TOKEN&gt; with a
+            created key:
+          </Typography>
+          <Box
+            component="pre"
+            sx={{
+              mt: 1,
+              p: 1.5,
+              bgcolor: "background.paper",
+              borderRadius: 1,
+              fontSize: "0.8rem",
+              fontFamily: "monospace",
+              overflow: "auto",
+              whiteSpace: "pre-wrap",
+            }}
+          >
+{`{
   "mcpServers": {
-    "genetics": {
+    "${APP_NAME}": {
       "type": "streamable-http",
       "url": "${origin}/mcp",
       "headers": {
@@ -213,13 +234,6 @@ const McpTokenDialog = ({ open, onClose }: McpTokenDialogProps) => {
   }
 }`}
           </Box>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>
-            The key must be sent in the <code>Authorization</code> header. Passing it in the URL
-            (<code>?token=…</code>) is no longer accepted: a key in a URL is recorded by load
-            balancer request logs and browser history, and leaks to other sites via the{" "}
-            <code>Referer</code> header. If your client cannot set headers, contact us rather
-            than putting the key in the URL.
-          </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mt: 1.5 }}>
             <strong>Deprecated:</strong> a Google ID token (in terminal:{" "}
             <code>gcloud auth print-identity-token</code>) is still accepted, but it expires every
