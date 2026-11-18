@@ -1,9 +1,10 @@
-import { Box, Button, Tab, Tabs, TextField } from "@mui/material";
+import { Box, Button, Tab, Tabs, TextField, Typography } from "@mui/material";
 import CisView from "./CisView";
 import GeneEvidenceTab from "./gene/GeneEvidenceTab";
 import ViewNav from "./page/ViewNav";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router";
+import { useGeneInfo } from "@/store/serverQuery";
 
 const GeneContainer = () => {
   const params = useParams();
@@ -14,6 +15,7 @@ const GeneContainer = () => {
       setGeneName(params.geneName);
     }
   }, [params.geneName]);
+  const { data: geneInfo, error: geneInfoError } = useGeneInfo(geneName || undefined);
   const [inputGeneName, setInputGeneName] = useState("");
   // 0 = credible sets (CS visualization), 1 = gene evidence (burden/expression/gene-disease)
   const [activeTab, setActiveTab] = useState(0);
@@ -73,7 +75,11 @@ const GeneContainer = () => {
       </Box>
       {activeTab === 1 && geneName && (
         <Box>
-          <GeneEvidenceTab geneName={geneName} />
+          {geneInfo ? (
+            <GeneEvidenceTab geneName={geneInfo.symbol} />
+          ) : (
+            <Typography>{geneInfoError ? geneInfoError.message : "Loading..."}</Typography>
+          )}
         </Box>
       )}
     </Box>

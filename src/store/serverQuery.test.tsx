@@ -212,6 +212,18 @@ describe("gene view hooks (credible sets + gene track on the new API)", () => {
     expect(info.end).toBeGreaterThan(info.start);
   });
 
+  it("useGeneInfo returns the canonical symbol for a query in another case", async () => {
+    const { result } = renderHook(() => useGeneInfo("aPoE"), { wrapper: makeWrapper() });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data!.symbol).toBe("APOE");
+  });
+
+  it("useGeneInfo fails with a readable message when no gene matches", async () => {
+    const { result } = renderHook(() => useGeneInfo("NOSUCHGENE"), { wrapper: makeWrapper() });
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(result.current.error!.message).toBe("Gene NOSUCHGENE not found");
+  });
+
   it("useGeneCredibleSets returns grouped CSDatum[] from credible_sets_by_gene", async () => {
     const { result } = renderHook(() => useGeneCredibleSets("APOE"), { wrapper: makeWrapper() });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));

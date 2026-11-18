@@ -159,10 +159,11 @@ export interface GeneInfo {
 /**
  * resolve a gene symbol to its coordinates via /search (type=genes). genes_in_region needs an
  * explicit chr/start/end, and the credible-set endpoints don't return the gene body, so this is the
- * one lookup that seeds both the gene track window and the cis/trans plot range.
+ * one lookup that seeds both the gene track window and the cis/trans plot range. the returned
+ * symbol is the canonical spelling of a case-insensitive match; callers key everything else by it.
  */
-export const useGeneInfo = (gene: string | undefined): UseQueryResult<GeneInfo | undefined, Error> => {
-  return useQuery<GeneInfo | undefined>({
+export const useGeneInfo = (gene: string | undefined): UseQueryResult<GeneInfo, Error> => {
+  return useQuery<GeneInfo>({
     queryKey: ["gene-info", gene],
     queryFn: async () => {
       const { data } = await api.get<GeneSearchHit[]>("/v1/search", {
@@ -172,7 +173,8 @@ export const useGeneInfo = (gene: string | undefined): UseQueryResult<GeneInfo |
         (d) => d.type === "gene" && d.symbol.toLowerCase() === gene!.toLowerCase()
       );
       if (!hit) {
-        return undefined;
+        // a query function may not resolve to undefined
+        throw new Error(`Gene ${gene} not found`);
       }
       return {
         symbol: hit.symbol,

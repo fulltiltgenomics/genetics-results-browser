@@ -44,7 +44,7 @@ import CleanTableCell from "@/style";
 import { DataTypeIcon } from "./table/DataTypeIcon";
 import { CredibleSetDataType } from "@/types/types.normalized";
 
-const CisView = ({ geneName }: { geneName: string }) => {
+const CisView = ({ geneName: geneQuery }: { geneName: string }) => {
   const prefersDarkMode = useMediaQuery("(prefers-color-scheme: dark)");
   const { isDarkMode } = useThemeStore();
   const isActualDarkMode = isDarkMode ?? prefersDarkMode;
@@ -56,7 +56,10 @@ const CisView = ({ geneName }: { geneName: string }) => {
     isPending: geneInfoIsPending,
     isError: geneInfoIsError,
     error: geneInfoError,
-  } = useGeneInfo(geneName);
+  } = useGeneInfo(geneQuery);
+  // the user's spelling may differ in case from the symbol the credible-set rows and gene models
+  // carry, and those are compared with ===
+  const geneName = geneInfo?.symbol ?? geneQuery;
 
   const range = useMemo(() => {
     if (!geneInfo) {
@@ -74,14 +77,14 @@ const CisView = ({ geneName }: { geneName: string }) => {
     error: geneModelsError,
   } = useGenesInRegion(geneInfo?.chr, range?.[1], range?.[2]);
 
-  const { data, isPending, isError, error } = useGeneCredibleSets(geneName);
+  const { data, isPending, isError, error } = useGeneCredibleSets(geneInfo?.symbol);
 
   const {
     data: transData,
     isPending: transIsPending,
     isError: transIsError,
     error: transError,
-  } = useGeneTransCredibleSets(geneName);
+  } = useGeneTransCredibleSets(geneInfo?.symbol);
 
   // the credible-set endpoints already name most traits; only the phenocodes they leave unresolved
   // (FinnGen drugs/labs) need the trait_name_mapping dictionary, and it is 2 MB, so the fetch is
