@@ -14,6 +14,7 @@ import {
 } from "@/types/types.normalized";
 import { parseQuantLevel } from "@/utils/quantLevel";
 import { CSDatum, GeneModel } from "@/types/types.gene";
+import type { GeneAnnotation, GeneConstraint } from "../../bff/geneAnnotationTypes";
 import config from "@/config.json";
 import {
   GeneCSApiRow,
@@ -22,6 +23,7 @@ import {
   groupCredibleSets,
 } from "./geneCS";
 import api from "./api";
+import { GeneSearchCandidate, GeneSuggestion, suggestGenes } from "./geneSuggestions";
 import { isAxiosError } from "axios";
 import { CohortN } from "./cohorts";
 
@@ -141,16 +143,33 @@ export const useNormalizedQuery = (
  * ──────────────────────────────────────────────────────────────────────────── */
 
 // minimal slice of a /search gene hit — used to resolve a gene symbol to its genomic coordinates.
-interface GeneSearchHit {
-  type: string;
-  symbol: string;
+// match_type is "exact" when the query equals one of the gene's indexed strings, not only its symbol
+interface GeneSearchHit extends GeneSearchCandidate {
+  name?: string;
+  aliases?: string[];
+  hgnc_id?: string;
+  ensembl_id?: string;
   chrom: number;
   gene_start: number;
   gene_end: number;
 }
 
+// an answer rather than a failure, so it is not worth asking again
+export class GeneNotFoundError extends Error {
+  constructor(
+    message: string,
+    readonly suggestions: GeneSuggestion[] = []
+  ) {
+    super(message);
+  }
+}
+
 export interface GeneInfo {
   symbol: string;
+  name: string | null;
+  aliases: string[];
+  hgncId: string | null;
+  ensemblId: string | null;
   chr: string;
   start: number;
   end: number;
@@ -160,7 +179,8 @@ export interface GeneInfo {
  * resolve a gene symbol to its coordinates via /search (type=genes). genes_in_region needs an
  * explicit chr/start/end, and the credible-set endpoints don't return the gene body, so this is the
  * one lookup that seeds both the gene track window and the cis/trans plot range. the returned
- * symbol is the canonical spelling of a case-insensitive match; callers key everything else by it.
+ * symbol is the canonical spelling of a case-insensitive match, or the approved symbol of the gene
+ * an alias, previous symbol, gene name or Ensembl id names; callers key everything else by it.
  */
 export const useGeneInfo = (gene: string | undefined): UseQueryResult<GeneInfo, Error> => {
   return useQuery<GeneInfo>({
@@ -169,21 +189,81 @@ export const useGeneInfo = (gene: string | undefined): UseQueryResult<GeneInfo, 
       const { data } = await api.get<GeneSearchHit[]>("/v1/search", {
         params: { q: gene, types: "genes", format: "json" },
       });
-      const hit = data.find(
-        (d) => d.type === "gene" && d.symbol.toLowerCase() === gene!.toLowerCase()
-      );
+      const genes = data.filter((d) => d.type === "gene");
+      // the approved symbol wins; failing that, the best-ranked gene the query names exactly by an
+      // alias, a previous symbol, its name or its Ensembl id. a fuzzy near-miss is never opened.
+      const hit =
+        genes.find((d) => d.symbol.toLowerCase() === gene!.toLowerCase()) ??
+        genes.find((d) => d.match_type === "exact");
       if (!hit) {
         // a query function may not resolve to undefined
-        throw new Error(`Gene ${gene} not found`);
+        throw new GeneNotFoundError(`Gene ${gene} not found`, suggestGenes(gene!, genes));
       }
       return {
         symbol: hit.symbol,
+        name: hit.name ?? null,
+        aliases: hit.aliases ?? [],
+        hgncId: hit.hgnc_id ?? null,
+        ensemblId: hit.ensembl_id ?? null,
         chr: String(hit.chrom),
         start: hit.gene_start,
         end: hit.gene_end,
       };
     },
     enabled: !!gene,
+    retry: (failureCount, error) => !(error instanceof GeneNotFoundError) && failureCount < 3,
+    staleTime: Infinity,
+  });
+};
+
+/**
+ * mygene.info annotation of a gene, through the BFF. Keyed by HGNC id rather than symbol because
+ * symbols are reused and renamed. A gene mygene.info does not know resolves to null: that is an
+ * answer, not a failure.
+ */
+export const useGeneAnnotation = (
+  hgncId: string | null | undefined
+): UseQueryResult<GeneAnnotation | null, Error> => {
+  return useQuery<GeneAnnotation | null>({
+    queryKey: ["gene-annotation", hgncId],
+    queryFn: async () => {
+      try {
+        const { data } = await api.get<GeneAnnotation>("/v1/gene_annotation", {
+          params: { hgnc_id: hgncId },
+        });
+        return data;
+      } catch (e) {
+        if (isAxiosError(e) && e.response?.status === 404) {
+          return null;
+        }
+        throw e;
+      }
+    },
+    enabled: !!hgncId,
+    staleTime: Infinity,
+  });
+};
+
+/** gnomAD constraint and ClinVar counts of a gene, through the BFF; null when gnomAD does not know it. */
+export const useGeneConstraint = (
+  ensemblId: string | null | undefined
+): UseQueryResult<GeneConstraint | null, Error> => {
+  return useQuery<GeneConstraint | null>({
+    queryKey: ["gene-constraint", ensemblId],
+    queryFn: async () => {
+      try {
+        const { data } = await api.get<GeneConstraint>("/v1/gene_constraint", {
+          params: { ensembl_id: ensemblId },
+        });
+        return data;
+      } catch (e) {
+        if (isAxiosError(e) && e.response?.status === 404) {
+          return null;
+        }
+        throw e;
+      }
+    },
+    enabled: !!ensemblId,
     staleTime: Infinity,
   });
 };

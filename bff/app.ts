@@ -1,6 +1,8 @@
 import express, { type Express, type ErrorRequestHandler } from "express";
 import { createPassthrough } from "./passthrough.js";
 import { createVariantsRoute } from "./variantsRoute.js";
+import { createGeneAnnotationRoute } from "./geneAnnotationRoute.js";
+import { createGeneConstraintRoute } from "./geneConstraintRoute.js";
 import { createLdRoute } from "./ldRoute.js";
 
 // turn express.json() body-parse failures into a clean JSON 400 instead of its default HTML
@@ -52,6 +54,8 @@ export const createApp = (): Express => {
   app.use("/api", createVariantsRoute());
   // /v1/ld proxies an external host (not genetics-results-api), so it must also precede the passthrough
   app.use("/api", createLdRoute());
+  app.use("/api", createGeneAnnotationRoute());
+  app.use("/api", createGeneConstraintRoute());
   app.use("/api", createPassthrough());
 
   return app;

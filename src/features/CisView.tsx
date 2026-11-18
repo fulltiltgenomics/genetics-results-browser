@@ -9,6 +9,7 @@ import {
   Typography,
   useMediaQuery,
 } from "@mui/material";
+import GeneNotFound from "./gene/GeneNotFound";
 import {
   useGeneCredibleSets,
   useGeneInfo,
@@ -488,6 +489,9 @@ const CisView = ({ geneName: geneQuery }: { geneName: string }) => {
 
   if (!geneName) {
     return null;
+  }
+  if (geneInfoError) {
+    return <GeneNotFound error={geneInfoError} />;
   }
   if (isError || geneInfoIsError || geneModelsIsError || transIsError) {
     return (

@@ -2,9 +2,9 @@ import { test, expect } from "@playwright/test";
 import { snapshot } from "./helpers/screenshot";
 
 // live verification of the new Gene evidence tab (refactor.md §6): navigate to /gene/APOE, switch to
-// the second tab, and confirm the gene burden, expression and mendelian sub-tabs render real data
+// the second tab, and confirm the gene burden, expression, mendelian and annotation sub-tabs render real data
 // from the new genetics-results-api via the BFF.
-test("gene evidence tab shows burden, expression and gene-disease for APOE", async ({ page }) => {
+test("gene evidence tab shows burden, expression, gene-disease and annotation for APOE", async ({ page }) => {
   const pageErrors: string[] = [];
   page.on("pageerror", (err) => pageErrors.push(err.message));
 
@@ -51,6 +51,20 @@ test("gene evidence tab shows burden, expression and gene-disease for APOE", asy
   await expect(page.getByRole("cell", { name: /hyperlipoproteinemia/i }).first()).toBeVisible({
     timeout: 90000,
   });
+
+  // annotation: the canonical transcript, the mygene.info summary and the outbound links
+  await page.getByRole("tab", { name: "annotation" }).click();
+  await expect(page.getByTestId("gene-model")).toContainText("4 exons", { timeout: 90000 });
+  await expect(page.getByText("Gene ontology", { exact: true })).toBeVisible({ timeout: 90000 });
+  await expect(page.getByText("LOEUF")).toBeVisible({ timeout: 90000 });
+  await expect(page.getByRole("link", { name: "ClinGen" })).toHaveAttribute(
+    "href",
+    "https://search.clinicalgenome.org/kb/genes/HGNC:613"
+  );
+  await expect(page.getByRole("link", { name: "UniProt" })).toHaveAttribute(
+    "href",
+    "https://www.uniprot.org/uniprotkb/P02649/entry"
+  );
 
   const file = await snapshot(page, "gene-APOE-evidence");
   expect(file).toContain("gene-APOE-evidence");

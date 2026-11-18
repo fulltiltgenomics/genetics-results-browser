@@ -1,6 +1,7 @@
 import { Box, Button, Tab, Tabs, TextField, Typography } from "@mui/material";
 import CisView from "./CisView";
 import GeneEvidenceTab from "./gene/GeneEvidenceTab";
+import GeneNotFound from "./gene/GeneNotFound";
 import ViewNav from "./page/ViewNav";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router";
@@ -77,8 +78,10 @@ const GeneContainer = () => {
         <Box>
           {geneInfo ? (
             <GeneEvidenceTab geneName={geneInfo.symbol} />
+          ) : geneInfoError ? (
+            <GeneNotFound error={geneInfoError} />
           ) : (
-            <Typography>{geneInfoError ? geneInfoError.message : "Loading..."}</Typography>
+            <Typography>Loading...</Typography>
           )}
         </Box>
       )}

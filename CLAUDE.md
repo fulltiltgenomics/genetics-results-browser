@@ -116,6 +116,10 @@ The annotation path is split in two stages so that changing a UI control never r
   cached in-process by query hash. `POST /api/v1/gnomad` serves the lazy per-page gnomAD enrichment.
   `GET /api/v1/ld` (`bff/ldRoute.ts`) proxies the external FinnGen LD API (`LD_API_URL`), which the
   browser may not call directly under the production CSP's `connect-src 'self'`.
+  `GET /api/v1/gene_annotation` (`bff/geneAnnotationRoute.ts`) does the same for mygene.info
+  (`MYGENE_API_URL`), trimmed to the fields the gene annotation tab shows and cached in-process,
+  and `GET /api/v1/gene_constraint` (`bff/geneConstraintRoute.ts`) for gnomAD's gene constraint and ClinVar counts
+  (`GNOMAD_API_URL`, its GraphQL API).
   Everything else under `/api` falls through `bff/passthrough.ts` to the API unchanged — except
   that both upstream paths attach `Authorization: Bearer $GENETICS_API_TOKEN`
   (`upstream.ts` for the assembled routes, `passthrough.ts` for the rest, and only when the

@@ -2,10 +2,13 @@ import { describe, expect, it } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { PropsWithChildren } from "react";
+import { http, HttpResponse } from "msw";
+import { server } from "@/test/msw/server";
 import {
   useColocByCredibleSet,
   useDatasets,
   useGeneCredibleSets,
+  GeneNotFoundError,
   useGeneInfo,
   useGenesInRegion,
   useGeneTransCredibleSets,
@@ -218,7 +221,61 @@ describe("gene view hooks (credible sets + gene track on the new API)", () => {
     expect(result.current.data!.symbol).toBe("APOE");
   });
 
+  it("useGeneInfo opens the gene an alias names exactly, under its approved symbol", async () => {
+    server.use(
+      http.get("*/v1/search", () =>
+        HttpResponse.json([
+          { type: "gene", symbol: "AR", match_type: "fuzzy", chrom: 23, gene_start: 1, gene_end: 2 },
+          {
+            type: "gene",
+            symbol: "PCSK9",
+            match_type: "exact",
+            chrom: 1,
+            gene_start: 55039445,
+            gene_end: 55064852,
+          },
+        ])
+      )
+    );
+    const { result } = renderHook(() => useGeneInfo("NARC-1"), { wrapper: makeWrapper() });
+    await waitFor(() => expect(result.current.isSuccess).toBe(true));
+    expect(result.current.data!.symbol).toBe("PCSK9");
+  });
+
+  it("useGeneInfo does not ask again for a gene that was not found", async () => {
+    let calls = 0;
+    server.use(
+      http.get("*/v1/search", () => {
+        calls += 1;
+        return HttpResponse.json([
+          { type: "gene", symbol: "EYA2", match_type: "fuzzy", matched_key: "EYA2" },
+          { type: "gene", symbol: "OZEMA2", match_type: "fuzzy", matched_key: "OZEMA2" },
+        ]);
+      })
+    );
+    // a client with retries on, as the app's is: the hook itself must decline to retry
+    const client = new QueryClient();
+    const { result } = renderHook(() => useGeneInfo("OZEMA24"), {
+      wrapper: ({ children }: PropsWithChildren) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      ),
+    });
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(result.current.error!.message).toBe("Gene OZEMA24 not found");
+    expect(calls).toBe(1);
+    // the near-miss of the query's own length is offered, the short contained one is not
+    expect((result.current.error as GeneNotFoundError).suggestions).toEqual([
+      { symbol: "OZEMA2", matchedOn: null },
+    ]);
+  });
+
   it("useGeneInfo fails with a readable message when no gene matches", async () => {
+    // near-misses only, as the API answers a query that names no gene
+    server.use(
+      http.get("*/v1/search", () =>
+        HttpResponse.json([{ type: "gene", symbol: "NOS1", match_type: "fuzzy" }])
+      )
+    );
     const { result } = renderHook(() => useGeneInfo("NOSUCHGENE"), { wrapper: makeWrapper() });
     await waitFor(() => expect(result.current.isError).toBe(true));
     expect(result.current.error!.message).toBe("Gene NOSUCHGENE not found");

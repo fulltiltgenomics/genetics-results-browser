@@ -8,7 +8,9 @@ annotation tool's per-query data from the backend API and proxies everything els
 
 The production nginx config (`nginx.prod.conf`) serves a CSP with `connect-src 'self'`, so the SPA
 cannot call external hosts directly — the LD lookup goes through the BFF's `GET /api/v1/ld` proxy
-(`LD_API_URL`). Anything else the browser must reach off-origin needs either a BFF route or an
+(`LD_API_URL`) the gene annotation from mygene.info through `GET /api/v1/gene_annotation`
+(`MYGENE_API_URL`) and gnomAD gene constraint and ClinVar counts through `GET /api/v1/gene_constraint`
+(`GNOMAD_API_URL`). Anything else the browser must reach off-origin needs either a BFF route or an
 explicit CSP source.
 The one page served under a different policy is `/mcp-app-sandbox.html` (from `public/`): the
 chat embeds it, sandboxed without `allow-same-origin`, to host an external MCP server's HTML
@@ -66,13 +68,15 @@ Available modes: `dev`, `dev.finngen`, `dev.public`, `prod`, `prod.finngen`, `pr
 | `VITE_SHOW_TOOLS_BUTTON` | `false` hides the Tools button in the chat header (the list of what the assistant can call); anything else, unset included, shows it. Independent of `VITE_SHOW_TOOLS_CONTROL`. The image build sets it from `--build-arg SHOW_TOOLS_BUTTON` |
 
 The BFF reads `GENETICS_API_URL`, `GENETICS_API_TOKEN`, `BFF_PORT`, `RESULTS_CACHE_MAX`,
-`RESULTS_CACHE_TTL_MS` and `LD_API_URL` — see `bff/.env.example`. It also reads `NODE_ENV`:
+`RESULTS_CACHE_TTL_MS`, `LD_API_URL`, `MYGENE_API_URL`, `GNOMAD_API_URL`, `GENE_ANNOTATION_CACHE_MAX` and
+`GENE_ANNOTATION_CACHE_TTL_MS` — see `bff/.env.example`. It also reads `NODE_ENV`:
 anything but `production` (which `bff/Dockerfile` sets) reflects the request origin as permissive
 CORS, so the dev browser can call the BFF cross-origin at `http://localhost:5000/api`.
 
 `GENETICS_API_TOKEN` is the shared internal secret and is sent as `Authorization: Bearer` on
-**every** call to genetics-results-api, including the generic `/api` passthrough. (The `/api/v1/ld`
-proxy is the one upstream call that does not carry it — it targets the external `LD_API_URL`, not
+**every** call to genetics-results-api, including the generic `/api` passthrough. (The `/api/v1/ld`,
+`/api/v1/gene_annotation` and `/api/v1/gene_constraint` routes are the upstream calls that do not
+carry it — they target the external `LD_API_URL`, `MYGENE_API_URL` and `GNOMAD_API_URL`, not
 genetics-results-api.) It is not just service
 credentials: it is the trusted-proxy marker that makes results-api believe the forwarded
 `X-Goog-Authenticated-User-Email`, so an auth-enforcing API rejects browser traffic without it.

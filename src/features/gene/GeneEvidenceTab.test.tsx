@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { http, HttpResponse } from "msw";
 import type { PropsWithChildren } from "react";
 import { server } from "@/test/msw/server";
+import geneAnnotation from "@/test/fixtures/gene_annotation.json";
 import GeneEvidenceTab from "./GeneEvidenceTab";
 import { GeneEvidenceTabName, useGeneEvidenceStore } from "@/store/store.geneEvidence";
 import {
@@ -392,5 +393,104 @@ describe("gene burden tab", () => {
 
     await user.click(screen.getByRole("radio", { name: "only quantitative traits" }));
     expect(screen.getByTestId("burden-plot").textContent).toBe("genebass:1");
+  });
+});
+
+describe("annotation tab", () => {
+  it("shows the gene, its model, the mygene.info record and the external links", async () => {
+    renderTab("annotation");
+
+    expect(await screen.findByText("apolipoprotein E")).toBeInTheDocument();
+    expect(await screen.findByTestId("gene-model")).toHaveTextContent("4 exons");
+    expect(await screen.findByText(/major apoprotein of the chylomicron/)).toBeInTheDocument();
+    expect(screen.getByText(/19q13\.32 · chr19:44,903,787-44,909,396/)).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "gnomAD" })).toHaveAttribute(
+      "href",
+      "https://gnomad.broadinstitute.org/gene/ENSG00000130203?dataset=gnomad_r4"
+    );
+    expect(screen.getByRole("link", { name: "ClinGen" })).toHaveAttribute(
+      "href",
+      "https://search.clinicalgenome.org/kb/genes/HGNC:613"
+    );
+    expect(screen.getByRole("link", { name: "UniProt" })).toHaveAttribute(
+      "href",
+      "https://www.uniprot.org/uniprotkb/P02649/entry"
+    );
+    expect(screen.getByRole("link", { name: "hyperlipoproteinemia type 3" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Cholesterol metabolism" })).toBeInTheDocument();
+  });
+
+  it("shows a long gene ontology list in full only on request", async () => {
+    renderTab("annotation");
+
+    expect(await screen.findByText("biological process (14)")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "process 14" })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "show all 14" }));
+    expect(screen.getByRole("link", { name: "process 14" })).toBeInTheDocument();
+  });
+
+  it("shows gnomAD constraint ahead of the summary", async () => {
+    renderTab("annotation");
+
+    const heading = await screen.findByText("gnomAD", { selector: "h6" });
+    const summary = await screen.findByText("Summary");
+    expect(heading.compareDocumentPosition(summary) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(await screen.findByText("2.7e-18")).toBeInTheDocument();
+    expect(screen.getByText("1.14")).toBeInTheDocument();
+    expect(screen.getByText("57")).toBeInTheDocument();
+    expect(screen.getByText("870")).toBeInTheDocument();
+    expect(screen.getByText("ClinVar pathogenic").nextSibling).toHaveTextContent("9");
+    expect(screen.getByText("ClinVar pathogenic/likely pathogenic").nextSibling).toHaveTextContent(
+      "4"
+    );
+    expect(screen.getByText("ClinVar likely pathogenic").nextSibling).toHaveTextContent("3");
+    expect(screen.getByText("constraint flags").nextSibling).toHaveTextContent("none");
+  });
+
+  it("says so when gnomAD does not know the gene", async () => {
+    server.use(
+      http.get("*/v1/gene_constraint", () =>
+        HttpResponse.json({ error: "not_found" }, { status: 404 })
+      )
+    );
+    renderTab("annotation");
+
+    expect(await screen.findByText("no gnomAD record for this gene")).toBeInTheDocument();
+    expect(await screen.findByText("Summary")).toBeInTheDocument();
+  });
+
+  it("cuts a long pathway list the same way", async () => {
+    server.use(
+      http.get("*/v1/gene_annotation", () =>
+        HttpResponse.json({
+          ...geneAnnotation,
+          pathways: Array.from({ length: 15 }, (_, i) => ({
+            source: "reactome",
+            id: `R-HSA-${i}`,
+            name: `pathway ${i + 1}`,
+          })),
+        })
+      )
+    );
+    renderTab("annotation");
+
+    expect(await screen.findByText("Reactome (15)")).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "pathway 15" })).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "show all 15" }));
+    expect(screen.getByRole("link", { name: "pathway 15" })).toBeInTheDocument();
+  });
+
+  it("keeps the gene, its model and the id-based links when mygene.info has no record", async () => {
+    server.use(
+      http.get("*/v1/gene_annotation", () =>
+        HttpResponse.json({ error: "not_found" }, { status: 404 })
+      )
+    );
+    renderTab("annotation");
+
+    expect(await screen.findByText("no mygene.info record for this gene")).toBeInTheDocument();
+    expect(screen.getByTestId("gene-model")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "gnomAD" })).toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "UniProt" })).not.toBeInTheDocument();
   });
 });

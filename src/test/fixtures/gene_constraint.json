@@ -1,0 +1,12 @@
+{
+  "pLI": 2.7e-18,
+  "loeuf": 1.144,
+  "observedLof": 57,
+  "observedMissense": 870,
+  "flags": [],
+  "clinvar": {
+    "pathogenic": 9,
+    "pathogenicLikelyPathogenic": 4,
+    "likelyPathogenic": 3
+  }
+}
