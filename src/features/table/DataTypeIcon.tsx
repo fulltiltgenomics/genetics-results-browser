@@ -18,6 +18,40 @@ export const DATA_TYPE_META: Record<CredibleSetDataType, { label: string; color:
 
 const FALLBACK = { label: "?", color: "#757575" };
 
+export const LetterBadge = ({
+  label,
+  color,
+  title,
+  size = 16,
+}: {
+  label: string;
+  color: string;
+  title: string;
+  size?: number;
+}) => (
+  <Tooltip title={title}>
+    <Box
+      component="span"
+      sx={{
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        minWidth: size,
+        height: size,
+        px: label.length > 1 ? "3px" : 0,
+        borderRadius: "3px",
+        backgroundColor: color,
+        color: "#fff",
+        fontSize: "0.62rem",
+        fontWeight: 700,
+        lineHeight: 1,
+        flexShrink: 0,
+      }}>
+      {label}
+    </Box>
+  </Tooltip>
+);
+
 export const DataTypeIcon = ({
   dataType,
   size = 16,
@@ -26,27 +60,5 @@ export const DataTypeIcon = ({
   size?: number;
 }) => {
   const meta = DATA_TYPE_META[dataType] ?? FALLBACK;
-  return (
-    <Tooltip title={dataType}>
-      <Box
-        component="span"
-        sx={{
-          display: "inline-flex",
-          alignItems: "center",
-          justifyContent: "center",
-          minWidth: size,
-          height: size,
-          px: meta.label.length > 1 ? "3px" : 0,
-          borderRadius: "3px",
-          backgroundColor: meta.color,
-          color: "#fff",
-          fontSize: "0.62rem",
-          fontWeight: 700,
-          lineHeight: 1,
-          flexShrink: 0,
-        }}>
-        {meta.label}
-      </Box>
-    </Tooltip>
-  );
+  return <LetterBadge label={meta.label} color={meta.color} title={dataType} size={size} />;
 };

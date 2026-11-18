@@ -716,6 +716,7 @@ export const parseGeneBurdenTsv = (tsv: string): GeneBurdenRow[] => {
       nControls: parseNum(f[idx["n_controls"]]),
       traitOriginal: f[idx["trait_original"]],
       flags: f[idx["flags"]],
+      resource: f[idx["resource"]] ?? "",
     });
   }
   // descending burden significance; nulls sort last
@@ -732,6 +733,31 @@ export const useGeneBurden = (gene: string | undefined): UseQueryResult<GeneBurd
     },
     enabled: !!gene,
     staleTime: 5 * 60 * 1000,
+  });
+};
+
+/**
+ * Number of traits each gene-based dataset tests, keyed by resource. A dataset spanning many traits
+ * reports the count under `stats`, a single-study one at the top level.
+ */
+export const useGeneBurdenDatasetSizes = (): UseQueryResult<Record<string, number>, Error> => {
+  return useQuery<Record<string, number>>({
+    queryKey: ["gene-burden-dataset-sizes"],
+    queryFn: async () => {
+      const { data } = await api.get<(DatasetApiRow & { n_phenotypes?: number | null })[]>(
+        "/v1/datasets",
+        { params: { data_type: "gene_based", include_stats: true } }
+      );
+      const sizes: Record<string, number> = {};
+      for (const row of data) {
+        const n = row.stats?.n_phenotypes ?? row.n_phenotypes;
+        if (n != null) {
+          sizes[row.resource] = n;
+        }
+      }
+      return sizes;
+    },
+    staleTime: 60 * 60 * 1000,
   });
 };
 

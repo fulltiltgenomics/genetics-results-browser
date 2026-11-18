@@ -4,7 +4,7 @@ import {
   GeneBurdenRow,
   GeneExpressionRow,
 } from "@/types/types.normalized";
-import { ExportRow, NA, writeTsv } from "../table/utils/export";
+import { ExportRow, NA, writeTsv, writeTsvFile } from "../table/utils/export";
 import { datasetDisplayName, formatTraitName, pValRepr } from "../table/utils/tableutil";
 import { gtexTissueLabel } from "./gtexTissues";
 import { hpaLevelLabel, hpaTissueLabel } from "./hpa";
@@ -29,7 +29,7 @@ export const buildGeneBurdenRows = (rows: GeneBurdenRow[]): ExportRow[] =>
     trait: formatTraitName(r.trait) || NA,
     trait_original: r.traitOriginal || NA,
     dataset: datasetDisplayName(r.dataset) || NA,
-    annotation: r.annotation || NA,
+    burden_mask: r.annotation || NA,
     "p-value": r.mlog10pBurden == null ? NA : pValRepr(r.mlog10pBurden),
     mlog10p: num(r.mlog10pBurden),
     beta: num(r.beta),
@@ -41,7 +41,7 @@ export const buildGeneBurdenRows = (rows: GeneBurdenRow[]): ExportRow[] =>
 
 export const exportGeneBurden = (gene: string, rows: GeneBurdenRow[]): void => {
   const exportRows = buildGeneBurdenRows(rows);
-  writeTsv(exportRows, `gene_burden_${gene}_${exportRows.length}_rows`);
+  writeTsvFile(exportRows, `gene_burden_${gene}_${exportRows.length}_rows`);
 };
 
 export const buildGtexExpressionRows = (rows: GeneExpressionRow[]): ExportRow[] =>

@@ -55,17 +55,19 @@ export const DownloadButton = ({
   label,
   disabled,
   onClick,
+  variant = "contained",
 }: {
   label: string;
   disabled: boolean;
   onClick: () => void;
+  variant?: "contained" | "outlined" | "text";
 }) => (
   <Button
     disabled={disabled}
     color="primary"
     onClick={onClick}
     startIcon={<FileDownloadIcon />}
-    variant="contained"
+    variant={variant}
     sx={{ whiteSpace: "nowrap", textTransform: "none" }}>
     {label}
   </Button>

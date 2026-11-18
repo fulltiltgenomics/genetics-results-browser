@@ -1,5 +1,5 @@
 import { SHA256 } from "crypto-js";
-import { download, generateCsv, mkConfig } from "export-to-csv";
+import { download, generateCsv, mkConfig, asString } from "export-to-csv";
 
 import {
   CredibleSetDataType,
@@ -70,6 +70,22 @@ export const writeTsv = (rows: ExportRow[], filename: string): void => {
   if (rows.length === 0) return;
   const cfg = tsvConfig(filename);
   download(cfg)(generateCsv(cfg)(rows));
+};
+
+export const downloadUrl = (url: string, filename: string): void => {
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.click();
+};
+
+// the library can only name a download .csv or .txt, so a .tsv is saved by hand
+export const writeTsvFile = (rows: ExportRow[], filename: string): void => {
+  if (rows.length === 0) return;
+  const text = asString(generateCsv(tsvConfig(filename))(rows));
+  const url = URL.createObjectURL(new Blob([text], { type: "text/tab-separated-values" }));
+  downloadUrl(url, `${filename}.tsv`);
+  URL.revokeObjectURL(url);
 };
 
 type TraitName = (resource: string, trait: string) => string;

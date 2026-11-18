@@ -480,6 +480,7 @@ export interface GeneBurdenRow {
   nControls: number | null;
   traitOriginal: string;
   flags: string;
+  resource: string; //            the dataset's resource id as /v1/datasets spells it, e.g. "schema2"
 }
 
 /** One gene expression row from expression_by_gene. `level` arrives as a string and is parsed. */

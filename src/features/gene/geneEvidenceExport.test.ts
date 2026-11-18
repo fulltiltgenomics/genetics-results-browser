@@ -21,6 +21,7 @@ const burdenRow = (over: Partial<GeneBurdenRow> = {}): GeneBurdenRow => ({
   nControls: 478363,
   traitOriginal: "crohns_disease",
   flags: "NA",
+  resource: "ibd_exome_2026",
   ...over,
 });
 
@@ -44,7 +45,7 @@ describe("buildGeneBurdenRows", () => {
       trait: "crohns disease",
       trait_original: "crohns_disease",
       dataset: "IBD exome",
-      annotation: "pLoF",
+      burden_mask: "pLoF",
       "p-value": "5.25e-7",
       mlog10p: 6.28,
       beta: -0.0028,
