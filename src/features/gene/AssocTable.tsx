@@ -1,7 +1,6 @@
 import { memo, useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Typography } from "@mui/material";
 import { styled } from "@mui/material/styles";
-import { useVirtualizer } from "@tanstack/react-virtual";
 import { useCredibleSetMembers } from "@/store/serverQuery";
 import { isCoding } from "@/utils/coding";
 import { DownloadButton } from "../table/ExportToolbar";
@@ -12,26 +11,31 @@ import {
   pValRepr,
 } from "../table/utils/tableutil";
 import { AssocRow, sortRows, SortValue } from "./geneAssociation";
+import { RowGeometry, rowTop, rowWindow, totalHeight, windowSize } from "./rowWindow";
 import { TRAIT_TYPE_BADGE } from "./traitTypeFilter";
 
 /**
  * The credible sets of the variant association tab, one row each, opening to the set's members.
  *
- * Virtualized: the table can hold every GWAS credible set of a locus, in the
- * thousands, and only the rows in the scroll window exist as elements. Cells are plain text with
- * a `title` where they can be cut short.
+ * Windowed: the table can hold every GWAS credible set of a locus, in the thousands, and only the
+ * rows in the scroll window exist as elements. Cells are plain text with a `title` where they can
+ * be cut short.
  */
 
 const ROW_HEIGHT = 28;
 const HEADER_HEIGHT = 32;
+// of an open row's members, which scroll inside it: fixed, so every row's place is arithmetic
+const PANEL_HEIGHT = 240;
+// rows kept in the document beyond either edge of the scroll window
+const OVERSCAN = 8;
+// below this the table scrolls sideways rather than squeeze its columns
+const MIN_WIDTH = 980;
 
 const precision3 = (v: number | null | undefined): string =>
   v == null || Number.isNaN(v) ? "" : v.toPrecision(3);
 
 /**
- * A column, read straight off the row. A row's cells are built as DOM nodes rather than React elements: measured on a fast scroll, element
- * creation for the rows entering the window was over half of the script time in a development
- * build, and a cell here is never updated after it is made.
+ * A column, read straight off the row into a cell element.
  */
 interface Column {
   id: string;
@@ -39,26 +43,16 @@ interface Column {
   // CSS grid track
   width: string;
   numeric?: boolean;
-  // what the column sorts by, and what the cell shows unless `text` or `build` says otherwise;
-  // undefined sorts last in either direction
+  // what the column sorts by, and what the cell shows unless `text` says otherwise; undefined
+  // sorts last in either direction
   value: (r: AssocRow) => SortValue;
   text?: (r: AssocRow) => string;
-  // fills the cell itself, for the few that are more than text
-  build?: (r: AssocRow, cell: HTMLElement) => void;
+  // styling that depends on the row; anything a cell shows beyond its text is CSS on these
+  className?: (r: AssocRow) => string;
+  // shown on hover; a text column's own text by default, since its width can cut it short
+  title?: (r: AssocRow) => string;
   sortDescFirst?: boolean;
 }
-
-const span = (text: string, className?: string, title?: string): HTMLSpanElement => {
-  const el = document.createElement("span");
-  el.textContent = text;
-  if (className) {
-    el.className = className;
-  }
-  if (title) {
-    el.title = title;
-  }
-  return el;
-};
 
 const COLUMNS: Column[] = [
   {
@@ -66,13 +60,8 @@ const COLUMNS: Column[] = [
     header: "type",
     width: "44px",
     value: (r) => r.traitType,
-    build: (r, cell) => {
-      if (r.traitType !== "") {
-        const badge = span(TRAIT_TYPE_BADGE[r.traitType].label, "badge", r.traitType);
-        badge.style.background = TRAIT_TYPE_BADGE[r.traitType].color;
-        cell.append(badge);
-      }
-    },
+    text: (r) => (r.traitType === "" ? "" : TRAIT_TYPE_BADGE[r.traitType].label),
+    className: (r) => (r.traitType === "" ? "" : `badge ${r.traitType}`),
   },
   {
     id: "dataset",
@@ -86,8 +75,8 @@ const COLUMNS: Column[] = [
     header: "credible set",
     width: "84px",
     value: (r) => (r.pseudo ? "pseudo" : "SuSiE"),
-    build: (r, cell) =>
-      cell.append(r.pseudo ? span("pseudo", "muted", PSEUDO_CS_TOOLTIP) : "SuSiE"),
+    className: (r) => (r.pseudo ? "muted" : ""),
+    title: (r) => (r.pseudo ? PSEUDO_CS_TOOLTIP : ""),
   },
   {
     id: "variant",
@@ -95,14 +84,11 @@ const COLUMNS: Column[] = [
     width: "minmax(130px, 1.3fr)",
     // by position, which the id's text order only approximates
     value: (r) => r.leadPos,
-    build: (r, cell) => {
-      cell.append(r.leadVariant);
-      cell.title = r.leadVariant;
-      if (r.nMembersLoaded < r.csSize) {
-        cell.append(" ", span("†", "muted"));
-        cell.title = `${r.leadVariant} — the strongest of the ${r.nMembersLoaded} of ${r.csSize} variants inside the loaded region; open the row for the whole set`;
-      }
-    },
+    text: (r) => (r.nMembersLoaded < r.csSize ? `${r.leadVariant} †` : r.leadVariant),
+    title: (r) =>
+      r.nMembersLoaded < r.csSize
+        ? `${r.leadVariant} — the strongest of the ${r.nMembersLoaded} of ${r.csSize} variants inside the loaded region; open the row for the whole set`
+        : r.leadVariant,
   },
   {
     id: "consequence",
@@ -137,14 +123,8 @@ const COLUMNS: Column[] = [
     numeric: true,
     sortDescFirst: true,
     value: (r) => (r.leadBeta == null ? undefined : Math.abs(r.leadBeta)),
-    build: (r, cell) => {
-      if (r.leadBeta != null) {
-        if (r.leadBeta !== 0) {
-          cell.append(r.leadBeta > 0 ? span("↑", "up") : span("↓", "down"));
-        }
-        cell.append(r.leadBeta.toPrecision(3));
-      }
-    },
+    text: (r) => precision3(r.leadBeta),
+    className: (r) => (!r.leadBeta ? "" : r.leadBeta > 0 ? "up" : "down"),
   },
   { id: "csSize", header: "variants", width: "66px", numeric: true, value: (r) => r.csSize },
   {
@@ -167,29 +147,48 @@ const COLUMNS: Column[] = [
   },
 ];
 
-const fillRow = (el: HTMLElement, r: AssocRow) => {
-  const toggle = span("", "toggle");
+const cellText = (c: Column, r: AssocRow): string => {
+  const value = c.text ? c.text(r) : c.value(r);
+  return value == null ? "" : String(value);
+};
+
+const cellTitle = (c: Column, r: AssocRow): string =>
+  c.title ? c.title(r) : c.numeric ? "" : cellText(c, r);
+
+/**
+ * A row element of the pool, made once and rewritten for whichever row it shows: one text node
+ * per cell, rewritten rather than replaced, and no attribute that changes from row to row.
+ * Measured on a fast scroll, new nodes and changed attributes had the browser resolve styles for
+ * longer than the script ran; a changed text node is only laid out.
+ */
+const createRowElement = (): HTMLDivElement => {
+  const el = document.createElement("div");
+  el.className = "row";
+  el.setAttribute("role", "row");
+  el.dataset.testid = "assoc-row";
+  const toggle = document.createElement("span");
+  toggle.className = "toggle";
   toggle.setAttribute("role", "cell");
   toggle.setAttribute("aria-hidden", "true");
-  const cells = COLUMNS.map((c) => {
+  el.append(toggle);
+  for (let i = 0; i < COLUMNS.length; i++) {
     const cell = document.createElement("span");
     cell.setAttribute("role", "cell");
-    if (c.numeric) {
-      cell.className = "num";
+    cell.append("");
+    el.append(cell);
+  }
+  return el;
+};
+
+const fillRow = (el: HTMLElement, r: AssocRow) => {
+  COLUMNS.forEach((c, i) => {
+    const cell = el.children[i + 1] as HTMLElement;
+    (cell.firstChild as Text).data = cellText(c, r);
+    const className = `${c.numeric ? "num" : ""} ${c.className?.(r) ?? ""}`.trim();
+    if (cell.className !== className) {
+      cell.className = className;
     }
-    if (c.build) {
-      c.build(r, cell);
-    } else {
-      const value = c.text ? c.text(r) : c.value(r);
-      cell.textContent = value == null ? "" : String(value);
-      // a text column can be cut short by its width
-      if (typeof value === "string" && !c.numeric) {
-        cell.title = value;
-      }
-    }
-    return cell;
   });
-  el.replaceChildren(toggle, ...cells);
 };
 
 interface Sort {
@@ -217,10 +216,12 @@ const SetMembers = ({
   row,
   csId,
   gene,
+  top,
 }: {
   row: AssocRow;
   csId: string | undefined;
   gene: string;
+  top: number;
 }) => {
   const members = useCredibleSetMembers(row.resource, row.traitCode, csId);
   const sorted = useMemo(() => {
@@ -234,7 +235,7 @@ const SetMembers = ({
       .sort((a, b) => b.pip - a.pip);
   }, [members.data]);
   return (
-    <div className="members" data-testid="assoc-members" onClick={(e) => e.stopPropagation()}>
+    <div className="members" data-testid="assoc-members" style={{ top }}>
       {members.isError ? (
         <span className="error">failed to load the variants: {members.error.message}</span>
       ) : !members.data ? (
@@ -281,56 +282,6 @@ const SetMembers = ({
   );
 };
 
-// memoized on the row, its place and its open state, so a scroll renders only the rows entering
-// the window: for the others React compares its props and creates nothing
-const TableRow = memo(
-  ({
-    row,
-    index,
-    start,
-    open,
-    csId,
-    gene,
-    measure,
-    onToggle,
-    onHover,
-  }: {
-    row: AssocRow;
-    index: number;
-    start: number;
-    open: boolean;
-    csId: string | undefined;
-    gene: string;
-    measure: (el: HTMLElement | null) => void;
-    onToggle: (key: string) => void;
-    onHover: (set: number | null) => void;
-  }) => {
-    const cells = useRef<HTMLDivElement>(null);
-    // React renders the row without children and so never touches these
-    useLayoutEffect(() => fillRow(cells.current!, row), [row]);
-    return (
-      <div
-        className="item"
-        data-index={index}
-        // a closed row has the estimated height exactly; only an open one needs measuring
-        ref={open ? measure : undefined}
-        style={{ transform: `translateY(${start}px)` }}>
-        <div
-          ref={cells}
-          role="row"
-          className="row"
-          data-testid="assoc-row"
-          aria-expanded={open}
-          onClick={() => onToggle(row.key)}
-          onMouseEnter={() => onHover(row.set)}
-        />
-        {open && <SetMembers row={row} csId={csId} gene={gene} />}
-      </div>
-    );
-  }
-);
-TableRow.displayName = "TableRow";
-
 const TableHeader = memo(
   ({ sorting, onSort }: { sorting: Sort[]; onSort: (id: string) => void }) => (
     <div role="row" className="header">
@@ -355,11 +306,28 @@ const TableHeader = memo(
 );
 TableHeader.displayName = "TableHeader";
 
+// one pooled element and what it currently shows
+interface Slot {
+  el: HTMLDivElement;
+  row: AssocRow | null;
+  index: number;
+  // the cell given a title on hover, to take it off again when the element shows another row
+  titled: HTMLElement | null;
+  top: number;
+  open: boolean;
+  attached: boolean;
+}
+
 /**
- * The rows in the scroll window. The virtualizer's state lives here and nowhere above, so a
- * scroll renders this component alone: not the styled container, not the header, not the footer.
+ * The rows in the scroll window, kept outside React: a pool of row elements, as many as the
+ * window holds, each rewritten in place for the row it shows next. Row i lives in element i modulo
+ * the pool's size, so a scroll touches only the elements whose row changed and never adds or
+ * removes one. Measured against rendering each row entering the window as a component, this took
+ * the script time of a fast scroll down by most of its length in a development build.
+ *
+ * React renders the panels of the open rows, which are few, and nothing here on a scroll.
  */
-const VirtualRows = ({
+const WindowedRows = ({
   rows,
   scroller,
   open,
@@ -376,34 +344,154 @@ const VirtualRows = ({
   onToggle: (key: string) => void;
   onHover: (set: number | null) => void;
 }) => {
-  const virtualizer = useVirtualizer({
-    count: rows.length,
-    getScrollElement: () => scroller,
-    estimateSize: () => ROW_HEIGHT,
-    getItemKey: (i) => rows[i].key,
-    // the header is inside the scroll element, above the rows
-    scrollMargin: HEADER_HEIGHT,
-    overscan: 10,
-  });
+  const layer = useRef<HTMLDivElement>(null);
+  const slots = useRef<Slot[]>([]);
+  const geometry = useMemo<RowGeometry>(() => {
+    const indices: number[] = [];
+    if (open.size > 0) {
+      rows.forEach((r, i) => {
+        if (open.has(r.key)) {
+          indices.push(i);
+        }
+      });
+    }
+    return { rowHeight: ROW_HEIGHT, panelHeight: PANEL_HEIGHT, open: indices };
+  }, [rows, open]);
+
+  const place = useCallback(() => {
+    const size = windowSize(scroller.clientHeight, ROW_HEIGHT, OVERSCAN);
+    const pool = slots.current;
+    if (pool.length !== size) {
+      // the pool's size is the modulus: with another one every row moves to another element
+      pool.forEach((slot) => slot.el.remove());
+      pool.length = 0;
+      for (let i = 0; i < size; i++) {
+        pool.push({
+          el: createRowElement(),
+          row: null,
+          index: -1,
+          titled: null,
+          top: -1,
+          open: false,
+          attached: false,
+        });
+      }
+    }
+    const [from, to] = rowWindow(
+      scroller.scrollTop - HEADER_HEIGHT,
+      rows.length,
+      size,
+      OVERSCAN,
+      geometry
+    );
+    const used = new Set<Slot>();
+    let nextOpen = 0;
+    for (let i = from; i < to; i++) {
+      const slot = pool[i % size];
+      used.add(slot);
+      const row = rows[i];
+      if (slot.row !== row) {
+        slot.row = row;
+        fillRow(slot.el, row);
+        slot.titled?.removeAttribute("title");
+        slot.titled = null;
+      }
+      slot.index = i;
+      while (nextOpen < geometry.open.length && geometry.open[nextOpen] < i) {
+        nextOpen++;
+      }
+      const isOpen = geometry.open[nextOpen] === i;
+      if (slot.open !== isOpen || !slot.attached) {
+        slot.open = isOpen;
+        slot.el.setAttribute("aria-expanded", String(isOpen));
+      }
+      const top = rowTop(i, geometry);
+      if (slot.top !== top) {
+        slot.top = top;
+        slot.el.style.transform = `translateY(${top}px)`;
+      }
+      if (!slot.attached) {
+        slot.attached = true;
+        layer.current!.append(slot.el);
+      }
+    }
+    // only where the list is shorter than the pool
+    for (const slot of pool) {
+      if (slot.attached && !used.has(slot)) {
+        slot.attached = false;
+        slot.row = null;
+        slot.el.remove();
+      }
+    }
+  }, [scroller, rows, geometry]);
+
+  // a new set of rows starts from its top; opening a row leaves the scroll where it is
+  useLayoutEffect(() => {
+    scroller.scrollTop = 0;
+  }, [scroller, rows]);
+
+  useLayoutEffect(() => {
+    place();
+    let frame = 0;
+    const onScroll = () => {
+      frame ||= requestAnimationFrame(() => {
+        frame = 0;
+        place();
+      });
+    };
+    scroller.addEventListener("scroll", onScroll, { passive: true });
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(place);
+    observer?.observe(scroller);
+    return () => {
+      scroller.removeEventListener("scroll", onScroll);
+      observer?.disconnect();
+      cancelAnimationFrame(frame);
+    };
+  }, [scroller, place]);
+
+  // one listener each for all rows: the row elements are not React's
+  const slotOf = (target: EventTarget): Slot | undefined => {
+    const el = (target as HTMLElement).closest(".row");
+    return el ? slots.current.find((slot) => slot.el === el) : undefined;
+  };
+
   return (
-    <div role="rowgroup" style={{ height: virtualizer.getTotalSize(), position: "relative" }}>
-      {virtualizer.getVirtualItems().map((item) => {
-        const row = rows[item.index];
-        return (
-          <TableRow
-            key={row.key}
-            row={row}
-            index={item.index}
-            start={item.start - HEADER_HEIGHT}
-            open={open.has(row.key)}
-            csId={csIds?.[row.set]}
-            gene={gene}
-            measure={virtualizer.measureElement}
-            onToggle={onToggle}
-            onHover={onHover}
-          />
-        );
-      })}
+    <div
+      role="rowgroup"
+      className="rows"
+      style={{ height: totalHeight(rows.length, geometry) }}
+      onClick={(e) => {
+        const row = slotOf(e.target)?.row;
+        if (row) {
+          onToggle(row.key);
+        }
+      }}
+      onMouseOver={(e) => {
+        const slot = slotOf(e.target);
+        if (!slot?.row) {
+          return;
+        }
+        onHover(slot.row.set);
+        // a title only where the pointer is: set on every cell, it would be an attribute to
+        // change on every cell of every row a scroll brings in
+        const cell = (e.target as HTMLElement).closest<HTMLElement>("[role=cell]");
+        const column = cell && COLUMNS[Array.prototype.indexOf.call(slot.el.children, cell) - 1];
+        if (cell && column && slot.titled !== cell) {
+          slot.titled?.removeAttribute("title");
+          cell.title = cellTitle(column, slot.row);
+          slot.titled = cell;
+        }
+      }}>
+      <div ref={layer} />
+      {geometry.open.map((i) => (
+        <SetMembers
+          key={rows[i].key}
+          row={rows[i]}
+          csId={csIds?.[rows[i].set]}
+          gene={gene}
+          top={rowTop(i, geometry) + ROW_HEIGHT}
+        />
+      ))}
     </div>
   );
 };
@@ -438,16 +526,15 @@ const TableRoot = styled("div")(({ theme }) => {
       overflow: "auto",
       border: line,
       borderRadius: theme.shape.borderRadius,
-      // the browser lays out and paints a row only against its own box
-      "& .item": { position: "absolute", top: 0, left: 0, width: "100%", contain: "layout paint" },
     },
+    "& .rows": { position: "relative", minWidth: MIN_WIDTH },
     "& .header, & .row": {
       display: "grid",
       gridTemplateColumns: GRID,
       alignItems: "center",
       columnGap: "10px",
       padding: theme.spacing(0, 1),
-      minWidth: 980,
+      minWidth: MIN_WIDTH,
     },
     "& .header": {
       position: "sticky",
@@ -465,7 +552,14 @@ const TableRoot = styled("div")(({ theme }) => {
       },
     },
     "& .row": {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      width: "100%",
+      boxSizing: "border-box",
       height: ROW_HEIGHT,
+      // a row's size is fixed, so its contents are laid out and painted against its own box
+      contain: "strict",
       cursor: "pointer",
       borderBottom: line,
       "&:hover": { backgroundColor: theme.palette.action.hover },
@@ -481,22 +575,30 @@ const TableRoot = styled("div")(({ theme }) => {
     },
     "& .num": { textAlign: "right", fontVariantNumeric: "tabular-nums" },
     "& .muted": { color: theme.palette.text.secondary },
-    "& .error, & .up": { color: theme.palette.error.main },
-    "& .down": { color: theme.palette.info.main },
-    "& .badge": {
-      display: "inline-flex",
-      alignItems: "center",
-      justifyContent: "center",
+    "& .error": { color: theme.palette.error.main },
+    // the direction of an effect, ahead of its size
+    "& .up::before": { content: '"↑"', color: theme.palette.error.main },
+    "& .down::before": { content: '"↓"', color: theme.palette.info.main },
+    // the cell itself is the badge
+    "& .row > .badge": {
+      justifySelf: "start",
       width: 16,
-      height: 16,
+      lineHeight: "16px",
       borderRadius: "3px",
+      textAlign: "center",
       color: "#fff",
       fontSize: "0.62rem",
       fontWeight: 700,
+      "&.binary": { backgroundColor: TRAIT_TYPE_BADGE.binary.color },
+      "&.quantitative": { backgroundColor: TRAIT_TYPE_BADGE.quantitative.color },
     },
     "& .members": {
+      position: "absolute",
+      left: 0,
+      width: "100%",
+      boxSizing: "border-box",
+      height: PANEL_HEIGHT,
       padding: theme.spacing(1, 4),
-      maxHeight: 300,
       overflow: "auto",
       cursor: "default",
       backgroundColor: theme.palette.action.hover,
@@ -538,8 +640,8 @@ const AssocTable = ({
 }) => {
   const [sorting, setSorting] = useState<Sort[]>(DEFAULT_SORTING);
   const [open, setOpen] = useState<ReadonlySet<string>>(new Set());
-  // state, not a ref: the rows are rendered once the element exists, and a ref would be attached
-  // only after their first layout effect has looked for it
+  // state, not a ref: the rows are placed in a layout effect, which runs before a ref on an
+  // element above them is attached
   const [scroller, setScroller] = useState<HTMLDivElement | null>(null);
 
   const sorted = useMemo(
@@ -591,7 +693,7 @@ const AssocTable = ({
         onMouseLeave={() => onHoverSet(null)}>
         <TableHeader sorting={sorting} onSort={sort} />
         {scroller && (
-          <VirtualRows
+          <WindowedRows
             rows={sorted}
             scroller={scroller}
             open={open}

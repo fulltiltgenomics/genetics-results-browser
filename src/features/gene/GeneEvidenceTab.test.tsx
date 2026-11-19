@@ -601,13 +601,18 @@ describe("variant association tab", () => {
     expect(within(first).getByText("19:44908684:T:C")).toBeInTheDocument();
     expect(within(first).getByText("SuSiE")).toBeInTheDocument();
     expect(within(first).getByText("missense")).toBeInTheDocument();
-    expect(within(first).getByTitle("binary")).toHaveTextContent("B");
+    expect(within(first).getByText("B")).toHaveClass("badge", "binary");
     expect(within(second).getByText("LDL cholesterol")).toBeInTheDocument();
     expect(within(second).getByText("stop gained")).toBeInTheDocument();
     expect(within(second).getByText("pseudo")).toBeInTheDocument();
     expect(within(second).getByText("40")).toBeInTheDocument();
-    // one of the set's forty variants is inside the loaded region
-    expect(within(second).getByText("†")).toBeInTheDocument();
+    // one of the set's forty variants is inside the loaded region; a cell says more on hover
+    const lead = within(second).getByText("19:44908822:C:C †");
+    expect(lead).not.toHaveAttribute("title");
+    fireEvent.mouseOver(lead);
+    expect(lead).toHaveAttribute("title", expect.stringContaining("the strongest of the 1 of 40 variants"));
+    fireEvent.mouseOver(within(second).getByText("LDL cholesterol"));
+    expect(lead).not.toHaveAttribute("title");
     expect(screen.queryByText("Other trait")).not.toBeInTheDocument();
     expect(screen.getByTestId("assoc-row-count")).toHaveTextContent("2 credible sets");
   });

@@ -9,8 +9,16 @@ await page.goto(`${BASE}/gene/${process.argv[2] ?? "GCKR"}`);
 await page.getByRole("tab", { name: "Gene evidence" }).click();
 await page.getByRole("tab", { name: "variant association" }).click();
 await page.getByTestId("assoc-row").first().waitFor({ timeout: 120000 });
-// the padded region replaces the gene body a moment later
-await page.waitForLoadState("networkidle").catch(() => {});
+// the padded region replaces the gene body a moment later, and the gene page's credible-sets tab
+// goes on working through its own data for a while: wait for three seconds of a main thread that
+// answers at once
+await page.waitForLoadState("networkidle", { timeout: 180000 }).catch(() => {});
+for (let quietSince = Date.now(); Date.now() - quietSince < 3000;) {
+  await page.waitForTimeout(200);
+  const asked = Date.now();
+  await page.evaluate(() => 0);
+  if (Date.now() - asked > 150) quietSince = Date.now();
+}
 const table = page.getByTestId("assoc-table");
 await table.scrollIntoViewIfNeeded();
 const box = await table.boundingBox();
@@ -22,7 +30,9 @@ for (let i = 0; i < 40; i++) {
 }
 const trace = JSON.parse((await browser.stopTracing()).toString());
 const total = new Map();
+let recalculated = 0;
 for (const e of trace.traceEvents) {
+  if (e.name === "UpdateLayoutTree") recalculated += e.args?.elementCount ?? 0;
   if (e.ph === "X" && e.dur) {
     const t = total.get(e.name) ?? { ms: 0, n: 0, max: 0 };
     t.ms += e.dur / 1000;
@@ -36,4 +46,5 @@ for (const [name, t] of [...total.entries()].sort((a, b) => b[1].ms - a[1].ms).s
     `${t.ms.toFixed(0).padStart(6)} ms  n=${String(t.n).padStart(5)}  max=${t.max.toFixed(1).padStart(6)}  ${name}`
   );
 }
+console.log(`elements with styles resolved again: ${recalculated}`);
 await browser.close();

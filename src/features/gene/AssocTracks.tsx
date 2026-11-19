@@ -429,6 +429,11 @@ const AssocTracks = ({
     schedule();
   });
 
+  // sets are numbered within one summary
+  useLayoutEffect(() => {
+    highlightedSet.current = null;
+  }, [index]);
+
   useEffect(() => {
     if (assocPerf) {
       assocPerf.limits = { start: limits.start, end: limits.end };

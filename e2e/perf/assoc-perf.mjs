@@ -155,13 +155,7 @@ const measureGene = async (browser, gene) => {
   const cx = box.x + box.width / 2;
   const cy = box.y + box.height / 2;
   const shot = async (name) => {
-    if (!SHOTS) return;
-    for (const scheme of ["light", "dark"]) {
-      await page.emulateMedia({ colorScheme: scheme });
-      await page.waitForTimeout(300);
-      await page.screenshot({ path: `${SHOTS}/${gene}-${name}-${scheme}.png` });
-    }
-    await page.emulateMedia({ colorScheme: "light" });
+    if (SHOTS) await page.screenshot({ path: `${SHOTS}/${gene}-${name}-light.png` });
   };
   await shot("default");
 
@@ -282,7 +276,32 @@ const measureGene = async (browser, gene) => {
   out.expand = { ms: expandMs == null ? null : Math.round(expandMs) };
 
   await context.close();
+  if (SHOTS) await darkShots(browser, gene);
   return out;
+};
+
+// the app takes its theme from the system preference when it loads, so the dark screenshots
+// need a context of their own
+const darkShots = async (browser, gene) => {
+  const context = await browser.newContext({
+    viewport: { width: 1500, height: 1000 },
+    colorScheme: "dark",
+  });
+  const page = await context.newPage();
+  await page.goto(`${BASE}/gene/${gene}`);
+  await page.getByRole("tab", { name: "Gene evidence" }).click();
+  await page.getByRole("tab", { name: "variant association" }).click();
+  await page.waitForFunction(() => window.__assocPerf?.ready, null, { timeout: 120000 });
+  await page.getByTestId("assoc-row").first().waitFor({ timeout: 120000 });
+  const zoomOut = page.getByRole("button", { name: "zoom out" });
+  await page.screenshot({ path: `${SHOTS}/${gene}-default-dark.png` });
+  for (let i = 0; i < 4; i++) await zoomOut.click();
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: `${SHOTS}/${gene}-mid-dark.png` });
+  while (await zoomOut.isEnabled()) await zoomOut.click();
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: `${SHOTS}/${gene}-max-dark.png` });
+  await context.close();
 };
 
 const browser = await chromium.launch();
