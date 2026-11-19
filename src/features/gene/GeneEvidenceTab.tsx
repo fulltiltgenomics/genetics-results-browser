@@ -12,6 +12,7 @@ import { naInfSort } from "../table/utils/sorting";
 import { datasetDisplayName } from "../table/utils/tableutil";
 import CellTypeExpressionSection from "./CellTypeExpressionSection";
 import GeneAnnotationSection from "./GeneAnnotationSection";
+import GeneAssociationSection from "./GeneAssociationSection";
 import GeneBurdenSection from "./GeneBurdenSection";
 import GeneExpressionPlot from "./GeneExpressionPlot";
 import { gtexTissueLabel } from "./gtexTissues";
@@ -220,6 +221,8 @@ const tabContent = (tab: GeneEvidenceTabName, geneName: string) => {
       return <GeneAnnotationSection geneName={geneName} />;
     case "gene burden":
       return <GeneBurdenSection geneName={geneName} />;
+    case "variant association":
+      return <GeneAssociationSection geneName={geneName} />;
     case "expression":
       return <ExpressionEvidence geneName={geneName} />;
     case "mendelian":

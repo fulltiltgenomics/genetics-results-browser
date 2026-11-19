@@ -66,6 +66,26 @@ test("gene evidence tab shows burden, expression, gene-disease and annotation fo
     "https://www.uniprot.org/uniprotkb/P02649/entry"
   );
 
+  // variant association: APOE's missense variants sit in many GWAS credible sets; pointing at one
+  // draws its variants on the canonical transcript
+  await page.getByRole("tab", { name: "variant association" }).click();
+  await expect(page.getByRole("cell", { name: "missense" }).first()).toBeVisible({ timeout: 90000 });
+  await expect(page.getByTestId("gene-model")).toContainText("4 exons");
+  await page.getByRole("row").nth(1).hover();
+  await expect(page.getByTestId("shown-credible-set")).toContainText("in view");
+  await expect(
+    page.getByTestId("gene-model").locator('[data-variant-class="coding"]').first()
+  ).toBeVisible();
+  // every coding variant the table holds is a line on the transcript, with its traits on hover
+  const marks = page.getByTestId("gene-model").locator("[data-mark-class]");
+  await marks.first().hover();
+  await expect(page.getByRole("tooltip")).toContainText("top trait");
+  await page.getByRole("button", { name: "zoom out" }).click();
+  await expect(page.getByRole("button", { name: "reset zoom" })).toBeEnabled();
+  await page.getByRole("radio", { name: "only pseudo credible sets" }).click();
+  await expect(page.getByRole("cell", { name: "pseudo" }).first()).toBeVisible();
+  await expect(page.getByRole("cell", { name: "SuSiE" })).toHaveCount(0);
+
   const file = await snapshot(page, "gene-APOE-evidence");
   expect(file).toContain("gene-APOE-evidence");
 

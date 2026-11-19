@@ -5,7 +5,13 @@ import {
   GeneExpressionRow,
 } from "@/types/types.normalized";
 import { ExportRow, NA, writeTsv, writeTsvFile } from "../table/utils/export";
-import { datasetDisplayName, formatTraitName, pValRepr } from "../table/utils/tableutil";
+import {
+  cleanConsequence,
+  datasetDisplayName,
+  formatTraitName,
+  pValRepr,
+} from "../table/utils/tableutil";
+import { CodingCredibleSetRow } from "./geneAssociation";
 import { gtexTissueLabel } from "./gtexTissues";
 import { hpaLevelLabel, hpaTissueLabel } from "./hpa";
 
@@ -42,6 +48,35 @@ export const buildGeneBurdenRows = (rows: GeneBurdenRow[]): ExportRow[] =>
 export const exportGeneBurden = (gene: string, rows: GeneBurdenRow[]): void => {
   const exportRows = buildGeneBurdenRows(rows);
   writeTsvFile(exportRows, `gene_burden_${gene}_${exportRows.length}_rows`);
+};
+
+export const buildCodingCredibleSetRows = (gene: string, rows: CodingCredibleSetRow[]): ExportRow[] =>
+  rows.map((r) => {
+    const top = r.codingVariants[0];
+    return {
+      gene,
+      trait: r.traitName || NA,
+      trait_original: r.traitOriginal || NA,
+      trait_type: r.quantitative == null ? NA : r.quantitative ? "quantitative" : "binary",
+      dataset: datasetDisplayName(r.dataset) || NA,
+      credible_set_type: r.pseudo ? "pseudo" : "SuSiE",
+      cs_id: r.csId,
+      cs_size: r.csSize,
+      cs_min_r2: num(r.csMinR2),
+      top_coding_variant: top.variant,
+      consequence: top.consequence ? cleanConsequence(top.consequence) : NA,
+      pip: top.pip,
+      "p-value": top.mlog10p == null ? NA : pValRepr(top.mlog10p),
+      mlog10p: num(top.mlog10p),
+      beta: num(top.beta),
+      // every coding variant of the gene in the set, with its PIP
+      coding_variants: r.codingVariants.map((v) => `${v.variant}(${v.pip})`).join(","),
+    };
+  });
+
+export const exportCodingCredibleSets = (gene: string, rows: CodingCredibleSetRow[]): void => {
+  const exportRows = buildCodingCredibleSetRows(gene, rows);
+  writeTsvFile(exportRows, `coding_credible_sets_${gene}_${exportRows.length}_rows`);
 };
 
 export const buildGtexExpressionRows = (rows: GeneExpressionRow[]): ExportRow[] =>

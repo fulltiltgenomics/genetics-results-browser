@@ -38,6 +38,8 @@ const GENE_VIEW_PADDING = config.gene_view.gene_padding;
 export interface DatasetApiRow {
   dataset_id: string;
   resource: string;
+  // the label the dataset's result rows carry (FinnGen_R14); dataset_id (finngen_gwas) is not on them
+  dataset?: string;
   version?: string;
   description?: string;
   trait_type?: string | null;
@@ -64,6 +66,7 @@ export interface DatasetApiRow {
 export interface DatasetRow {
   datasetId: string;
   resource: string;
+  dataset?: string;
   version?: string;
   description?: string;
   dataType: string;
@@ -92,6 +95,7 @@ export const useDatasets = (): UseQueryResult<DatasetRow[], Error> => {
       return data.map((row) => ({
         datasetId: row.dataset_id,
         resource: row.resource,
+        dataset: row.dataset,
         version: row.version,
         description: row.description,
         dataType: row.data_type,
@@ -288,6 +292,28 @@ export const useGeneCredibleSets = (
     staleTime: Infinity,
   });
 };
+
+/**
+ * GWAS credible-set members in the gene and `window` bp either side, one row per variant, for the
+ * variant association tab. Its own request rather than the one above: in a QTL-dense locus that one
+ * is two orders of magnitude larger, nearly all of it QTL rows.
+ */
+export const useGeneGwasCredibleSetRows = (
+  gene: string | undefined,
+  window: number
+): UseQueryResult<GeneCSApiRow[], Error> =>
+  useQuery<GeneCSApiRow[]>({
+    queryKey: ["gene-gwas-credible-sets", gene, window],
+    queryFn: async () => {
+      const { data } = await api.get<GeneCSApiRow[]>(
+        `/v1/credible_sets_by_gene/${encodeURIComponent(gene!)}`,
+        { params: { window, data_types: "GWAS", format: "json" } }
+      );
+      return data;
+    },
+    enabled: !!gene,
+    staleTime: Infinity,
+  });
 
 /**
  * trans credible sets: QTL credible sets where this gene is the molecular trait, anywhere in the
@@ -490,45 +516,65 @@ const metaNum = (v: number | string | undefined): number | null => {
  * so fetching it eagerly in stage-1 would gate every query — hence this is hover-gated per resource).
  * Resources without harmonized metadata 404; the hook swallows that to an empty map.
  */
+const resourceMetadataQuery = (resource: string | undefined) => ({
+  queryKey: ["resource-metadata", resource],
+  queryFn: async (): Promise<Record<string, PhenotypeMetadata>> => {
+    try {
+      const { data } = await api.get<ResourceMetadataApiRow[]>(
+        `/v1/resource_metadata/${encodeURIComponent(resource!)}`,
+        { params: { format: "json" } }
+      );
+      const out: Record<string, PhenotypeMetadata> = {};
+      for (const row of data) {
+        out[String(row.phenotype_code)] = {
+          name: row.phenotype_string ?? "",
+          nCases: metaNum(row.n_cases),
+          nControls: metaNum(row.n_controls),
+          nSamples: metaNum(row.n_samples),
+          traitType: row.trait_type ?? null,
+          study: row.author && row.author !== "NA" ? row.author : null,
+          ...(row.contributing_cohorts?.length
+            ? { contributingCohorts: row.contributing_cohorts }
+            : {}),
+          ...(row.cohort_families?.length ? { cohortFamilies: row.cohort_families } : {}),
+          ...(row.n_by_cohort ? { nByCohort: row.n_by_cohort } : {}),
+        };
+      }
+      return out;
+    } catch {
+      // resources without harmonized metadata (e.g. gnomad-only) -> no counts, not an error
+      return {};
+    }
+  },
+  staleTime: Infinity,
+  gcTime: Infinity,
+});
+
 export const useResourceMetadata = (
   resource: string | undefined,
   enabled: boolean
-): UseQueryResult<Record<string, PhenotypeMetadata>, Error> => {
-  return useQuery<Record<string, PhenotypeMetadata>>({
-    queryKey: ["resource-metadata", resource],
-    queryFn: async (): Promise<Record<string, PhenotypeMetadata>> => {
-      try {
-        const { data } = await api.get<ResourceMetadataApiRow[]>(
-          `/v1/resource_metadata/${encodeURIComponent(resource!)}`,
-          { params: { format: "json" } }
-        );
-        const out: Record<string, PhenotypeMetadata> = {};
-        for (const row of data) {
-          out[String(row.phenotype_code)] = {
-            name: row.phenotype_string ?? "",
-            nCases: metaNum(row.n_cases),
-            nControls: metaNum(row.n_controls),
-            nSamples: metaNum(row.n_samples),
-            traitType: row.trait_type ?? null,
-            study: row.author && row.author !== "NA" ? row.author : null,
-            ...(row.contributing_cohorts?.length
-              ? { contributingCohorts: row.contributing_cohorts }
-              : {}),
-            ...(row.cohort_families?.length ? { cohortFamilies: row.cohort_families } : {}),
-            ...(row.n_by_cohort ? { nByCohort: row.n_by_cohort } : {}),
-          };
-        }
-        return out;
-      } catch {
-        // resources without harmonized metadata (e.g. gnomad-only) -> no counts, not an error
-        return {};
-      }
-    },
+): UseQueryResult<Record<string, PhenotypeMetadata>, Error> =>
+  useQuery<Record<string, PhenotypeMetadata>>({
+    ...resourceMetadataQuery(resource),
     enabled: enabled && !!resource,
-    staleTime: Infinity,
-    gcTime: Infinity,
   });
-};
+
+/**
+ * The same per-phenotype metadata for several resources at once, keyed by resource, sharing the
+ * cache of the single-resource hook. `isPending` stays true until every resource has answered.
+ */
+export const useResourcesMetadata = (
+  resources: string[]
+): { data: Record<string, Record<string, PhenotypeMetadata>>; isPending: boolean } =>
+  useQueries({
+    queries: resources.map((r) => resourceMetadataQuery(r)),
+    combine: (results) => ({
+      data: Object.fromEntries(
+        results.flatMap((r, i) => (r.data ? [[resources[i], r.data]] : []))
+      ),
+      isPending: results.some((r) => r.isPending),
+    }),
+  });
 
 // one peak_to_genes row (snake_case JSON). only the fields we use are typed; the payload also carries
 // the hurdle model stats + gene/peak coordinates which we don't surface here.

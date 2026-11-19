@@ -19,6 +19,10 @@ const traitKey = (r: GeneBurdenRow): string => `${r.dataset}|${r.traitOriginal}`
 
 const mlog10p = (r: GeneBurdenRow): number => r.mlog10pBurden ?? -Infinity;
 
+// one predicate for every table with the binary / quantitative radios
+export const matchesTraitType = (filter: BurdenTraitType, quantitative: boolean): boolean =>
+  filter === "all" || (filter === "quantitative") === quantitative;
+
 export interface BurdenFilters {
   traitType: BurdenTraitType;
   maskMode: BurdenMaskMode;
@@ -43,7 +47,7 @@ export const filterBurdenRows = (
   const kept = rows.filter(
     (r) =>
       mlog10p(r) > BURDEN_MLOG10P_MIN &&
-      (traitType === "all" || (traitType === "quantitative") === isQuantitativeTrait(r)) &&
+      matchesTraitType(traitType, isQuantitativeTrait(r)) &&
       (needle === "" || searchText(r).includes(needle))
   );
   if (maskMode === "all") {

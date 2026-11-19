@@ -1,22 +1,8 @@
 import { useMemo, useRef, useState } from "react";
-import {
-  Box,
-  FormControlLabel,
-  Radio,
-  RadioGroup,
-  TextField,
-  ToggleButton,
-  ToggleButtonGroup,
-  Tooltip,
-  Typography,
-} from "@mui/material";
+import { Box, TextField, ToggleButton, ToggleButtonGroup, Typography } from "@mui/material";
 import { MaterialReactTable, MRT_ColumnDef } from "material-react-table";
 import { useGeneBurden, useGeneBurdenDatasetSizes } from "@/store/serverQuery";
-import {
-  BurdenMaskMode,
-  BurdenTraitType,
-  useGeneEvidenceStore,
-} from "@/store/store.geneEvidence";
+import { BurdenMaskMode, useGeneEvidenceStore } from "@/store/store.geneEvidence";
 import { GeneBurdenRow } from "@/types/types.normalized";
 import { LetterBadge } from "../table/DataTypeIcon";
 import { UpOrDownIcon } from "../table/UpDownIcons";
@@ -32,79 +18,24 @@ import {
 } from "./geneBurden";
 import GeneBurdenPlot, { GeneBurdenPlotHandle } from "./GeneBurdenPlot";
 import { exportGeneBurden } from "./geneEvidenceExport";
-import { countCell, evidenceTableProps, Section, sortedRows } from "./evidenceTable";
-
-const TRAIT_TYPE_BADGE = {
-  binary: { label: "B", color: "#00695c" },
-  quantitative: { label: "Q", color: "#4527a0" },
-};
-
-interface RadioOption<T> {
-  value: T;
-  label: string;
-  badge?: keyof typeof TRAIT_TYPE_BADGE;
-}
-
-const TRAIT_TYPE_OPTIONS: RadioOption<BurdenTraitType>[] = [
-  { value: "all", label: "both binary and quantitative traits" },
-  { value: "binary", label: "only binary traits", badge: "binary" },
-  { value: "quantitative", label: "only quantitative traits", badge: "quantitative" },
-];
+import {
+  countCell,
+  evidenceTableProps,
+  Section,
+  sortedRows,
+  truncatedCell,
+} from "./evidenceTable";
+import {
+  RadioOption,
+  RadioOptions,
+  TRAIT_TYPE_BADGE,
+  TRAIT_TYPE_OPTIONS,
+} from "./traitTypeFilter";
 
 const MASK_MODE_OPTIONS: RadioOption<BurdenMaskMode>[] = [
   { value: "top", label: "only the top burden mask for each trait" },
   { value: "all", label: "all burden masks for each trait" },
 ];
-
-const RadioOptions = <T extends string>({
-  label,
-  value,
-  options,
-  onChange,
-}: {
-  label: string;
-  value: T;
-  options: RadioOption<T>[];
-  onChange: (value: T) => void;
-}) => (
-  // the group's options are laid out by the grid around it, so both groups share its columns
-  <RadioGroup
-    aria-label={label}
-    value={value}
-    onChange={(e) => onChange(e.target.value as T)}
-    sx={{ display: "contents" }}>
-    {options.map((o, i) => (
-      <FormControlLabel
-        key={o.value}
-        value={o.value}
-        sx={{ gridColumn: i + 1, mr: 0 }}
-        control={<Radio size="small" sx={{ py: 0.25 }} />}
-        label={
-          <Typography variant="body2" sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
-            {/* decorative here: the label beside it already says which type */}
-            {o.badge && (
-              <span aria-hidden style={{ display: "inline-flex" }}>
-                <LetterBadge {...TRAIT_TYPE_BADGE[o.badge]} title={o.badge} />
-              </span>
-            )}
-            {o.label}
-          </Typography>
-        }
-      />
-    ))}
-  </RadioGroup>
-);
-
-// the column keeps its width whatever it holds, so a long value is cut and shown in full on hover
-const truncatedCell = (text: string) => (
-  <Tooltip title={text} placement="top-start">
-    <Box
-      component="span"
-      sx={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>
-      {text}
-    </Box>
-  </Tooltip>
-);
 
 const burdenColumns: MRT_ColumnDef<GeneBurdenRow>[] = [
   {

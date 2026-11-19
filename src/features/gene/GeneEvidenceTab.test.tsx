@@ -494,3 +494,176 @@ describe("annotation tab", () => {
     expect(screen.queryByRole("link", { name: "UniProt" })).not.toBeInTheDocument();
   });
 });
+
+describe("variant association tab", () => {
+  const csRow = (over: Record<string, unknown>) => ({
+    resource: "finngen",
+    version: "R14",
+    dataset: "FinnGen_R14",
+    data_type: "GWAS",
+    trait: "Alzheimer_disease",
+    trait_original: "G6_ALZHEIMER",
+    cell_type: null,
+    chr: 19,
+    pos: 44908684,
+    ref: "T",
+    alt: "C",
+    mlog10p: 300,
+    beta: 1.2,
+    se: 0.02,
+    pip: 0.9,
+    cs_id: "chr19_44908684_T_C",
+    cs_size: 2,
+    cs_min_r2: 0.8,
+    aaf: 0.18,
+    most_severe: "missense_variant",
+    gene_most_severe: "APOE",
+    ...over,
+  });
+
+  beforeEach(() => {
+    server.use(
+      http.get("*/v1/credible_sets_by_gene/:gene", () =>
+        HttpResponse.json([
+          csRow({}),
+          csRow({ pos: 44907000, ref: "G", alt: "A", pip: 0.1, most_severe: "intron_variant" }),
+          // pseudo per the datasets fixture, and a trait the metadata fixture does not list
+          csRow({
+            resource: "finngen_mvp_ukbb_aou",
+            dataset: "FinnGen_R14_MVP_UKBB_AOU",
+            trait: "LDL_cholesterol",
+            trait_original: "LDL_Q",
+            cs_id: "meta",
+            cs_size: 40,
+            cs_min_r2: 0.31,
+            pip: 0.2,
+            pos: 44908822,
+            ref: "C",
+            most_severe: "stop_gained",
+          }),
+          csRow({ cs_id: "neighbour", gene_most_severe: "TOMM40", trait: "Other_trait" }),
+        ])
+      )
+    );
+  });
+
+  const bodyRows = () => screen.getAllByRole("row").slice(1);
+
+  it("lists one row per credible set with a coding variant of the gene, strongest PIP first", async () => {
+    renderTab("variant association");
+
+    expect(await screen.findByRole("cell", { name: "Alzheimer disease" })).toBeInTheDocument();
+    expect(bodyRows()).toHaveLength(2);
+    expect(within(bodyRows()[0]).getByText("19:44908684:T:C")).toBeInTheDocument();
+    expect(within(bodyRows()[0]).getByText("SuSiE")).toBeInTheDocument();
+    expect(within(bodyRows()[0]).getByText("0.800")).toBeInTheDocument();
+    expect(within(bodyRows()[1]).getByText("stop gained")).toBeInTheDocument();
+    expect(within(bodyRows()[1]).getByText("pseudo")).toBeInTheDocument();
+    expect(within(bodyRows()[1]).getByText("40")).toBeInTheDocument();
+    expect(screen.queryByText("Other trait")).not.toBeInTheDocument();
+    expect(await screen.findByTestId("gene-model")).toHaveTextContent("4 exons");
+  });
+
+  it("draws the variants of the credible set under the pointer on the gene model", async () => {
+    const user = userEvent.setup();
+    renderTab("variant association");
+    await screen.findByRole("cell", { name: "Alzheimer disease" });
+    const model = await screen.findByTestId("gene-model");
+    expect(model.querySelectorAll("[data-variant-class]")).toHaveLength(0);
+
+    await user.hover(bodyRows()[0]);
+    expect(screen.getByTestId("shown-credible-set")).toHaveTextContent(
+      "Alzheimer disease · FinnGen R14 · 2 of 2 variants in view"
+    );
+    expect(
+      Array.from(model.querySelectorAll("[data-variant-class]")).map((m) =>
+        m.getAttribute("data-variant-class")
+      )
+    ).toEqual(["other", "coding"]);
+
+    await user.hover(bodyRows()[1]);
+    expect(
+      Array.from(model.querySelectorAll("[data-variant-class]")).map((m) =>
+        m.getAttribute("data-variant-class")
+      )
+    ).toEqual(["lof"]);
+  });
+
+  it("marks the table's coding variants on the gene model, with a per-dataset tooltip", async () => {
+    const user = userEvent.setup();
+    renderTab("variant association");
+    await screen.findByRole("cell", { name: "Alzheimer disease" });
+    const model = await screen.findByTestId("gene-model");
+    const classes = () =>
+      Array.from(model.querySelectorAll("[data-mark-class]")).map((m) =>
+        m.getAttribute("data-mark-class")
+      );
+    expect(classes()).toEqual(["coding", "lof"]);
+
+    await user.hover(model.querySelector('[data-mark-class="lof"]')!);
+    const tooltip = await screen.findByRole("tooltip");
+    expect(tooltip).toHaveTextContent("19:44908822:C:C");
+    expect(tooltip).toHaveTextContent("stop gained");
+    expect(tooltip).toHaveTextContent("FinnGen+MVP+UKB+AoU (R14)LDL cholesterol0.200");
+
+    // the meta-analysis set's coding variant has PIP 0.2: raising the threshold drops its row and mark
+    const minPip = screen.getByLabelText("min coding PIP");
+    expect(minPip).toHaveValue("0.05");
+    await user.clear(minPip);
+    await user.type(minPip, "0.5");
+    await waitFor(() => expect(bodyRows()).toHaveLength(1));
+    expect(classes()).toEqual(["coding"]);
+  });
+
+  it("zooms out to the gene's surroundings and back, counting what the view leaves out", async () => {
+    const user = userEvent.setup();
+    renderTab("variant association");
+    await screen.findByRole("cell", { name: "Alzheimer disease" });
+    const model = await screen.findByTestId("gene-model");
+    await user.hover(bodyRows()[0]);
+    expect(screen.queryByTestId("variants-beyond-left")).not.toBeInTheDocument();
+
+    // the transcript is 3.6 kb: three halvings leave ~450 bp around its middle, between the two variants
+    for (let i = 0; i < 3; i++) {
+      await user.click(screen.getByRole("button", { name: "zoom in" }));
+    }
+    expect(screen.getByTestId("shown-credible-set")).toHaveTextContent("0 of 2 variants in view");
+    expect(screen.getByTestId("variants-beyond-left")).toHaveTextContent("◀ 1");
+    expect(screen.getByTestId("variants-beyond-right")).toHaveTextContent("1 ▶");
+    expect(model.querySelectorAll("[data-variant-class]")).toHaveLength(0);
+
+    await user.click(screen.getByRole("button", { name: "reset zoom" }));
+    expect(screen.getByTestId("shown-credible-set")).toHaveTextContent("2 of 2 variants in view");
+    await user.click(screen.getByRole("button", { name: "zoom out" }));
+    expect(model.querySelectorAll("[data-variant-class]")).toHaveLength(2);
+  });
+
+  it("filters by trait type, credible set kind and search, and remembers the radios", async () => {
+    const user = userEvent.setup();
+    renderTab("variant association");
+    await screen.findByRole("cell", { name: "Alzheimer disease" });
+
+    await user.click(screen.getByRole("radio", { name: /only binary traits/ }));
+    await waitFor(() => expect(bodyRows()).toHaveLength(1));
+    expect(screen.getByRole("cell", { name: "Alzheimer disease" })).toBeInTheDocument();
+    expect(useGeneEvidenceStore.getState().assocTraitType).toBe("binary");
+    // the gene burden tab keeps its own setting
+    expect(useGeneEvidenceStore.getState().burdenTraitType).toBe("all");
+
+    await user.click(screen.getByRole("radio", { name: /both binary and quantitative/ }));
+    await user.click(screen.getByRole("radio", { name: "only pseudo credible sets" }));
+    await waitFor(() => expect(bodyRows()).toHaveLength(1));
+    expect(screen.getByRole("cell", { name: "LDL cholesterol" })).toBeInTheDocument();
+
+    await user.type(screen.getByLabelText("search"), "alzheimer");
+    expect(await screen.findByText("no credible sets match these filters")).toBeInTheDocument();
+  });
+
+  it("says so when no credible set holds a coding variant of the gene", async () => {
+    server.use(http.get("*/v1/credible_sets_by_gene/:gene", () => HttpResponse.json([])));
+    renderTab("variant association");
+    expect(
+      await screen.findByText("no GWAS credible sets with a coding variant in this gene")
+    ).toBeInTheDocument();
+  });
+});

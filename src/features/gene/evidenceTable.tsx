@@ -1,4 +1,4 @@
-import { Box, CircularProgress, Typography } from "@mui/material";
+import { Box, CircularProgress, Tooltip, Typography } from "@mui/material";
 import { MRT_Cell, MRT_RowData, MRT_TableInstance } from "material-react-table";
 import { naInfSort } from "../table/utils/sorting";
 
@@ -18,6 +18,17 @@ export const countCell = <T extends MRT_RowData>({ cell }: { cell: MRT_Cell<T, u
   const v = cell.getValue<number | null>();
   return v == null ? "" : v.toLocaleString();
 };
+
+// the column keeps its width whatever it holds, so a long value is cut and shown in full on hover
+export const truncatedCell = (text: string) => (
+  <Tooltip title={text} placement="top-start">
+    <Box
+      component="span"
+      sx={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>
+      {text}
+    </Box>
+  </Tooltip>
+);
 
 // rows in the order the table shows them, before pagination, so a download is the whole sorted table
 // rather than the visible page
