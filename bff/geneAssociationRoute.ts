@@ -156,10 +156,12 @@ export const createGeneAssociationRoute = (): Router => {
         return;
       }
       if (!Number.isInteger(window) || window < 0 || window > config.geneAssociationMaxWindow) {
-        res.status(400).json({
-          error: "bad_request",
-          message: `'window' must be an integer from 0 to ${config.geneAssociationMaxWindow}`,
-        });
+        res
+          .status(400)
+          .json({
+            error: "bad_request",
+            message: `'window' must be an integer from 0 to ${config.geneAssociationMaxWindow}`,
+          });
         return;
       }
 
@@ -185,10 +187,12 @@ export const createGeneAssociationRoute = (): Router => {
         }
         console.error(`[bff] gene association for ${gene}:`, err);
         const status = err instanceof UpstreamError ? 502 : 500;
-        res.status(status).json({
-          error: status === 502 ? "bad_gateway" : "internal_error",
-          message: status === 502 ? "upstream genetics-results-api failed" : "request failed",
-        });
+        res
+          .status(status)
+          .json({
+            error: status === 502 ? "bad_gateway" : "internal_error",
+            message: status === 502 ? "upstream genetics-results-api failed" : "request failed",
+          });
       }
     };
 

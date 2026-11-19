@@ -139,17 +139,7 @@ const AssocTracks = ({
   );
 
   // everything a paint reads, so the handlers and the frame callback never go stale
-  const scene = {
-    index,
-    view,
-    genes,
-    limits,
-    defaultView,
-    selection,
-    dots,
-    colours,
-    complete,
-  };
+  const scene = { index, view, genes, limits, defaultView, selection, dots, colours, complete };
   const sceneRef = useRef(scene);
   useLayoutEffect(() => {
     sceneRef.current = scene;
@@ -629,9 +619,7 @@ const AssocTracks = ({
           touchAction: "pan-y",
           userSelect: "none",
           outline: "none",
-          "&:focus-visible": {
-            boxShadow: (t) => `0 0 0 1px ${t.palette.primary.main}`,
-          },
+          "&:focus-visible": { boxShadow: (t) => `0 0 0 1px ${t.palette.primary.main}` },
         }}>
         <canvas ref={canvas} style={{ display: "block", width: "100%", height: TRACK.height }} />
       </Box>

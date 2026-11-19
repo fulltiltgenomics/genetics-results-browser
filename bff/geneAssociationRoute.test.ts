@@ -47,12 +47,7 @@ const ROWS = [
   // the API can serve a variant of a set twice
   row(),
   // a second set on the same trait shares its dictionary entry
-  row({
-    cs_id: "second",
-    pip: "0.0123",
-    most_severe: "stop_gained",
-    gene_most_severe: "TOMM40",
-  }),
+  row({ cs_id: "second", pip: "0.0123", most_severe: "stop_gained", gene_most_severe: "TOMM40" }),
   row({
     resource: "finngen_mvp_ukbb_aou",
     dataset: "FinnGen_R14_MVP_UKBB_AOU",
@@ -97,13 +92,7 @@ const DATASETS = [
     trait_type: "quantitative",
   },
   // two datasets under one label that disagree on the type
-  {
-    dataset_id: "pgc_a",
-    resource: "pgc",
-    dataset: "PGC",
-    data_type: "gwas",
-    trait_type: "binary",
-  },
+  { dataset_id: "pgc_a", resource: "pgc", dataset: "PGC", data_type: "gwas", trait_type: "binary" },
   {
     dataset_id: "pgc_b",
     resource: "pgc",
@@ -123,10 +112,7 @@ const DATASETS = [
 
 const lookups = (
   traitMeta = new Map<string, Map<string, { name: string; traitType: string | null }>>()
-) => ({
-  traitMeta,
-  ...datasetLookups(DATASETS as never),
-});
+) => ({ traitMeta, ...datasetLookups(DATASETS as never) });
 
 describe("buildGeneAssociationSummary", () => {
   const { summary, setIds } = buildGeneAssociationSummary(
@@ -253,9 +239,7 @@ const upstream = (overrides: Record<string, () => Response> = {}) =>
           },
         ])
       );
-    return new Response(JSON.stringify({ detail: "not found" }), {
-      status: 404,
-    });
+    return new Response(JSON.stringify({ detail: "not found" }), { status: 404 });
   });
 
 const calls = (mock: ReturnType<typeof upstream>, part: string): string[] =>
@@ -382,9 +366,7 @@ describe("GET /api/v1/gene_association/:gene", () => {
   it("answers 404 for a gene the API does not know, and does not hold the miss", async () => {
     const fetchMock = upstream({
       "/v1/credible_sets_by_gene/": () =>
-        new Response(JSON.stringify({ detail: "Gene NOPE not found" }), {
-          status: 404,
-        }),
+        new Response(JSON.stringify({ detail: "Gene NOPE not found" }), { status: 404 }),
     });
     vi.stubGlobal("fetch", fetchMock);
     const app = createApp();
@@ -397,9 +379,7 @@ describe("GET /api/v1/gene_association/:gene", () => {
   it("answers 502 when the API fails", async () => {
     vi.stubGlobal(
       "fetch",
-      upstream({
-        "/v1/credible_sets_by_gene/": () => new Response("boom", { status: 500 }),
-      })
+      upstream({ "/v1/credible_sets_by_gene/": () => new Response("boom", { status: 500 }) })
     );
     vi.spyOn(console, "error").mockImplementation(() => {});
     const res = await request(createApp()).get("/api/v1/gene_association/APOE");

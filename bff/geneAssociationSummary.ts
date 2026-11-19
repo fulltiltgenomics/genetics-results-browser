@@ -108,12 +108,7 @@ export const buildGeneAssociationSummary = (
   const genes = new Dictionary();
   const variants = new Map<string, Variant>();
   const traitIndex = new Map<string, number>();
-  const traits: GeneAssociationSummary["traits"] = {
-    resource: [],
-    code: [],
-    name: [],
-    type: [],
-  };
+  const traits: GeneAssociationSummary["traits"] = { resource: [], code: [], name: [], type: [] };
   const sets = new Map<string, CredibleSet>();
   let chr = "";
 
@@ -175,12 +170,7 @@ export const buildGeneAssociationSummary = (
     // the API can serve a variant of a set twice
     if (cs.seen.has(variant)) continue;
     cs.seen.add(variant);
-    cs.members.push({
-      variant,
-      pip,
-      mlog10p: num(row.mlog10p),
-      beta: num(row.beta),
-    });
+    cs.members.push({ variant, pip, mlog10p: num(row.mlog10p), beta: num(row.beta) });
   }
 
   const sorted = [...variants.values()].sort(

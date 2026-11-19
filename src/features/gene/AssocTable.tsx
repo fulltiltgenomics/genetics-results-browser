@@ -1,5 +1,6 @@
 import { memo, useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Box, Typography } from "@mui/material";
+import { Typography } from "@mui/material";
+import { styled } from "@mui/material/styles";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useCredibleSetMembers } from "@/store/serverQuery";
 import { isCoding } from "@/utils/coding";
@@ -79,12 +80,7 @@ const COLUMNS: Column[] = [
     width: "minmax(110px, 1.1fr)",
     value: (r) => datasetDisplayName(r.dataset),
   },
-  {
-    id: "traitName",
-    header: "trait",
-    width: "minmax(160px, 2.6fr)",
-    value: (r) => r.traitName,
-  },
+  { id: "traitName", header: "trait", width: "minmax(160px, 2.6fr)", value: (r) => r.traitName },
   {
     id: "kind",
     header: "credible set",
@@ -150,13 +146,7 @@ const COLUMNS: Column[] = [
       }
     },
   },
-  {
-    id: "csSize",
-    header: "variants",
-    width: "66px",
-    numeric: true,
-    value: (r) => r.csSize,
-  },
+  { id: "csSize", header: "variants", width: "66px", numeric: true, value: (r) => r.csSize },
   {
     id: "nCoding",
     header: "coding",
@@ -418,6 +408,119 @@ const VirtualRows = ({
   );
 };
 
+const TableFooter = memo(
+  ({ count, ready, onDownload }: { count: number; ready: boolean; onDownload: () => void }) => (
+    <div className="footer">
+      <DownloadButton
+        variant="outlined"
+        label="DOWNLOAD TABLE"
+        disabled={!ready}
+        onClick={onDownload}
+      />
+      <Typography variant="body2" color="text.secondary" data-testid="assoc-row-count">
+        {count.toLocaleString()} credible set{count === 1 ? "" : "s"}
+      </Typography>
+    </div>
+  )
+);
+TableFooter.displayName = "TableFooter";
+
+// a styled element rather than `sx`: the table renders again on every filter change, and `sx`
+// resolves its theme shorthands each time
+const TableRoot = styled("div")(({ theme }) => {
+  const line = `1px solid ${theme.palette.divider}`;
+  return {
+    fontSize: "0.75rem",
+    "& .scroller": {
+      // fills what the sticky tracks leave of the window, so the page keeps one scrollbar's
+      // worth of travel and the table its own
+      height: "max(320px, calc(100vh - 420px))",
+      overflow: "auto",
+      border: line,
+      borderRadius: theme.shape.borderRadius,
+      // the browser lays out and paints a row only against its own box
+      "& .item": { position: "absolute", top: 0, left: 0, width: "100%", contain: "layout paint" },
+    },
+    "& .header, & .row": {
+      display: "grid",
+      gridTemplateColumns: GRID,
+      alignItems: "center",
+      columnGap: "10px",
+      padding: theme.spacing(0, 1),
+      minWidth: 980,
+    },
+    "& .header": {
+      position: "sticky",
+      top: 0,
+      zIndex: 1,
+      height: HEADER_HEIGHT,
+      backgroundColor: theme.palette.background.paper,
+      borderBottom: line,
+      fontWeight: 600,
+      "& > span": { cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" },
+      "& .sort": {
+        fontSize: "0.6rem",
+        marginLeft: theme.spacing(0.5),
+        color: theme.palette.text.secondary,
+      },
+    },
+    "& .row": {
+      height: ROW_HEIGHT,
+      cursor: "pointer",
+      borderBottom: line,
+      "&:hover": { backgroundColor: theme.palette.action.hover },
+      "& > span": {
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        whiteSpace: "nowrap",
+        minWidth: 0,
+      },
+      "& .toggle": { color: theme.palette.text.secondary },
+      "& .toggle::before": { content: '"▸"' },
+      "&[aria-expanded=true] .toggle::before": { content: '"▾"' },
+    },
+    "& .num": { textAlign: "right", fontVariantNumeric: "tabular-nums" },
+    "& .muted": { color: theme.palette.text.secondary },
+    "& .error, & .up": { color: theme.palette.error.main },
+    "& .down": { color: theme.palette.info.main },
+    "& .badge": {
+      display: "inline-flex",
+      alignItems: "center",
+      justifyContent: "center",
+      width: 16,
+      height: 16,
+      borderRadius: "3px",
+      color: "#fff",
+      fontSize: "0.62rem",
+      fontWeight: 700,
+    },
+    "& .members": {
+      padding: theme.spacing(1, 4),
+      maxHeight: 300,
+      overflow: "auto",
+      cursor: "default",
+      backgroundColor: theme.palette.action.hover,
+      borderBottom: line,
+      "& table": { borderCollapse: "collapse" },
+      "& th, & td": {
+        textAlign: "left",
+        padding: theme.spacing("2px", 2.5, "2px", 0),
+        whiteSpace: "nowrap",
+        fontWeight: 400,
+      },
+      "& th": { color: theme.palette.text.secondary },
+      "& .num": { textAlign: "right" },
+      "& tr.coding td": { fontWeight: 700 },
+    },
+    "& .footer": {
+      display: "flex",
+      alignItems: "center",
+      gap: theme.spacing(2),
+      paddingTop: theme.spacing(1),
+    },
+  };
+});
+
 const AssocTable = ({
   rows,
   gene,
@@ -475,8 +578,10 @@ const AssocTable = ({
     []
   );
 
+  const download = useCallback(() => onDownload(sorted), [onDownload, sorted]);
+
   return (
-    <Box sx={tableSx}>
+    <TableRoot>
       <div
         ref={setScroller}
         className="scroller"
@@ -497,114 +602,9 @@ const AssocTable = ({
           />
         )}
       </div>
-      <Box sx={{ display: "flex", alignItems: "center", gap: 2, pt: 1 }}>
-        <DownloadButton
-          variant="outlined"
-          label="DOWNLOAD TABLE"
-          disabled={!csIds}
-          onClick={() => onDownload(sorted)}
-        />
-        <Typography variant="body2" color="text.secondary" data-testid="assoc-row-count">
-          {sorted.length.toLocaleString()} credible set
-          {sorted.length === 1 ? "" : "s"}
-        </Typography>
-      </Box>
-    </Box>
+      <TableFooter count={sorted.length} ready={!!csIds} onDownload={download} />
+    </TableRoot>
   );
 };
-
-const tableSx = {
-  fontSize: "0.75rem",
-  "& .scroller": {
-    // fills what the sticky tracks leave of the window, so the page keeps one scrollbar's worth
-    // of travel and the table its own
-    height: "max(320px, calc(100vh - 420px))",
-    overflow: "auto",
-    border: 1,
-    borderColor: "divider",
-    borderRadius: 1,
-    // the browser lays out and paints a row only against its own box
-    "& .item": {
-      position: "absolute",
-      top: 0,
-      left: 0,
-      width: "100%",
-      contain: "layout paint",
-    },
-  },
-  "& .header, & .row": {
-    display: "grid",
-    gridTemplateColumns: GRID,
-    alignItems: "center",
-    columnGap: "10px",
-    px: 1,
-    minWidth: 980,
-  },
-  "& .header": {
-    position: "sticky",
-    top: 0,
-    zIndex: 1,
-    height: HEADER_HEIGHT,
-    bgcolor: "background.paper",
-    borderBottom: 1,
-    borderColor: "divider",
-    fontWeight: 600,
-    "& > span": { cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" },
-    "& .sort": { fontSize: "0.6rem", ml: 0.5, color: "text.secondary" },
-  },
-  "& .row": {
-    height: ROW_HEIGHT,
-    cursor: "pointer",
-    borderBottom: 1,
-    borderColor: "divider",
-    "&:hover": { bgcolor: "action.hover" },
-    "& > span": {
-      overflow: "hidden",
-      textOverflow: "ellipsis",
-      whiteSpace: "nowrap",
-      minWidth: 0,
-    },
-    "& .toggle": { color: "text.secondary" },
-    "& .toggle::before": { content: '"▸"' },
-    "&[aria-expanded=true] .toggle::before": { content: '"▾"' },
-  },
-  "& .num": { textAlign: "right", fontVariantNumeric: "tabular-nums" },
-  "& .muted": { color: "text.secondary" },
-  "& .error": { color: "error.main" },
-  "& .up": { color: "error.main" },
-  "& .down": { color: "info.main" },
-  "& .badge": {
-    display: "inline-flex",
-    alignItems: "center",
-    justifyContent: "center",
-    width: 16,
-    height: 16,
-    borderRadius: "3px",
-    color: "#fff",
-    fontSize: "0.62rem",
-    fontWeight: 700,
-  },
-  "& .members": {
-    px: 4,
-    py: 1,
-    maxHeight: 300,
-    overflow: "auto",
-    cursor: "default",
-    bgcolor: "action.hover",
-    borderBottom: 1,
-    borderColor: "divider",
-    "& table": { borderCollapse: "collapse" },
-    "& th, & td": {
-      textAlign: "left",
-      pr: 2.5,
-      py: "2px",
-      whiteSpace: "nowrap",
-      fontWeight: 400,
-    },
-    "& th": { color: "text.secondary" },
-    "& .num": { textAlign: "right" },
-    "& tr.coding td": { fontWeight: 700 },
-  },
-} as const;
 
 export default AssocTable;

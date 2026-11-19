@@ -128,10 +128,7 @@ export const hitVariant = (
 ): number | null => {
   const reach = ((DOT_RADIUS.max + HIT_SLOP) / width) * viewSpan(view);
   const bp = xToBp(x, view, width);
-  const [from, to] = variantsInRegion(dots.positions, {
-    start: bp - reach,
-    end: bp + reach,
-  });
+  const [from, to] = variantsInRegion(dots.positions, { start: bp - reach, end: bp + reach });
   let best: number | null = null;
   let bestDistance = Infinity;
   for (let v = from; v < to; v++) {
@@ -187,10 +184,7 @@ export const layoutGenes = (models: GeneModel[], focalName: string): TrackGene[]
     const focal = onStrand.find((g) => g.focal);
     const overlaps = (a: TrackGene, b: TrackGene) => a.start <= b.end && b.start <= a.end;
     // where the last gene put in each half lane ends
-    const laneEnd: Record<"outer" | "inner", number> = {
-      outer: -Infinity,
-      inner: -Infinity,
-    };
+    const laneEnd: Record<"outer" | "inner", number> = { outer: -Infinity, inner: -Infinity };
     for (const gene of onStrand) {
       if (gene.focal) {
         continue;
@@ -254,10 +248,7 @@ export const placeGeneLabels = (
   const centre = focal ? (focal.start + focal.end) / 2 : (view.start + view.end) / 2;
   const distance = (g: TrackGene) => (g.focal ? -1 : Math.max(0, g.start - centre, centre - g.end));
   const placed: GeneLabel[] = [];
-  const taken: Record<number, { from: number; to: number }[]> = {
-    1: [],
-    [-1]: [],
-  };
+  const taken: Record<number, { from: number; to: number }[]> = { 1: [], [-1]: [] };
   for (const gene of [...genes].sort((a, b) => distance(a) - distance(b))) {
     const from = Math.max(0, bpToX(gene.start, view, width));
     const to = Math.min(width, bpToX(gene.end, view, width));

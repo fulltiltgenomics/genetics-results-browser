@@ -1,8 +1,8 @@
 import {
   memo,
   RefObject,
+  startTransition,
   useCallback,
-  useDeferredValue,
   useEffect,
   useMemo,
   useRef,
@@ -74,119 +74,107 @@ const LEGEND = [
   { label: "other coding", colour: "coding", diamond: false },
   { label: "non-coding", colour: "other", diamond: false },
 ] as const;
+// holds what is typed itself, so a keystroke renders this field and whatever the search changes,
+// not the controls beside it
+const SearchField = ({ onSearch }: { onSearch: (text: string) => void }) => {
+  const [text, setText] = useState("");
+  return (
+    <TextField
+      size="small"
+      label="search"
+      placeholder="dataset or trait name"
+      value={text}
+      onChange={(e) => {
+        setText(e.target.value);
+        // the field stays ahead of the recomputation the search causes
+        startTransition(() => onSearch(e.target.value));
+      }}
+      slotProps={{ inputLabel: { shrink: true } }}
+      sx={{ width: 280 }}
+    />
+  );
+};
+
 /**
  * The filter controls. Their own component, memoized, because they are a few dozen MUI components
- * that a click in the track or a keystroke in the search would otherwise render again each time.
+ * that a click in the track or a change of the search would otherwise render again each time.
  */
-const Filters = memo(
-  ({
-    gene,
-    search,
-    onSearch,
-  }: {
-    gene: string;
-    search: string;
-    onSearch: (text: string) => void;
-  }) => {
-    const traitType = useGeneEvidenceStore((s) => s.assocTraitType);
-    const credibleSetKind = useGeneEvidenceStore((s) => s.assocCredibleSetKind);
-    const traitMode = useGeneEvidenceStore((s) => s.assocTraitMode);
-    const minPip = useGeneEvidenceStore((s) => s.assocMinPip);
-    const codingOnly = useGeneEvidenceStore((s) => s.assocCodingOnly);
-    const setTraitType = useGeneEvidenceStore((s) => s.setAssocTraitType);
-    const setCredibleSetKind = useGeneEvidenceStore((s) => s.setAssocCredibleSetKind);
-    const setTraitMode = useGeneEvidenceStore((s) => s.setAssocTraitMode);
-    const setMinPip = useGeneEvidenceStore((s) => s.setAssocMinPip);
-    const setCodingOnly = useGeneEvidenceStore((s) => s.setAssocCodingOnly);
-    // what was typed, kept apart from the number so "0." survives until the next digit
-    const [minPipText, setMinPipText] = useState(String(minPip));
-    return (
-      <Box
-        sx={{
-          display: "flex",
-          flexWrap: "wrap",
-          alignItems: "center",
-          columnGap: 3,
-          mb: 1,
-        }}>
-        <Box
-          sx={{
-            display: "grid",
-            gridTemplateColumns: "repeat(3, max-content)",
-            columnGap: 2,
-          }}>
-          <RadioOptions
-            label="trait type"
-            value={traitType}
-            options={TRAIT_TYPE_OPTIONS}
-            onChange={setTraitType}
-          />
-          <RadioOptions
-            label="credible sets shown"
-            value={credibleSetKind}
-            options={CREDIBLE_SET_KIND_OPTIONS}
-            onChange={setCredibleSetKind}
-          />
-          <RadioOptions
-            label="traits shown"
-            value={traitMode}
-            options={TRAIT_MODE_OPTIONS}
-            onChange={setTraitMode}
-            spanLast
-          />
-          <FormControlLabel
-            sx={{ gridColumn: "1 / -1", mr: 0 }}
-            control={
-              <Checkbox
-                size="small"
-                sx={{ py: 0.25 }}
-                checked={codingOnly}
-                onChange={(e) => setCodingOnly(e.target.checked)}
-              />
-            }
-            label={
-              <Typography variant="body2">
-                only credible sets with a coding variant of {gene}
-              </Typography>
-            }
-          />
-        </Box>
-        <Tooltip
-          title={
-            codingOnly
-              ? `a credible set is listed when a coding variant of ${gene} has at least this PIP in it`
-              : "a credible set is listed when one of its variants has at least this PIP in it"
-          }>
-          <TextField
-            size="small"
-            // a text input: a number input writes the decimal separator of the browser's locale
-            label={codingOnly ? "min coding PIP" : "min PIP"}
-            value={minPipText}
-            onChange={(e) => {
-              setMinPipText(e.target.value);
-              const v = Number(e.target.value.replace(",", "."));
-              setMinPip(Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 0);
-            }}
-            slotProps={{
-              inputLabel: { shrink: true },
-              htmlInput: { inputMode: "decimal" },
-            }}
-            sx={{ width: 130 }}
-          />
-        </Tooltip>
-        <TextField
-          size="small"
-          label="search"
-          placeholder="dataset or trait name"
-          value={search}
-          onChange={(e) => onSearch(e.target.value)}
-          slotProps={{ inputLabel: { shrink: true } }}
-          sx={{ width: 280 }}
+const Filters = memo(({ gene, onSearch }: { gene: string; onSearch: (text: string) => void }) => {
+  const traitType = useGeneEvidenceStore((s) => s.assocTraitType);
+  const credibleSetKind = useGeneEvidenceStore((s) => s.assocCredibleSetKind);
+  const traitMode = useGeneEvidenceStore((s) => s.assocTraitMode);
+  const minPip = useGeneEvidenceStore((s) => s.assocMinPip);
+  const codingOnly = useGeneEvidenceStore((s) => s.assocCodingOnly);
+  const setTraitType = useGeneEvidenceStore((s) => s.setAssocTraitType);
+  const setCredibleSetKind = useGeneEvidenceStore((s) => s.setAssocCredibleSetKind);
+  const setTraitMode = useGeneEvidenceStore((s) => s.setAssocTraitMode);
+  const setMinPip = useGeneEvidenceStore((s) => s.setAssocMinPip);
+  const setCodingOnly = useGeneEvidenceStore((s) => s.setAssocCodingOnly);
+  // what was typed, kept apart from the number so "0." survives until the next digit
+  const [minPipText, setMinPipText] = useState(String(minPip));
+  return (
+    <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", columnGap: 3, mb: 1 }}>
+      <Box sx={{ display: "grid", gridTemplateColumns: "repeat(3, max-content)", columnGap: 2 }}>
+        <RadioOptions
+          label="trait type"
+          value={traitType}
+          options={TRAIT_TYPE_OPTIONS}
+          onChange={setTraitType}
+        />
+        <RadioOptions
+          label="credible sets shown"
+          value={credibleSetKind}
+          options={CREDIBLE_SET_KIND_OPTIONS}
+          onChange={setCredibleSetKind}
+        />
+        <RadioOptions
+          label="traits shown"
+          value={traitMode}
+          options={TRAIT_MODE_OPTIONS}
+          onChange={setTraitMode}
+          spanLast
+        />
+        <FormControlLabel
+          sx={{ gridColumn: "1 / -1", mr: 0 }}
+          control={
+            <Checkbox
+              size="small"
+              sx={{ py: 0.25 }}
+              checked={codingOnly}
+              onChange={(e) => setCodingOnly(e.target.checked)}
+            />
+          }
+          label={
+            <Typography variant="body2">
+              only credible sets with a coding variant of {gene}
+            </Typography>
+          }
         />
       </Box>
-    );
-  }
-);
+      <Tooltip
+        title={
+          codingOnly
+            ? `a credible set is listed when a coding variant of ${gene} has at least this PIP in it`
+            : "a credible set is listed when one of its variants has at least this PIP in it"
+        }>
+        <TextField
+          size="small"
+          // a text input: a number input writes the decimal separator of the browser's locale
+          label={codingOnly ? "min coding PIP" : "min PIP"}
+          value={minPipText}
+          onChange={(e) => {
+            setMinPipText(e.target.value);
+            const v = Number(e.target.value.replace(",", "."));
+            setMinPip(Number.isFinite(v) ? Math.min(1, Math.max(0, v)) : 0);
+          }}
+          slotProps={{ inputLabel: { shrink: true }, htmlInput: { inputMode: "decimal" } }}
+          sx={{ width: 130 }}
+        />
+      </Tooltip>
+      <SearchField onSearch={onSearch} />
+    </Box>
+  );
+});
 Filters.displayName = "Filters";
 
 const TrackControls = memo(
@@ -197,12 +185,7 @@ const TrackControls = memo(
           key={label}
           variant="caption"
           color="text.secondary"
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            gap: 0.5,
-            whiteSpace: "nowrap",
-          }}>
+          sx={{ display: "flex", alignItems: "center", gap: 0.5, whiteSpace: "nowrap" }}>
           <Box
             component="span"
             sx={(t) => ({
@@ -283,14 +266,9 @@ const GeneAssociationSection = ({ geneName }: { geneName: string }) => {
   const minPip = useGeneEvidenceStore((s) => s.assocMinPip);
   const codingOnly = useGeneEvidenceStore((s) => s.assocCodingOnly);
   const setCodingOnly = useGeneEvidenceStore((s) => s.setAssocCodingOnly);
-  const [searchText, setSearchText] = useState("");
-  // typing stays ahead of the recomputation it causes
-  const search = useDeferredValue(searchText);
+  const [search, setSearch] = useState("");
   const [selection, setSelection] = useState<Region | null>(null);
-  const [viewFlags, setViewFlags] = useState<ViewFlags>({
-    atLimits: false,
-    isDefault: true,
-  });
+  const [viewFlags, setViewFlags] = useState<ViewFlags>({ atLimits: false, isDefault: true });
   const tracks = useRef<AssocTracksHandle>(null);
 
   // a selection is a place on one gene's chromosome
@@ -361,7 +339,7 @@ const GeneAssociationSection = ({ geneName }: { geneName: string }) => {
         {padded.isPending && " · loading the surroundings…"}
         {padded.isError && ` · the surroundings failed to load: ${padded.error.message}`}
       </Typography>
-      <Filters gene={gene?.symbol ?? geneName} search={searchText} onSearch={setSearchText} />
+      <Filters gene={gene?.symbol ?? geneName} onSearch={setSearch} />
       {index && view && limits && defaultView && (
         <Box
           sx={{
@@ -372,21 +350,8 @@ const GeneAssociationSection = ({ geneName }: { geneName: string }) => {
             bgcolor: "background.default",
             pt: 0.5,
           }}>
-          <Box
-            sx={{
-              display: "flex",
-              alignItems: "center",
-              gap: 1.5,
-              minHeight: 34,
-            }}>
-            <Box
-              sx={{
-                flex: 1,
-                minWidth: 0,
-                display: "flex",
-                alignItems: "center",
-                gap: 1,
-              }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1.5, minHeight: 34 }}>
+            <Box sx={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 1 }}>
               {selection ? (
                 <Chip
                   size="small"

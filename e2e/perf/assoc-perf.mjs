@@ -59,6 +59,20 @@ const withFrames = async (page, action) => {
   return { ...frameStats(rec), ...result };
 };
 
+// The gene page opens on its credible-sets tab, whose request for every credible set of the locus
+// keeps the API busy, then the main thread, and then asks for more. Nothing is timed until the
+// page has had three seconds with no request in flight and a main thread that answers at once.
+const untilQuiet = async (page, inFlight) => {
+  let quietSince = Date.now();
+  const deadline = Date.now() + 300000;
+  while (Date.now() - quietSince < 3000 && Date.now() < deadline) {
+    await page.waitForTimeout(200);
+    const asked = Date.now();
+    await page.evaluate(() => 0);
+    if (inFlight.size > 0 || Date.now() - asked > 150) quietSince = Date.now();
+  }
+};
+
 const perf = (page) => page.evaluate(() => ({ ...window.__assocPerf }));
 const span = (v) => v.end - v.start;
 
@@ -84,9 +98,7 @@ const latencyUntil = (page, predicate, arg) =>
   );
 
 const measureGene = async (browser, gene) => {
-  const context = await browser.newContext({
-    viewport: { width: 1500, height: 1000 },
-  });
+  const context = await browser.newContext({ viewport: { width: 1500, height: 1000 } });
   const page = await context.newPage();
   const cdp = await context.newCDPSession(page);
   await cdp.send("Network.enable");
@@ -97,10 +109,14 @@ const measureGene = async (browser, gene) => {
   // only what is asked for after the tab is opened counts: the gene page's own requests can
   // still be in flight then
   let counting = false;
+  const inFlight = new Set();
   cdp.on("Network.requestWillBeSent", (e) => {
+    inFlight.add(e.requestId);
     if (counting) requests.set(e.requestId, e.request.url);
   });
+  cdp.on("Network.loadingFailed", (e) => inFlight.delete(e.requestId));
   cdp.on("Network.loadingFinished", (e) => {
+    inFlight.delete(e.requestId);
     if (/\/api\/v1\//.test(requests.get(e.requestId) ?? "")) {
       apiBytes += e.encodedDataLength;
       apiRequests++;
@@ -109,22 +125,11 @@ const measureGene = async (browser, gene) => {
 
   await page.goto(`${BASE}/gene/${gene}`);
   await page.getByRole("tab", { name: "Gene evidence" }).click();
-  // the gene page opens on its credible-sets tab, whose request for every credible set of the
-  // locus keeps the API busy, then the main thread, and then asks for more: wait until the
-  // network and the main thread have both gone quiet, twice over
-  for (let i = 0; i < 2; i++) {
-    await page.waitForLoadState("networkidle", { timeout: 180000 }).catch(() => {});
-    await page.evaluate(
-      () => new Promise((resolve) => requestIdleCallback(resolve, { timeout: 120000 }))
-    );
-    await page.waitForTimeout(1500);
-  }
+  await untilQuiet(page, inFlight);
   counting = true;
   const clicked = await page.evaluate(() => performance.now());
   await page.getByRole("tab", { name: "variant association" }).click();
-  await page.waitForFunction(() => window.__assocPerf?.ready, null, {
-    timeout: 120000,
-  });
+  await page.waitForFunction(() => window.__assocPerf?.ready, null, { timeout: 120000 });
   const readyAt = await page.evaluate(() => performance.now());
   await page.getByTestId("assoc-row").first().waitFor({ timeout: 120000 });
   const tableAt = await page.evaluate(() => performance.now());
