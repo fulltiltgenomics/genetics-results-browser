@@ -5,7 +5,8 @@ import { defineConfig, devices } from "@playwright/test";
 // the BFF on :5001 (npm run bff:dev), and vite on :3000 (npm run dev) — but
 // specs must assert only on the app shell so they stay deterministic without live data.
 
-const PORT = 3000;
+// E2E_PORT points the specs at a dev server on another port, e.g. a worktree's
+const PORT = Number(process.env.E2E_PORT ?? 3000);
 const baseURL = `http://localhost:${PORT}`;
 
 export default defineConfig({
@@ -40,7 +41,7 @@ export default defineConfig({
     // from the loaded .env file, not process.env, so a bare env var wouldn't reach
     // import.meta.env; dev.public maps to .env.dev.public which sets VITE_TARGET=public
     // plus the api/chat urls. .env.local (gitignored) is not required.
-    command: "npm run dev -- --mode dev.public",
+    command: `npm run dev -- --mode dev.public --port ${PORT}`,
     url: baseURL,
     reuseExistingServer: true,
     timeout: 120_000,

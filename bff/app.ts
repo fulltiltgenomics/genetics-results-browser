@@ -3,6 +3,7 @@ import { createPassthrough } from "./passthrough.js";
 import { createVariantsRoute } from "./variantsRoute.js";
 import { createGeneAnnotationRoute } from "./geneAnnotationRoute.js";
 import { createGeneConstraintRoute } from "./geneConstraintRoute.js";
+import { createGeneAssociationRoute } from "./geneAssociationRoute.js";
 import { createLdRoute } from "./ldRoute.js";
 
 // turn express.json() body-parse failures into a clean JSON 400 instead of its default HTML
@@ -56,6 +57,7 @@ export const createApp = (): Express => {
   app.use("/api", createLdRoute());
   app.use("/api", createGeneAnnotationRoute());
   app.use("/api", createGeneConstraintRoute());
+  app.use("/api", createGeneAssociationRoute());
   app.use("/api", createPassthrough());
 
   return app;

@@ -68,8 +68,9 @@ Available modes: `dev`, `dev.finngen`, `dev.public`, `prod`, `prod.finngen`, `pr
 | `VITE_SHOW_TOOLS_BUTTON` | `false` hides the Tools button in the chat header (the list of what the assistant can call); anything else, unset included, shows it. Independent of `VITE_SHOW_TOOLS_CONTROL`. The image build sets it from `--build-arg SHOW_TOOLS_BUTTON` |
 
 The BFF reads `GENETICS_API_URL`, `GENETICS_API_TOKEN`, `BFF_PORT`, `RESULTS_CACHE_MAX`,
-`RESULTS_CACHE_TTL_MS`, `LD_API_URL`, `MYGENE_API_URL`, `GNOMAD_API_URL`, `GENE_ANNOTATION_CACHE_MAX` and
-`GENE_ANNOTATION_CACHE_TTL_MS` — see `bff/.env.example`. It also reads `NODE_ENV`:
+`RESULTS_CACHE_TTL_MS`, `LD_API_URL`, `MYGENE_API_URL`, `GNOMAD_API_URL`, `GENE_ANNOTATION_CACHE_MAX`,
+`GENE_ANNOTATION_CACHE_TTL_MS`, `GENE_ASSOCIATION_CACHE_MAX` and `GENE_ASSOCIATION_MAX_WINDOW` — see
+`bff/.env.example`. It also reads `NODE_ENV`:
 anything but `production` (which `bff/Dockerfile` sets) reflects the request origin as permissive
 CORS, so the dev browser can call the BFF cross-origin at `http://localhost:5001/api`.
 
@@ -147,7 +148,14 @@ per clone to wire `core.hooksPath`, which no clone carries; it is shared across 
 so that one run covers every worktree too.
 
 `npm run e2e` reuses an already-running dev server, or starts one in `dev.public` mode; specs that
-need real data still require the API and the BFF to be up.
+need real data still require the API and the BFF to be up. `E2E_PORT` points the specs at a dev
+server on another port than 3000.
+
+`e2e/perf/assoc-perf.mjs` measures the gene page's variant association tab against live data —
+bytes and time to load, frame times while zooming, panning and scrolling the table, and the
+latency of a track click and of opening a row — and `e2e/perf/trace-scroll.mjs` breaks a table
+scroll down by timeline event. Both take `PERF_BASE_URL` and need a dev-mode server, since the
+`window.__assocPerf` counters they read exist only there; see the header of each.
 
 ### Docker images
 

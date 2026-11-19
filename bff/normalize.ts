@@ -83,9 +83,13 @@ interface RawNearestGene {
   variant: string; // dash form, e.g. "19-44908684-T-C"
 }
 
-interface RawDataset {
+export interface RawDataset {
   dataset_id: string;
   resource: string;
+  // the label the dataset's result rows carry; absent where a dataset has none of its own
+  dataset?: string | null;
+  // "mixed" where the dataset holds both binary and quantitative traits
+  trait_type?: string | null;
   version?: string;
   description?: string;
   data_type: DatasetDataType;
@@ -459,7 +463,7 @@ const getTraitNameMap = async (): Promise<Record<string, string>> => {
 // best-effort trait names, dataset metadata drives resource/capability derivation), and an empty result
 // is returned WITHOUT caching so a transient failure is retried on the next request rather than pinned.
 let datasetsCache: RawDataset[] | null = null;
-const getDatasets = async (): Promise<RawDataset[]> => {
+export const getDatasets = async (): Promise<RawDataset[]> => {
   if (datasetsCache) return datasetsCache;
   const d = (await upstreamJson<RawDataset[]>("/v1/datasets")) ?? [];
   if (d.length > 0) datasetsCache = d;

@@ -11,7 +11,7 @@ import {
   formatTraitName,
   pValRepr,
 } from "../table/utils/tableutil";
-import { CodingCredibleSetRow } from "./geneAssociation";
+import { AssocIndex, AssocRow, codingVariantsOfSet } from "./geneAssociation";
 import { gtexTissueLabel } from "./gtexTissues";
 import { hpaLevelLabel, hpaTissueLabel } from "./hpa";
 
@@ -50,33 +50,49 @@ export const exportGeneBurden = (gene: string, rows: GeneBurdenRow[]): void => {
   writeTsvFile(exportRows, `gene_burden_${gene}_${exportRows.length}_rows`);
 };
 
-export const buildCodingCredibleSetRows = (gene: string, rows: CodingCredibleSetRow[]): ExportRow[] =>
-  rows.map((r) => {
-    const top = r.codingVariants[0];
-    return {
-      gene,
-      trait: r.traitName || NA,
-      trait_original: r.traitOriginal || NA,
-      trait_type: r.quantitative == null ? NA : r.quantitative ? "quantitative" : "binary",
-      dataset: datasetDisplayName(r.dataset) || NA,
-      credible_set_type: r.pseudo ? "pseudo" : "SuSiE",
-      cs_id: r.csId,
-      cs_size: r.csSize,
-      cs_min_r2: num(r.csMinR2),
-      top_coding_variant: top.variant,
-      consequence: top.consequence ? cleanConsequence(top.consequence) : NA,
-      pip: top.pip,
-      "p-value": top.mlog10p == null ? NA : pValRepr(top.mlog10p),
-      mlog10p: num(top.mlog10p),
-      beta: num(top.beta),
-      // every coding variant of the gene in the set, with its PIP
-      coding_variants: r.codingVariants.map((v) => `${v.variant}(${v.pip})`).join(","),
-    };
-  });
+export const buildCredibleSetRows = (
+  gene: string,
+  rows: AssocRow[],
+  index: AssocIndex,
+  csIds: string[],
+  minPip: number
+): ExportRow[] =>
+  rows.map((r) => ({
+    gene,
+    trait: r.traitName || NA,
+    trait_original: r.traitCode || NA,
+    trait_type: r.traitType || NA,
+    dataset: datasetDisplayName(r.dataset) || NA,
+    credible_set_type: r.pseudo ? "pseudo" : "SuSiE",
+    cs_id: csIds[r.set] ?? NA,
+    cs_size: r.csSize,
+    cs_min_r2: num(r.csMinR2),
+    // the strongest member inside the loaded region, which is all of the set unless it is larger
+    // than cs_variants_loaded
+    lead_variant: r.leadVariant,
+    cs_variants_loaded: r.nMembersLoaded,
+    consequence: r.leadConsequence ? cleanConsequence(r.leadConsequence) : NA,
+    pip: r.leadPip,
+    "p-value": r.leadMlog10p == null ? NA : pValRepr(r.leadMlog10p),
+    mlog10p: num(r.leadMlog10p),
+    beta: num(r.leadBeta),
+    n_coding_variants: r.nCoding,
+    // every coding variant of the gene in the set at or above the PIP threshold, with its PIP
+    coding_variants:
+      codingVariantsOfSet(index, r.set, minPip)
+        .map((v) => `${v.variant}(${v.pip})`)
+        .join(",") || NA,
+  }));
 
-export const exportCodingCredibleSets = (gene: string, rows: CodingCredibleSetRow[]): void => {
-  const exportRows = buildCodingCredibleSetRows(gene, rows);
-  writeTsvFile(exportRows, `coding_credible_sets_${gene}_${exportRows.length}_rows`);
+export const exportCredibleSets = (
+  gene: string,
+  rows: AssocRow[],
+  index: AssocIndex,
+  csIds: string[],
+  minPip: number
+): void => {
+  const exportRows = buildCredibleSetRows(gene, rows, index, csIds, minPip);
+  writeTsvFile(exportRows, `gwas_credible_sets_${gene}_${exportRows.length}_rows`);
 };
 
 export const buildGtexExpressionRows = (rows: GeneExpressionRow[]): ExportRow[] =>
@@ -152,7 +168,10 @@ export const buildCellTypeDatasetRows = (rows: CellTypeExpressionDatasetRow[]): 
     donor_pseudobulk_mean_cp10k: num(r.donorPseudobulkMeanCp10k),
   }));
 
-export const exportCellTypeDatasets = (gene: string, rows: CellTypeExpressionDatasetRow[]): void => {
+export const exportCellTypeDatasets = (
+  gene: string,
+  rows: CellTypeExpressionDatasetRow[]
+): void => {
   const exportRows = buildCellTypeDatasetRows(rows);
   writeTsv(exportRows, `cell_type_expression_by_dataset_${gene}_${exportRows.length}_rows`);
 };

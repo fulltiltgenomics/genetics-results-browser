@@ -17,7 +17,7 @@ export type BurdenMaskMode = "top" | "all";
 export type BurdenView = "table" | "plot";
 // fine-mapped credible sets, or the approximate ones built from summary statistics and LD
 export type CredibleSetKind = "all" | "susie" | "pseudo";
-// every credible set, or per coding variant and dataset only the one the variant is strongest in
+// every credible set, or per key variant and dataset only the one the variant is strongest in
 export type AssocTraitMode = "all" | "top";
 
 // view preferences of the gene evidence tab, kept across gene changes and page reloads
@@ -29,7 +29,9 @@ interface GeneEvidenceState {
   assocTraitType: BurdenTraitType;
   assocCredibleSetKind: CredibleSetKind;
   assocTraitMode: AssocTraitMode;
-  assocMinCodingPip: number;
+  assocMinPip: number;
+  // only credible sets holding a coding variant of the viewed gene
+  assocCodingOnly: boolean;
   setActiveTab: (value: GeneEvidenceTabName) => void;
   setBurdenTraitType: (value: BurdenTraitType) => void;
   setBurdenMaskMode: (value: BurdenMaskMode) => void;
@@ -37,7 +39,8 @@ interface GeneEvidenceState {
   setAssocTraitType: (value: BurdenTraitType) => void;
   setAssocCredibleSetKind: (value: CredibleSetKind) => void;
   setAssocTraitMode: (value: AssocTraitMode) => void;
-  setAssocMinCodingPip: (value: number) => void;
+  setAssocMinPip: (value: number) => void;
+  setAssocCodingOnly: (value: boolean) => void;
 }
 
 export const useGeneEvidenceStore = create<GeneEvidenceState>()(
@@ -50,7 +53,8 @@ export const useGeneEvidenceStore = create<GeneEvidenceState>()(
       assocTraitType: "all",
       assocCredibleSetKind: "all",
       assocTraitMode: "all",
-      assocMinCodingPip: 0.05,
+      assocMinPip: 0.05,
+      assocCodingOnly: true,
       setActiveTab: (value) => set({ activeTab: value }),
       setBurdenTraitType: (value) => set({ burdenTraitType: value }),
       setBurdenMaskMode: (value) => set({ burdenMaskMode: value }),
@@ -58,7 +62,8 @@ export const useGeneEvidenceStore = create<GeneEvidenceState>()(
       setAssocTraitType: (value) => set({ assocTraitType: value }),
       setAssocCredibleSetKind: (value) => set({ assocCredibleSetKind: value }),
       setAssocTraitMode: (value) => set({ assocTraitMode: value }),
-      setAssocMinCodingPip: (value) => set({ assocMinCodingPip: value }),
+      setAssocMinPip: (value) => set({ assocMinPip: value }),
+      setAssocCodingOnly: (value) => set({ assocCodingOnly: value }),
     }),
     {
       name: "gene-evidence-storage",

@@ -66,24 +66,54 @@ test("gene evidence tab shows burden, expression, gene-disease and annotation fo
     "https://www.uniprot.org/uniprotkb/P02649/entry"
   );
 
-  // variant association: APOE's missense variants sit in many GWAS credible sets; pointing at one
-  // draws its variants on the canonical transcript
+  // variant association: APOE's missense variants sit in many GWAS credible sets. the table opens
+  // on the sets that hold one, over a track of every credible-set variant of the locus
   await page.getByRole("tab", { name: "variant association" }).click();
-  await expect(page.getByRole("cell", { name: "missense" }).first()).toBeVisible({ timeout: 90000 });
-  await expect(page.getByTestId("gene-model")).toContainText("4 exons");
-  await page.getByRole("row").nth(1).hover();
-  await expect(page.getByTestId("shown-credible-set")).toContainText("in view");
-  await expect(
-    page.getByTestId("gene-model").locator('[data-variant-class="coding"]').first()
-  ).toBeVisible();
-  // every coding variant the table holds is a line on the transcript, with its traits on hover
-  const marks = page.getByTestId("gene-model").locator("[data-mark-class]");
-  await marks.first().hover();
-  await expect(page.getByRole("tooltip")).toContainText("top trait");
-  await page.getByRole("button", { name: "zoom out" }).click();
+  const rows = page.getByTestId("assoc-row");
+  await expect(rows.first()).toContainText("missense", { timeout: 90000 });
+  const tracks = page.getByTestId("assoc-tracks");
+  const rowCount = page.getByTestId("assoc-row-count");
+  // the padded region has replaced the gene body once the note about it has gone
+  await expect(page.getByText("loading the surroundings")).toHaveCount(0, { timeout: 90000 });
+  const codingSets = await rowCount.textContent();
+
+  // a row opens to every variant of its credible set
+  await rows.first().click();
+  await expect(page.getByTestId("assoc-members").getByRole("row").nth(1)).toContainText("19:449");
+  await rows.first().click();
+  await expect(page.getByTestId("assoc-members")).toHaveCount(0);
+
+  // the pointer is described in the fixed line below the tracks, never in a tooltip
+  // a point of the tracks, read each time: anything that scrolls the page moves them
+  const at = async (share: number, y: number): Promise<[number, number]> => {
+    const box = (await tracks.boundingBox())!;
+    return [box.x + box.width * share, box.y + y];
+  };
+  await page.mouse.move(...(await at(0.5, 168)));
+  await expect(page.getByTestId("assoc-readout")).toContainText("APOE · chr19:");
+  await expect(page.getByRole("tooltip")).toHaveCount(0);
+
+  // ctrl + wheel zooms the tracks; a plain wheel is left to the page
+  await page.mouse.wheel(0, 100);
+  await expect(page.getByRole("button", { name: "reset zoom" })).toBeDisabled();
+  await page.mouse.move(...(await at(0.5, 60)));
+  await page.keyboard.down("Control");
+  await page.mouse.wheel(0, 100);
+  await page.keyboard.up("Control");
   await expect(page.getByRole("button", { name: "reset zoom" })).toBeEnabled();
+
+  // a click in the track narrows the table to the credible sets with a variant there
+  await page.getByRole("checkbox", { name: /only credible sets with a coding variant/ }).uncheck();
+  await expect(rowCount).not.toHaveText(codingSets!);
+  const allSets = await rowCount.textContent();
+  await page.mouse.click(...(await at(0.25, 60)));
+  await expect(page.getByTestId("assoc-selection")).toContainText("chr19:");
+  await expect(rowCount).not.toHaveText(allSets!);
+  await page.getByTestId("assoc-selection").getByTestId("CancelIcon").click();
+  await expect(rowCount).toHaveText(allSets!);
+
   await page.getByRole("radio", { name: "only pseudo credible sets" }).click();
-  await expect(page.getByRole("cell", { name: "pseudo" }).first()).toBeVisible();
+  await expect(rows.first()).toContainText("pseudo");
   await expect(page.getByRole("cell", { name: "SuSiE" })).toHaveCount(0);
 
   const file = await snapshot(page, "gene-APOE-evidence");

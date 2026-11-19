@@ -15,6 +15,10 @@ import {
 import { parseQuantLevel } from "@/utils/quantLevel";
 import { CSDatum, GeneModel } from "@/types/types.gene";
 import type { GeneAnnotation, GeneConstraint } from "../../bff/geneAnnotationTypes";
+import type {
+  GeneAssociationSetIds,
+  GeneAssociationSummary,
+} from "../../bff/geneAssociationTypes";
 import config from "@/config.json";
 import {
   GeneCSApiRow,
@@ -294,24 +298,64 @@ export const useGeneCredibleSets = (
 };
 
 /**
- * GWAS credible-set members in the gene and `window` bp either side, one row per variant, for the
- * variant association tab. Its own request rather than the one above: in a QTL-dense locus that one
- * is two orders of magnitude larger, nearly all of it QTL rows.
+ * The GWAS credible sets with a member in the gene or `window` bp either side, as the BFF's
+ * columnar summary: grouped per set, trait names and types joined in, no per-member statistics.
  */
-export const useGeneGwasCredibleSetRows = (
+export const useGeneAssociationSummary = (
   gene: string | undefined,
   window: number
-): UseQueryResult<GeneCSApiRow[], Error> =>
-  useQuery<GeneCSApiRow[]>({
-    queryKey: ["gene-gwas-credible-sets", gene, window],
+): UseQueryResult<GeneAssociationSummary, Error> =>
+  useQuery<GeneAssociationSummary>({
+    queryKey: ["gene-association", gene, window],
     queryFn: async () => {
-      const { data } = await api.get<GeneCSApiRow[]>(
-        `/v1/credible_sets_by_gene/${encodeURIComponent(gene!)}`,
-        { params: { window, data_types: "GWAS", format: "json" } }
+      const { data } = await api.get<GeneAssociationSummary>(
+        `/v1/gene_association/${encodeURIComponent(gene!)}`,
+        { params: { window } }
       );
       return data;
     },
     enabled: !!gene,
+    staleTime: Infinity,
+  });
+
+/**
+ * The credible-set ids of that summary's sets, which it leaves out. Asked for once the summary is
+ * on screen: they are needed only to open a set or to download the table.
+ */
+export const useGeneAssociationSetIds = (
+  gene: string | undefined,
+  window: number,
+  enabled: boolean
+): UseQueryResult<GeneAssociationSetIds, Error> =>
+  useQuery<GeneAssociationSetIds>({
+    queryKey: ["gene-association-set-ids", gene, window],
+    queryFn: async () => {
+      const { data } = await api.get<GeneAssociationSetIds>(
+        `/v1/gene_association/${encodeURIComponent(gene!)}/set_ids`,
+        { params: { window } }
+      );
+      return data;
+    },
+    enabled: enabled && !!gene,
+    staleTime: Infinity,
+  });
+
+/** Every member of one credible set with its statistics, fetched when the set's row is opened. */
+export const useCredibleSetMembers = (
+  resource: string,
+  trait: string,
+  csId: string | undefined
+): UseQueryResult<GeneCSApiRow[], Error> =>
+  useQuery<GeneCSApiRow[]>({
+    queryKey: ["credible-set-members", resource, trait, csId],
+    queryFn: async () => {
+      const { data } = await api.get<GeneCSApiRow[]>(
+        `/v1/credible_sets_by_id/${encodeURIComponent(resource)}/${encodeURIComponent(trait)}/${encodeURIComponent(csId!)}`,
+        { params: { format: "json" } }
+      );
+      return data;
+    },
+    enabled: !!csId,
     staleTime: Infinity,
   });
 
@@ -557,23 +601,6 @@ export const useResourceMetadata = (
   useQuery<Record<string, PhenotypeMetadata>>({
     ...resourceMetadataQuery(resource),
     enabled: enabled && !!resource,
-  });
-
-/**
- * The same per-phenotype metadata for several resources at once, keyed by resource, sharing the
- * cache of the single-resource hook. `isPending` stays true until every resource has answered.
- */
-export const useResourcesMetadata = (
-  resources: string[]
-): { data: Record<string, Record<string, PhenotypeMetadata>>; isPending: boolean } =>
-  useQueries({
-    queries: resources.map((r) => resourceMetadataQuery(r)),
-    combine: (results) => ({
-      data: Object.fromEntries(
-        results.flatMap((r, i) => (r.data ? [[resources[i], r.data]] : []))
-      ),
-      isPending: results.some((r) => r.isPending),
-    }),
   });
 
 // one peak_to_genes row (snake_case JSON). only the fields we use are typed; the payload also carries

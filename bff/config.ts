@@ -10,6 +10,10 @@
 // GNOMAD_API_URL      gnomAD GraphQL endpoint, queried by GET /api/v1/gene_constraint
 // GENE_ANNOTATION_CACHE_MAX     max records each of those two routes keeps in-process (LRU). 0 disables.
 // GENE_ANNOTATION_CACHE_TTL_MS  staleness bound for a cached record; 0 disables.
+// GENE_ASSOCIATION_CACHE_MAX   max /v1/gene_association responses (one per gene and window) kept
+//                               in-process (LRU), and max resources whose phenotype metadata is
+//                               kept for it. 0 disables. staleness is RESULTS_CACHE_TTL_MS.
+// GENE_ASSOCIATION_MAX_WINDOW   widest `window` (bp either side of the gene) that route accepts
 // RESULTS_CACHE_MAX      max assembled /v1/results responses kept in-process (LRU). 0 disables.
 // RESULTS_CACHE_TTL_MS   staleness bound for a cached response; 0 disables. data is static between
 //                        deploys and a deploy restarts the process, so this is only a safety-net.
@@ -24,6 +28,9 @@ export const config = {
   // a trimmed record is a few KB to a few tens of KB, so this bounds memory at tens of MB
   geneAnnotationCacheMax: Number(process.env.GENE_ANNOTATION_CACHE_MAX ?? 2000),
   geneAnnotationCacheTtlMs: Number(process.env.GENE_ANNOTATION_CACHE_TTL_MS ?? 24 * 60 * 60 * 1000),
+  // a response is about a MB as JSON plus its gzip for the densest loci, far less for most genes
+  geneAssociationCacheMax: Number(process.env.GENE_ASSOCIATION_CACHE_MAX ?? 100),
+  geneAssociationMaxWindow: Number(process.env.GENE_ASSOCIATION_MAX_WINDOW ?? 1_000_000),
   // 5001 by default: 2000=API, 3000=vite dev server, 4000=chat backend are all taken in dev, and
   // macOS AirPlay Receiver listens on 5000, where it answers a browser behind an ssh tunnel
   // whenever the tunnel is down. the image sets BFF_PORT itself
