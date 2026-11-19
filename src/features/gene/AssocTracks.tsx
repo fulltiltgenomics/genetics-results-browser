@@ -79,16 +79,18 @@ interface DotLayer {
   view: Region | null;
   drawnFor: Region | null;
   drawnAt: number;
-  // marks drawn
   marks: number;
+  // least time between two redraws while the view is moving
+  interval: number;
 }
 
 // with more marks than this the layer is not redrawn on every frame of a moving view. Measured
 // on a view of about two thousand: drawing them took 2 ms of script and another 4 ms to hand to
 // the compositor, every frame, four times that under a 4x CPU throttle
 const HEAVY_LAYER_MARKS = 600;
-// least time between two redraws of a heavy layer while the view is moving
-const HEAVY_LAYER_INTERVAL_MS = 96;
+// bounds on the time between two redraws of such a layer while the view is moving
+const MIN_LAYER_INTERVAL_MS = 96;
+const MAX_LAYER_INTERVAL_MS = 400;
 // how long the view has to rest before a stretched layer is drawn again
 const SETTLE_MS = 100;
 // share of the view the layer reaches beyond either edge, so a pan has marks to bring in
@@ -221,6 +223,7 @@ const AssocTracks = ({
     drawnFor: null,
     drawnAt: 0,
     marks: 0,
+    interval: 0,
   };
   const settle = useRef(0);
   // the view has stopped moving, and the layer is owed a redraw whatever its age
@@ -326,9 +329,9 @@ const AssocTracks = ({
     const now = performance.now();
     const current = layer.dots === s.dots && layer.colours === s.colours && layer.width === w;
     const moved = layer.drawnFor?.start !== v.start || layer.drawnFor?.end !== v.end;
-    const due = layer.marks <= HEAVY_LAYER_MARKS || now - layer.drawnAt >= HEAVY_LAYER_INTERVAL_MS;
+    const redraw = !current || (moved && (rested.current || now - layer.drawnAt >= layer.interval));
     clearTimeout(settle.current);
-    if (!current || (moved && (due || rested.current))) {
+    if (redraw) {
       rested.current = false;
       drawDots(layer, s, v, w, dpr);
       layer.drawnAt = now;
@@ -346,6 +349,15 @@ const AssocTracks = ({
       (viewSpan(drawn) / span) * w,
       TRACK.height
     );
+    if (redraw) {
+      // timed through the copy above, which is when the layer's marks are actually rasterized. a
+      // layer with few marks is drawn every frame; one with many gets an eighth of the time
+      const cost = performance.now() - now;
+      layer.interval =
+        layer.marks <= HEAVY_LAYER_MARKS
+          ? 0
+          : Math.min(MAX_LAYER_INTERVAL_MS, Math.max(MIN_LAYER_INTERVAL_MS, 8 * cost));
+    }
 
     // rings: the members of the set under the table pointer, and the variant under this one
     const ring = (id: number, colour: string) => {

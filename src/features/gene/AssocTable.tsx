@@ -182,6 +182,16 @@ const createRowElement = (): HTMLDivElement => {
   return el;
 };
 
+// the element that carries a row's place. Not the row itself: measured, any change to the
+// inline style of the grid has the browser resolve the style of every cell in it again, while
+// one on a plain box around it costs that box alone
+const createPlaceElement = (row: HTMLElement): HTMLDivElement => {
+  const el = document.createElement("div");
+  el.className = "place";
+  el.append(row);
+  return el;
+};
+
 const fillRow = (el: HTMLElement, r: AssocRow) => {
   COLUMNS.forEach((c, i) => {
     const cell = el.children[i + 1] as HTMLElement;
@@ -310,7 +320,9 @@ TableHeader.displayName = "TableHeader";
 
 // one pooled element and what it currently shows
 interface Slot {
+  // the row, and the box around it that is moved
   el: HTMLDivElement;
+  place: HTMLDivElement;
   row: AssocRow | null;
   index: number;
   // the cell given a title on hover, to take it off again when the element shows another row
@@ -366,11 +378,13 @@ const WindowedRows = ({
     const pool = slots.current;
     if (pool.length !== size) {
       // the pool's size is the modulus: with another one every row moves to another element
-      pool.forEach((slot) => slot.el.remove());
+      pool.forEach((slot) => slot.place.remove());
       pool.length = 0;
       for (let i = 0; i < size; i++) {
+        const el = createRowElement();
         pool.push({
-          el: createRowElement(),
+          el,
+          place: createPlaceElement(el),
           row: null,
           index: -1,
           titled: null,
@@ -411,11 +425,11 @@ const WindowedRows = ({
       const top = rowTop(i, geometry);
       if (slot.top !== top) {
         slot.top = top;
-        slot.el.style.transform = `translateY(${top}px)`;
+        slot.place.style.transform = `translateY(${top}px)`;
       }
       if (!slot.attached) {
         slot.attached = true;
-        layer.current!.append(slot.el);
+        layer.current!.append(slot.place);
       }
     }
     // only where the list is shorter than the pool
@@ -423,7 +437,7 @@ const WindowedRows = ({
       if (slot.attached && !used.has(slot)) {
         slot.attached = false;
         slot.row = null;
-        slot.el.remove();
+        slot.place.remove();
       }
     }
   }, [scroller, rows, geometry]);
@@ -530,6 +544,8 @@ const TableRoot = styled("div")(({ theme }) => {
       // worth of travel and the table its own
       height: "max(320px, calc(100vh - 420px))",
       overflow: "auto",
+      // opaque, which lets the browser scroll the rows as a layer instead of repainting them
+      backgroundColor: theme.palette.background.default,
       border: line,
       borderRadius: theme.shape.borderRadius,
     },
@@ -557,15 +573,18 @@ const TableRoot = styled("div")(({ theme }) => {
         color: theme.palette.text.secondary,
       },
     },
-    "& .row": {
+    "& .place": {
       position: "absolute",
       top: 0,
       left: 0,
       width: "100%",
-      boxSizing: "border-box",
       height: ROW_HEIGHT,
       // a row's size is fixed, so its contents are laid out and painted against its own box
       contain: "strict",
+    },
+    "& .row": {
+      boxSizing: "border-box",
+      height: ROW_HEIGHT,
       cursor: "pointer",
       borderBottom: line,
       "&:hover": { backgroundColor: theme.palette.action.hover },
