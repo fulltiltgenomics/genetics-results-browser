@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 import { snapshot } from "./helpers/screenshot";
 
 // live verification of the lifted, dynamic resource filter in the main /anno options
-// (refactor.md §4, bd .16). requires the full dev stack: genetics-results-api :2000, BFF :5000,
+// (refactor.md §4, bd .16). requires the full dev stack: genetics-results-api :2000, BFF :5001,
 // vite :3000. submits a multi-resource variant, asserts the filter lists several resources derived
 // from the data, then toggles one OFF and asserts the main table's "credible sets" count reactively
 // drops (stage-2 client-side refilter, no refetch).

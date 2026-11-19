@@ -24,8 +24,10 @@ export const config = {
   // a trimmed record is a few KB to a few tens of KB, so this bounds memory at tens of MB
   geneAnnotationCacheMax: Number(process.env.GENE_ANNOTATION_CACHE_MAX ?? 2000),
   geneAnnotationCacheTtlMs: Number(process.env.GENE_ANNOTATION_CACHE_TTL_MS ?? 24 * 60 * 60 * 1000),
-  // 5000 by default: 2000=API, 3000=vite dev server, 4000=chat backend are all taken in dev
-  port: Number(process.env.BFF_PORT ?? 5000),
+  // 5001 by default: 2000=API, 3000=vite dev server, 4000=chat backend are all taken in dev, and
+  // macOS AirPlay Receiver listens on 5000, where it answers a browser behind an ssh tunnel
+  // whenever the tunnel is down. the image sets BFF_PORT itself
+  port: Number(process.env.BFF_PORT ?? 5001),
   // a NormalizedResponse can be several MB, so bound entry count rather than bytes; the working set is
   // a handful of repeated named sets. 24h default TTL is generous because deploys clear the cache.
   resultsCacheMax: Number(process.env.RESULTS_CACHE_MAX ?? 50),

@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 import { snapshot } from "./helpers/screenshot";
 
 // live verification of the phenotype-search TAB (refactor.md §5).
-// requires the full dev stack: genetics-results-api :2000, BFF :5000, vite :3000.
+// requires the full dev stack: genetics-results-api :2000, BFF :5001, vite :3000.
 //
 // (a) handoff path: from /anno, submit a variant, open the Phenotype summary tab, click a trait's
 //     search-handoff button, confirm it switches to the Phenotype search tab with that phenotype

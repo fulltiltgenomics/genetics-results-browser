@@ -2,7 +2,7 @@ import { defineConfig, devices } from "@playwright/test";
 
 // headless E2E + screenshot harness for the no-GUI Cloud VM (refactor.md §8).
 // full dev data flow needs three processes — genetics-results-api on :2000,
-// the BFF on :5000 (npm run bff:dev), and vite on :3000 (npm run dev) — but
+// the BFF on :5001 (npm run bff:dev), and vite on :3000 (npm run dev) — but
 // specs must assert only on the app shell so they stay deterministic without live data.
 
 const PORT = 3000;

@@ -3,7 +3,7 @@ import { test, expect, Download, Page } from "@playwright/test";
 /**
  * End-to-end verification of the re-instated TSV downloads for every annotation table, plus the
  * filter/sort behaviour reflected IN those downloads. Requires the full dev stack
- * (genetics-results-api :2000, BFF :5000, vite :3000) and drives real data.
+ * (genetics-results-api :2000, BFF :5001, vite :3000) and drives real data.
  *
  * APOE rs429358 (19-44908684-T-C) is the single-variant fixture: multi-resource, multi-data-type
  * (GWAS/pQTL/eQTL/caQTL), so it exercises every column path. A two-variant WITH-betas input drives

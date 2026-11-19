@@ -55,7 +55,7 @@ bd close <id>         # Complete work
 ```bash
 npm install
 npm run dev        # vite dev server on :3000
-npm run bff:dev    # BFF on :5000 (watch mode); `npm run bff` for one-shot
+npm run bff:dev    # BFF on :5001 (watch mode); `npm run bff` for one-shot
 npm run build      # production bundle into static/
 npm run typecheck  # tsc --noEmit over src/
 npm run bff:typecheck # tsc -p bff/tsconfig.json over bff/ (sources + tests)
@@ -104,7 +104,7 @@ See `README.md` for the full dev startup sequence and environment variables.
 React 19 + TypeScript SPA (Vite, MUI v6, material-react-table, zustand, react-router,
 @tanstack/react-query) plus a small Express BFF in `bff/`.
 
-Data flow: browser → vite dev server or nginx → BFF (`:5000`) → `genetics-results-api` (`:2000`).
+Data flow: browser → vite dev server or nginx → BFF (`:5001`) → `genetics-results-api` (`:2000`).
 The chat views are the exception — they talk directly to the chat backend
 (`../genetics-mcp-server`) at `VITE_CHAT_URL`.
 

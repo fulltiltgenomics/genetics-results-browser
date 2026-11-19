@@ -61,7 +61,7 @@ Available modes: `dev`, `dev.finngen`, `dev.public`, `prod`, `prod.finngen`, `pr
 | variable | meaning |
 | --- | --- |
 | `VITE_TARGET` | `finngen` (requires auth) or `public` |
-| `VITE_API_URL` | base URL of the BFF, e.g. `http://localhost:5000/api` |
+| `VITE_API_URL` | base URL of the BFF, e.g. `http://localhost:5001/api` |
 | `VITE_CHAT_URL` | base URL of the chat backend, e.g. `http://localhost:4000/chat` |
 | `VITE_APP_NAME` | product name shown in the UI, defaults to `FinnGenie` |
 | `VITE_SHOW_TOOLS_CONTROL` | `false` hides the chat options' Tools row (the Code execution switch); anything else, unset included, shows it. A deployment that hides it picks its users' surface through chat-backend's `DEFAULT_TOOL_PROFILE`; a user's stored choice still applies. The image build sets it from `--build-arg SHOW_TOOLS_CONTROL` |
@@ -71,7 +71,7 @@ The BFF reads `GENETICS_API_URL`, `GENETICS_API_TOKEN`, `BFF_PORT`, `RESULTS_CAC
 `RESULTS_CACHE_TTL_MS`, `LD_API_URL`, `MYGENE_API_URL`, `GNOMAD_API_URL`, `GENE_ANNOTATION_CACHE_MAX` and
 `GENE_ANNOTATION_CACHE_TTL_MS` — see `bff/.env.example`. It also reads `NODE_ENV`:
 anything but `production` (which `bff/Dockerfile` sets) reflects the request origin as permissive
-CORS, so the dev browser can call the BFF cross-origin at `http://localhost:5000/api`.
+CORS, so the dev browser can call the BFF cross-origin at `http://localhost:5001/api`.
 
 `GENETICS_API_TOKEN` is the shared internal secret and is sent as `Authorization: Bearer` on
 **every** call to genetics-results-api, including the generic `/api` passthrough. (The `/api/v1/ld`,
@@ -86,13 +86,13 @@ header and results-api has no Basic path.
 
 ### Local dev startup sequence
 
-In development the data flow is: browser → Vite (`:3000`) → BFF (`:5000`) → genetics-results-api (`:2000`).
+In development the data flow is: browser → Vite (`:3000`) → BFF (`:5001`) → genetics-results-api (`:2000`).
 
 `VITE_API_URL` points at the BFF, so `npm run dev` alone won't serve data. You need three processes running:
 
 ```
 # 1. genetics-results-api on :2000, started separately from ../genetics-results-api
-# 2. the BFF on :5000
+# 2. the BFF on :5001
 npm run bff:dev
 # 3. the Vite dev server on :3000
 npm run dev

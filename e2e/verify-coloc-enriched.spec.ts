@@ -4,7 +4,7 @@ import { snapshot } from "./helpers/screenshot";
 // verifies the enriched colocalization partner display (bd genetics-results-browser-002):
 //   - QTL partners show gene symbol + a quant-level chip (non-ge eQTL) + tissue/cell
 //   - GWAS partners show resolved phenostrings (from /v1/trait_name_mapping), not bare phenocodes
-// requires the full dev stack: genetics-results-api :2000, BFF :5000, vite :3000.
+// requires the full dev stack: genetics-results-api :2000, BFF :5001, vite :3000.
 // the late-onset Alzheimer's (AD_LO_EXMORE) APOE-region credible set has a rich partner mix: eQTL
 // CLASRP (|exon, brain_(DLPFC)), pQTL/metaboQTL, and many GWAS partners.
 const SINGLE = "19-44908684-T-C"; // APOE rs429358

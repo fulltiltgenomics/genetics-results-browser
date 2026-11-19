@@ -4,7 +4,7 @@ import { snapshot } from "./helpers/screenshot";
 // verifies the annotation -> chat seeding hand-off (bd .27, refactor.md §9): an "Ask the assistant"
 // affordance on the variant table and the gene view stashes a context-rich prompt and routes to
 // /chat, where the input is PREFILLED (not auto-sent). requires the full dev stack
-// (genetics-results-api :2000, BFF :5000, vite :3000).
+// (genetics-results-api :2000, BFF :5001, vite :3000).
 
 const SINGLE = "19-44908684-T-C"; // APOE rs429358
 

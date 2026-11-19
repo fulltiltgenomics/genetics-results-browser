@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 import { snapshot } from "./helpers/screenshot";
 
 // live verification of the migrated variant-results tab at /anno (refactor.md §4).
-// requires the full dev stack: genetics-results-api :2000, BFF :5000, vite :3000. submits a known
+// requires the full dev stack: genetics-results-api :2000, BFF :5001, vite :3000. submits a known
 // variant, waits for the credible-set main table, expands a row, and screenshots the CS detail.
 test("annotate route renders credible-set data", async ({ page }) => {
   await page.goto("/anno");
