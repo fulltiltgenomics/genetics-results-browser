@@ -28,6 +28,8 @@ const HEADER_HEIGHT = 32;
 const PANEL_HEIGHT = 240;
 // rows kept in the document beyond either edge of the scroll window
 const OVERSCAN = 8;
+// how long after a scroll the pointer is taken to be resting rather than pointing
+const HOVER_AFTER_SCROLL_MS = 150;
 // below this the table scrolls sideways rather than squeeze its columns
 const MIN_WIDTH = 980;
 
@@ -346,6 +348,7 @@ const WindowedRows = ({
 }) => {
   const layer = useRef<HTMLDivElement>(null);
   const slots = useRef<Slot[]>([]);
+  const scrolledAt = useRef(0);
   const geometry = useMemo<RowGeometry>(() => {
     const indices: number[] = [];
     if (open.size > 0) {
@@ -434,6 +437,7 @@ const WindowedRows = ({
     place();
     let frame = 0;
     const onScroll = () => {
+      scrolledAt.current = performance.now();
       frame ||= requestAnimationFrame(() => {
         frame = 0;
         place();
@@ -468,7 +472,9 @@ const WindowedRows = ({
       }}
       onMouseOver={(e) => {
         const slot = slotOf(e.target);
-        if (!slot?.row) {
+        // rows passing under a resting pointer are not being pointed at, and each would
+        // otherwise repaint the tracks for its credible set
+        if (!slot?.row || performance.now() - scrolledAt.current < HOVER_AFTER_SCROLL_MS) {
           return;
         }
         onHover(slot.row.set);

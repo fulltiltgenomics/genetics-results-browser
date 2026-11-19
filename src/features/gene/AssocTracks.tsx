@@ -67,6 +67,120 @@ interface Props {
   complete: boolean;
 }
 
+type Colours = Record<"lof" | "coding" | "other" | "surface", string>;
+
+interface DotLayer {
+  canvas: HTMLCanvasElement;
+  // what it was last drawn from; a change in any of these makes it stale
+  dots: unknown;
+  colours: unknown;
+  width: number;
+  // the stretch it covers, which is wider than the view it was drawn for
+  view: Region | null;
+  drawnFor: Region | null;
+  drawnAt: number;
+  // marks drawn
+  marks: number;
+}
+
+// with more marks than this the layer is not redrawn on every frame of a moving view. Measured
+// on a view of about two thousand: drawing them took 2 ms of script and another 4 ms to hand to
+// the compositor, every frame, four times that under a 4x CPU throttle
+const HEAVY_LAYER_MARKS = 600;
+// least time between two redraws of a heavy layer while the view is moving
+const HEAVY_LAYER_INTERVAL_MS = 96;
+// how long the view has to rest before a stretched layer is drawn again
+const SETTLE_MS = 100;
+// share of the view the layer reaches beyond either edge, so a pan has marks to bring in
+const LAYER_MARGIN = 0.25;
+
+interface Scene {
+  index: AssocIndex;
+  view: AssocView;
+  dots: DotData & { order: Int32Array };
+  colours: Colours;
+}
+
+// every variant the layer covers: the unlisted and the non-coding go in as one translucent path
+// per group, the few listed coding ones singly with a surface edge so they stay apart
+const drawDots = (layer: DotLayer, s: Scene, v: Region, w: number, dpr: number) => {
+  const { canvas } = layer;
+  const width = w * (1 + 2 * LAYER_MARGIN);
+  const covered = {
+    start: v.start - LAYER_MARGIN * viewSpan(v),
+    end: v.end + LAYER_MARGIN * viewSpan(v),
+  };
+  if (canvas.width !== Math.round(width * dpr)) {
+    canvas.width = Math.round(width * dpr);
+    canvas.height = Math.round(TRACK.height * dpr);
+  }
+  const ctx = canvas.getContext("2d")!;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, width, TRACK.height);
+  const { positions, maxPip, nSets, maxNSets, order } = s.dots;
+  const classes = s.index.summary.variants.variantClass;
+  const span = viewSpan(covered);
+  let marks = 0;
+  let group = -1;
+  const flush = () => {
+    if (group >= 0) {
+      ctx.fill();
+    }
+  };
+  for (let i = 0; i < order.length; i++) {
+    const id = order[i];
+    const r = dotRadius(nSets[id], maxNSets);
+    const x = ((positions[id] - covered.start) / span) * width;
+    if (x < -r || x > width + r) {
+      continue;
+    }
+    marks++;
+    const y = pipToY(maxPip[id]);
+    const cls = classes[id];
+    const listed = s.view.variantInTable[id] === 1;
+    const single = listed && cls !== VARIANT_CLASS.other;
+    const key = single ? 100 : (listed ? 10 : 0) + cls;
+    if (key !== group || single) {
+      flush();
+      group = key;
+      ctx.beginPath();
+      ctx.fillStyle =
+        cls === VARIANT_CLASS.lof
+          ? s.colours.lof
+          : cls === VARIANT_CLASS.coding
+            ? s.colours.coding
+            : s.colours.other;
+      ctx.globalAlpha = single ? 1 : listed ? 0.7 : cls === VARIANT_CLASS.other ? 0.28 : 0.4;
+    }
+    if (cls === VARIANT_CLASS.lof) {
+      const d = r * 1.25;
+      ctx.moveTo(x, y - d);
+      ctx.lineTo(x + d, y);
+      ctx.lineTo(x, y + d);
+      ctx.lineTo(x - d, y);
+      ctx.closePath();
+    } else {
+      ctx.moveTo(x + r, y);
+      ctx.arc(x, y, r, 0, 2 * Math.PI);
+    }
+    if (single) {
+      ctx.fill();
+      ctx.strokeStyle = s.colours.surface;
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      group = -1;
+    }
+  }
+  flush();
+  ctx.globalAlpha = 1;
+  layer.marks = marks;
+  layer.dots = s.dots;
+  layer.colours = s.colours;
+  layer.width = w;
+  layer.view = covered;
+  layer.drawnFor = v;
+};
+
 interface Drag {
   x0: number;
   x1: number;
@@ -97,6 +211,20 @@ const AssocTracks = ({
   const hoveredVariant = useRef<number | null>(null);
   const highlightedSet = useRef<number | null>(null);
   const flags = useRef<ViewFlags>({ atLimits: false, isDefault: true });
+  const dotLayer = useRef<DotLayer>(null!);
+  dotLayer.current ??= {
+    canvas: document.createElement("canvas"),
+    dots: null,
+    colours: null,
+    width: 0,
+    view: null,
+    drawnFor: null,
+    drawnAt: 0,
+    marks: 0,
+  };
+  const settle = useRef(0);
+  // the view has stopped moving, and the layer is owed a redraw whatever its age
+  const rested = useRef(false);
 
   const dots = useMemo<DotData & { order: Int32Array }>(() => {
     let maxNSets = 1;
@@ -189,62 +317,35 @@ const AssocTracks = ({
       }
     }
 
-    // variants: the unlisted and the non-coding go in as one translucent path per group, the few
-    // coding ones singly with a surface edge so they stay apart
-    const { positions, maxPip, nSets, maxNSets, order } = s.dots;
-    const classes = s.index.summary.variants.variantClass;
+    // variants, from their own layer. A wide view holds thousands of marks, and drawing them is
+    // most of a frame: while the view is moving, a layer with many is redrawn only every so
+    // often and stretched over the view in between, then drawn again once the view rests
+    const { positions, maxPip, nSets, maxNSets } = s.dots;
     const span = viewSpan(v);
-    let group = -1;
-    const flush = () => {
-      if (group >= 0) {
-        ctx.fill();
-      }
-    };
-    for (let i = 0; i < order.length; i++) {
-      const id = order[i];
-      const r = dotRadius(nSets[id], maxNSets);
-      const x = ((positions[id] - v.start) / span) * w;
-      if (x < -r || x > w + r) {
-        continue;
-      }
-      const y = pipToY(maxPip[id]);
-      const cls = classes[id];
-      const listed = s.view.variantInTable[id] === 1;
-      const single = listed && cls !== VARIANT_CLASS.other;
-      const key = single ? 100 : (listed ? 10 : 0) + cls;
-      if (key !== group || single) {
-        flush();
-        group = key;
-        ctx.beginPath();
-        ctx.fillStyle =
-          cls === VARIANT_CLASS.lof
-            ? s.colours.lof
-            : cls === VARIANT_CLASS.coding
-              ? s.colours.coding
-              : s.colours.other;
-        ctx.globalAlpha = single ? 1 : listed ? 0.7 : cls === VARIANT_CLASS.other ? 0.28 : 0.4;
-      }
-      if (cls === VARIANT_CLASS.lof) {
-        const d = r * 1.25;
-        ctx.moveTo(x, y - d);
-        ctx.lineTo(x + d, y);
-        ctx.lineTo(x, y + d);
-        ctx.lineTo(x - d, y);
-        ctx.closePath();
-      } else {
-        ctx.moveTo(x + r, y);
-        ctx.arc(x, y, r, 0, 2 * Math.PI);
-      }
-      if (single) {
-        ctx.fill();
-        ctx.strokeStyle = s.colours.surface;
-        ctx.lineWidth = 1;
-        ctx.stroke();
-        group = -1;
-      }
+    const layer = dotLayer.current;
+    const now = performance.now();
+    const current = layer.dots === s.dots && layer.colours === s.colours && layer.width === w;
+    const moved = layer.drawnFor?.start !== v.start || layer.drawnFor?.end !== v.end;
+    const due = layer.marks <= HEAVY_LAYER_MARKS || now - layer.drawnAt >= HEAVY_LAYER_INTERVAL_MS;
+    clearTimeout(settle.current);
+    if (!current || (moved && (due || rested.current))) {
+      rested.current = false;
+      drawDots(layer, s, v, w, dpr);
+      layer.drawnAt = now;
+    } else if (moved) {
+      settle.current = window.setTimeout(() => {
+        rested.current = true;
+        schedule();
+      }, SETTLE_MS);
     }
-    flush();
-    ctx.globalAlpha = 1;
+    const drawn = layer.view!;
+    ctx.drawImage(
+      layer.canvas,
+      ((drawn.start - v.start) / span) * w,
+      0,
+      (viewSpan(drawn) / span) * w,
+      TRACK.height
+    );
 
     // rings: the members of the set under the table pointer, and the variant under this one
     const ring = (id: number, colour: string) => {
@@ -483,6 +584,7 @@ const AssocTracks = ({
       observer?.disconnect();
       box.removeEventListener("wheel", onWheel);
       cancelAnimationFrame(frame.current);
+      clearTimeout(settle.current);
       frame.current = 0;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -131,7 +131,14 @@ const measureGene = async (browser, gene) => {
   await page.getByRole("tab", { name: "variant association" }).click();
   await page.waitForFunction(() => window.__assocPerf?.ready, null, { timeout: 120000 });
   const readyAt = await page.evaluate(() => performance.now());
-  await page.getByTestId("assoc-row").first().waitFor({ timeout: 120000 });
+  // a gene can have nothing to list under the default filters
+  await page.waitForFunction(
+    () =>
+      document.querySelector('[data-testid="assoc-row"]') !== null ||
+      window.__assocPerf.tableRows === 0,
+    null,
+    { timeout: 120000 }
+  );
   const tableAt = await page.evaluate(() => performance.now());
   await page.waitForLoadState("networkidle").catch(() => {});
   const loaded = await perf(page);
@@ -245,6 +252,11 @@ const measureGene = async (browser, gene) => {
       await page.waitForTimeout(300);
     }
     if (out.click.ms != null) break;
+  }
+
+  if (rowsBefore === 0) {
+    await context.close();
+    return out;
   }
 
   // table scroll, top to wherever sixty wheel steps reach
