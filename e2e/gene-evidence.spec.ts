@@ -4,7 +4,9 @@ import { snapshot } from "./helpers/screenshot";
 // live verification of the new Gene evidence tab (refactor.md §6): navigate to /gene/APOE, switch to
 // the second tab, and confirm the gene burden, expression, mendelian and annotation sub-tabs render real data
 // from the new genetics-results-api via the BFF.
-test("gene evidence tab shows burden, expression, gene-disease and annotation for APOE", async ({ page }) => {
+test("gene evidence tab shows burden, expression, gene-disease and annotation for APOE", async ({
+  page,
+}) => {
   const pageErrors: string[] = [];
   page.on("pageerror", (err) => pageErrors.push(err.message));
 
@@ -67,7 +69,7 @@ test("gene evidence tab shows burden, expression, gene-disease and annotation fo
   );
 
   // variant association: APOE's missense variants sit in many GWAS credible sets. the table opens
-  // on the sets that hold one, over a track of every credible-set variant of the locus
+  // on the sets with a variant in the gene, under a track of every credible-set variant of the locus
   await page.getByRole("tab", { name: "variant association" }).click();
   const rows = page.getByTestId("assoc-row");
   await expect(rows.first()).toContainText("missense", { timeout: 90000 });
@@ -75,12 +77,19 @@ test("gene evidence tab shows burden, expression, gene-disease and annotation fo
   const rowCount = page.getByTestId("assoc-row-count");
   // the padded region has replaced the gene body once the note about it has gone
   await expect(page.getByText("loading the surroundings")).toHaveCount(0, { timeout: 90000 });
-  const codingSets = await rowCount.textContent();
+  const inGene = await rowCount.textContent();
 
-  // a row opens to every variant of its credible set
-  await rows.first().click();
-  await expect(page.getByTestId("assoc-members").getByRole("row").nth(1)).toContainText("19:449");
-  await rows.first().click();
+  // a row opens to every variant of its credible set. the strongest sets are of one variant and
+  // have nothing to open, so the largest come first for this
+  await page.getByRole("columnheader", { name: /^variants/ }).click();
+  const opening = page.locator('[data-testid="assoc-row"]:not(.single)').first();
+  await opening.click();
+  await expect(page.getByTestId("assoc-members")).toContainText(
+    /\d+ (coding |non-coding )?variants? in this credible set/
+  );
+  // after the heading and the column names
+  await expect(page.getByTestId("assoc-members").getByRole("row").nth(2)).toContainText("19:4");
+  await opening.click();
   await expect(page.getByTestId("assoc-members")).toHaveCount(0);
 
   // the pointer is described in the fixed line below the tracks, never in a tooltip
@@ -93,24 +102,36 @@ test("gene evidence tab shows burden, expression, gene-disease and annotation fo
   await expect(page.getByTestId("assoc-readout")).toContainText("APOE · chr19:");
   await expect(page.getByRole("tooltip")).toHaveCount(0);
 
-  // ctrl + wheel zooms the tracks; a plain wheel is left to the page
+  // asking for a kind of variant leaves the sets that have one, and takes nothing off the track
+  const viewCount = page.getByTestId("assoc-view-count");
+  await expect(viewCount).toHaveText(/^[\d,]+ variants in view$/);
+  await page.getByRole("radio", { name: /with a LoF variant PIP/ }).click();
+  await expect(rowCount).not.toHaveText(inGene!);
+  await expect(viewCount).toContainText("in credible sets that pass the filters");
+  await page.getByRole("radio", { name: "credible sets with any variant" }).click();
+  await expect(rowCount).toHaveText(inGene!);
+
+  // a drag selects a region, and the table lists the credible sets with a variant in it
+  await page.mouse.move(...(await at(0.2, 60)));
+  await page.mouse.down();
+  await page.mouse.move(...(await at(0.25, 60)), { steps: 4 });
+  await page.mouse.up();
+  await expect(page.getByTestId("assoc-selection")).toContainText("chr19:");
+  await expect(rowCount).not.toHaveText(inGene!);
+  await page.getByTestId("assoc-selection").getByTestId("CancelIcon").click();
+  await expect(rowCount).toHaveText(inGene!);
+
+  // ctrl + wheel zooms the tracks, and the table follows the view; a plain wheel is left to the page
   await page.mouse.wheel(0, 100);
   await expect(page.getByRole("button", { name: "reset zoom" })).toBeDisabled();
   await page.mouse.move(...(await at(0.5, 60)));
   await page.keyboard.down("Control");
-  await page.mouse.wheel(0, 100);
+  for (let i = 0; i < 8; i++) {
+    await page.mouse.wheel(0, 100);
+  }
   await page.keyboard.up("Control");
   await expect(page.getByRole("button", { name: "reset zoom" })).toBeEnabled();
-
-  // a click in the track narrows the table to the credible sets with a variant there
-  await page.getByRole("checkbox", { name: /only credible sets with a coding variant/ }).uncheck();
-  await expect(rowCount).not.toHaveText(codingSets!);
-  const allSets = await rowCount.textContent();
-  await page.mouse.click(...(await at(0.25, 60)));
-  await expect(page.getByTestId("assoc-selection")).toContainText("chr19:");
-  await expect(rowCount).not.toHaveText(allSets!);
-  await page.getByTestId("assoc-selection").getByTestId("CancelIcon").click();
-  await expect(rowCount).toHaveText(allSets!);
+  await expect(rowCount).not.toHaveText(inGene!);
 
   await page.getByRole("radio", { name: "only pseudo credible sets" }).click();
   await expect(rows.first()).toContainText("pseudo");

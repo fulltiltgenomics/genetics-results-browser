@@ -153,8 +153,8 @@ server on another port than 3000.
 
 `e2e/perf/assoc-perf.mjs` measures the gene page's variant association tab against live data —
 bytes and time to load, frame times while zooming, panning and scrolling the table, and the
-latency of a track click and of opening a row — and `e2e/perf/trace-scroll.mjs` breaks a table
-scroll down by timeline event. Both take `PERF_BASE_URL` and need a dev-mode server, since the
+latency of selecting a region in the track and of opening a row — and
+`e2e/perf/trace-scroll.mjs` breaks a table scroll down by timeline event. Both take `PERF_BASE_URL` and need a dev-mode server, since the
 `window.__assocPerf` counters they read exist only there; see the header of each.
 
 ### Docker images

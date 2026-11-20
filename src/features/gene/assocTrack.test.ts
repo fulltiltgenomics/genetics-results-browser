@@ -4,7 +4,6 @@ import {
   axisTicks,
   bpToX,
   clampView,
-  clickRegion,
   dotRadius,
   dragRegion,
   geneBox,
@@ -15,7 +14,6 @@ import {
   pipToY,
   placeGeneLabels,
   TRACK,
-  variantsInRegion,
   wheelZoomFactor,
   xToBp,
   zoomAt,
@@ -86,24 +84,10 @@ describe("variant dots", () => {
     expect(dotRadius(1, 1)).toBe(one);
   });
 
-  it("selects the same number of pixels around a click at any zoom", () => {
-    const narrow = clickRegion(500, { start: 5000, end: 6000 }, WIDTH);
-    const wide = clickRegion(500, { start: 1000, end: 11000 }, WIDTH);
-    expect(narrow).toEqual({ start: 5495, end: 5505 });
-    expect(wide).toEqual({ start: 5950, end: 6050 });
-  });
-
   it("selects what a drag covers, whichever way it ran", () => {
     const view = { start: 2000, end: 4000 };
     expect(dragRegion(600, 100, view, WIDTH)).toEqual(dragRegion(100, 600, view, WIDTH));
     expect(dragRegion(100, 600, view, WIDTH)).toEqual({ start: 2200, end: 3200 });
-  });
-
-  it("finds the variants inside a region, ends included", () => {
-    const positions = [10, 20, 20, 30, 40];
-    expect(variantsInRegion(positions, { start: 20, end: 30 })).toEqual([1, 4]);
-    expect(variantsInRegion(positions, { start: 21, end: 29 })).toEqual([3, 3]);
-    expect(variantsInRegion(positions, { start: 0, end: 100 })).toEqual([0, 5]);
   });
 
   describe("hitVariant", () => {

@@ -5,8 +5,12 @@ import {
   buildAssocIndex,
   buildAssocRows,
   codingVariantsOfSet,
+  collapseToTopTrait,
   computeAssocView,
+  selectionRange,
+  setsWithVariants,
   sortRows,
+  variantsInRegion,
 } from "./geneAssociation";
 import { buildCredibleSetRows } from "./geneEvidenceExport";
 
@@ -17,7 +21,7 @@ const rows = [
   row({ pos: 44907000, ref: "G", alt: "A", pip: 0.1, most_severe: "intron_variant" }),
   // a second, weaker coding variant in the same set
   row({ pos: 44908822, ref: "C", alt: "T", pip: 0.05, most_severe: "stop_gained" }),
-  // no coding variant of the gene: an intronic set and a neighbour's missense
+  // an intronic set, and one whose coding variant is a neighbouring gene's
   row({
     cs_id: "intronic",
     pos: 44907000,
@@ -52,44 +56,43 @@ const index = buildAssocIndex(built.summary);
 const all: AssocFilters = {
   traitType: "all",
   credibleSetKind: "all",
-  minPip: 0,
-  traitMode: "all",
+  mode: "any",
   search: "",
-  codingOnly: false,
-  selection: null,
 };
 
-const listed = (filters: Partial<AssocFilters>, of = index) => {
-  const view = computeAssocView(of, { ...all, ...filters });
-  return buildAssocRows(of, view);
-};
+const viewOf = (filters: Partial<AssocFilters>, of = index) =>
+  computeAssocView(of, { ...all, ...filters });
+const listed = (filters: Partial<AssocFilters>, of = index) =>
+  buildAssocRows(of, viewOf(filters, of).sets);
 const ids = (filters: Partial<AssocFilters>) =>
   listed(filters).map((r) => built.setIds.csId[r.set]);
+const idsOf = (sets: Int32Array, of = built) => Array.from(sets, (s) => of.setIds.csId[s]);
 
 describe("buildAssocIndex", () => {
-  it("lays the sets' members end to end and marks the gene's coding variants", () => {
+  it("lays the sets' members end to end and counts each set's coding variants, of any gene", () => {
     expect(index.nSets).toBe(4);
     expect(Array.from(index.variantPos)).toEqual([44900000, 44907000, 44908684, 44908822]);
     expect(Array.from(index.memberStart)).toEqual([0, 3, 4, 5, 6]);
-    // the neighbour's missense at 44900000 is coding, but not of this gene
-    expect(Array.from(index.variantCodingInGene)).toEqual([0, 0, 1, 1]);
     expect(Array.from(index.leadPip)).toEqual([0.9, 0.6, 0.7, 0.3]);
-  });
-
-  it("keeps PIPs exact, so a threshold equal to one keeps it", () => {
-    const sevenTenths = buildAssocIndex(summaryOf([row({ pip: 0.7 })]).summary);
-    expect(listed({ minPip: 0.7 }, sevenTenths)).toHaveLength(1);
+    // the neighbour's missense counts for the set it is in, but is not the viewed gene's
+    expect(Array.from(index.nCoding)).toEqual([2, 0, 1, 1]);
+    expect(Array.from(index.codingPip)).toEqual([0.9, 0, 0.7, 0.3]);
+    expect(Array.from(index.variantCodingInGene)).toEqual([0, 0, 1, 1]);
+    expect(Array.from(index.variantNSets)).toEqual([1, 2, 2, 1]);
+    expect(Array.from(index.variantMaxPip)).toEqual([0.7, 0.6, 0.9, 0.05]);
   });
 });
 
 describe("computeAssocView", () => {
-  it("lists every set by default, and with the coding filter only those with a coding variant of the gene", () => {
+  it("passes every set by default, and otherwise those with a strong enough variant of the kind asked for", () => {
     expect(ids({})).toEqual(["chr19_44908684_T_C", "intronic", "neighbour", "meta"]);
-    expect(ids({ codingOnly: true })).toEqual(["chr19_44908684_T_C", "meta"]);
+    expect(ids({ mode: "coding" })).toEqual(["chr19_44908684_T_C", "neighbour", "meta"]);
+    // the only LoF variant has a PIP of exactly the threshold, which does not count
+    expect(ids({ mode: "lof" })).toEqual([]);
   });
 
   it("describes a row by its lead variant and counts its coding variants", () => {
-    const [first, , , meta] = listed({});
+    const [first, , neighbour, meta] = listed({});
     expect(first).toMatchObject({
       resource: "finngen",
       dataset: "FinnGen_R14",
@@ -107,7 +110,12 @@ describe("computeAssocView", () => {
       nMembersLoaded: 3,
       nCoding: 2,
       codingPip: 0.9,
+      codingOtherGene: null,
+      moreTraits: 0,
+      selectedPip: null,
+      leadSide: 0,
     });
+    expect(neighbour).toMatchObject({ codingPip: 0.7, codingOtherGene: "TOMM40" });
     expect(meta).toMatchObject({
       traitName: "LDL cholesterol",
       traitType: "quantitative",
@@ -143,6 +151,9 @@ describe("computeAssocView", () => {
     // the dataset's display name and the trait code both match
     expect(ids({ search: "finngen+mvp" })).toEqual(["meta"]);
     expect(ids({ search: "g6_alz" })).toHaveLength(3);
+    // every word has to match, in the trait or in the dataset, in any order
+    expect(ids({ search: "cholesterol mvp" })).toEqual(["meta"]);
+    expect(ids({ search: "ldl g6_alz" })).toEqual([]);
   });
 
   it("passes a set of unknown trait type only when the type is not filtered", () => {
@@ -154,101 +165,132 @@ describe("computeAssocView", () => {
     expect(listed({ traitType: "quantitative" }, unknown)).toHaveLength(0);
   });
 
-  it("applies the PIP threshold to any member, or with the coding filter to the coding ones", () => {
-    expect(ids({ minPip: 0.65 })).toEqual(["chr19_44908684_T_C", "neighbour"]);
-    expect(ids({ minPip: 0.31, codingOnly: true })).toEqual(["chr19_44908684_T_C"]);
-    expect(listed({ minPip: 0.05 })[0]).toMatchObject({ nCoding: 2, codingPip: 0.9 });
-    expect(listed({ minPip: 0.06 })[0]).toMatchObject({ nCoding: 1 });
-    expect(ids({ minPip: 0.95 })).toEqual([]);
+  it("takes nothing off the track: it says which variants to fade and what the filters leave of each", () => {
+    const everything = viewOf({});
+    expect(Array.from(everything.variantPasses)).toEqual([1, 1, 1, 1]);
+    expect(Array.from(everything.variantPassingSets)).toEqual(Array.from(index.variantNSets));
+    expect(Array.from(everything.variantPassingPip)).toEqual(Array.from(index.variantMaxPip));
+
+    // the intronic variant stays for the passing set it is in, where its PIP is 0.1: its own
+    // set no longer passes
+    const coding = viewOf({ mode: "coding" });
+    expect(Array.from(coding.variantPasses)).toEqual([1, 1, 1, 1]);
+    expect(Array.from(coding.variantPassingSets)).toEqual([1, 1, 2, 1]);
+    expect(Array.from(coding.variantPassingPip)).toEqual([0.7, 0.1, 0.9, 0.05]);
+
+    // a selection fades what shares no set with it: the neighbour's variant here, while the
+    // intronic one stays for the set it shares with the selected stop-gained variant
+    const selected = viewOf({ selected: [3, 4] });
+    expect(Array.from(selected.variantPasses)).toEqual([0, 1, 1, 1]);
+    expect(Array.from(selected.variantPassingSets)).toEqual([1, 2, 2, 1]);
+    expect(selected.sets).toHaveLength(4);
+
+    const searched = viewOf({ search: "ldl" });
+    expect(Array.from(searched.variantPasses)).toEqual([0, 0, 1, 0]);
+    expect(Array.from(searched.variantPassingSets)).toEqual([0, 0, 1, 0]);
+    expect(Array.from(searched.variantPassingPip)).toEqual([0, 0, 0.3, 0]);
+  });
+});
+
+describe("the table's scope", () => {
+  const every = viewOf({}).sets;
+  const there = (start: number, end: number) =>
+    idsOf(setsWithVariants(index, every, variantsInRegion(index.variantPos, { start, end })));
+
+  it("keeps the sets with a variant inside a region, ends included", () => {
+    expect(there(44900000, 44900000)).toEqual(["neighbour"]);
+    expect(there(44907000, 44908684)).toEqual(["chr19_44908684_T_C", "intronic", "meta"]);
+    expect(there(44908685, 44908821)).toEqual([]);
+    expect(there(1, 50000000)).toHaveLength(4);
   });
 
-  it("narrows to the sets with a qualifying member inside the selection", () => {
-    expect(ids({ selection: { start: 44906990, end: 44907010 } })).toEqual([
-      "chr19_44908684_T_C",
-      "intronic",
+  it("keeps the sets of one selected variant, and of none for a variant it does not hold", () => {
+    const variant = selectionRange(index, {
+      kind: "variant",
+      id: "19:44908684:T:C",
+      pos: 44908684,
+    });
+    expect(variant).toEqual([2, 3]);
+    expect(idsOf(setsWithVariants(index, every, variant))).toEqual(["chr19_44908684_T_C", "meta"]);
+    const absent = selectionRange(index, { kind: "variant", id: "19:44908684:T:G", pos: 44908684 });
+    expect(idsOf(setsWithVariants(index, every, absent))).toEqual([]);
+  });
+
+  it("finds the variants inside a region, ends included", () => {
+    const positions = [10, 20, 20, 30, 40];
+    expect(variantsInRegion(positions, { start: 20, end: 30 })).toEqual([1, 4]);
+    expect(variantsInRegion(positions, { start: 21, end: 29 })).toEqual([3, 3]);
+    expect(variantsInRegion(positions, { start: 0, end: 100 })).toEqual([0, 5]);
+  });
+
+  it("tells a row whose lead lies outside the track's view", () => {
+    const side = (start: number, end: number) =>
+      buildAssocRows(index, every, { region: { start, end } }).map((r) => r.leadSide);
+    expect(side(44905000, 44908000)).toEqual([1, 0, -1, 1]);
+    // a table about one variant tells that variant's PIP in each set as well
+    const about = buildAssocRows(index, every, {
+      selectedVariant: 1,
+      region: { start: 44905000, end: 44908000 },
+    });
+    expect(about.map((r) => r.selectedPip)).toEqual([0.1, 0.6, -1, -1]);
+    expect(about.map((r) => r.leadSide)).toEqual([1, 0, -1, 1]);
+  });
+});
+
+describe("collapseToTopTrait", () => {
+  const shared = summaryOf([
+    row({ trait: "Dementia", trait_original: "F5_DEMENTIA", cs_id: "a", pip: 0.4 }),
+    row({ cs_id: "b", pip: 0.9, cs_size: 3 }),
+    // same PIP as the strongest, weaker p-value
+    row({ trait: "Memory_loss", trait_original: "MEM", cs_id: "c", pip: 0.9, mlog10p: 20 }),
+    row({ resource: "open_targets", dataset: "Open_Targets", cs_id: "d", pip: 0.3 }),
+    // led by its own variant, and holding the others' lead at a PIP above theirs
+    row({
+      cs_id: "e",
+      pos: 44907000,
+      ref: "G",
+      alt: "A",
+      pip: 0.95,
+      most_severe: "intron_variant",
+    }),
+    row({ cs_id: "e", pip: 0.92 }),
+  ]);
+  const sharedIndex = buildAssocIndex(shared.summary);
+  const every = computeAssocView(sharedIndex, all).sets;
+
+  it("keeps the set each lead variant is strongest in, per dataset, and counts the rest", () => {
+    const { sets, more } = collapseToTopTrait(sharedIndex, every, null);
+    expect(idsOf(sets, shared)).toEqual(["b", "d", "e"]);
+    expect(Array.from(sets, (s) => more.get(s))).toEqual([2, 0, 0]);
+    const rows = buildAssocRows(sharedIndex, sets, { more });
+    expect(rows.map((r) => r.moreTraits)).toEqual([2, 0, 0]);
+  });
+
+  it("picks by the selected variant's own PIP when the table is about one variant", () => {
+    // the missense variant: e holds it at 0.92, above b's 0.9, though it does not lead e
+    const { sets, more } = collapseToTopTrait(sharedIndex, every, 1);
+    expect(idsOf(sets, shared)).toEqual(["d", "e"]);
+    expect(Array.from(sets, (s) => more.get(s))).toEqual([0, 3]);
+  });
+
+  it("picks among the sets it is given", () => {
+    const some = every.filter((s) => shared.setIds.csId[s] !== "b");
+    expect(idsOf(collapseToTopTrait(sharedIndex, some, null).sets, shared)).toEqual([
+      "c",
+      "d",
+      "e",
     ]);
-    // both ends are part of the selection
-    expect(ids({ selection: { start: 44908822, end: 44908822 } })).toEqual(["chr19_44908684_T_C"]);
-    expect(ids({ selection: { start: 44908685, end: 44908821 } })).toEqual([]);
-    // the member inside the selection has to be the one that clears the threshold
-    expect(ids({ selection: { start: 44906990, end: 44907010 }, minPip: 0.5 })).toEqual([
-      "intronic",
-    ]);
-    // and with the coding filter, a coding variant of the gene
-    expect(ids({ selection: { start: 44906990, end: 44907010 }, codingOnly: true })).toEqual([]);
-  });
-
-  it("says what the coding filter and the selection are each holding back", () => {
-    const view = computeAssocView(index, {
-      ...all,
-      codingOnly: true,
-      selection: { start: 44906990, end: 44907010 },
-    });
-    expect(view.rows).toHaveLength(0);
-    expect(view.rowsWithoutCodingOnly).toBe(2);
-    expect(view.rowsWithoutSelection).toBe(2);
-  });
-
-  it("gives the track every variant of the sets that exist, and marks those the table lists", () => {
-    const everything = computeAssocView(index, all);
-    expect(Array.from(everything.variantNSets)).toEqual([1, 2, 2, 1]);
-    expect(Array.from(everything.variantMaxPip)).toEqual([0.7, 0.6, 0.9, 0.05]);
-    expect(Array.from(everything.variantInTable)).toEqual([1, 1, 1, 1]);
-
-    // the coding filter and the selection choose rows; they take nothing off the track
-    const coding = computeAssocView(index, { ...all, codingOnly: true });
-    expect(Array.from(coding.variantNSets)).toEqual([1, 2, 2, 1]);
-    expect(Array.from(coding.variantInTable)).toEqual([0, 1, 1, 1]);
-
-    // the search says which sets exist at all
-    const searched = computeAssocView(index, { ...all, search: "ldl" });
-    expect(Array.from(searched.variantNSets)).toEqual([0, 0, 1, 0]);
-    expect(Array.from(searched.variantMaxPip)).toEqual([0, 0, 0.3, 0]);
-  });
-
-  describe("several traits of one dataset sharing a variant", () => {
-    const shared = summaryOf([
-      row({ trait: "Dementia", trait_original: "F5_DEMENTIA", cs_id: "a", pip: 0.4 }),
-      row({ cs_id: "b", pip: 0.9, cs_size: 3 }),
-      // same PIP as the strongest, weaker p-value
-      row({ trait: "Memory_loss", trait_original: "MEM", cs_id: "c", pip: 0.9, mlog10p: 20 }),
-      row({ resource: "open_targets", dataset: "Open_Targets", cs_id: "d", pip: 0.3 }),
-      // strongest for its own lead, which no other set of the dataset leads with
-      row({
-        cs_id: "e",
-        pos: 44907000,
-        ref: "G",
-        alt: "A",
-        pip: 0.2,
-        most_severe: "intron_variant",
-      }),
-    ]);
-    const sharedIndex = buildAssocIndex(shared.summary);
-    const top = (filters: Partial<AssocFilters>) =>
-      listed({ traitMode: "top", ...filters }, sharedIndex).map((r) => shared.setIds.csId[r.set]);
-
-    it("keeps the set each coding variant is strongest in, per dataset, with the coding filter", () => {
-      expect(top({ codingOnly: true })).toEqual(["b", "d"]);
-    });
-
-    it("keeps the set each lead variant is strongest in, per dataset, without it", () => {
-      expect(top({})).toEqual(["b", "d", "e"]);
-    });
-
-    it("picks among what the other filters keep", () => {
-      expect(top({ search: "dementia" })).toEqual(["a"]);
-    });
   });
 });
 
 describe("codingVariantsOfSet", () => {
-  it("lists the gene's coding variants at or above the threshold, strongest first", () => {
-    expect(codingVariantsOfSet(index, 0, 0)).toEqual([
+  it("lists a set's coding variants, strongest first", () => {
+    expect(codingVariantsOfSet(index, 0)).toEqual([
       { variant: "19:44908684:T:C", pip: 0.9 },
       { variant: "19:44908822:C:T", pip: 0.05 },
     ]);
-    expect(codingVariantsOfSet(index, 0, 0.06)).toHaveLength(1);
-    expect(codingVariantsOfSet(index, 2, 0)).toEqual([]);
+    expect(codingVariantsOfSet(index, 1)).toEqual([]);
+    expect(codingVariantsOfSet(index, 2)).toEqual([{ variant: "19:44900000:T:C", pip: 0.7 }]);
   });
 });
 
@@ -296,7 +338,7 @@ describe("sortRows", () => {
 
 describe("buildCredibleSetRows", () => {
   it("exports one row per credible set with its lead and every coding variant", () => {
-    const exported = buildCredibleSetRows("APOE", listed({}), index, built.setIds.csId, 0);
+    const exported = buildCredibleSetRows("APOE", listed({}), index, built.setIds.csId);
     expect(exported[0]).toMatchObject({
       gene: "APOE",
       trait: "Alzheimer disease",

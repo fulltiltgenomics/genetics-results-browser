@@ -1,6 +1,6 @@
 import type { GeneModel } from "@/types/types.gene";
 import { layoutGeneModel, ModelExon } from "./geneAnnotation";
-import type { Region } from "./geneAssociation";
+import { variantsInRegion, type Region } from "./geneAssociation";
 
 /**
  * Geometry of the variant association tracks: the view and its gestures, where a dot or a gene
@@ -35,8 +35,6 @@ export const MIN_VIEW_SPAN = 200;
 const DOT_RADIUS = { min: 3, max: 10 };
 // how far from a dot's edge the pointer still reads it
 const HIT_SLOP = 3;
-// a click selects this many pixels either side of the pointer, whatever the zoom
-const CLICK_HALF_WIDTH = 5;
 // pointer travel beyond which a press is a drag rather than a click
 export const DRAG_THRESHOLD = 4;
 const LABEL_GAP = 8;
@@ -80,36 +78,10 @@ export const dotRadius = (nSets: number, maxNSets: number): number => {
   return Math.sqrt(DOT_RADIUS.min ** 2 + share * (DOT_RADIUS.max ** 2 - DOT_RADIUS.min ** 2));
 };
 
-export const clickRegion = (x: number, view: Region, width: number): Region => ({
-  start: Math.floor(xToBp(x - CLICK_HALF_WIDTH, view, width)),
-  end: Math.ceil(xToBp(x + CLICK_HALF_WIDTH, view, width)),
-});
-
 export const dragRegion = (x0: number, x1: number, view: Region, width: number): Region => ({
   start: Math.floor(xToBp(Math.min(x0, x1), view, width)),
   end: Math.ceil(xToBp(Math.max(x0, x1), view, width)),
 });
-
-// [from, to) of the position-sorted variants inside the region
-export const variantsInRegion = (
-  positions: ArrayLike<number>,
-  region: Region
-): [number, number] => {
-  const bound = (pos: number): number => {
-    let lo = 0;
-    let hi = positions.length;
-    while (lo < hi) {
-      const mid = (lo + hi) >> 1;
-      if (positions[mid] < pos) {
-        lo = mid + 1;
-      } else {
-        hi = mid;
-      }
-    }
-    return lo;
-  };
-  return [bound(region.start), bound(region.end + 1)];
-};
 
 export interface DotData {
   positions: ArrayLike<number>;

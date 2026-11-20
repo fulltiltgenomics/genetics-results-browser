@@ -17,8 +17,10 @@ export type BurdenMaskMode = "top" | "all";
 export type BurdenView = "table" | "plot";
 // fine-mapped credible sets, or the approximate ones built from summary statistics and LD
 export type CredibleSetKind = "all" | "susie" | "pseudo";
-// every credible set, or per key variant and dataset only the one the variant is strongest in
+// a table row per credible set, or per variant and dataset only the set the variant is strongest in
 export type AssocTraitMode = "all" | "top";
+// the variant a credible set has to have to pass: any, a coding one (LoF included), or a LoF one
+export type AssocVariantMode = "any" | "coding" | "lof";
 
 // view preferences of the gene evidence tab, kept across gene changes and page reloads
 interface GeneEvidenceState {
@@ -29,9 +31,7 @@ interface GeneEvidenceState {
   assocTraitType: BurdenTraitType;
   assocCredibleSetKind: CredibleSetKind;
   assocTraitMode: AssocTraitMode;
-  assocMinPip: number;
-  // only credible sets holding a coding variant of the viewed gene
-  assocCodingOnly: boolean;
+  assocVariantMode: AssocVariantMode;
   setActiveTab: (value: GeneEvidenceTabName) => void;
   setBurdenTraitType: (value: BurdenTraitType) => void;
   setBurdenMaskMode: (value: BurdenMaskMode) => void;
@@ -39,8 +39,7 @@ interface GeneEvidenceState {
   setAssocTraitType: (value: BurdenTraitType) => void;
   setAssocCredibleSetKind: (value: CredibleSetKind) => void;
   setAssocTraitMode: (value: AssocTraitMode) => void;
-  setAssocMinPip: (value: number) => void;
-  setAssocCodingOnly: (value: boolean) => void;
+  setAssocVariantMode: (value: AssocVariantMode) => void;
 }
 
 export const useGeneEvidenceStore = create<GeneEvidenceState>()(
@@ -53,8 +52,7 @@ export const useGeneEvidenceStore = create<GeneEvidenceState>()(
       assocTraitType: "all",
       assocCredibleSetKind: "all",
       assocTraitMode: "all",
-      assocMinPip: 0.05,
-      assocCodingOnly: true,
+      assocVariantMode: "any",
       setActiveTab: (value) => set({ activeTab: value }),
       setBurdenTraitType: (value) => set({ burdenTraitType: value }),
       setBurdenMaskMode: (value) => set({ burdenMaskMode: value }),
@@ -62,8 +60,7 @@ export const useGeneEvidenceStore = create<GeneEvidenceState>()(
       setAssocTraitType: (value) => set({ assocTraitType: value }),
       setAssocCredibleSetKind: (value) => set({ assocCredibleSetKind: value }),
       setAssocTraitMode: (value) => set({ assocTraitMode: value }),
-      setAssocMinPip: (value) => set({ assocMinPip: value }),
-      setAssocCodingOnly: (value) => set({ assocCodingOnly: value }),
+      setAssocVariantMode: (value) => set({ assocVariantMode: value }),
     }),
     {
       name: "gene-evidence-storage",

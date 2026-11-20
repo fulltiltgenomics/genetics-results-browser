@@ -174,12 +174,15 @@ const measure = async (browser, gene) => {
   const cy = box.y + box.height - 30;
   await startRecording(page);
   await page.mouse.move(cx, cy);
+  // the canvas tracks pan only with the key held; the older SVG model pans on a plain drag
+  if (usesShared) await page.keyboard.down("Control");
   await page.mouse.down();
   for (let i = 0; i < 120; i++) {
     await page.mouse.move(cx + Math.sin((i / 120) * 2 * Math.PI) * box.width * 0.3, cy);
     await page.waitForTimeout(8);
   }
   await page.mouse.up();
+  if (usesShared) await page.keyboard.up("Control");
   out.pan = await stopRecording(page);
 
   await context.close();

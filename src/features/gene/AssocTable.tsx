@@ -1,4 +1,4 @@
-import { memo, useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Typography } from "@mui/material";
 import { styled } from "@mui/material/styles";
 import { useCredibleSetMembers } from "@/store/serverQuery";
@@ -54,6 +54,8 @@ interface Column {
   // shown on hover; a text column's own text by default, since its width can cut it short
   title?: (r: AssocRow) => string;
   sortDescFirst?: boolean;
+  // shown only while the table keeps the top trait only
+  when?: "collapsed";
 }
 
 const COLUMNS: Column[] = [
@@ -73,6 +75,20 @@ const COLUMNS: Column[] = [
   },
   { id: "traitName", header: "trait", width: "minmax(160px, 2.6fr)", value: (r) => r.traitName },
   {
+    id: "moreTraits",
+    header: "more",
+    width: "44px",
+    when: "collapsed",
+    sortDescFirst: true,
+    value: (r) => r.moreTraits,
+    text: (r) => (r.moreTraits > 0 ? `+${r.moreTraits}` : ""),
+    className: () => "muted",
+    title: (r) =>
+      r.moreTraits > 0
+        ? `${r.moreTraits} more credible set${r.moreTraits === 1 ? "" : "s"} of this dataset for the same variant, of other traits; untick "top trait only" to list them`
+        : "",
+  },
+  {
     id: "kind",
     header: "credible set",
     width: "84px",
@@ -81,16 +97,46 @@ const COLUMNS: Column[] = [
     title: (r) => (r.pseudo ? PSEUDO_CS_TOOLTIP : ""),
   },
   {
-    id: "variant",
-    header: "lead variant",
-    width: "minmax(130px, 1.3fr)",
-    // by position, which the id's text order only approximates
-    value: (r) => r.leadPos,
-    text: (r) => (r.nMembersLoaded < r.csSize ? `${r.leadVariant} †` : r.leadVariant),
+    id: "csSize",
+    header: "variants",
+    width: "118px",
+    sortDescFirst: true,
+    value: (r) => r.csSize,
+    // the coding count is of the variants inside the loaded region, so a floor for a set that
+    // reaches beyond it
+    text: (r) =>
+      r.nMembersLoaded < r.csSize
+        ? `${r.csSize} (≥${r.nCoding} coding)`
+        : r.nCoding > 0
+          ? `${r.csSize} (${r.nCoding} coding)`
+          : String(r.csSize),
     title: (r) =>
       r.nMembersLoaded < r.csSize
-        ? `${r.leadVariant} — the strongest of the ${r.nMembersLoaded} of ${r.csSize} variants inside the loaded region; open the row for the whole set`
-        : r.leadVariant,
+        ? `${r.csSize} variants in the credible set; ${r.nMembersLoaded} of them are inside the loaded region, ${r.nCoding} of those coding`
+        : `${r.csSize} variants in the credible set, ${r.nCoding} of them coding`,
+  },
+  {
+    id: "selectedPip",
+    header: "PIP of selected",
+    width: "104px",
+    numeric: true,
+    sortDescFirst: true,
+    value: (r) => r.selectedPip ?? undefined,
+    text: (r) => precision3(r.selectedPip),
+  },
+  {
+    id: "variant",
+    header: "lead variant",
+    width: "minmax(140px, 1.3fr)",
+    // by position, which the id's text order only approximates
+    value: (r) => r.leadPos,
+    text: (r) =>
+      r.leadSide < 0 ? `← ${r.leadVariant}` : r.leadSide > 0 ? `${r.leadVariant} →` : r.leadVariant,
+    className: (r) => (r.leadSide === 0 ? "" : "muted"),
+    title: (r) =>
+      r.leadSide === 0
+        ? r.leadVariant
+        : `${r.leadVariant} lies to the ${r.leadSide < 0 ? "left" : "right"} of the current view`,
   },
   {
     id: "consequence",
@@ -106,6 +152,22 @@ const COLUMNS: Column[] = [
     sortDescFirst: true,
     value: (r) => r.leadPip,
     text: (r) => precision3(r.leadPip),
+  },
+  {
+    id: "codingPip",
+    header: "coding PIP",
+    width: "126px",
+    numeric: true,
+    sortDescFirst: true,
+    value: (r) => r.codingPip ?? undefined,
+    // the gene is named where the coding variant is another gene's
+    text: (r) =>
+      r.codingOtherGene
+        ? `${r.codingOtherGene} ${precision3(r.codingPip)}`
+        : precision3(r.codingPip),
+    className: (r) => (r.codingOtherGene ? "muted" : ""),
+    title: (r) =>
+      r.codingOtherGene ? `the strongest coding variant of the set is in ${r.codingOtherGene}` : "",
   },
   {
     // sorted on -log10(p): p underflows to 0 and would tie the strongest associations
@@ -128,26 +190,10 @@ const COLUMNS: Column[] = [
     text: (r) => precision3(r.leadBeta),
     className: (r) => (!r.leadBeta ? "" : r.leadBeta > 0 ? "up" : "down"),
   },
-  { id: "csSize", header: "variants", width: "66px", numeric: true, value: (r) => r.csSize },
-  {
-    id: "nCoding",
-    header: "coding",
-    width: "58px",
-    numeric: true,
-    sortDescFirst: true,
-    value: (r) => r.nCoding,
-    text: (r) => (r.nCoding ? String(r.nCoding) : ""),
-  },
-  {
-    id: "codingPip",
-    header: "coding PIP",
-    width: "82px",
-    numeric: true,
-    sortDescFirst: true,
-    value: (r) => r.codingPip ?? undefined,
-    text: (r) => precision3(r.codingPip),
-  },
 ];
+
+// a set of one variant has nothing to open
+const opens = (r: AssocRow): boolean => r.csSize > 1;
 
 const cellText = (c: Column, r: AssocRow): string => {
   const value = c.text ? c.text(r) : c.value(r);
@@ -163,7 +209,7 @@ const cellTitle = (c: Column, r: AssocRow): string =>
  * Measured on a fast scroll, new nodes and changed attributes had the browser resolve styles for
  * longer than the script ran; a changed text node is only laid out.
  */
-const createRowElement = (): HTMLDivElement => {
+const createRowElement = (columns: Column[]): HTMLDivElement => {
   const el = document.createElement("div");
   el.className = "row";
   el.setAttribute("role", "row");
@@ -173,7 +219,7 @@ const createRowElement = (): HTMLDivElement => {
   toggle.setAttribute("role", "cell");
   toggle.setAttribute("aria-hidden", "true");
   el.append(toggle);
-  for (let i = 0; i < COLUMNS.length; i++) {
+  for (let i = 0; i < columns.length; i++) {
     const cell = document.createElement("span");
     cell.setAttribute("role", "cell");
     cell.append("");
@@ -192,8 +238,11 @@ const createPlaceElement = (row: HTMLElement): HTMLDivElement => {
   return el;
 };
 
-const fillRow = (el: HTMLElement, r: AssocRow) => {
-  COLUMNS.forEach((c, i) => {
+const fillRow = (el: HTMLElement, r: AssocRow, columns: Column[]) => {
+  if (el.classList.contains("single") === opens(r)) {
+    el.classList.toggle("single", !opens(r));
+  }
+  columns.forEach((c, i) => {
     const cell = el.children[i + 1] as HTMLElement;
     (cell.firstChild as Text).data = cellText(c, r);
     const className = `${c.numeric ? "num" : ""} ${c.className?.(r) ?? ""}`.trim();
@@ -210,29 +259,31 @@ interface Sort {
 
 const HEADER_TITLES: Record<string, string> = {
   variant:
-    "the variant with the highest PIP in the credible set, and what the next four columns describe",
-  csSize: "number of variants in the credible set",
-  nCoding: "coding variants of this gene in the credible set at or above the PIP threshold",
-  codingPip: "the highest PIP among those coding variants",
+    "the variant with the highest PIP in the credible set; consequence, PIP, p-value and beta are its",
+  csSize:
+    "number of variants in the credible set, and how many of them are coding (LoF or other coding, in any gene)",
+  codingPip:
+    "the highest PIP among the credible set's coding variants, with the gene where it is not this one",
+  selectedPip:
+    "the PIP the selected variant has in the credible set; empty until a variant is clicked in the track",
+  moreTraits: "credible sets of other traits this row stands for",
 };
 
-const GRID = `24px ${COLUMNS.map((c) => c.width).join(" ")}`;
-
-// the gene's coding evidence first, then everything else by its lead variant
-const DEFAULT_SORTING: Sort[] = [
-  { id: "codingPip", desc: true },
-  { id: "pip", desc: true },
-];
+// the order the table opens in, and the one a table about one variant opens in
+const DEFAULT_SORT: Sort = { id: "codingPip", desc: true };
+const SELECTED_SORT: Sort = { id: "selectedPip", desc: true };
+// rows that tie on the sorted column go by their lead variant, strongest first; with it the
+// opening order is coding evidence first and everything else by its lead
+const TIE_BREAK: Sort = { id: "pip", desc: true };
+const columnOf = (id: string): Column => COLUMNS.find((c) => c.id === id)!;
 
 const SetMembers = ({
   row,
   csId,
-  gene,
   top,
 }: {
   row: AssocRow;
   csId: string | undefined;
-  gene: string;
   top: number;
 }) => {
   const members = useCredibleSetMembers(row.resource, row.traitCode, csId);
@@ -246,6 +297,20 @@ const SetMembers = ({
       })
       .sort((a, b) => b.pip - a.pip);
   }, [members.data]);
+  // the coding variants first, under their own heading, where the set has any
+  const groups = useMemo(() => {
+    const count = (n: number, kind: string) =>
+      `${n.toLocaleString()} ${kind}variant${n === 1 ? "" : "s"} in this credible set`;
+    const coding = sorted.filter((m) => m.most_severe && isCoding(m.most_severe));
+    if (coding.length === 0) {
+      return [{ label: count(sorted.length, ""), members: sorted }];
+    }
+    const rest = sorted.filter((m) => !coding.includes(m));
+    return [
+      { label: count(coding.length, "coding "), members: coding },
+      { label: count(rest.length, "non-coding "), members: rest },
+    ].filter((group) => group.members.length > 0);
+  }, [sorted]);
   return (
     <div className="members" data-testid="assoc-members" style={{ top }}>
       {members.isError ? (
@@ -254,40 +319,41 @@ const SetMembers = ({
         <span className="muted">loading {row.csSize} variants…</span>
       ) : (
         <table>
-          <thead>
-            <tr>
-              <th>variant</th>
-              <th>consequence</th>
-              <th>gene</th>
-              <th className="num">PIP</th>
-              <th className="num">p-value</th>
-              <th className="num">beta</th>
-              <th className="num">se</th>
-              <th className="num">AF</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sorted.map((m) => (
-              <tr
-                key={`${m.pos}:${m.ref}:${m.alt}`}
-                className={
-                  m.gene_most_severe === gene && m.most_severe && isCoding(m.most_severe)
-                    ? "coding"
-                    : undefined
-                }>
-                <td>
-                  {m.chr}:{m.pos}:{m.ref}:{m.alt}
-                </td>
-                <td>{m.most_severe ? cleanConsequence(m.most_severe) : ""}</td>
-                <td>{m.gene_most_severe ?? ""}</td>
-                <td className="num">{precision3(m.pip)}</td>
-                <td className="num">{m.mlog10p == null ? "" : pValRepr(m.mlog10p)}</td>
-                <td className="num">{precision3(m.beta)}</td>
-                <td className="num">{precision3(m.se)}</td>
-                <td className="num">{precision3(m.aaf)}</td>
+          {groups.map((group, g) => (
+            <tbody key={group.label}>
+              <tr>
+                <th colSpan={8} className="group">
+                  {group.label}
+                </th>
               </tr>
-            ))}
-          </tbody>
+              {g === 0 && (
+                <tr>
+                  <th>variant</th>
+                  <th>consequence</th>
+                  <th>gene</th>
+                  <th className="num">PIP</th>
+                  <th className="num">p-value</th>
+                  <th className="num">beta</th>
+                  <th className="num">se</th>
+                  <th className="num">AF</th>
+                </tr>
+              )}
+              {group.members.map((m) => (
+                <tr key={`${m.pos}:${m.ref}:${m.alt}`}>
+                  <td>
+                    {m.chr}:{m.pos}:{m.ref}:{m.alt}
+                  </td>
+                  <td>{m.most_severe ? cleanConsequence(m.most_severe) : ""}</td>
+                  <td>{m.gene_most_severe ?? ""}</td>
+                  <td className="num">{precision3(m.pip)}</td>
+                  <td className="num">{m.mlog10p == null ? "" : pValRepr(m.mlog10p)}</td>
+                  <td className="num">{precision3(m.beta)}</td>
+                  <td className="num">{precision3(m.se)}</td>
+                  <td className="num">{precision3(m.aaf)}</td>
+                </tr>
+              ))}
+            </tbody>
+          ))}
         </table>
       )}
     </div>
@@ -295,21 +361,34 @@ const SetMembers = ({
 };
 
 const TableHeader = memo(
-  ({ sorting, onSort }: { sorting: Sort[]; onSort: (id: string) => void }) => (
+  ({
+    columns,
+    sort,
+    idle,
+    onSort,
+  }: {
+    columns: Column[];
+    sort: Sort;
+    // a column that has nothing to show for now
+    idle: string | null;
+    onSort: (id: string) => void;
+  }) => (
     <div role="row" className="header">
       <span role="columnheader" />
-      {COLUMNS.map((c) => {
-        const sort = sorting.find((s) => s.id === c.id);
+      {columns.map((c) => {
+        const sorted = c.id === sort.id;
         return (
           <span
             key={c.id}
             role="columnheader"
-            className={c.numeric ? "num" : undefined}
+            className={
+              `${c.numeric ? "num" : ""} ${c.id === idle ? "idle" : ""}`.trim() || undefined
+            }
             title={HEADER_TITLES[c.id]}
-            aria-sort={sort ? (sort.desc ? "descending" : "ascending") : "none"}
+            aria-sort={sorted ? (sort.desc ? "descending" : "ascending") : "none"}
             onClick={() => onSort(c.id)}>
             {c.header}
-            <span className="sort">{sort ? (sort.desc ? "▼" : "▲") : ""}</span>
+            <span className="sort">{sorted ? (sort.desc ? "▼" : "▲") : ""}</span>
           </span>
         );
       })}
@@ -343,23 +422,25 @@ interface Slot {
  */
 const WindowedRows = ({
   rows,
+  columns,
   scroller,
   open,
   csIds,
-  gene,
   onToggle,
   onHover,
 }: {
   rows: AssocRow[];
+  columns: Column[];
   scroller: HTMLDivElement;
   open: ReadonlySet<string>;
   csIds: string[] | undefined;
-  gene: string;
   onToggle: (key: string) => void;
   onHover: (set: number | null) => void;
 }) => {
   const layer = useRef<HTMLDivElement>(null);
   const slots = useRef<Slot[]>([]);
+  const slotColumns = useRef<Column[] | null>(null);
+  const shownKeys = useRef<string[]>([]);
   const scrolledAt = useRef(0);
   const geometry = useMemo<RowGeometry>(() => {
     const indices: number[] = [];
@@ -376,12 +457,13 @@ const WindowedRows = ({
   const place = useCallback(() => {
     const size = windowSize(scroller.clientHeight, ROW_HEIGHT, OVERSCAN);
     const pool = slots.current;
-    if (pool.length !== size) {
+    if (pool.length !== size || slotColumns.current !== columns) {
       // the pool's size is the modulus: with another one every row moves to another element
+      slotColumns.current = columns;
       pool.forEach((slot) => slot.place.remove());
       pool.length = 0;
       for (let i = 0; i < size; i++) {
-        const el = createRowElement();
+        const el = createRowElement(columns);
         pool.push({
           el,
           place: createPlaceElement(el),
@@ -409,7 +491,7 @@ const WindowedRows = ({
       const row = rows[i];
       if (slot.row !== row) {
         slot.row = row;
-        fillRow(slot.el, row);
+        fillRow(slot.el, row, columns);
         slot.titled?.removeAttribute("title");
         slot.titled = null;
       }
@@ -440,11 +522,16 @@ const WindowedRows = ({
         slot.place.remove();
       }
     }
-  }, [scroller, rows, geometry]);
+  }, [scroller, rows, columns, geometry]);
 
-  // a new set of rows starts from its top; opening a row leaves the scroll where it is
+  // other rows start from the top; the same rows told anew, as when the view moves under them,
+  // and opening a row leave the scroll where it is
   useLayoutEffect(() => {
-    scroller.scrollTop = 0;
+    const last = shownKeys.current;
+    if (last.length !== rows.length || rows.some((r, i) => r.key !== last[i])) {
+      scroller.scrollTop = 0;
+    }
+    shownKeys.current = rows.map((r) => r.key);
   }, [scroller, rows]);
 
   useLayoutEffect(() => {
@@ -480,7 +567,7 @@ const WindowedRows = ({
       style={{ height: totalHeight(rows.length, geometry) }}
       onClick={(e) => {
         const row = slotOf(e.target)?.row;
-        if (row) {
+        if (row && opens(row)) {
           onToggle(row.key);
         }
       }}
@@ -495,7 +582,7 @@ const WindowedRows = ({
         // a title only where the pointer is: set on every cell, it would be an attribute to
         // change on every cell of every row a scroll brings in
         const cell = (e.target as HTMLElement).closest<HTMLElement>("[role=cell]");
-        const column = cell && COLUMNS[Array.prototype.indexOf.call(slot.el.children, cell) - 1];
+        const column = cell && columns[Array.prototype.indexOf.call(slot.el.children, cell) - 1];
         if (cell && column && slot.titled !== cell) {
           slot.titled?.removeAttribute("title");
           cell.title = cellTitle(column, slot.row);
@@ -508,7 +595,6 @@ const WindowedRows = ({
           key={rows[i].key}
           row={rows[i]}
           csId={csIds?.[rows[i].set]}
-          gene={gene}
           top={rowTop(i, geometry) + ROW_HEIGHT}
         />
       ))}
@@ -517,7 +603,20 @@ const WindowedRows = ({
 };
 
 const TableFooter = memo(
-  ({ count, ready, onDownload }: { count: number; ready: boolean; onDownload: () => void }) => (
+  ({
+    count,
+    ready,
+    sort,
+    onReset,
+    onDownload,
+  }: {
+    count: number;
+    ready: boolean;
+    sort: Sort;
+    // undefined while the table is in the order it opens in
+    onReset: (() => void) | undefined;
+    onDownload: () => void;
+  }) => (
     <div className="footer">
       <DownloadButton
         variant="outlined"
@@ -527,6 +626,18 @@ const TableFooter = memo(
       />
       <Typography variant="body2" color="text.secondary" data-testid="assoc-row-count">
         {count.toLocaleString()} credible set{count === 1 ? "" : "s"}
+      </Typography>
+      <Typography variant="body2" color="text.secondary" data-testid="assoc-sort">
+        sorted by {columnOf(sort.id).header}
+        {sort.id !== TIE_BREAK.id && `, then ${columnOf(TIE_BREAK.id).header}`}
+        {onReset && (
+          <>
+            {" · "}
+            <button type="button" className="reset" onClick={onReset}>
+              reset
+            </button>
+          </>
+        )}
       </Typography>
     </div>
   )
@@ -552,7 +663,7 @@ const TableRoot = styled("div")(({ theme }) => {
     "& .rows": { position: "relative", minWidth: MIN_WIDTH },
     "& .header, & .row": {
       display: "grid",
-      gridTemplateColumns: GRID,
+      gridTemplateColumns: "var(--assoc-grid)",
       alignItems: "center",
       columnGap: "10px",
       padding: theme.spacing(0, 1),
@@ -567,6 +678,7 @@ const TableRoot = styled("div")(({ theme }) => {
       borderBottom: line,
       fontWeight: 600,
       "& > span": { cursor: "pointer", userSelect: "none", whiteSpace: "nowrap" },
+      "& > .idle": { color: theme.palette.text.disabled, fontWeight: 400 },
       "& .sort": {
         fontSize: "0.6rem",
         marginLeft: theme.spacing(0.5),
@@ -597,6 +709,8 @@ const TableRoot = styled("div")(({ theme }) => {
       "& .toggle": { color: theme.palette.text.secondary },
       "& .toggle::before": { content: '"▸"' },
       "&[aria-expanded=true] .toggle::before": { content: '"▾"' },
+      "&.single": { cursor: "default" },
+      "&.single .toggle::before": { content: '""' },
     },
     "& .num": { textAlign: "right", fontVariantNumeric: "tabular-nums" },
     "& .muted": { color: theme.palette.text.secondary },
@@ -637,45 +751,90 @@ const TableRoot = styled("div")(({ theme }) => {
       },
       "& th": { color: theme.palette.text.secondary },
       "& .num": { textAlign: "right" },
-      "& tr.coding td": { fontWeight: 700 },
+      "& th.group": {
+        color: theme.palette.text.primary,
+        fontWeight: 600,
+        paddingBottom: theme.spacing(0.5),
+      },
+      "& tbody + tbody th.group": { paddingTop: theme.spacing(1.5) },
     },
     "& .footer": {
       display: "flex",
       alignItems: "center",
       gap: theme.spacing(2),
       paddingTop: theme.spacing(1),
+      "& .reset": {
+        padding: 0,
+        border: "none",
+        background: "none",
+        font: "inherit",
+        color: theme.palette.primary.main,
+        cursor: "pointer",
+        "&:hover": { textDecoration: "underline" },
+      },
     },
   };
 });
 
 const AssocTable = ({
   rows,
-  gene,
   csIds,
   onHoverSet,
+  onOpenSets,
   onDownload,
+  selected,
+  collapsed,
 }: {
   rows: AssocRow[];
-  gene: string;
+  // the table is about one variant, and fills the column for its PIP in each set
+  selected: boolean;
+  // the table keeps the top trait only, and has a column for what each row stands for
+  collapsed: boolean;
+  // the credible sets of the rows that are open
+  onOpenSets: (sets: number[]) => void;
   // undefined until the ids have loaded
   csIds: string[] | undefined;
   onHoverSet: (set: number | null) => void;
   // the rows in the order shown
   onDownload: (rows: AssocRow[]) => void;
 }) => {
-  const [sorting, setSorting] = useState<Sort[]>(DEFAULT_SORTING);
+  // the order the user asked for, null for the one the table opens in
+  const [chosen, setChosen] = useState<Sort | null>(null);
   const [open, setOpen] = useState<ReadonlySet<string>>(new Set());
   // state, not a ref: the rows are placed in a layout effect, which runs before a ref on an
   // element above them is attached
   const [scroller, setScroller] = useState<HTMLDivElement | null>(null);
 
+  const columns = useMemo(() => COLUMNS.filter((c) => !c.when || collapsed), [collapsed]);
+  // one variant's sets are read by what that variant does in each, until the user says otherwise;
+  // a chosen column that has gone, or has emptied, falls back as well
+  const opening = selected ? SELECTED_SORT : DEFAULT_SORT;
+  const sort =
+    chosen &&
+    columns.some((c) => c.id === chosen.id) &&
+    (selected || chosen.id !== SELECTED_SORT.id)
+      ? chosen
+      : opening;
+  // a selection made or put away starts from its own opening order, and the user's comes back
+  // with the selection gone
+  const [beforeSelection, setBeforeSelection] = useState<Sort | null>(null);
+  const [wasSelected, setWasSelected] = useState(selected);
+  if (wasSelected !== selected) {
+    setWasSelected(selected);
+    setBeforeSelection(selected ? chosen : null);
+    setChosen(selected ? null : beforeSelection);
+  }
+  useEffect(() => {
+    onOpenSets(open.size === 0 ? [] : rows.filter((r) => open.has(r.key)).map((r) => r.set));
+  }, [open, rows, onOpenSets]);
+
   const sorted = useMemo(
     () =>
       sortRows(
         rows,
-        sorting.map((s) => ({ value: COLUMNS.find((c) => c.id === s.id)!.value, desc: s.desc }))
+        [sort, TIE_BREAK].map((s) => ({ value: columnOf(s.id).value, desc: s.desc }))
       ),
-    [rows, sorting]
+    [rows, sort]
   );
 
   const toggle = useCallback(
@@ -689,26 +848,27 @@ const AssocTable = ({
       }),
     []
   );
-  // a click sorts by that column alone, strongest first where the column says so, and a second
-  // click turns it round
-  const sort = useCallback(
+  // a click sorts by that column, strongest first where the column says so, and a second click
+  // turns it round
+  const sortBy = useCallback(
     (id: string) =>
-      setSorting((current) => [
-        {
-          id,
-          desc:
-            current.length === 1 && current[0].id === id
-              ? !current[0].desc
-              : (COLUMNS.find((c) => c.id === id)!.sortDescFirst ?? false),
-        },
-      ]),
-    []
+      setChosen(
+        sort.id === id
+          ? { id, desc: !sort.desc }
+          : { id, desc: columnOf(id).sortDescFirst ?? false }
+      ),
+    [sort]
   );
+  const isOpening = sort.id === opening.id && sort.desc === opening.desc;
+  const reset = useCallback(() => setChosen(null), []);
 
   const download = useCallback(() => onDownload(sorted), [onDownload, sorted]);
 
   return (
-    <TableRoot>
+    <TableRoot
+      style={
+        { "--assoc-grid": `24px ${columns.map((c) => c.width).join(" ")}` } as React.CSSProperties
+      }>
       <div
         ref={setScroller}
         className="scroller"
@@ -716,20 +876,31 @@ const AssocTable = ({
         aria-rowcount={sorted.length}
         data-testid="assoc-table"
         onMouseLeave={() => onHoverSet(null)}>
-        <TableHeader sorting={sorting} onSort={sort} />
+        <TableHeader
+          columns={columns}
+          sort={sort}
+          idle={selected ? null : SELECTED_SORT.id}
+          onSort={sortBy}
+        />
         {scroller && (
           <WindowedRows
             rows={sorted}
+            columns={columns}
             scroller={scroller}
             open={open}
             csIds={csIds}
-            gene={gene}
             onToggle={toggle}
             onHover={onHoverSet}
           />
         )}
       </div>
-      <TableFooter count={sorted.length} ready={!!csIds} onDownload={download} />
+      <TableFooter
+        count={sorted.length}
+        ready={!!csIds}
+        sort={sort}
+        onReset={isOpening ? undefined : reset}
+        onDownload={download}
+      />
     </TableRoot>
   );
 };

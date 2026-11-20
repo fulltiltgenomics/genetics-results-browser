@@ -54,8 +54,7 @@ export const buildCredibleSetRows = (
   gene: string,
   rows: AssocRow[],
   index: AssocIndex,
-  csIds: string[],
-  minPip: number
+  csIds: string[]
 ): ExportRow[] =>
   rows.map((r) => ({
     gene,
@@ -77,9 +76,9 @@ export const buildCredibleSetRows = (
     mlog10p: num(r.leadMlog10p),
     beta: num(r.leadBeta),
     n_coding_variants: r.nCoding,
-    // every coding variant of the gene in the set at or above the PIP threshold, with its PIP
+    // every coding variant among the set's loaded variants, with its PIP
     coding_variants:
-      codingVariantsOfSet(index, r.set, minPip)
+      codingVariantsOfSet(index, r.set)
         .map((v) => `${v.variant}(${v.pip})`)
         .join(",") || NA,
   }));
@@ -88,10 +87,9 @@ export const exportCredibleSets = (
   gene: string,
   rows: AssocRow[],
   index: AssocIndex,
-  csIds: string[],
-  minPip: number
+  csIds: string[]
 ): void => {
-  const exportRows = buildCredibleSetRows(gene, rows, index, csIds, minPip);
+  const exportRows = buildCredibleSetRows(gene, rows, index, csIds);
   writeTsvFile(exportRows, `gwas_credible_sets_${gene}_${exportRows.length}_rows`);
 };
 

@@ -208,7 +208,7 @@ const measureGene = async (browser, gene) => {
   await wheelUntil(40, (p) => span(p.view) >= span(p.limits) - 1);
   await shot("max");
   await wheelUntil(-40, (p) => span(p.view) <= span(p.limits) / 2);
-  await page.keyboard.up("Control");
+  // the key stays down: a drag pans only with it held
   out.pan = await withFrames(page, async () => {
     await page.mouse.move(cx, cy);
     await page.mouse.down();
@@ -220,6 +220,7 @@ const measureGene = async (browser, gene) => {
     await page.mouse.up();
     return {};
   });
+  await page.keyboard.up("Control");
 
   // back to the widest view for the click
   await page.mouse.move(cx, cy);
@@ -227,16 +228,21 @@ const measureGene = async (browser, gene) => {
   await wheelUntil(40, (p) => span(p.view) >= span(p.limits) - 1);
   await page.keyboard.up("Control");
 
-  // a click in the track: until the table's row count has changed and a frame is out
+  // a region dragged in the track: until the table's row count has changed and a frame is out.
+  // the table follows the view, so it has to have caught up with the zoom first
+  await page.waitForTimeout(500);
   const rowsBefore = (await perf(page)).tableRows;
-  // a click can keep every row, when all of them have a variant there: try a few places
+  // a region can keep every row, when all of them have a variant there: try a few places
   for (const dx of [3, -box.width * 0.2, box.width * 0.3]) {
+    await page.mouse.move(cx + dx, cy - 40);
+    await page.mouse.down();
+    await page.mouse.move(cx + dx + 10, cy - 40, { steps: 2 });
     const settled = latencyUntil(
       page,
       ([n, t0]) => window.__assocPerf.tableRows !== n || performance.now() - t0 > 2000,
       [rowsBefore, await page.evaluate(() => performance.now())]
     );
-    await page.mouse.click(cx + dx, cy - 40);
+    await page.mouse.up();
     const clickMs = await settled;
     const rowsAfter = (await perf(page)).tableRows;
     out.click = {
@@ -244,13 +250,8 @@ const measureGene = async (browser, gene) => {
       rowsBefore,
       rowsAfter,
     };
-    // put the selection away again: escape, then whatever else the branch offers
     await page.keyboard.press("Escape");
     await page.waitForTimeout(300);
-    if ((await perf(page)).tableRows !== rowsBefore) {
-      await page.mouse.click(cx + dx, cy - 40);
-      await page.waitForTimeout(300);
-    }
     if (out.click.ms != null) break;
   }
 

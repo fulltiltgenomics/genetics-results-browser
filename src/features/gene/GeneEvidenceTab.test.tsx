@@ -156,7 +156,10 @@ describe("GeneEvidenceTab (component)", () => {
   it("reads a gene-disease 404 as no associations rather than a failure", async () => {
     server.use(
       http.get("*/api/v1/gene_disease/:gene", () =>
-        HttpResponse.json({ detail: "No disease associations found for gene OR51B4" }, { status: 404 })
+        HttpResponse.json(
+          { detail: "No disease associations found for gene OR51B4" },
+          { status: 404 }
+        )
       )
     );
 
@@ -169,7 +172,9 @@ describe("GeneEvidenceTab (component)", () => {
   });
 
   it("surfaces a gene-disease server error", async () => {
-    server.use(http.get("*/api/v1/gene_disease/:gene", () => new HttpResponse(null, { status: 500 })));
+    server.use(
+      http.get("*/api/v1/gene_disease/:gene", () => new HttpResponse(null, { status: 500 }))
+    );
 
     renderTab("mendelian");
 
@@ -298,7 +303,11 @@ describe("gene burden tab", () => {
     screen
       .getAllByRole("row")
       .slice(1)
-      .map((r) => within(r).getAllByRole("cell").map((c) => c.textContent));
+      .map((r) =>
+        within(r)
+          .getAllByRole("cell")
+          .map((c) => c.textContent)
+      );
 
   it("shows the top mask per trait by default, with NA controls for quantitative traits", async () => {
     useBurden();
@@ -314,7 +323,9 @@ describe("gene burden tab", () => {
     const table = within(screen.getByRole("table"));
     expect(table.getAllByLabelText("quantitative")).toHaveLength(1);
     expect(table.getAllByLabelText("binary")).toHaveLength(2);
-    expect(screen.getByRole("radio", { name: "both binary and quantitative traits" })).toBeChecked();
+    expect(
+      screen.getByRole("radio", { name: "both binary and quantitative traits" })
+    ).toBeChecked();
     expect(
       screen.getByRole("radio", { name: "only the top burden mask for each trait" })
     ).toBeChecked();
@@ -435,7 +446,9 @@ describe("annotation tab", () => {
 
     const heading = await screen.findByText("gnomAD", { selector: "h6" });
     const summary = await screen.findByText("Summary");
-    expect(heading.compareDocumentPosition(summary) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(
+      heading.compareDocumentPosition(summary) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
     expect(await screen.findByText("2.7e-18")).toBeInTheDocument();
     expect(screen.getByText("1.14")).toBeInTheDocument();
     expect(screen.getByText("57")).toBeInTheDocument();
@@ -514,7 +527,7 @@ describe("variant association tab", () => {
       ref: "C",
       most_severe: "stop_gained",
     }),
-    // no coding variant of the gene: a neighbour's missense, well upstream
+    // a neighbouring gene's missense, well upstream of the default view
     memberRow({
       cs_id: "neighbour",
       pos: 44895000,
@@ -570,7 +583,9 @@ describe("variant association tab", () => {
     await screen.findByRole("cell", { name: "Alzheimer disease" });
     // the padded region has replaced the gene body, and brought the ids with it
     await waitFor(() => expect(requested).toHaveLength(2));
-    await waitFor(() => expect(screen.getByRole("button", { name: /download table/i })).toBeEnabled());
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: /download table/i })).toBeEnabled()
+    );
   };
   const tracks = () => screen.getByTestId("assoc-tracks");
   // APOE's default view is its transcript and a margin, 3.6 kb across the mocked 1000 px
@@ -578,9 +593,20 @@ describe("variant association tab", () => {
   // jsdom has no PointerEvent; React goes by the event's type, and a MouseEvent carries the rest
   const pointer = (type: "down" | "move" | "up" | "out", init: MouseEventInit = {}) =>
     fireEvent(tracks(), new MouseEvent(`pointer${type}`, { bubbles: true, ...init }));
-  const clickTrack = (pos: number) => {
-    pointer("down", { button: 0, clientX: xOf(pos), clientY: 60 });
-    pointer("up", { button: 0, clientX: xOf(pos), clientY: 60 });
+  // a variant's dot, at its PIP on the 110 px between the two PIP lines
+  const dot = (pos: number, pip: number) => ({ clientX: xOf(pos), clientY: 132 - pip * 110 });
+  const click = (at: MouseEventInit) => {
+    pointer("down", { button: 0, ...at });
+    pointer("up", { button: 0, ...at });
+  };
+  const zoomOutFully = async (user: ReturnType<typeof userEvent.setup>) => {
+    const zoomOut = screen.getByRole("button", { name: "zoom out" });
+    // 3.6 kb doubles nine times before it reaches the megabase loaded around the gene
+    for (let i = 0; i < 9; i++) {
+      expect(zoomOut).toBeEnabled();
+      await user.click(zoomOut);
+    }
+    expect(zoomOut).toBeDisabled();
   };
 
   it("asks for the gene body, then the padded region, and for nothing else of the API", async () => {
@@ -592,7 +618,10 @@ describe("variant association tab", () => {
     ]);
   });
 
-  it("lists the credible sets with a coding variant of the gene, strongest coding PIP first", async () => {
+  const accounting = () => screen.getByTestId("assoc-accounting");
+  const status = () => screen.getByTestId("assoc-status");
+
+  it("lists the credible sets with a variant in view, strongest coding PIP first", async () => {
     renderTab("variant association");
     await loaded();
 
@@ -602,54 +631,171 @@ describe("variant association tab", () => {
     expect(within(first).getByText("SuSiE")).toBeInTheDocument();
     expect(within(first).getByText("missense")).toBeInTheDocument();
     expect(within(first).getByText("B")).toHaveClass("badge", "binary");
+    expect(within(first).getByText("2 (1 coding)")).toBeInTheDocument();
     expect(within(second).getByText("LDL cholesterol")).toBeInTheDocument();
     expect(within(second).getByText("stop gained")).toBeInTheDocument();
     expect(within(second).getByText("pseudo")).toBeInTheDocument();
-    expect(within(second).getByText("40")).toBeInTheDocument();
-    // one of the set's forty variants is inside the loaded region; a cell says more on hover
-    const lead = within(second).getByText("19:44908822:C:C †");
+    // one of the set's forty variants is inside the loaded region, so the coding count is a floor
+    expect(within(second).getByText("40 (≥1 coding)")).toBeInTheDocument();
+    // a cell gets its title on hover
+    const lead = within(second).getByText("19:44908822:C:C");
     expect(lead).not.toHaveAttribute("title");
     fireEvent.mouseOver(lead);
-    expect(lead).toHaveAttribute("title", expect.stringContaining("the strongest of the 1 of 40 variants"));
+    expect(lead).toHaveAttribute("title", "19:44908822:C:C");
     fireEvent.mouseOver(within(second).getByText("LDL cholesterol"));
     expect(lead).not.toHaveAttribute("title");
+    // upstream of the default view
     expect(screen.queryByText("Other trait")).not.toBeInTheDocument();
     expect(screen.getByTestId("assoc-row-count")).toHaveTextContent("2 credible sets");
+    expect(status()).toHaveTextContent("3 variants in view · each at its highest PIP");
+    expect(accounting()).toHaveTextContent(/^2 of the 2 credible sets with a variant in view$/);
+    // the column for a selected variant keeps its place while there is none
+    expect(screen.getByRole("columnheader", { name: /PIP of selected/ })).toHaveClass("idle");
   });
 
-  it("lists every credible set once the coding filter is off, and remembers that", async () => {
+  it("follows the track's view: zooming out brings the sets around the gene into the table", async () => {
     const user = userEvent.setup();
     renderTab("variant association");
     await loaded();
-    expect(screen.getByLabelText("min coding PIP")).toHaveValue("0.05");
 
-    await user.click(screen.getByRole("checkbox", { name: /only credible sets with a coding variant/ }));
+    await zoomOutFully(user);
     await waitFor(() => expect(bodyRows()).toHaveLength(3));
-    // sets without a coding variant follow those with one, by the PIP of their lead
-    expect(within(bodyRows()[2]).getByText("Other trait")).toBeInTheDocument();
-    expect(screen.getByLabelText("min PIP")).toBeInTheDocument();
-    expect(useGeneEvidenceStore.getState().assocCodingOnly).toBe(false);
+    expect(within(bodyRows()[1]).getByText("Other trait")).toBeInTheDocument();
+    // the coding variant is the neighbouring gene's, which the coding PIP names
+    expect(within(bodyRows()[1]).getByText("TOMM40 0.600")).toBeInTheDocument();
+    expect(status()).toHaveTextContent("4 variants in view");
+
+    await user.click(screen.getByRole("button", { name: "reset zoom" }));
+    await waitFor(() => expect(bodyRows()).toHaveLength(2));
+  });
+
+  it("stays on a pinned stretch while the track moves", async () => {
+    const user = userEvent.setup();
+    renderTab("variant association");
+    await loaded();
+
+    await user.click(within(screen.getByTestId("assoc-scope")).getByText("in view"));
+    expect(screen.getByTestId("assoc-scope")).toHaveTextContent("pinned to chr19:44,905,7");
+    await zoomOutFully(user);
+    expect(status()).toHaveTextContent("4 variants in view");
+    expect(bodyRows()).toHaveLength(2);
+    expect(accounting()).toHaveTextContent("with a variant in the pinned stretch");
+
+    await user.click(within(screen.getByTestId("assoc-scope")).getByTestId("CancelIcon"));
+    await waitFor(() => expect(bodyRows()).toHaveLength(3));
+  });
+
+  it("points at a lead variant that lies outside the view", async () => {
+    const user = userEvent.setup();
+    renderTab("variant association");
+    await loaded();
+
+    // half the view around its centre keeps the intronic variant and loses the set's lead
+    await user.click(screen.getByRole("button", { name: "zoom in" }));
+    await waitFor(() => expect(bodyRows()).toHaveLength(1));
+    const lead = within(bodyRows()[0]).getByText("19:44908684:T:C →");
+    fireEvent.mouseOver(lead);
+    expect(lead).toHaveAttribute("title", "19:44908684:T:C lies to the right of the current view");
+  });
+
+  it("passes the sets with a variant of the kind asked for, fades the rest and remembers the kind", async () => {
+    const user = userEvent.setup();
+    renderTab("variant association");
+    await loaded();
+    expect(screen.getByRole("radio", { name: "credible sets with any variant" })).toBeChecked();
+
+    // both sets have a coding variant above the PIP threshold
+    await user.click(screen.getByRole("radio", { name: "with a coding variant PIP > 0.05" }));
+    expect(bodyRows()).toHaveLength(2);
+    expect(status()).toHaveTextContent("3 variants in view · each");
+
+    await user.click(screen.getByRole("radio", { name: "with a LoF variant PIP > 0.05" }));
+    await waitFor(() => expect(bodyRows()).toHaveLength(1));
+    expect(within(bodyRows()[0]).getByText("LDL cholesterol")).toBeInTheDocument();
+    expect(useGeneEvidenceStore.getState().assocVariantMode).toBe("lof");
+    // nothing leaves the track: the other set's variants are counted, and faint. the count is
+    // written on the next paint
+    await waitFor(() =>
+      expect(status()).toHaveTextContent(
+        "3 variants in view, 1 in credible sets that pass the filters"
+      )
+    );
+    expect(accounting()).toHaveTextContent("1 of the 2 credible sets with a variant in view");
+    // the dot is where every set puts it, and the line below says what the filter leaves
+    pointer("move", dot(44908684, 0.9));
+    expect(screen.getByTestId("assoc-readout")).toHaveTextContent(
+      "highest PIP 0.900 · in 1 credible set · none passing the filters"
+    );
+
+    // the filter is put away from its chip
+    await user.click(
+      within(screen.getByText("LoF variant PIP > 0.05").parentElement!).getByTestId("CancelIcon")
+    );
+    await waitFor(() => expect(bodyRows()).toHaveLength(2));
+    expect(screen.getByRole("radio", { name: "credible sets with any variant" })).toBeChecked();
+  });
+
+  it("does not count a variant of the kind at or below the PIP threshold", async () => {
+    useSummary([
+      memberRow({ most_severe: "intron_variant" }),
+      memberRow({ pos: 44907000, ref: "G", alt: "A", pip: 0.05 }),
+    ]);
+    const user = userEvent.setup();
+    renderTab("variant association");
+    await loaded();
+
+    await user.click(screen.getByRole("radio", { name: "with a coding variant PIP > 0.05" }));
+    expect(await screen.findByTestId("assoc-empty")).toHaveTextContent(
+      "no credible sets with a variant in view pass the filters"
+    );
   });
 
   it("sorts by a column on a click of its header, and turns round on the next", async () => {
     const user = userEvent.setup();
     renderTab("variant association");
     await loaded();
-    const trait = screen.getByRole("columnheader", { name: /^trait/ });
-    expect(screen.getByRole("columnheader", { name: /coding PIP/ })).toHaveAttribute(
-      "aria-sort",
-      "descending"
-    );
+    const header = (name: RegExp) => screen.getByRole("columnheader", { name });
+    const trait = header(/^trait/);
+    const order = screen.getByTestId("assoc-sort");
+    // one column carries the order, and the footer names the whole of it
+    expect(header(/coding PIP/)).toHaveAttribute("aria-sort", "descending");
+    expect(header(/^PIP(?! of)/)).toHaveAttribute("aria-sort", "none");
+    expect(order).toHaveTextContent(/^sorted by coding PIP, then PIP$/);
 
     await user.click(trait);
     expect(trait).toHaveAttribute("aria-sort", "ascending");
+    expect(header(/coding PIP/)).toHaveAttribute("aria-sort", "none");
     expect(within(bodyRows()[0]).getByText("Alzheimer disease")).toBeInTheDocument();
+    expect(order).toHaveTextContent(/^sorted by trait, then PIP · reset$/);
     await user.click(trait);
     expect(trait).toHaveAttribute("aria-sort", "descending");
     expect(within(bodyRows()[0]).getByText("LDL cholesterol")).toBeInTheDocument();
+
+    // back to the opening order from the footer, or by its own column
+    await user.click(within(order).getByRole("button", { name: "reset" }));
+    expect(header(/coding PIP/)).toHaveAttribute("aria-sort", "descending");
+    expect(within(bodyRows()[0]).getByText("Alzheimer disease")).toBeInTheDocument();
+    expect(order).toHaveTextContent(/^sorted by coding PIP, then PIP$/);
+    await user.click(header(/^PIP(?! of)/));
+    expect(order).toHaveTextContent(/^sorted by PIP · reset$/);
+    await user.click(header(/coding PIP/));
+    expect(order).toHaveTextContent(/^sorted by coding PIP, then PIP$/);
   });
 
-  it("opens a row to every variant of its credible set, fetched then", async () => {
+  it("keeps the order the user chose across a selection", async () => {
+    const user = userEvent.setup();
+    renderTab("variant association");
+    await loaded();
+    const order = screen.getByTestId("assoc-sort");
+    await user.click(screen.getByRole("columnheader", { name: /^trait/ }));
+
+    click(dot(44907000, 0.1));
+    await waitFor(() => expect(order).toHaveTextContent(/^sorted by PIP of selected, then PIP$/));
+    click(dot(44907000, 0.1));
+    await waitFor(() => expect(order).toHaveTextContent(/^sorted by trait, then PIP · reset$/));
+  });
+
+  it("opens a row to the variants of its credible set, the coding ones first, fetched then", async () => {
     const user = userEvent.setup();
     renderTab("variant association");
     await loaded();
@@ -658,63 +804,148 @@ describe("variant association tab", () => {
     await user.click(bodyRows()[0]);
     const members = await screen.findByTestId("assoc-members");
     const memberRows = await within(members).findAllByRole("row");
-    // header, then the set's two variants by PIP
-    expect(memberRows).toHaveLength(3);
-    expect(memberRows[1]).toHaveTextContent("19:44908684:T:C");
-    expect(memberRows[1]).toHaveTextContent("missense");
-    expect(memberRows[1]).toHaveClass("coding");
-    expect(memberRows[2]).toHaveTextContent("19:44907000:G:A");
-    expect(memberRows[2]).not.toHaveClass("coding");
+    expect(memberRows.map((r) => r.textContent)).toEqual([
+      "1 coding variant in this credible set",
+      expect.stringMatching(/^variantconsequencegenePIP/),
+      expect.stringMatching(/^19:44908684:T:Cmissense/),
+      "1 non-coding variant in this credible set",
+      expect.stringMatching(/^19:44907000:G:Aintron/),
+    ]);
     expect(bodyRows()[0]).toHaveAttribute("aria-expanded", "true");
 
     await user.click(bodyRows()[0]);
     expect(screen.queryByTestId("assoc-members")).not.toBeInTheDocument();
   });
 
-  it("narrows the table to the credible sets with a variant where the track is clicked", async () => {
+  it("heads the variants of a set without a coding one with their number alone", async () => {
+    useSummary([
+      memberRow({ most_severe: "intron_variant" }),
+      memberRow({ pos: 44907000, ref: "G", alt: "A", pip: 0.1, most_severe: "intron_variant" }),
+    ]);
     const user = userEvent.setup();
+    renderTab("variant association");
+    await loaded();
+
+    await user.click(bodyRows()[0]);
+    const members = await screen.findByTestId("assoc-members");
+    expect((await within(members).findAllByRole("row"))[0]).toHaveTextContent(
+      /^2 variants in this credible set$/
+    );
+  });
+
+  it("gives a credible set of one variant nothing to open", async () => {
+    useSummary([memberRow({ cs_size: 1 })]);
+    const user = userEvent.setup();
+    renderTab("variant association");
+    await loaded();
+
+    expect(bodyRows()[0]).toHaveClass("single");
+    expect(within(bodyRows()[0]).getByText("1 (1 coding)")).toBeInTheDocument();
+    await user.click(bodyRows()[0]);
+    expect(screen.queryByTestId("assoc-members")).not.toBeInTheDocument();
+  });
+
+  it("lists a variant's credible sets on a click of it, with its PIP in each", async () => {
     renderTab("variant association");
     await loaded();
     expect(screen.queryByTestId("assoc-selection")).not.toBeInTheDocument();
 
-    clickTrack(44908822);
-    await waitFor(() => expect(bodyRows()).toHaveLength(1));
-    expect(within(bodyRows()[0]).getByText("LDL cholesterol")).toBeInTheDocument();
-    expect(screen.getByTestId("assoc-selection")).toHaveTextContent(/^chr19:44,908,8\d\d–44,908,8\d\d/);
+    // no variant here, and nothing selected to put away
+    click({ clientX: xOf(44908000), clientY: 60 });
+    expect(screen.queryByTestId("assoc-selection")).not.toBeInTheDocument();
+    expect(bodyRows()).toHaveLength(2);
 
-    // a click on the selection puts it away
-    clickTrack(44908822);
-    await waitFor(() => expect(bodyRows()).toHaveLength(2));
-
-    // the intronic variant is in a listed set, but is not a coding variant of the gene
-    clickTrack(44907000);
-    expect(await screen.findByTestId("assoc-empty")).toHaveTextContent(
-      "no credible set with a coding variant of APOE has a variant in the selection; 1 other does"
-    );
-    await user.click(screen.getByRole("button", { name: "show it" }));
+    // the intronic variant is at PIP 0.1 in a set led by its missense variant
+    click(dot(44907000, 0.1));
     await waitFor(() => expect(bodyRows()).toHaveLength(1));
     expect(within(bodyRows()[0]).getByText("Alzheimer disease")).toBeInTheDocument();
+    expect(screen.getByTestId("assoc-selection")).toHaveTextContent("19:44907000:G:A");
+    expect(accounting()).toHaveTextContent("1 of the 1 credible sets with this variant");
+    const selectedPip = screen.getByRole("columnheader", { name: /PIP of selected/ });
+    expect(selectedPip).not.toHaveClass("idle");
+    expect(selectedPip).toHaveAttribute("aria-sort", "descending");
+    expect(within(bodyRows()[0]).getByText("0.100")).toBeInTheDocument();
+    // the LoF variant shares no set with it
+    await waitFor(() =>
+      expect(status()).toHaveTextContent(
+        "3 variants in view, 2 in credible sets that pass the filters and hold the selection"
+      )
+    );
 
+    // a click on the selected variant puts the selection away
+    click(dot(44907000, 0.1));
+    await waitFor(() => expect(bodyRows()).toHaveLength(2));
+    expect(screen.queryByTestId("assoc-selection")).not.toBeInTheDocument();
+
+    // and so does a click on the track beside it
+    click(dot(44908822, 0.2));
+    await waitFor(() => expect(bodyRows()).toHaveLength(1));
+    click({ clientX: xOf(44908000), clientY: 60 });
+    await waitFor(() => expect(bodyRows()).toHaveLength(2));
+
+    click(dot(44908822, 0.2));
+    await waitFor(() => expect(bodyRows()).toHaveLength(1));
     fireEvent.keyDown(tracks(), { key: "Escape" });
-    await waitFor(() => expect(bodyRows()).toHaveLength(3));
+    await waitFor(() => expect(bodyRows()).toHaveLength(2));
   });
 
-  it("selects the region a shift-drag covers, and pans on a plain drag", async () => {
+  it("keeps the top trait per lead variant and dataset on request, and says what a row stands for", async () => {
+    useSummary([
+      memberRow({}),
+      memberRow({ trait: "Dementia", trait_original: "F5_DEMENTIA", cs_id: "weaker", pip: 0.4 }),
+      memberRow({ trait: "Memory_loss", trait_original: "MEM", cs_id: "faint", pip: 0.01 }),
+    ]);
+    const user = userEvent.setup();
+    renderTab("variant association");
+    await loaded();
+    expect(bodyRows()).toHaveLength(3);
+    expect(screen.queryByRole("columnheader", { name: /^more/ })).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("checkbox", { name: /top trait only/ }));
+    await waitFor(() => expect(bodyRows()).toHaveLength(1));
+    expect(within(bodyRows()[0]).getByText("Alzheimer disease")).toBeInTheDocument();
+    expect(within(bodyRows()[0]).getByText("+2")).toBeInTheDocument();
+    expect(accounting()).toHaveTextContent(
+      "1 row for 3 of the 3 credible sets with a variant in view"
+    );
+    expect(useGeneEvidenceStore.getState().assocTraitMode).toBe("top");
+    // the track is not told: the dot is in every one of the sets
+    pointer("move", dot(44908684, 0.9));
+    expect(screen.getByTestId("assoc-readout")).toHaveTextContent(/in 3 credible sets$/);
+
+    // a search fades nothing here, the variant being in a set that passes, and the line says how
+    // much of the dot that is
+    await user.type(screen.getByRole("textbox", { name: "search" }), "dementia");
+    await waitFor(() => expect(within(bodyRows()[0]).getByText("Dementia")).toBeInTheDocument());
+    pointer("move", { clientX: 0, clientY: 0 });
+    pointer("move", dot(44908684, 0.9));
+    expect(screen.getByTestId("assoc-readout")).toHaveTextContent(
+      "in 3 credible sets · 1 passing the filters, highest PIP 0.400 in those"
+    );
+  });
+
+  it("selects the region a drag covers, and pans on a drag with ctrl held", async () => {
     renderTab("variant association");
     await loaded();
 
-    pointer("down", { button: 0, clientX: xOf(44908600), shiftKey: true });
+    pointer("down", { button: 0, clientX: xOf(44908600) });
     pointer("move", { clientX: xOf(44908900) });
     pointer("up", { clientX: xOf(44908900) });
     await waitFor(() => expect(screen.getByTestId("assoc-selection")).toHaveTextContent("301 bp"));
     expect(bodyRows()).toHaveLength(2);
-
-    fireEvent.keyDown(tracks(), { key: "Escape" });
-    await waitFor(() => expect(screen.queryByTestId("assoc-selection")).not.toBeInTheDocument());
+    expect(accounting()).toHaveTextContent("2 of the 2 credible sets with a variant in the region");
+    // the view stayed where it was
     expect(screen.getByRole("button", { name: "reset zoom" })).toBeDisabled();
-    pointer("down", { button: 0, clientX: 500 });
-    pointer("move", { clientX: 300 });
-    pointer("up", { clientX: 300 });
+
+    // a click inside the region keeps it, one outside puts it away
+    click({ clientX: xOf(44908750), clientY: 60 });
+    expect(screen.getByTestId("assoc-selection")).toBeInTheDocument();
+    click({ clientX: xOf(44908000), clientY: 60 });
+    await waitFor(() => expect(screen.queryByTestId("assoc-selection")).not.toBeInTheDocument());
+
+    pointer("down", { button: 0, clientX: 500, ctrlKey: true });
+    pointer("move", { clientX: 300, ctrlKey: true });
+    pointer("up", { clientX: 300, ctrlKey: true });
     // the view moved, and nothing was selected
     await waitFor(() => expect(screen.getByRole("button", { name: "reset zoom" })).toBeEnabled());
     expect(screen.queryByTestId("assoc-selection")).not.toBeInTheDocument();
@@ -744,36 +975,36 @@ describe("variant association tab", () => {
 
     await user.click(reset);
     expect(reset).toBeDisabled();
-    const zoomOut = screen.getByRole("button", { name: "zoom out" });
-    // 3.6 kb doubles nine times before it reaches the megabase loaded around the gene
-    for (let i = 0; i < 9; i++) {
-      expect(zoomOut).toBeEnabled();
-      await user.click(zoomOut);
-    }
-    expect(zoomOut).toBeDisabled();
+    await zoomOutFully(user);
   });
 
   it("names what is under the pointer in the line below the tracks, without a tooltip", async () => {
     renderTab("variant association");
     await loaded();
     const readout = screen.getByTestId("assoc-readout");
-    expect(readout).toHaveTextContent("ctrl/⌘ + scroll to zoom");
+    expect(readout).toHaveTextContent("click a variant for its credible sets");
 
-    // the missense variant's dot, at its PIP of 0.9 on the 110 px between the two PIP lines
-    pointer("move", { clientX: xOf(44908684), clientY: 132 - 0.9 * 110 });
+    pointer("move", dot(44908684, 0.9));
     expect(readout).toHaveTextContent(
-      "19:44908684:T:C · missense · APOE · highest PIP 0.900 · in 1 credible set"
+      /^19:44908684:T:C · missense · APOE · highest PIP 0\.900 · in 1 credible set$/
     );
+    // the cursor says what a press would do
+    expect(tracks().style.cursor).toBe("pointer");
     // the gene, on the forward strand's lane
     pointer("move", { clientX: 500, clientY: 168 });
-    expect(readout).toHaveTextContent(/^APOE · chr19:44,905,7\d\d–44,909,3\d\d · 3\.6 kb · 4 exons · forward strand$/);
+    expect(readout).toHaveTextContent(
+      /^APOE · chr19:44,905,7\d\d–44,909,3\d\d · 3\.6 kb · 4 exons · forward strand$/
+    );
+    expect(tracks().style.cursor).toBe("crosshair");
+    pointer("move", { clientX: 500, clientY: 168, ctrlKey: true });
+    expect(tracks().style.cursor).toBe("grab");
     // React derives a leave from the pointer going out
     pointer("out");
-    expect(readout).toHaveTextContent("ctrl/⌘ + scroll to zoom");
+    expect(readout).toHaveTextContent("click a variant for its credible sets");
     expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
   });
 
-  it("filters by trait type, credible set kind, PIP and search, and remembers the radios", async () => {
+  it("filters by trait type and credible set kind, and remembers the radios", async () => {
     const user = userEvent.setup();
     renderTab("variant association");
     await loaded();
@@ -789,18 +1020,29 @@ describe("variant association tab", () => {
     await user.click(screen.getByRole("radio", { name: "only pseudo credible sets" }));
     await waitFor(() => expect(bodyRows()).toHaveLength(1));
     expect(screen.getByRole("cell", { name: "LDL cholesterol" })).toBeInTheDocument();
+    expect(screen.getByText("pseudo only")).toBeInTheDocument();
+  });
 
-    // the meta-analysis set's coding variant has PIP 0.2
-    const minPip = screen.getByLabelText("min coding PIP");
-    await user.clear(minPip);
-    await user.type(minPip, "0.5");
-    expect(await screen.findByTestId("assoc-empty")).toHaveTextContent(
-      "no credible sets match these filters"
-    );
-    await user.clear(minPip);
+  it("searches for every word typed, in the trait or the dataset", async () => {
+    const user = userEvent.setup();
+    renderTab("variant association");
+    await loaded();
+    const search = screen.getByRole("textbox", { name: "search" });
+    expect(screen.queryByRole("button", { name: "clear search" })).not.toBeInTheDocument();
 
-    await user.type(screen.getByLabelText("search"), "alzheimer");
+    // one word is the trait's, the other the dataset's
+    await user.type(search, "cholesterol mvp");
+    await waitFor(() => expect(bodyRows()).toHaveLength(1));
+    expect(screen.getByRole("cell", { name: "LDL cholesterol" })).toBeInTheDocument();
+
+    // each word matches a set, and no set has both
+    await user.clear(search);
+    await user.type(search, "cholesterol alzheimer");
     expect(await screen.findByTestId("assoc-empty")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "clear search" }));
+    expect(search).toHaveValue("");
+    await waitFor(() => expect(bodyRows()).toHaveLength(2));
   });
 
   it("says so when there is no GWAS credible set near the gene", async () => {
