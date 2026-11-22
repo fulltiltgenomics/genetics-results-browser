@@ -262,7 +262,10 @@ describe.skipIf(!CONTRACT)("the munge contract module", () => {
     expect(strings(assigned("VIEW_COLOUR_MODES"))).toEqual([...VIEW_COLOUR_MODES]);
     expect(strings(assigned("VIEW_DEFAULT_COLOUR_MODE"))).toEqual([VIEW_DEFAULT_COLOUR_MODE]);
     expect(strings(assigned("AF3_SOURCE_LABEL"))).toEqual([AF3_SOURCE_LABEL]);
-    expect(strings(assigned("MODEL_FILE_ID_RE"))).toEqual([MODEL_FILE_ID_RE.source]);
+    // Python spells end-of-string `\Z`; JavaScript has no `\Z` and its `$` (no `m` flag) means the same
+    const jsPattern = (python: string) => python.replace(/\\Z$/, "$");
+    const modelFileIdRe = strings(assigned("MODEL_FILE_ID_RE")).map(jsPattern);
+    expect(modelFileIdRe).toEqual([MODEL_FILE_ID_RE.source]);
   });
 
   it("has the same legend caps", () => {
