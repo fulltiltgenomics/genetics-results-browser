@@ -13,6 +13,7 @@ import {
   AF3_SOURCE_LABEL,
   LIVE_ATOMS_MAX,
   LIVE_LIST_MAX,
+  MAX_LABELS,
   SELECTION_COLOUR,
   MAX_SPEC_BYTES,
   NEIGHBOURHOOD_COLOUR,
@@ -42,6 +43,26 @@ const PLDDT_RANGES: Record<string, string> = {
 };
 
 const CANVAS_HEIGHT = 440;
+// about four rows of entries; the caps on regions and listed labels still allow more
+const LABEL_LIST_MAX_HEIGHT = 92;
+
+/** a legend row that stands for residues in the scene: pointing at it emphasises them there */
+interface LegendEntry {
+  key: string;
+  kind: "residue" | "region";
+  text: string;
+  /** absent for a region the spec gave no colour: nothing in the scene is painted for it */
+  colour?: string;
+  /** residue numbers as written in the model file, ascending; only ones the model holds */
+  positions: number[];
+}
+
+const span = (first: number, last: number): string => (first === last ? String(first) : `${first}–${last}`);
+
+// a label with a number in it ("p.V600E") already says where it is; one without ("hotspot")
+// gets the residue number the hover text and the model file use
+const entryText = (label: string, filePosition: number): string =>
+  /\d/.test(label) ? label : `${label} · ${filePosition}`;
 
 type SceneState =
   | { status: "parked" }
@@ -65,6 +86,75 @@ const Swatch = ({ colour, round, children }: { colour: string; round?: boolean; 
       sx={{ width: 12, height: 12, bgcolor: colour, borderRadius: round ? "50%" : "2px", flex: "none" }}
     />
     <Typography variant="caption">{children}</Typography>
+  </Box>
+);
+
+const LegendButton = ({
+  entry,
+  marked,
+  centred,
+  onEmphasise,
+  onCentre,
+}: {
+  entry: LegendEntry;
+  marked: boolean;
+  centred: boolean;
+  onEmphasise: (by: "pointer" | "keyboard", entry?: LegendEntry) => void;
+  onCentre: () => void;
+}) => (
+  <Box
+    component="button"
+    type="button"
+    data-testid="structure-legend-entry"
+    data-kind={entry.kind}
+    data-positions={
+      entry.kind === "region"
+        ? `${entry.positions[0]}-${entry.positions[entry.positions.length - 1]}`
+        : entry.positions.join(",")
+    }
+    data-marked={marked || undefined}
+    aria-pressed={centred}
+    title={centred ? "Click to show the whole structure" : "Click to centre the view here"}
+    onMouseEnter={() => onEmphasise("pointer", entry)}
+    onMouseLeave={() => onEmphasise("pointer")}
+    // focus a click leaves behind is not pointing: it would hold the emphasis, and a region's
+    // fade, long after the pointer had gone
+    onFocus={(e) => e.currentTarget.matches(":focus-visible") && onEmphasise("keyboard", entry)}
+    onBlur={() => onEmphasise("keyboard")}
+    onClick={onCentre}
+    sx={{
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 0.5,
+      px: 0.5,
+      py: 0,
+      font: "inherit",
+      color: "inherit",
+      cursor: "pointer",
+      border: "1px solid",
+      borderColor: centred ? "text.secondary" : "transparent",
+      borderRadius: 0.5,
+      bgcolor: marked ? "action.selected" : "transparent",
+      "&:hover, &:focus-visible": { bgcolor: "action.hover", borderColor: "text.primary", outline: "none" },
+    }}>
+    {entry.kind === "region" ? (
+      // a bar for a stretch of the chain, a dot for one residue; hollow when nothing is painted
+      <Box
+        data-testid="structure-legend-swatch"
+        data-painted={entry.colour ? "true" : "false"}
+        sx={{
+          width: 18,
+          height: 8,
+          boxSizing: "border-box",
+          borderRadius: "2px",
+          flex: "none",
+          ...(entry.colour ? { bgcolor: entry.colour } : { border: "1.5px solid", borderColor: "text.secondary" }),
+        }}
+      />
+    ) : (
+      <Box sx={{ width: 12, height: 12, bgcolor: entry.colour, borderRadius: "50%", flex: "none" }} />
+    )}
+    <Typography variant="caption">{entry.text}</Typography>
   </Box>
 );
 
@@ -122,6 +212,15 @@ const Canvas = ({
   const host = useRef<HTMLDivElement>(null);
   const [state, setState] = useState<SceneState>({ status: "parked" });
   const [hover, setHover] = useState<string | null>(null);
+  const [hoverAt, setHoverAt] = useState<number | null>(null);
+  const [emphasis, setEmphasis] = useState<{ scene: Scene; positions: number[]; marker: boolean }>();
+  const [centredOn, setCentredOn] = useState<{ scene: Scene; key: string }>();
+  const emphasisCall = useRef(0);
+  // the entry under the pointer and the one holding keyboard focus are tracked apart: either
+  // can go while the other still points
+  const pointed = useRef<{ pointer?: LegendEntry; keyboard?: LegendEntry }>({});
+  const emphasisedKey = useRef<string | undefined>(undefined);
+  const labelList = useRef<HTMLDivElement>(null);
   const [attempt, setAttempt] = useState(0);
   const [liveHeld, setLiveHeld] = useState<{ scene: Scene; positions: number[]; drawn: LiveDrawn }>();
   // read through a ref so a host re-rendering with a new function does not rebuild the scene
@@ -140,13 +239,23 @@ const Canvas = ({
     let scene: Scene | undefined;
     setState({ status: "rendering" });
     setHover(null);
+    setHoverAt(null);
     (async () => {
       const { createScene, WebGLUnavailableError } = await import("./molstarScene");
       try {
         if (disposed || !host.current) return;
         scene = await createScene(host.current, pdbText, spec, {
-          onHover: (text) => {
-            if (!disposed) setHover(text);
+          onHover: (text, filePosition) => {
+            if (disposed) return;
+            setHover(text);
+            setHoverAt(filePosition ?? null);
+          },
+          onEmphasisEnd: () => {
+            if (disposed) return;
+            // an answer still on its way is for an emphasis the scene has already ended
+            emphasisCall.current++;
+            emphasisedKey.current = undefined;
+            setEmphasis(undefined);
           },
           onContextLost: () => {
             if (disposed) return;
@@ -179,6 +288,9 @@ const Canvas = ({
     return () => {
       disposed = true;
       scene?.dispose();
+      // the legend goes with the scene, and an unmounted entry sends no leave or blur
+      pointed.current = {};
+      emphasisedKey.current = undefined;
     };
   }, [spec, pdbText, active, attempt, linked]);
 
@@ -217,7 +329,85 @@ const Canvas = ({
     ? spec.residues.filter((r) => !scene.highlighted.includes(r.filePosition)).length
     : 0;
   const roles = VIEW_ROLES.filter((role) => spec.residues.some((r) => r.role === role));
-  const labelled = spec.residues.filter((r) => r.drawLabel).length;
+  // only what the model holds: an entry for something it lacks would emphasise nothing
+  const { entries, regionsOutside, unlistedLabels } = useMemo(() => {
+    const none: LegendEntry[] = [];
+    if (!readyScene) return { entries: none, regionsOutside: 0, unlistedLabels: 0 };
+    const regions = spec.regions.flatMap((r, i): LegendEntry[] => {
+      const positions = readyScene.regions[i] ?? [];
+      if (positions.length === 0) return [];
+      const first = positions[0];
+      const last = positions[positions.length - 1];
+      // the part the model has is what gets emphasised, so that is the range the entry names
+      const cut = first > r.start || last < r.end ? ` (of ${span(r.start, r.end)})` : "";
+      return [{ key: `region-${i}`, kind: "region", text: `${r.name} · ${span(first, last)}${cut}`, colour: r.colour, positions }];
+    });
+    const inModel = new Set(readyScene.highlighted);
+    // capped in spec order before the model is consulted: which labels are listed is then
+    // what the spec's author was told, whatever the model turns out to hold
+    const labelled = spec.residues.filter((r) => r.label?.trim());
+    const held = (r: (typeof labelled)[number]) => inModel.has(r.filePosition);
+    const residues = labelled.slice(0, MAX_LABELS).filter(held).map((r): LegendEntry => ({
+      key: String(r.filePosition),
+      kind: "residue",
+      text: entryText(r.label!.trim(), r.filePosition),
+      colour: r.colour,
+      positions: [r.filePosition],
+    }));
+    return {
+      entries: [...regions, ...residues],
+      regionsOutside: spec.regions.length - regions.length,
+      unlistedLabels: labelled.slice(MAX_LABELS).filter(held).length,
+    };
+  }, [spec, readyScene]);
+  const markedKeys = useMemo(
+    () => new Set(hoverAt === null ? [] : entries.filter((e) => e.positions.includes(hoverAt)).map((e) => e.key)),
+    [entries, hoverAt],
+  );
+  // the entry the pointer's residue belongs to may be scrolled out of the list; its own entry
+  // before a region's, which is the wider answer. Moved by hand: scrollIntoView would scroll
+  // the page as well
+  useEffect(() => {
+    const list = labelList.current;
+    const el =
+      list?.querySelector<HTMLElement>('[data-marked][data-kind="residue"]') ??
+      list?.querySelector<HTMLElement>("[data-marked]");
+    if (!list || !el) return;
+    const top = el.offsetTop - list.offsetTop;
+    if (top < list.scrollTop || top + el.offsetHeight > list.scrollTop + list.clientHeight) list.scrollTop = top;
+  }, [markedKeys]);
+
+  const emphasise = (entry: LegendEntry | undefined, marker: boolean) => {
+    if (!scene) return;
+    const call = ++emphasisCall.current;
+    emphasisedKey.current = entry?.key;
+    scene.emphasise(entry?.positions ?? [], marker).then(
+      (held) => {
+        // a marker takes a moment to build, so the answer to a hover can arrive after the leave's
+        if (call === emphasisCall.current) setEmphasis({ scene, ...held });
+      },
+      () => {},
+    );
+  };
+  const shownEmphasis = scene && emphasis?.scene === scene ? emphasis : undefined;
+  const centredKey = scene && centredOn?.scene === scene ? centredOn.key : undefined;
+  const centre = (entry: LegendEntry) => {
+    if (!scene) return;
+    const back = centredKey === entry.key;
+    scene.focus(back ? [] : entry.positions);
+    setCentredOn(back ? undefined : { scene, key: entry.key });
+    // the pointer or the focus is still on the entry: at the zoom a centred entry is seen at,
+    // the marker would veil the residues it points at
+    emphasise(entry, back);
+  };
+  const point = (by: "pointer" | "keyboard", entry?: LegendEntry) => {
+    pointed.current[by] = entry;
+    const target = pointed.current.pointer ?? pointed.current.keyboard;
+    // the leave or blur of one while the other still points at the same entry changes nothing,
+    // and a second call would rebuild the marker
+    if (target?.key === emphasisedKey.current) return;
+    emphasise(target, !target || target.key !== centredKey);
+  };
   const holdsCanvas = ["ready", "rendering", "parked"].includes(state.status);
 
   return (
@@ -256,7 +446,8 @@ const Canvas = ({
           data-highlighted={scene?.highlighted.join(",")}
           data-colour-theme={scene?.colourTheme}
           data-sphere={scene ? String(scene.sphereDrawn) : undefined}
-          data-labels={scene?.labelsDrawn}
+          data-emphasised={shownEmphasis?.positions.length ? liveSummary(shownEmphasis.positions) : undefined}
+          data-emphasis-marker={shownEmphasis?.positions.length ? String(shownEmphasis.marker) : undefined}
           data-live={held ? liveSummary(held.positions) : undefined}
           data-live-drawn={held?.drawn}
           sx={{
@@ -311,6 +502,31 @@ const Canvas = ({
               within {spec.sphere.radius} Å of residue {spec.sphere.centre} (indicative)
             </Swatch>
           )}
+          {entries.length > 0 && (
+            <Box
+              ref={labelList}
+              data-testid="structure-legend-labels"
+              sx={{
+                flexBasis: "100%",
+                display: "flex",
+                flexWrap: "wrap",
+                columnGap: 0.5,
+                rowGap: 0.25,
+                maxHeight: LABEL_LIST_MAX_HEIGHT,
+                overflowY: "auto",
+              }}>
+              {entries.map((entry) => (
+                <LegendButton
+                  key={entry.key}
+                  entry={entry}
+                  marked={markedKeys.has(entry.key)}
+                  centred={entry.key === centredKey}
+                  onEmphasise={point}
+                  onCentre={() => centre(entry)}
+                />
+              ))}
+            </Box>
+          )}
           {held?.drawn === "atoms" && (
             <Swatch colour={SELECTION_COLOUR} round>
               selection
@@ -331,17 +547,28 @@ const Canvas = ({
               drawn
             </Note>
           )}
+          {unlistedLabels > 0 && (
+            <Note>
+              {unlistedLabels.toLocaleString()} more labelled residues are not listed here; a label
+              shows when the pointer is over its residue
+            </Note>
+          )}
+          {regionsOutside > 0 && (
+            <Note>
+              {regionsOutside} of {spec.regions.length} regions are outside this model and not shown
+            </Note>
+          )}
+          {spec.omitted.regions > 0 && (
+            <Note>
+              only the first {spec.regions.length} of {spec.regions.length + spec.omitted.regions}{" "}
+              regions are shown
+            </Note>
+          )}
           {spec.omitted.residues > 0 && (
             <Note>
               only the first {spec.residues.length.toLocaleString()} of{" "}
               {(spec.residues.length + spec.omitted.residues).toLocaleString()} listed residues
               are drawn
-            </Note>
-          )}
-          {spec.omitted.labels > 0 && (
-            <Note>
-              only the first {labelled} of {labelled + spec.omitted.labels} labels are drawn;
-              hover a residue for its label
             </Note>
           )}
           {spec.sphere && !scene.sphereDrawn && (
@@ -403,10 +630,6 @@ const Attribution = ({ modelFileId }: { modelFileId: string }) => {
         , © DeepMind Technologies Limited,{" "}
         <Link href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer">
           CC-BY 4.0
-        </Link>
-        . Jumper et al.,{" "}
-        <Link href="https://doi.org/10.1038/s41586-021-03819-2" target="_blank" rel="noopener noreferrer">
-          Nature 596, 583–589 (2021)
         </Link>
         .
       </>

@@ -35,6 +35,12 @@ const VALID_SPEC = {
     // past the end of the 94-residue model: listed, and not drawn
     { file_position: 900, role: "case" },
   ],
+  regions: [
+    // no colour: the cartoon keeps its pLDDT colours and the region shows only when pointed at
+    { name: "N-terminal half", start: 1, end: 50 },
+    // painted over the cartoon; residue 70 inside it keeps its own colour
+    { name: "EF-hand 2", start: 62, end: 73, colour: "#8c564b" },
+  ],
   sphere: { centre: 20, radius: 8 },
 };
 const VIEW = fileMarker("s100a1.structure-view.json", JSON.stringify(VALID_SPEC));
@@ -84,8 +90,6 @@ test("a structure-view artifact draws under the production CSP", async ({ page }
   await expect(canvas).toHaveAttribute("data-highlighted", "20,45,70,85");
   await expect(canvas).toHaveAttribute("data-colour-theme", "plddt-confidence");
   await expect(canvas).toHaveAttribute("data-sphere", "true");
-  // three residues carry a label; the fourth drawn one does not and gets none
-  await expect(canvas).toHaveAttribute("data-labels", "3");
 
   const legend = page.getByTestId("structure-legend");
   await expect(legend).toContainText("very high (> 90)");
@@ -116,6 +120,71 @@ test("a structure-view artifact draws under the production CSP", async ({ page }
   await snapshot(page, "structure-view-01-rendered");
   await viewer.screenshot({ path: path.join("e2e", ".output", "screenshots", "structure-view-02-viewer.png") });
 
+  // a labelled residue the model holds is a legend entry; pointing at it emphasises the
+  // residue in the scene, read back from what Mol* resolved
+  const shot = (name: string) => viewer.screenshot({ path: path.join("e2e", ".output", "screenshots", `${name}.png`) });
+  const regions = legend.locator('[data-testid="structure-legend-entry"][data-kind="region"]');
+  const entries = legend.locator('[data-testid="structure-legend-entry"][data-kind="residue"]');
+  await expect(legend.getByTestId("structure-legend-entry")).toHaveText([
+    "N-terminal half · 1–50",
+    "EF-hand 2 · 62–73",
+    "p.S20L",
+    "p.F45L",
+    "p.V70M",
+  ]);
+  await entries.nth(1).hover();
+  await expect(canvas).toHaveAttribute("data-emphasised", "45");
+  await expect(canvas).toHaveAttribute("data-emphasis-marker", "true");
+  await page.waitForTimeout(500);
+  await shot("structure-view-03-emphasised");
+  await footer.hover();
+  await expect(canvas).not.toHaveAttribute("data-emphasised");
+  await entries.nth(1).click();
+  await expect(entries.nth(1)).toHaveAttribute("aria-pressed", "true");
+  // the pointer is still on the entry: at this zoom the marker would veil the residue
+  await expect(canvas).toHaveAttribute("data-emphasised", "45");
+  await expect(canvas).toHaveAttribute("data-emphasis-marker", "false");
+  await page.waitForTimeout(500);
+  await shot("structure-view-04-centred");
+  await entries.nth(1).click();
+  await expect(entries.nth(1)).toHaveAttribute("aria-pressed", "false");
+  await footer.hover();
+
+  // a region with no colour is on screen only while its entry is pointed at: all of it, with
+  // no marker and no camera move
+  await page.waitForTimeout(500);
+  await regions.nth(0).hover();
+  await expect(canvas).toHaveAttribute("data-emphasised", "50 residues 1-50");
+  await expect(canvas).toHaveAttribute("data-emphasis-marker", "false");
+  await page.waitForTimeout(500);
+  await shot("structure-view-05-region-emphasised");
+  await regions.nth(1).hover();
+  await expect(canvas).toHaveAttribute("data-emphasised", "62,63,64,65,66,67,68,69,70,71,72,73");
+  await page.waitForTimeout(500);
+  await shot("structure-view-06-coloured-region-emphasised");
+  await regions.nth(1).click();
+  await expect(regions.nth(1)).toHaveAttribute("aria-pressed", "true");
+  await page.waitForTimeout(500);
+  await shot("structure-view-07-region-centred");
+  await regions.nth(1).click();
+  await footer.hover();
+  await expect(canvas).not.toHaveAttribute("data-emphasised");
+
+  // keyboard focus emphasises like the pointer does, and the Shift of Shift+Tab does not cost
+  // the scene its highlight: Mol* answers a modifier key by re-emitting its last hover
+  await regions.nth(0).hover();
+  await expect(canvas).toHaveAttribute("data-emphasised", "50 residues 1-50");
+  await page.waitForTimeout(500);
+  const byPointer = await canvas.screenshot();
+  await footer.hover();
+  await expect(canvas).not.toHaveAttribute("data-emphasised");
+  await page.keyboard.press("Shift+Tab");
+  await expect(regions.nth(0)).toBeFocused();
+  await expect(canvas).toHaveAttribute("data-emphasised", "50 residues 1-50");
+  await page.waitForTimeout(500);
+  await shot("structure-view-08-region-emphasised-by-keyboard");
+  expect((await canvas.screenshot()).equals(byPointer)).toBe(true);
+
   // hovering a residue names it: sweep the pointer over the canvas until it meets one
   const box = (await canvas.boundingBox())!;
   const hover = page.getByTestId("structure-hover");
@@ -128,6 +197,8 @@ test("a structure-view artifact draws under the production CSP", async ({ page }
     }
   }
   await expect(hover).toHaveText(/^[A-Z]{3} \d+( · p\.\w+)?$/);
+  // the pointer's own hover ends the emphasis the still-focused entry held, fade included
+  await expect(canvas).not.toHaveAttribute("data-emphasised");
 
   const download = page.waitForEvent("download");
   await footer.getByRole("button", { name: "Download the view spec" }).click();

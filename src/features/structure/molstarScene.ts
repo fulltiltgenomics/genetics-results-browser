@@ -18,15 +18,13 @@ import {
   StructureProperties,
   StructureSelection,
 } from "molstar/lib/mol-model/structure";
-import { Loci } from "molstar/lib/mol-model/loci";
+import { EmptyLoci, Loci } from "molstar/lib/mol-model/loci";
 import { Shape } from "molstar/lib/mol-model/shape";
 import { MolScriptBuilder as MS } from "molstar/lib/mol-script/language/builder";
 import type { Expression } from "molstar/lib/mol-script/language/expression";
 import { Script } from "molstar/lib/mol-script/script";
 import { ShapeRepresentation } from "molstar/lib/mol-repr/shape/representation";
 import { Mesh } from "molstar/lib/mol-geo/geometry/mesh/mesh";
-import { Text } from "molstar/lib/mol-geo/geometry/text/text";
-import { TextBuilder } from "molstar/lib/mol-geo/geometry/text/text-builder";
 import { Binding } from "molstar/lib/mol-util/binding";
 import { ButtonsType, ModifiersKeys } from "molstar/lib/mol-util/input/input-observer";
 import { MeshBuilder } from "molstar/lib/mol-geo/geometry/mesh/mesh-builder";
@@ -37,8 +35,11 @@ import { Vec3 } from "molstar/lib/mol-math/linear-algebra";
 import { LIVE_ATOMS_MAX, NEIGHBOURHOOD_COLOUR, SELECTION_COLOUR, type ViewSpec } from "./viewSpec";
 
 export interface SceneEvents {
-  /** what the pointer is over ("LYS 22 · p.K22R"), or null when it is over nothing */
-  onHover: (text: string | null) => void;
+  /**
+   * what the pointer is over ("LYS 22 · p.K22R") and that residue's file position; both null
+   * when it is over nothing
+   */
+  onHover: (text: string | null, filePosition: number | null) => void;
   /** the browser took the WebGL context away; the canvas is blank from here on */
   onContextLost: () => void;
   /**
@@ -46,6 +47,8 @@ export interface SceneEvents {
    * structure. Only a host that wants the residue itself passes it
    */
   onResidue?: (kind: "hover" | "click", filePosition: number | null) => void;
+  /** the pointer reached a residue in the canvas and its hover replaced the emphasis */
+  onEmphasisEnd?: () => void;
 }
 
 export class WebGLUnavailableError extends Error {}
@@ -59,7 +62,11 @@ export interface Scene {
   /** the cartoon's colour theme as Mol* resolved it */
   colourTheme: string;
   sphereDrawn: boolean;
-  labelsDrawn: number;
+  /**
+   * per region of the spec, in its order: the file positions the model holds inside it,
+   * ascending; empty for a region wholly outside the model
+   */
+  regions: number[][];
   /** the pLDDT theme's own legend rows; empty when the cartoon is not coloured by it */
   plddtLegend: { name: string; colour: string }[];
   /**
@@ -69,13 +76,33 @@ export interface Scene {
    * positions the model has among them and to how Mol*'s state tree now shows them.
    */
   setLive: (positions: number[], focus: boolean) => Promise<{ positions: number[]; drawn: LiveDrawn }>;
+  /**
+   * Makes the residues at these file positions stand out where they are, without moving the
+   * camera: Mol*'s highlight over them, with a translucent marker around a set too small to
+   * find by its tint unless `marker` is false, and the rest of the scene faded around a set
+   * too wide for one. An empty list clears it, and so does the pointer reaching a residue in
+   * the canvas, which `onEmphasisEnd` reports. Resolves to the positions the model has among
+   * them and to whether the marker is on screen.
+   */
+  emphasise: (positions: number[], marker?: boolean) => Promise<{ positions: number[]; marker: boolean }>;
+  /** moves the camera to these file positions, or back to the whole model when there are none */
+  focus: (positions: number[]) => void;
   dispose: () => void;
 }
 
 const HIGHLIGHT_TAG = "view-spec-highlight";
 const LIVE_TAG = "live-selection";
+const REGION_TAG = "view-spec-regions";
 const UNIFORM_CARTOON = Color(0xb0b8c0);
 const SPHERE_OPACITY = 0.22;
+const MARKER_OPACITY = 0.4;
+// the emphasis marker's radius as a share of the model's: wide enough to find in the opening
+// whole-protein view, where one residue's atoms are a few pixels
+const MARKER_MODEL_SHARE = 0.14;
+const MARKER_MIN_RADIUS = 6;
+// how far everything else fades towards white while a set too wide for the marker is
+// emphasised: Mol*'s tint alone is a faint purple on a pLDDT-blue cartoon
+const EMPHASIS_DIM = 0.65;
 
 const hex = (colour: string): Color => Color.fromHexStyle(colour);
 
@@ -104,8 +131,13 @@ const positionsIn = (structure: Structure): number[] => {
   return [...seen];
 };
 
-const sphereRepresentation = async (centre: Vec3, radius: number, label: string) => {
-  const colour = hex(NEIGHBOURHOOD_COLOUR);
+const sphereRepresentation = async (
+  centre: Vec3,
+  radius: number,
+  label: string,
+  colour = hex(NEIGHBOURHOOD_COLOUR),
+  alpha = SPHERE_OPACITY,
+) => {
   // ShapeRepresentation builds nothing for falsy data, so the sphere travels as the data
   const data = { centre, radius };
   const repr = ShapeRepresentation<typeof data, Mesh, Mesh.Params>((_ctx, sphere, _props, shape) => {
@@ -121,52 +153,8 @@ const sphereRepresentation = async (centre: Vec3, radius: number, label: string)
       () => label,
     );
   }, Mesh.Utils);
-  await repr.createOrUpdate({ ...PD.getDefaultValues(Mesh.Params), alpha: SPHERE_OPACITY }, data).run();
+  await repr.createOrUpdate({ ...PD.getDefaultValues(Mesh.Params), alpha }, data).run();
   // the sphere surrounds the residues it is about; pickable, it would take their hover
-  repr.setState({ pickable: false });
-  return repr;
-};
-
-interface LabelItem {
-  text: string;
-  centre: Vec3;
-  radius: number;
-}
-
-// every label in one text geometry: a state node per label costs a state update each, which
-// is seconds for a few dozen
-const labelRepresentation = async (items: LabelItem[], size: number) => {
-  const colour = Color(0x111111);
-  const repr = ShapeRepresentation<LabelItem[], Text, Text.Params>((_ctx, labels, props, shape) => {
-    const builder = TextBuilder.create(props, labels.length * 16, labels.length * 8, shape?.geometry);
-    labels.forEach((l, i) =>
-      // depth lifts the text towards the camera, clear of the residue's own spheres
-      builder.add(l.text, l.centre[0], l.centre[1], l.centre[2], l.radius / 0.9, 1, i),
-    );
-    return Shape.create(
-      "labels",
-      labels,
-      builder.getText(),
-      () => colour,
-      () => size,
-      (group) => labels[group]?.text ?? "",
-    );
-  }, Text.Utils);
-  await repr
-    .createOrUpdate(
-      {
-        ...PD.getDefaultValues(Text.Params),
-        borderColor: Color(0xffffff),
-        borderWidth: 0.3,
-        background: true,
-        backgroundColor: Color(0xffffff),
-        backgroundOpacity: 0.75,
-        // up and to the right of the residue rather than over it
-        attachment: "bottom-left",
-      },
-      items,
-    )
-    .run();
   repr.setState({ pickable: false });
   return repr;
 };
@@ -272,37 +260,32 @@ export const createScene = async (
       if (held instanceof Structure) positionsIn(held).forEach((p) => highlighted.add(p));
     }
 
-    // text is sized in ångströms, not pixels, so a fixed size is legible only at one zoom.
-    // Scaled to the model instead: about a fourteenth of its diameter in the opening
-    // whole-protein view
-    const labelSize = Math.min(12, Math.max(1.2, (structure.boundary.sphere.radius * 2) / 14));
-    const wanted = new Map(
-      spec.residues
-        .filter((r) => r.drawLabel && r.label && highlighted.has(r.filePosition))
-        .map((r) => [r.filePosition, r.label!.trim()]),
+    const inModel = positionsIn(structure).sort((a, b) => a - b);
+    const regions = spec.regions.map((r) => inModel.filter((p) => p >= r.start && p <= r.end));
+    // in spec order, so where two coloured regions overlap the later one's colour shows
+    const regionLayers = spec.regions.flatMap((r, i) =>
+      r.colour && regions[i].length > 0
+        ? [
+            {
+              bundle: StructureElement.Bundle.fromLoci(lociOf(structure, residuesAt(regions[i]))),
+              color: hex(r.colour),
+              clear: false,
+            },
+          ]
+        : [],
     );
-    // one query and one pass over its atoms for every label: a query per label is most of a
-    // second each on a large model
-    const atoms = new Map<number, Vec3[]>();
-    if (wanted.size > 0) {
-      StructureElement.Loci.forEachLocation(lociOf(structure, residuesAt([...wanted.keys()])), (l) => {
-        const at = StructureProperties.residue.auth_seq_id(l);
-        const xyz = Vec3.create(StructureProperties.atom.x(l), StructureProperties.atom.y(l), StructureProperties.atom.z(l));
-        atoms.set(at, [...(atoms.get(at) ?? []), xyz]);
-      });
-    }
-    const labels: LabelItem[] = [];
-    for (const [at, text] of wanted) {
-      const points = atoms.get(at);
-      if (!points) continue;
-      const centre = Vec3.zero();
-      points.forEach((p) => Vec3.scaleAndAdd(centre, centre, p, 1 / points.length));
-      const radius = Math.max(...points.map((p) => Vec3.distance(centre, p)));
-      labels.push({ text, centre, radius });
-    }
-    if (labels.length > 0 && plugin.canvas3d) {
-      plugin.canvas3d.add(await labelRepresentation(labels, labelSize));
-    }
+    type OverpaintLayer = (typeof regionLayers)[number];
+    // a representation shows one overpaint node's layers, not the sum of several, so the
+    // regions and a long live selection always travel in the same node
+    const overpaint = async (layers: OverpaintLayer[], tag: string) => {
+      if (!cartoonRef || layers.length === 0) return;
+      await plugin
+        .build()
+        .to(cartoonRef)
+        .apply(StateTransforms.Representation.OverpaintStructureRepresentation3DFromBundle, { layers }, { tags: tag })
+        .commit();
+    };
+    await overpaint(regionLayers, REGION_TAG);
 
     let sphereDrawn = false;
     if (spec.sphere) {
@@ -346,12 +329,12 @@ export const createScene = async (
       const location = locationOf(current.loci);
       if (!location) {
         events.onResidue?.("hover", null);
-        return events.onHover(null);
+        return events.onHover(null, null);
       }
       const at = StructureProperties.residue.auth_seq_id(location);
       const name = `${StructureProperties.atom.label_comp_id(location)} ${at}`;
       events.onResidue?.("hover", at);
-      events.onHover(labelAt.get(at) ? `${name} · ${labelAt.get(at)}` : name);
+      events.onHover(labelAt.get(at) ? `${name} · ${labelAt.get(at)}` : name, at);
     });
     const { onResidue } = events;
     const click = onResidue
@@ -362,12 +345,12 @@ export const createScene = async (
       : undefined;
 
     const whole = Structure.toStructureElementLoci(structure);
-    const tagged = () => plugin.state.data.selectQ((q) => q.root.subtree().withTag(LIVE_TAG));
+    const tagged = (tag = LIVE_TAG) => plugin.state.data.selectQ((q) => q.root.subtree().withTag(tag));
     const applyLive = async (
       positions: number[],
       focus: boolean,
     ): Promise<{ positions: number[]; drawn: LiveDrawn }> => {
-      const stale = tagged();
+      const stale = [...tagged(), ...tagged(REGION_TAG)];
       if (stale.length > 0) {
         const update = plugin.build();
         stale.forEach((cell) => update.delete(cell.transform.ref));
@@ -378,22 +361,18 @@ export const createScene = async (
         loci && !StructureElement.Loci.isEmpty(loci)
           ? positionsIn(StructureElement.Loci.toStructure(loci)).sort((a, b) => a - b)
           : [];
-      if (loci && held.length > LIVE_ATOMS_MAX && cartoonRef) {
+      const onCartoon = loci && held.length > LIVE_ATOMS_MAX && cartoonRef;
+      if (onCartoon) {
         const layer = {
           bundle: StructureElement.Bundle.fromLoci(loci),
           color: hex(SELECTION_COLOUR),
           clear: false,
         };
-        await plugin
-          .build()
-          .to(cartoonRef)
-          .apply(
-            StateTransforms.Representation.OverpaintStructureRepresentation3DFromBundle,
-            { layers: [layer] },
-            { tags: LIVE_TAG },
-          )
-          .commit();
-      } else if (held.length > 0) {
+        await overpaint([...regionLayers, layer], LIVE_TAG);
+      } else {
+        await overpaint(regionLayers, REGION_TAG);
+      }
+      if (!onCartoon && held.length > 0) {
         const component = await builders.structure.tryCreateComponentFromExpression(
           structureCell,
           residuesAt(held),
@@ -421,6 +400,97 @@ export const createScene = async (
         cells.length === 0 ? "none" : cells.some((c) => c.obj?.data instanceof Structure) ? "atoms" : "cartoon";
       return { positions: drawn === "none" ? [] : held, drawn };
     };
+    const lociAt = (positions: number[]) => {
+      const loci = positions.length > 0 ? lociOf(structure, residuesAt(positions)) : undefined;
+      return loci && !StructureElement.Loci.isEmpty(loci) ? loci : undefined;
+    };
+    const markerRadius = Math.max(MARKER_MIN_RADIUS, structure.boundary.sphere.radius * MARKER_MODEL_SHARE);
+    let marker: Awaited<ReturnType<typeof sphereRepresentation>> | undefined;
+    // building the marker is asynchronous, so a later call can overtake an earlier one
+    let emphasisRun = 0;
+    const dropMarker = () => {
+      if (!marker) return;
+      plugin.canvas3d?.remove(marker);
+      marker.destroy();
+      marker = undefined;
+    };
+    // a renderer setting that fades whatever is not highlighted, so it has to go off with the
+    // emphasis: left on, an ordinary pointer hover over one residue would fade the whole
+    // structure. Every path that ends an emphasis goes through endEmphasis
+    const dim = (on: boolean) => plugin.canvas3d?.setProps({ renderer: { dimStrength: on ? EMPHASIS_DIM : 0 } });
+    const highlights = plugin.managers.interactivity.lociHighlights;
+    let emphasised: StructureElement.Loci | undefined;
+    const endEmphasis = () => {
+      // a marker still being built finds itself overtaken
+      emphasisRun++;
+      dropMarker();
+      dim(false);
+      emphasised = undefined;
+    };
+    const emphasise = async (positions: number[], withMarker = true) => {
+      endEmphasis();
+      const run = emphasisRun;
+      const loci = lociAt(positions);
+      if (!loci) {
+        highlights.clearHighlights();
+        return { positions: [], marker: false };
+      }
+      // the loci is whole residues already, so the plugin's granularity has nothing to widen
+      highlights.highlightOnly({ loci }, false);
+      emphasised = loci;
+      const held = positionsIn(StructureElement.Loci.toStructure(loci)).sort((a, b) => a - b);
+      const bounds = Loci.getBoundingSphere(loci);
+      const wide = bounds !== undefined && bounds.radius >= markerRadius;
+      dim(wide);
+      // a sphere around a set already wider than the marker would only hide the structure
+      if (!withMarker || !bounds || wide || !plugin.canvas3d) {
+        return { positions: held, marker: false };
+      }
+      const built = await sphereRepresentation(
+        bounds.center,
+        markerRadius,
+        "emphasis",
+        // the tint and the marker are one signal, so they share Mol*'s highlight colour
+        plugin.canvas3d.props.renderer.highlightColor,
+        MARKER_OPACITY,
+      );
+      if (run !== emphasisRun) {
+        built.destroy();
+        return { positions: held, marker: false };
+      }
+      plugin.canvas3d.add(built);
+      marker = built;
+      return { positions: held, marker: true };
+    };
+    // Mol* owns the highlight too and rewrites it on every hover it emits; its own behaviour
+    // subscribed first, so by the time this runs the emphasis highlight is already replaced.
+    // A hover that moved onto a residue is the pointer taking over. Any other is Mol* repeating
+    // itself: a modifier key re-emits the previous loci, empty while the pointer is off the
+    // canvas, and that must not cost a legend entry its highlight
+    let hovered: Loci = EmptyLoci;
+    let restoring = false;
+    const takeover = plugin.behaviors.interaction.hover.subscribe(({ current }) => {
+      const moved = !Loci.areEqual(current.loci, hovered);
+      hovered = current.loci;
+      // highlighting emits no hover today; the flag keeps it from looping if it ever does
+      if (!emphasised || restoring) return;
+      if (moved && locationOf(current.loci)) {
+        endEmphasis();
+        events.onEmphasisEnd?.();
+        return;
+      }
+      restoring = true;
+      try {
+        highlights.highlightOnly({ loci: emphasised }, false);
+      } finally {
+        restoring = false;
+      }
+    });
+    const focus = (positions: number[]) => {
+      const loci = lociAt(positions);
+      plugin.managers.camera.focusLoci(loci ?? whole, { extraRadius: loci ? 8 : 0, durationMs: 250 });
+    };
+
     // one update at a time: two interleaved would each delete what the other had just built
     let liveQueue: Promise<unknown> = Promise.resolve();
     const canvas = host.querySelector("canvas");
@@ -435,15 +505,20 @@ export const createScene = async (
       highlighted: [...highlighted].sort((a, b) => a - b),
       colourTheme,
       sphereDrawn,
-      labelsDrawn: labels.length,
+      regions,
       plddtLegend,
       setLive: (positions, focus) => {
         const run = liveQueue.catch(() => undefined).then(() => applyLive(positions, focus));
         liveQueue = run;
         return run;
       },
+      emphasise,
+      focus,
       dispose: () => {
+        // a marker still being built finds itself overtaken and is not added to a dead canvas
+        emphasisRun++;
         hover.unsubscribe();
+        takeover.unsubscribe();
         click?.unsubscribe();
         canvas?.removeEventListener("webglcontextlost", lost);
         plugin.dispose();
