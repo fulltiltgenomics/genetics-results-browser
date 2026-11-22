@@ -103,7 +103,7 @@ const measure = async (browser, gene) => {
   await untilQuiet(page, inFlight);
   counting = true;
   const clicked = await page.evaluate(() => performance.now());
-  await page.getByRole("tab", { name: "variant association" }).click();
+  await page.getByRole("tab", { name: "GWAS" }).click();
   const shared = page.getByTestId("assoc-row");
   const rows = (await page
     .getByTestId("assoc-tracks")

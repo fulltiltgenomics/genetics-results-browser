@@ -6,7 +6,7 @@ const BASE = process.env.PERF_BASE_URL ?? "http://localhost:3000";
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1500, height: 1000 } });
 await page.goto(`${BASE}/gene/${process.argv[2] ?? "GCKR"}`);
-await page.getByRole("tab", { name: "variant association" }).click();
+await page.getByRole("tab", { name: "GWAS" }).click();
 await page.getByTestId("assoc-row").first().waitFor({ timeout: 120000 });
 // the padded region replaces the gene body a moment later: wait for three seconds of a main thread
 // that answers at once

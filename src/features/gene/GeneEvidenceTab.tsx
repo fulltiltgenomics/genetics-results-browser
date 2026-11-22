@@ -1,5 +1,13 @@
 import { useMemo, useState } from "react";
-import { Box, Tab, Tabs, ToggleButton, ToggleButtonGroup, Typography } from "@mui/material";
+import {
+  Box,
+  Tab,
+  Tabs,
+  ToggleButton,
+  ToggleButtonGroup,
+  Tooltip,
+  Typography,
+} from "@mui/material";
 import { MaterialReactTable, MRT_ColumnDef } from "material-react-table";
 import { useGeneDisease, useGeneExpression } from "@/store/serverQuery";
 import {
@@ -235,6 +243,12 @@ const tabContent = (tab: GeneEvidenceTabName, geneName: string) => {
   }
 };
 
+// the stored tab names stay as they are, so a browser's remembered tab survives a relabelling
+const TAB_LABELS: Partial<Record<GeneEvidenceTabName, string>> = {
+  "variant association": "GWAS",
+};
+const COMING_SOON: ReadonlySet<GeneEvidenceTabName> = new Set(["qtl"]);
+
 const GeneEvidenceTab = ({ geneName }: { geneName: string }) => {
   const activeTab = useGeneEvidenceStore((s) => s.activeTab);
   const setActiveTab = useGeneEvidenceStore((s) => s.setActiveTab);
@@ -246,12 +260,30 @@ const GeneEvidenceTab = ({ geneName }: { geneName: string }) => {
       </Typography>
       <Tabs
         value={activeTab}
-        onChange={(_e, value) => setActiveTab(value)}
+        onChange={(_e, value) => {
+          if (!COMING_SOON.has(value)) setActiveTab(value);
+        }}
         variant="scrollable"
         sx={{ mb: 2, borderBottom: 1, borderColor: "divider" }}>
-        {GENE_EVIDENCE_TABS.map((tab) => (
-          <Tab key={tab} value={tab} label={tab} />
-        ))}
+        {GENE_EVIDENCE_TABS.map((tab) =>
+          COMING_SOON.has(tab) ? (
+            // not the disabled prop: a disabled button takes no pointer, so it could show no tooltip
+            <Tab
+              key={tab}
+              value={tab}
+              aria-disabled
+              disableRipple
+              sx={{ cursor: "default", color: "text.disabled" }}
+              label={
+                <Tooltip title="coming soon" describeChild>
+                  <span>{TAB_LABELS[tab] ?? tab}</span>
+                </Tooltip>
+              }
+            />
+          ) : (
+            <Tab key={tab} value={tab} label={TAB_LABELS[tab] ?? tab} />
+          )
+        )}
       </Tabs>
       {tabContent(activeTab, geneName)}
     </Box>

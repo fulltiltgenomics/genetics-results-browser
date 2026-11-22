@@ -3,12 +3,12 @@ import { persist } from "zustand/middleware";
 
 export const GENE_EVIDENCE_TABS = [
   "ai summary",
-  "annotation",
   "gene burden",
   "variant association",
   "qtl",
   "expression",
   "mendelian",
+  "annotation",
 ] as const;
 export type GeneEvidenceTabName = (typeof GENE_EVIDENCE_TABS)[number];
 

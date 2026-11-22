@@ -126,7 +126,7 @@ const measureGene = async (browser, gene) => {
   await untilQuiet(page, inFlight);
   counting = true;
   const clicked = await page.evaluate(() => performance.now());
-  await page.getByRole("tab", { name: "variant association" }).click();
+  await page.getByRole("tab", { name: "GWAS" }).click();
   await page.waitForFunction(() => window.__assocPerf?.ready, null, { timeout: 120000 });
   const readyAt = await page.evaluate(() => performance.now());
   // a gene can have nothing to list under the default filters
@@ -300,7 +300,7 @@ const darkShots = async (browser, gene) => {
   });
   const page = await context.newPage();
   await page.goto(`${BASE}/gene/${gene}`);
-  await page.getByRole("tab", { name: "variant association" }).click();
+  await page.getByRole("tab", { name: "GWAS" }).click();
   await page.waitForFunction(() => window.__assocPerf?.ready, null, { timeout: 120000 });
   await page.getByTestId("assoc-row").first().waitFor({ timeout: 120000 });
   const zoomOut = page.getByRole("button", { name: "zoom out" });

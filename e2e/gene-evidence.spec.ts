@@ -62,7 +62,7 @@ test("gene evidence page shows burden, expression, gene-disease and annotation f
 
   // variant association: APOE's missense variants sit in many GWAS credible sets. the table opens
   // on the sets with a variant in the gene, under a track of every credible-set variant of the locus
-  await page.getByRole("tab", { name: "variant association" }).click();
+  await page.getByRole("tab", { name: "GWAS" }).click();
   const rows = page.getByTestId("assoc-row");
   await expect(rows.first()).toContainText("missense", { timeout: 90000 });
   const tracks = page.getByTestId("assoc-tracks");

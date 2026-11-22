@@ -14,6 +14,12 @@ const GeneEvidencePage = () => {
 
   return (
     <Box display="flex" flexDirection="column">
+      <Typography sx={{ mt: 3, maxWidth: 900 }}>
+        Browse and plot all of our results for a gene: GWAS and gene burden results, expression data
+        from GTEx and CELLxGENE, and other annotations.
+        <br />
+        An AI summary based on all these data is provided.
+      </Typography>
       <Box
         component="form"
         display="flex"
@@ -40,7 +46,7 @@ const GeneEvidencePage = () => {
           color="primary"
           variant="contained"
           disabled={!wanted}>
-          Show evidence
+          GO
         </Button>
       </Box>
       {geneName &&

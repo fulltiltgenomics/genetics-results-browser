@@ -21,7 +21,7 @@ const renderAt = (path: string) =>
 describe("GeneEvidencePage", () => {
   it("shows no evidence until a gene is named, and cannot be asked for an empty one", () => {
     renderAt("/gene");
-    expect(screen.getByRole("button", { name: "Show evidence" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "GO" })).toBeDisabled();
     expect(screen.queryByRole("tablist")).toBeNull();
   });
 
@@ -29,7 +29,7 @@ describe("GeneEvidencePage", () => {
     renderAt("/gene");
     await userEvent.type(screen.getByLabelText("Enter a gene name"), "apoe{Enter}");
     expect(await screen.findByText("APOE")).toBeInTheDocument();
-    expect(screen.getByRole("tab", { name: "variant association" })).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "GWAS" })).toBeInTheDocument();
     expect(screen.queryByRole("tab", { name: /credible sets/i })).toBeNull();
   });
 });

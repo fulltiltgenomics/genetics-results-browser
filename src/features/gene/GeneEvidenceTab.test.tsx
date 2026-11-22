@@ -124,13 +124,16 @@ describe("GeneEvidenceTab (component)", () => {
 
     expect(screen.getAllByRole("tab").map((t) => t.textContent)).toEqual([
       "ai summary",
-      "annotation",
       "gene burden",
-      "variant association",
+      "GWAS",
       "qtl",
       "expression",
       "mendelian",
+      "annotation",
     ]);
+    // nothing to show there yet
+    expect(screen.getByRole("tab", { name: "qtl" })).toHaveAttribute("aria-disabled", "true");
+    await userEvent.click(screen.getByRole("tab", { name: "qtl" }));
     expect(screen.getByRole("tab", { name: "gene burden" })).toHaveAttribute(
       "aria-selected",
       "true"
