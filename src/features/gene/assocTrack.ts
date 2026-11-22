@@ -9,7 +9,7 @@ import { variantsInRegion, type Region } from "./geneAssociation";
  */
 
 // vertical layout in CSS pixels, top to bottom: the PIP scatter, the two gene strands either side
-// of a centre line with a label row outside each, and the position axis
+// of `centre` with a label row outside each, and the position axis
 export const TRACK = {
   pipTop: 22,
   pipBottom: 132,
@@ -83,11 +83,11 @@ export const dragRegion = (x0: number, x1: number, view: Region, width: number):
   end: Math.ceil(xToBp(Math.max(x0, x1), view, width)),
 });
 
+// the dots as drawn: each variant's position, the PIP it stands at and its radius
 export interface DotData {
   positions: ArrayLike<number>;
-  maxPip: ArrayLike<number>;
-  nSets: ArrayLike<number>;
-  maxNSets: number;
+  pip: ArrayLike<number>;
+  radius: ArrayLike<number>;
 }
 
 /** The drawn variant nearest the pointer among those whose dot it is on or just beside. */
@@ -104,14 +104,8 @@ export const hitVariant = (
   let best: number | null = null;
   let bestDistance = Infinity;
   for (let v = from; v < to; v++) {
-    if (dots.nSets[v] === 0) {
-      continue;
-    }
-    const distance = Math.hypot(
-      bpToX(dots.positions[v], view, width) - x,
-      pipToY(dots.maxPip[v]) - y
-    );
-    if (distance <= dotRadius(dots.nSets[v], dots.maxNSets) + HIT_SLOP && distance < bestDistance) {
+    const distance = Math.hypot(bpToX(dots.positions[v], view, width) - x, pipToY(dots.pip[v]) - y);
+    if (distance <= dots.radius[v] + HIT_SLOP && distance < bestDistance) {
       best = v;
       bestDistance = distance;
     }

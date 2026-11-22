@@ -913,15 +913,42 @@ describe("variant association tab", () => {
     pointer("move", dot(44908684, 0.9));
     expect(screen.getByTestId("assoc-readout")).toHaveTextContent(/in 3 credible sets$/);
 
-    // a search fades nothing here, the variant being in a set that passes, and the line says how
-    // much of the dot that is
+    // a search leaves one of the sets, and the dot goes to its PIP in that one
     await user.type(screen.getByRole("textbox", { name: "search" }), "dementia");
     await waitFor(() => expect(within(bodyRows()[0]).getByText("Dementia")).toBeInTheDocument());
-    pointer("move", { clientX: 0, clientY: 0 });
+    await waitFor(() => {
+      pointer("move", dot(44908684, 0.4));
+      expect(screen.getByTestId("assoc-readout")).toHaveTextContent(
+        "highest PIP 0.900 · in 3 credible sets · 1 passing the filters, highest PIP 0.400 in those"
+      );
+    });
+  });
+
+  it("moves a variant to its PIP in the credible set of the table row under the pointer", async () => {
+    useSummary([
+      memberRow({}),
+      memberRow({ trait: "Memory_loss", trait_original: "MEM", cs_id: "faint", pip: 0.01 }),
+    ]);
+    renderTab("variant association");
+    await loaded();
+    const readout = screen.getByTestId("assoc-readout");
     pointer("move", dot(44908684, 0.9));
-    expect(screen.getByTestId("assoc-readout")).toHaveTextContent(
-      "in 3 credible sets · 1 passing the filters, highest PIP 0.400 in those"
-    );
+    expect(readout).toHaveTextContent("19:44908684:T:C");
+
+    fireEvent.mouseOver(screen.getByRole("cell", { name: "Memory loss" }));
+    await waitFor(() => {
+      pointer("move", dot(44908684, 0.01));
+      expect(readout).toHaveTextContent("19:44908684:T:C");
+    });
+    pointer("move", dot(44908684, 0.9));
+    expect(readout).not.toHaveTextContent("19:44908684:T:C");
+
+    // and back once the pointer has left the table
+    fireEvent.mouseLeave(screen.getByTestId("assoc-table"));
+    await waitFor(() => {
+      pointer("move", dot(44908684, 0.9));
+      expect(readout).toHaveTextContent("19:44908684:T:C");
+    });
   });
 
   it("selects the region a drag covers, and pans on a drag with ctrl held", async () => {

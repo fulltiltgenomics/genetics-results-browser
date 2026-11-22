@@ -94,9 +94,8 @@ describe("variant dots", () => {
     const view = { start: 0, end: 1000 };
     const dots = {
       positions: [100, 500, 504, 900],
-      maxPip: [0.5, 1, 0.9, 0],
-      nSets: [1, 50, 1, 0],
-      maxNSets: 50,
+      pip: [0.5, 1, 0.9, 0],
+      radius: [dotRadius(1, 50), dotRadius(50, 50), dotRadius(1, 50), dotRadius(1, 50)],
     };
 
     it("reads the dot under the pointer", () => {
@@ -110,8 +109,8 @@ describe("variant dots", () => {
       expect(hitVariant(dots, view, WIDTH, 505, pipToY(0.9) + 1)).toBe(2);
     });
 
-    it("ignores a variant the filters have left out of the track", () => {
-      expect(hitVariant(dots, view, WIDTH, 900, pipToY(0))).toBeNull();
+    it("reads a dot where it is drawn, whatever it stands for", () => {
+      expect(hitVariant(dots, view, WIDTH, 900, pipToY(0))).toBe(3);
     });
   });
 });

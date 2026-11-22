@@ -235,7 +235,7 @@ const Legend = memo(({ gene }: { gene: string }) => (
       <Swatch colour="other" faint />
       faint: in no credible set that passes the filters
     </span>
-    <span>· area: number of credible sets</span>
+    <span>· area: number of credible sets that pass the filters</span>
   </Typography>
 ));
 Legend.displayName = "Legend";
@@ -435,7 +435,6 @@ const GeneAssociationSection = ({ geneName }: { geneName: string }) => {
   const csIds =
     setIds.data && setIds.data.setsKey === summary?.setsKey ? setIds.data.csId : undefined;
   const hoverSet = useCallback((set: number | null) => tracks.current?.highlightSet(set), []);
-  const openSets = useCallback((sets: number[]) => tracks.current?.showSets(sets), []);
   const download = useCallback(
     (sorted: AssocRow[]) => {
       if (index && csIds) {
@@ -529,7 +528,7 @@ const GeneAssociationSection = ({ geneName }: { geneName: string }) => {
             data-testid="assoc-status"
             sx={{ height: 24 }}>
             <span ref={attachViewCount} data-testid="assoc-view-count" /> · each at its highest PIP
-            in any credible set
+            in the credible sets that pass the filters
           </Typography>
           <AssocTracks
             ref={tracks}
@@ -624,7 +623,6 @@ const GeneAssociationSection = ({ geneName }: { geneName: string }) => {
           selected={selectedVariant != null}
           collapsed={topTrait}
           onHoverSet={hoverSet}
-          onOpenSets={openSets}
           onDownload={download}
         />
       )}

@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Typography } from "@mui/material";
 import { styled } from "@mui/material/styles";
 import { useCredibleSetMembers } from "@/store/serverQuery";
@@ -780,7 +780,6 @@ const AssocTable = ({
   rows,
   csIds,
   onHoverSet,
-  onOpenSets,
   onDownload,
   selected,
   collapsed,
@@ -790,8 +789,6 @@ const AssocTable = ({
   selected: boolean;
   // the table keeps the top trait only, and has a column for what each row stands for
   collapsed: boolean;
-  // the credible sets of the rows that are open
-  onOpenSets: (sets: number[]) => void;
   // undefined until the ids have loaded
   csIds: string[] | undefined;
   onHoverSet: (set: number | null) => void;
@@ -824,9 +821,6 @@ const AssocTable = ({
     setBeforeSelection(selected ? chosen : null);
     setChosen(selected ? null : beforeSelection);
   }
-  useEffect(() => {
-    onOpenSets(open.size === 0 ? [] : rows.filter((r) => open.has(r.key)).map((r) => r.set));
-  }, [open, rows, onOpenSets]);
 
   const sorted = useMemo(
     () =>

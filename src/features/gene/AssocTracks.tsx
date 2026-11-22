@@ -8,7 +8,6 @@ import {
   axisTicks,
   bpToX,
   clampView,
-  DotData,
   dotRadius,
   DRAG_THRESHOLD,
   dragRegion,
@@ -37,7 +36,9 @@ import {
 
 /**
  * The two tracks of the variant association tab on one canvas: every variant of the credible sets
- * as a dot at its highest PIP, and the genes below it, split by strand.
+ * as a dot at its highest PIP in the sets that pass the filters, and the genes below it, split by
+ * strand. A dot that the filters move or resize, or that a table row calls to its PIP in that
+ * row's set, travels there over a few frames.
  *
  * The view lives in a ref and the canvas is repainted from an animation frame, so a zoom or a pan
  * never renders React. What is under the pointer is written into one fixed line below the tracks.
@@ -50,10 +51,9 @@ const FONT = '11px "Roboto", "Helvetica", "Arial", sans-serif';
 export interface AssocTracksHandle {
   zoomBy: (factor: number) => void;
   reset: () => void;
-  // rings the members of a credible set, for the table row under the pointer
+  // rings the members of a credible set and moves each to its PIP in that set, for the table row
+  // under the pointer
   highlightSet: (set: number | null) => void;
-  // the credible sets whose rows are open in the table
-  showSets: (sets: number[]) => void;
 }
 
 export interface ViewFlags {
@@ -87,7 +87,7 @@ type Colours = Record<"lof" | "coding" | "other" | "surface" | "strong", string>
 interface DotLayer {
   canvas: HTMLCanvasElement;
   // what it was last drawn from; a change in any of these makes it stale
-  dots: unknown;
+  version: number;
   colours: unknown;
   width: number;
   // the stretch it covers, which is wider than the view it was drawn for
@@ -112,6 +112,11 @@ const SETTLE_MS = 100;
 const VIEW_SETTLED_MS = 160;
 // share of the view the layer reaches beyond either edge, so a pan has marks to bring in
 const LAYER_MARGIN = 0.25;
+// how long a dot takes to its new place and size
+const MOVE_MS = 550;
+// with more dots than this to move inside the view they jump instead: each moving dot is drawn
+// on every frame of the move
+const MAX_MOVING_MARKS = 3000;
 
 interface Scene {
   index: AssocIndex;
@@ -120,34 +125,56 @@ interface Scene {
   colours: Colours;
 }
 
-interface Dots extends DotData {
+interface Dots {
+  positions: Int32Array;
   // drawn variants, back to front
   order: Int32Array;
   // the view's variantPasses; the others are faint
   passes: Uint8Array;
   // passingBefore[i] is the number of those among the first i variants
   passingBefore: Uint32Array;
+  // where the filters put each dot: its highest PIP in the sets that pass and a radius for how
+  // many of them hold it. a variant in none stays at its highest PIP in any set, at the least size
+  pip: Float64Array;
+  radius: Float32Array;
 }
 
-// every variant the layer covers: the faint and the non-coding go in as one path per group, the
-// few coding ones that are not faint singly with an edge so they stay apart
-const drawDots = (layer: DotLayer, s: Scene, v: Region, w: number, dpr: number) => {
-  const { canvas } = layer;
-  const width = w * (1 + 2 * LAYER_MARGIN);
-  const covered = {
-    start: v.start - LAYER_MARGIN * viewSpan(v),
-    end: v.end + LAYER_MARGIN * viewSpan(v),
-  };
-  if (canvas.width !== Math.round(width * dpr)) {
-    canvas.width = Math.round(width * dpr);
-    canvas.height = Math.round(TRACK.height * dpr);
-  }
-  const ctx = canvas.getContext("2d")!;
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  ctx.clearRect(0, 0, width, TRACK.height);
-  const { positions, maxPip, nSets, maxNSets, order, passes } = s.dots;
+// what is on screen, which lags `Dots` while dots are moving
+interface Shown {
+  index: AssocIndex;
+  pip: Float64Array;
+  radius: Float32Array;
+}
+
+interface Move {
+  ids: Int32Array;
+  fromPip: Float64Array;
+  toPip: Float64Array;
+  fromRadius: Float32Array;
+  toRadius: Float32Array;
+  // 1 for a variant that is moving, and those in painting order
+  moving: Uint8Array;
+  order: Int32Array;
+  // the first frame of the move: a filter change is followed by the table's own work, which
+  // would otherwise use the move's time up before a frame of it is seen
+  startedAt: number | null;
+}
+
+// the variants of `order` inside the stretch that starts at `start` and is `width` wide on the
+// canvas: the faint and the non-coding go in as one path per group, the few coding ones that are
+// not faint singly with an edge so they stay apart. returns how many were drawn
+const drawMarks = (
+  ctx: CanvasRenderingContext2D,
+  s: Scene,
+  shown: Shown,
+  order: Int32Array,
+  start: number,
+  span: number,
+  width: number,
+  skip: Uint8Array | null
+): number => {
+  const { positions, passes } = s.dots;
   const classes = s.index.summary.variants.variantClass;
-  const span = viewSpan(covered);
   let marks = 0;
   let group = -1;
   const flush = () => {
@@ -157,13 +184,16 @@ const drawDots = (layer: DotLayer, s: Scene, v: Region, w: number, dpr: number) 
   };
   for (let i = 0; i < order.length; i++) {
     const id = order[i];
-    const r = dotRadius(nSets[id], maxNSets);
-    const x = ((positions[id] - covered.start) / span) * width;
+    if (skip?.[id]) {
+      continue;
+    }
+    const r = shown.radius[id];
+    const x = ((positions[id] - start) / span) * width;
     if (x < -r || x > width + r) {
       continue;
     }
     marks++;
-    const y = pipToY(maxPip[id]);
+    const y = pipToY(shown.pip[id]);
     const cls = classes[id];
     const single = passes[id] === 1 && cls !== VARIANT_CLASS.other;
     const key = single ? 100 : passes[id] * 10 + cls;
@@ -207,13 +237,49 @@ const drawDots = (layer: DotLayer, s: Scene, v: Region, w: number, dpr: number) 
   }
   flush();
   ctx.globalAlpha = 1;
-  layer.marks = marks;
-  layer.dots = s.dots;
+  return marks;
+};
+
+// every variant the layer covers but those of `skip`, which are moving and drawn over it
+const drawLayer = (
+  layer: DotLayer,
+  s: Scene,
+  shown: Shown,
+  skip: Uint8Array | null,
+  v: Region,
+  w: number,
+  dpr: number
+) => {
+  const { canvas } = layer;
+  const width = w * (1 + 2 * LAYER_MARGIN);
+  const covered = {
+    start: v.start - LAYER_MARGIN * viewSpan(v),
+    end: v.end + LAYER_MARGIN * viewSpan(v),
+  };
+  if (canvas.width !== Math.round(width * dpr)) {
+    canvas.width = Math.round(width * dpr);
+    canvas.height = Math.round(TRACK.height * dpr);
+  }
+  const ctx = canvas.getContext("2d")!;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, width, TRACK.height);
+  layer.marks = drawMarks(
+    ctx,
+    s,
+    shown,
+    s.dots.order,
+    covered.start,
+    viewSpan(covered),
+    width,
+    skip
+  );
   layer.colours = s.colours;
   layer.width = w;
   layer.view = covered;
   layer.drawnFor = v;
 };
+
+const easeOut = (t: number): number => 1 - (1 - t) ** 3;
 
 interface Drag {
   x0: number;
@@ -250,12 +316,17 @@ const AssocTracks = ({
   const drag = useRef<Drag | null>(null);
   const hoveredVariant = useRef<number | null>(null);
   const highlightedSet = useRef<number | null>(null);
-  const openSets = useRef<number[]>([]);
+  const shown = useRef<Shown | null>(null);
+  const move = useRef<Move | null>(null);
+  // counts what the layer is drawn from besides the view: the dots, and which of them are moving
+  const layerVersion = useRef(0);
+  // where the pointer is along the track, for the line that follows it
+  const cursorX = useRef<number | null>(null);
   const flags = useRef<ViewFlags>({ atLimits: false, isDefault: true });
   const dotLayer = useRef<DotLayer>(null!);
   dotLayer.current ??= {
     canvas: document.createElement("canvas"),
-    dots: null,
+    version: -1,
     colours: null,
     width: 0,
     view: null,
@@ -281,27 +352,23 @@ const AssocTracks = ({
     const classes = index.summary.variants.variantClass;
     const passes = view.variantPasses;
     const passingBefore = new Uint32Array(index.nVariants + 1);
+    const pip = new Float64Array(index.nVariants);
+    const radius = new Float32Array(index.nVariants);
     for (let v = 0; v < index.nVariants; v++) {
       passingBefore[v + 1] = passingBefore[v] + passes[v];
+      // by the sets that pass the filters whatever is selected: a selection fades, and moves
+      // nothing
+      const n = view.variantPassingSets[v];
+      pip[v] = n > 0 ? view.variantPassingPip[v] : index.variantMaxPip[v];
+      // against the most sets any variant is in, so a size means the same under every filter
+      radius[v] = dotRadius(Math.max(1, n), maxNSets);
     }
     // painted back to front: the faint first; within each non-coding, coding and LoF, and
     // within those the large dots first so a small one is never buried
     const order = Int32Array.from({ length: index.nVariants }, (_, i) => i).sort(
-      (a, b) =>
-        passes[a] - passes[b] ||
-        classes[a] - classes[b] ||
-        index.variantNSets[b] - index.variantNSets[a]
+      (a, b) => passes[a] - passes[b] || classes[a] - classes[b] || radius[b] - radius[a]
     );
-    return {
-      positions: index.variantPos,
-      // of every set, so that no filter and no selection moves or resizes a dot
-      maxPip: index.variantMaxPip,
-      nSets: index.variantNSets,
-      maxNSets,
-      order,
-      passes,
-      passingBefore,
-    };
+    return { positions: index.variantPos, order, passes, passingBefore, pip, radius };
   }, [index, view]);
 
   const colours = useMemo(
@@ -339,10 +406,90 @@ const AssocTracks = ({
     sceneRef.current = scene;
   });
 
+  // moves what is shown towards where the dots belong: the filters' places, and for the members
+  // of the set a table row points at their PIP in that set
+  const retarget = () => {
+    const s = sceneRef.current;
+    const n = s.index.nVariants;
+    const toPip = Float64Array.from(s.dots.pip);
+    const set = highlightedSet.current;
+    if (set != null && set < s.index.nSets) {
+      for (let m = s.index.memberStart[set]; m < s.index.memberStart[set + 1]; m++) {
+        toPip[s.index.memberVariant[m]] = s.index.memberPip[m];
+      }
+    }
+    layerVersion.current++;
+    const now = shown.current;
+    if (now?.index !== s.index) {
+      // other data: nothing on screen to move from
+      shown.current = { index: s.index, pip: toPip, radius: Float32Array.from(s.dots.radius) };
+      move.current = null;
+      return;
+    }
+    const ids: number[] = [];
+    for (let v = 0; v < n; v++) {
+      if (now.pip[v] !== toPip[v] || now.radius[v] !== s.dots.radius[v]) {
+        ids.push(v);
+      }
+    }
+    const [first, end] = variantsInRegion(s.dots.positions, viewRef.current);
+    const inView = ids.reduce((count, v) => count + (v >= first && v < end ? 1 : 0), 0);
+    if (ids.length === 0 || inView > MAX_MOVING_MARKS) {
+      now.pip.set(toPip);
+      now.radius.set(s.dots.radius);
+      move.current = null;
+      return;
+    }
+    const moving = new Uint8Array(n);
+    for (const v of ids) {
+      moving[v] = 1;
+    }
+    move.current = {
+      ids: Int32Array.from(ids),
+      fromPip: Float64Array.from(ids, (v) => now.pip[v]),
+      toPip: Float64Array.from(ids, (v) => toPip[v]),
+      fromRadius: Float32Array.from(ids, (v) => now.radius[v]),
+      toRadius: Float32Array.from(ids, (v) => s.dots.radius[v]),
+      moving,
+      order: s.dots.order.filter((v) => moving[v] === 1),
+      startedAt: null,
+    };
+  };
+
+  // one frame of a move; true while there are more to come
+  const stepMove = (now: number): boolean => {
+    const m = move.current;
+    const at = shown.current;
+    if (!m || !at) {
+      return false;
+    }
+    m.startedAt ??= now;
+    const t = Math.min(1, (now - m.startedAt) / MOVE_MS);
+    const e = easeOut(t);
+    for (let i = 0; i < m.ids.length; i++) {
+      at.pip[m.ids[i]] = m.fromPip[i] + (m.toPip[i] - m.fromPip[i]) * e;
+      at.radius[m.ids[i]] = m.fromRadius[i] + (m.toRadius[i] - m.fromRadius[i]) * e;
+    }
+    if (t < 1) {
+      return true;
+    }
+    // arrived: back into the layer, in their place among the others
+    move.current = null;
+    layerVersion.current++;
+    return false;
+  };
+
   const paint = () => {
     frame.current = 0;
     const s = sceneRef.current;
     const v = viewRef.current;
+    const at = shown.current;
+    if (!at || at.index !== s.index) {
+      return;
+    }
+    if (stepMove(performance.now())) {
+      schedule();
+    }
     const [first, end] = variantsInRegion(s.dots.positions, v);
     const count = end - first;
     const passing = s.dots.passingBefore[end] - s.dots.passingBefore[first];
@@ -396,17 +543,19 @@ const AssocTracks = ({
     // variants, from their own layer. A wide view holds thousands of marks, and drawing them is
     // most of a frame: while the view is moving, a layer with many is redrawn only every so
     // often and stretched over the view in between, then drawn again once the view rests
-    const { positions, maxPip, nSets, maxNSets } = s.dots;
+    const { positions } = s.dots;
     const span = viewSpan(v);
     const layer = dotLayer.current;
     const now = performance.now();
-    const current = layer.dots === s.dots && layer.colours === s.colours && layer.width === w;
+    const current =
+      layer.version === layerVersion.current && layer.colours === s.colours && layer.width === w;
     const moved = layer.drawnFor?.start !== v.start || layer.drawnFor?.end !== v.end;
     const redraw = !current || (moved && (rested.current || now - layer.drawnAt >= layer.interval));
     clearTimeout(settle.current);
     if (redraw) {
       rested.current = false;
-      drawDots(layer, s, v, w, dpr);
+      drawLayer(layer, s, at, move.current?.moving ?? null, v, w, dpr);
+      layer.version = layerVersion.current;
       layer.drawnAt = now;
     } else if (moved) {
       settle.current = window.setTimeout(() => {
@@ -422,6 +571,9 @@ const AssocTracks = ({
       (viewSpan(drawn) / span) * w,
       TRACK.height
     );
+    if (move.current) {
+      drawMarks(ctx, s, at, move.current.order, v.start, span, w, null);
+    }
     if (redraw) {
       // timed through the copy above, which is when the layer's marks are actually rasterized. a
       // layer with few marks is drawn every frame; one with many gets an eighth of the time
@@ -435,13 +587,7 @@ const AssocTracks = ({
     // rings: the members of the set under the table pointer, and the variant under this one
     const ring = (id: number, colour: string, lineWidth = 1.5) => {
       ctx.beginPath();
-      ctx.arc(
-        bpToX(positions[id], v, w),
-        pipToY(maxPip[id]),
-        dotRadius(nSets[id], maxNSets) + 2,
-        0,
-        2 * Math.PI
-      );
+      ctx.arc(bpToX(positions[id], v, w), pipToY(at.pip[id]), at.radius[id] + 2, 0, 2 * Math.PI);
       ctx.strokeStyle = colour;
       ctx.lineWidth = lineWidth;
       ctx.stroke();
@@ -449,29 +595,12 @@ const AssocTracks = ({
     if (s.selectedVariant != null) {
       ring(s.selectedVariant, s.colours.selection, 2.5);
     }
-    // a set of the table: its members ringed, and a bar at the PIP each has in this set, which
-    // is not where the dot is when another set gives the variant a higher one
-    const showSet = (set: number, rings: boolean) => {
-      if (set >= s.index.nSets) {
-        return;
-      }
-      ctx.fillStyle = s.colours.strong;
+    // the members of the set under the table pointer, each on its way to its PIP in that set
+    const set = highlightedSet.current;
+    if (set != null && set < s.index.nSets) {
       for (let m = s.index.memberStart[set]; m < s.index.memberStart[set + 1]; m++) {
-        const id = s.index.memberVariant[m];
-        if (rings) {
-          ring(id, s.colours.strong);
-        }
-        const x = bpToX(positions[id], v, w);
-        if (x >= -6 && x <= w + 6) {
-          ctx.fillRect(x - 5, pipToY(s.index.memberPip[m]) - 1, 10, 2);
-        }
+        ring(s.index.memberVariant[m], s.colours.strong);
       }
-    };
-    for (const set of openSets.current) {
-      showSet(set, false);
-    }
-    if (highlightedSet.current != null) {
-      showSet(highlightedSet.current, true);
     }
     if (hoveredVariant.current != null && hoveredVariant.current < s.index.nVariants) {
       ring(hoveredVariant.current, s.colours.strong);
@@ -481,13 +610,7 @@ const AssocTracks = ({
     ctx.textAlign = "left";
     ctx.fillText("PIP 1", 2, pipToY(1) - 3);
 
-    // genes
-    ctx.strokeStyle = s.colours.grid;
-    ctx.beginPath();
-    ctx.moveTo(0, TRACK.centre + 0.5);
-    ctx.lineTo(w, TRACK.centre + 0.5);
-    ctx.stroke();
-    // the viewed gene last, over what it overlaps
+    // genes, the viewed gene last, over what it overlaps
     for (const pass of [false, true]) {
       for (const gene of s.genes) {
         if (gene.focal !== pass || gene.end < v.start || gene.start > v.end) {
@@ -547,6 +670,17 @@ const AssocTracks = ({
       );
     }
     ctx.font = FONT;
+
+    // the pointer's place, down through both tracks, to read a variant against the gene models
+    if (cursorX.current != null) {
+      const x = Math.round(cursorX.current) + 0.5;
+      ctx.strokeStyle = alpha(s.colours.strong, 0.45);
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(x, 6);
+      ctx.lineTo(x, TRACK.axis);
+      ctx.stroke();
+    }
 
     // position axis
     ctx.fillStyle = s.colours.text;
@@ -622,12 +756,9 @@ const AssocTracks = ({
     highlightSet: (set) => {
       if (highlightedSet.current !== set) {
         highlightedSet.current = set;
+        retarget();
         schedule();
       }
-    },
-    showSets: (sets) => {
-      openSets.current = sets;
-      schedule();
     },
   }));
 
@@ -650,8 +781,12 @@ const AssocTracks = ({
   // sets are numbered within one summary
   useLayoutEffect(() => {
     highlightedSet.current = null;
-    openSets.current = [];
   }, [index]);
+
+  // the next frame draws what this leaves on screen
+  useLayoutEffect(() => {
+    retarget();
+  }, [dots]);
 
   useEffect(() => {
     if (assocPerf) {
@@ -739,18 +874,32 @@ const AssocTracks = ({
     }
   };
 
+  // the variant whose dot, where it is drawn now, is under the point
+  const hitShown = (x: number, y: number): number | null => {
+    const at = shown.current;
+    return at
+      ? hitVariant(
+          { positions: at.index.variantPos, pip: at.pip, radius: at.radius },
+          viewRef.current,
+          width.current,
+          x,
+          y
+        )
+      : null;
+  };
+
   const describe = (x: number, y: number): string => {
     const s = sceneRef.current;
     const v = viewRef.current;
     const w = width.current;
-    const hit = hitVariant(s.dots, v, w, x, y);
+    const hit = hitShown(x, y);
     if (hoveredVariant.current !== hit) {
       hoveredVariant.current = hit;
       schedule();
     }
     if (hit != null) {
       const { variants, consequences, genes: geneNames } = s.index.summary;
-      const n = s.dots.nSets[hit];
+      const n = s.index.variantNSets[hit];
       const passing = s.view.variantPassingSets[hit];
       const sets = (k: number) => `${k.toLocaleString()} credible set${k === 1 ? "" : "s"}`;
       return [
@@ -759,8 +908,8 @@ const AssocTracks = ({
           ? null
           : cleanConsequence(consequences[variants.consequence[hit]]),
         variants.gene[hit] < 0 ? null : geneNames[variants.gene[hit]],
-        `highest PIP ${s.dots.maxPip[hit].toPrecision(3)} · in ${sets(n)}`,
-        // the dot stays where every set puts it, so what the filters leave of it is said here
+        `highest PIP ${s.index.variantMaxPip[hit].toPrecision(3)} · in ${sets(n)}`,
+        // the dot is drawn by the sets that pass, which this tells apart from all it is in
         passing === n
           ? null
           : passing === 0
@@ -808,6 +957,10 @@ const AssocTracks = ({
 
   const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     const x = pointerX(e);
+    if (cursorX.current !== x) {
+      cursorX.current = x;
+      schedule();
+    }
     const d = drag.current;
     if (!d) {
       navigating.current = e.ctrlKey || e.metaKey;
@@ -843,7 +996,7 @@ const AssocTracks = ({
     } else if (d.mode === "pending" && !d.pan) {
       // a click: on a variant it selects that variant, or puts it away again. anywhere else it
       // puts the selection away, unless it lands inside the selected region
-      const hit = hitVariant(s.dots, v, width.current, d.x0, d.y0);
+      const hit = hitShown(d.x0, d.y0);
       const bp = xToBp(d.x0, v, width.current);
       if (hit != null) {
         onSelect(
@@ -878,10 +1031,9 @@ const AssocTracks = ({
           schedule();
         }}
         onPointerLeave={() => {
-          if (hoveredVariant.current != null) {
-            hoveredVariant.current = null;
-            schedule();
-          }
+          hoveredVariant.current = null;
+          cursorX.current = null;
+          schedule();
           say(HINT);
           showCursor();
         }}
