@@ -17,12 +17,8 @@ import {
   useGeneExpression,
 } from "@/store/serverQuery";
 
-// chart.js needs a real canvas context, which jsdom does not provide; the plot's data shaping is
-// covered by gtexTissues.test.ts instead
+// chart.js needs a real canvas context, which jsdom does not provide
 vi.mock("react-chartjs-2", () => ({
-  Bar: ({ data }: { data: { labels: string[] } }) => (
-    <div data-testid="gtex-plot">{data.labels.join("|")}</div>
-  ),
   Scatter: ({ data }: { data: { datasets: { label: string; data: unknown[] }[] } }) => (
     <div data-testid="burden-plot">
       {data.datasets.map((d) => `${d.label}:${d.data.length}`).join("|")}
@@ -153,7 +149,7 @@ describe("GeneEvidenceTab (component)", () => {
     expect(localStorage.getItem("gene-evidence-storage")).toContain('"activeTab":"mendelian"');
 
     await user.click(screen.getByRole("tab", { name: "expression" }));
-    expect(await screen.findByText("Expression (GTEx v10)")).toBeInTheDocument();
+    expect(await screen.findByText("Expression by tissue: GTEx v11")).toBeInTheDocument();
   });
 
   it("reads a gene-disease 404 as no associations rather than a failure", async () => {
@@ -203,28 +199,121 @@ describe("GeneEvidenceTab (component)", () => {
     expect(screen.queryByRole("cell", { name: "schizophrenia" })).not.toBeInTheDocument();
   });
 
-  it("shows GTEx as a plot by default and switches to the table on toggle", async () => {
+  it("shows GTEx as a violin plot of the portal's samples by default, and their table on toggle", async () => {
+    let asked: URLSearchParams | undefined;
+    server.events.on("request:start", ({ request }) => {
+      if (request.url.includes("gtex_expression")) asked = new URL(request.url).searchParams;
+    });
     const user = userEvent.setup();
     renderTab("expression");
 
-    // plot is the default view, labelled with the official GTEx tissue names
-    const plot = await screen.findByTestId("gtex-plot");
-    // official label for a v8 tissue, and a v10 sub-tissue named off its parent
+    // the plot is the default view, labelled with the official GTEx tissue names
+    const plot = await screen.findByTestId("gtex-violin-plot");
     expect(plot.textContent).toContain("Heart - Atrial Appendage");
-    expect(plot.textContent).toContain("Stomach (muscularis)");
+    expect(asked?.get("ensembl_id")).toBe("ENSG00000130203");
+    // the release is the one the response names
+    expect(screen.getByText("Expression by tissue: GTEx v11")).toBeInTheDocument();
     expect(screen.queryByText("median TPM")).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "table" }));
-    expect(screen.queryByTestId("gtex-plot")).not.toBeInTheDocument();
-    expect(screen.getByText("median TPM")).toBeInTheDocument();
-    expect(screen.getByText("Heart - Atrial Appendage")).toBeInTheDocument();
+    expect(screen.queryByTestId("gtex-violin-plot")).not.toBeInTheDocument();
+    // the same samples, summarised per tissue and strongest first
+    const rows = screen
+      .getAllByRole("row")
+      .slice(1)
+      .map((r) =>
+        within(r)
+          .getAllByRole("cell")
+          .map((c) => c.textContent)
+      );
+    expect(rows).toEqual([
+      ["Liver", "6", "195.0", "157.5", "232.5"],
+      ["Heart - Atrial Appendage", "4", "2.500", "1.750", "3.250"],
+      ["Whole Blood", "3", "0.000", "0.000", "0.2500"],
+    ]);
+    server.events.removeAllListeners();
   });
 
-  it("reports no HPA data when the response carries only GTEx rows", async () => {
+  it("says so when the GTEx portal cannot be reached or has nothing for the gene", async () => {
+    server.use(
+      http.get("*/api/v1/gtex_expression", () =>
+        HttpResponse.json({ error: "bad_gateway", message: "GTEx unreachable" }, { status: 502 })
+      )
+    );
+    const first = renderTab("expression");
+    expect(await screen.findByText(/failed to load/)).toBeInTheDocument();
+    first.unmount();
+
+    server.use(
+      http.get("*/api/v1/gtex_expression", () =>
+        HttpResponse.json({ error: "not_found" }, { status: 404 })
+      )
+    );
+    renderTab("expression");
+    expect(await screen.findByText("no GTEx expression data for this gene")).toBeInTheDocument();
+  });
+
+  it("offers each expression source as a tab of its own, opening on GTEx", async () => {
+    // configured, with no release loaded: enough for the tab to be on offer
+    server.use(
+      http.get("*/api/v1/cell_type_expression/:gene", () =>
+        HttpResponse.json({ detail: "no release loaded" }, { status: 503 })
+      )
+    );
+    const user = userEvent.setup();
+    renderTab("expression");
+    const sources = within(screen.getByRole("tablist", { name: "expression source" }));
+    expect(sources.getAllByRole("tab").map((t) => t.textContent)).toEqual([
+      "GTEx",
+      "CELLxGENE",
+      "Human Protein Atlas",
+    ]);
+    expect(await screen.findByText("Expression by tissue: GTEx v11")).toBeInTheDocument();
+    expect(screen.queryByText(/Protein levels by tissue/)).toBeNull();
+
+    await user.click(sources.getByRole("tab", { name: "CELLxGENE" }));
+    expect(
+      await screen.findByText(/single-cell expression data is not yet available/)
+    ).toBeInTheDocument();
+    expect(screen.queryByText("Expression by tissue: GTEx v11")).toBeNull();
+    expect(localStorage.getItem("gene-evidence-storage")).toContain('"expressionTab":"cellxgene"');
+  });
+
+  it("offers no CELLxGENE tab where the deployment has no such data", async () => {
+    server.use(
+      http.get("*/api/v1/cell_type_expression/:gene", () =>
+        HttpResponse.json({ detail: "Not Found" }, { status: 404 })
+      )
+    );
+    useGeneEvidenceStore.setState({ expressionTab: "cellxgene" });
+    renderTab("expression");
+    const sources = within(screen.getByRole("tablist", { name: "expression source" }));
+    await waitFor(() =>
+      expect(sources.getAllByRole("tab").map((t) => t.textContent)).toEqual([
+        "GTEx",
+        "Human Protein Atlas",
+      ])
+    );
+    // the remembered tab is not on offer, so the first one opens
+    expect(await screen.findByText("Expression by tissue: GTEx v11")).toBeInTheDocument();
+  });
+
+  it("greys out the HPA tab, saying why, for a gene with no HPA data", async () => {
+    // remembered from another gene, and not openable for this one
+    useGeneEvidenceStore.setState({ expressionTab: "hpa" });
+    const user = userEvent.setup();
     renderTab("expression");
 
-    expect(await screen.findByText("Expression (Human Protein Atlas)")).toBeInTheDocument();
-    expect(await screen.findByText("no HPA expression data for this gene")).toBeInTheDocument();
+    const hpa = screen.getByRole("tab", { name: "Human Protein Atlas" });
+    await waitFor(() => expect(hpa).toHaveAttribute("aria-disabled", "true"));
+    expect(await screen.findByText("Expression by tissue: GTEx v11")).toBeInTheDocument();
+
+    await user.hover(within(hpa).getByText("Human Protein Atlas"));
+    expect(
+      await screen.findByText("No Human Protein Atlas protein level data for APOE")
+    ).toBeInTheDocument();
+    await user.click(hpa);
+    expect(screen.queryByText(/Protein levels by tissue/)).toBeNull();
   });
 
   it("lists HPA staining levels strongest first, with organ/cell labels collapsed", async () => {
@@ -252,8 +341,15 @@ describe("GeneEvidenceTab (component)", () => {
       )
     );
 
+    useGeneEvidenceStore.setState({ expressionTab: "hpa" });
     renderTab("expression");
 
+    expect(
+      await screen.findByText("Protein levels by tissue (IHC staining): Human Protein Atlas")
+    ).toBeInTheDocument();
+    expect(screen.getByRole("tab", { name: "Human Protein Atlas" })).not.toHaveAttribute(
+      "aria-disabled"
+    );
     // "level" is unique to the HPA table
     const hpaTable = (await screen.findByText("level")).closest("table")!;
     const body = within(hpaTable)

@@ -3,6 +3,7 @@ import { createPassthrough } from "./passthrough.js";
 import { createVariantsRoute } from "./variantsRoute.js";
 import { createGeneAnnotationRoute } from "./geneAnnotationRoute.js";
 import { createGeneConstraintRoute } from "./geneConstraintRoute.js";
+import { createGtexExpressionRoute } from "./gtexExpressionRoute.js";
 import { createGeneAssociationRoute } from "./geneAssociationRoute.js";
 import { createLdRoute } from "./ldRoute.js";
 
@@ -57,6 +58,7 @@ export const createApp = (): Express => {
   app.use("/api", createLdRoute());
   app.use("/api", createGeneAnnotationRoute());
   app.use("/api", createGeneConstraintRoute());
+  app.use("/api", createGtexExpressionRoute());
   app.use("/api", createGeneAssociationRoute());
   app.use("/api", createPassthrough());
 

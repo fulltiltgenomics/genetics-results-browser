@@ -31,6 +31,19 @@ export interface GeneAnnotation {
   }[];
 }
 
+// the /v1/gtex_expression response: a gene's expression in every sample of the newest GTEx release
+export interface GtexExpression {
+  ensemblId: string;
+  // the gene id as versioned in the release's GENCODE
+  gencodeId: string;
+  // GTEx's id of the release, e.g. "gtex_v11", and its short name, "v11"
+  dataset: string;
+  release: string;
+  unit: string;
+  // `tissue` is GTEx's tissueSiteDetailId, e.g. "Brain_Amygdala"; one value per sample
+  tissues: { tissue: string; values: number[] }[];
+}
+
 // the /v1/gene_constraint response: gnomAD's constraint of a gene, null where it has none, and
 // the gene's ClinVar variants counted by classification
 export interface GeneConstraint {

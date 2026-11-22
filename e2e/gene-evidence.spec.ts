@@ -24,14 +24,18 @@ test("gene evidence page shows burden, expression, gene-disease and annotation f
   await expect(page.getByTestId("gene-burden-plot").locator("canvas")).toBeVisible();
   await page.getByRole("button", { name: "table", exact: true }).click();
 
-  // expression: GTEx renders as the bar plot by default, and switching to the table shows the top
+  // expression: GTEx renders as the violin plot by default, and switching to the table shows the top
   // GTEx tissue for APOE (Adrenal Gland) sorted first
   await page.getByRole("tab", { name: "expression" }).click();
-  await expect(page.getByRole("heading", { name: /Expression \(GTEx/ })).toBeVisible();
+  await page.getByRole("tab", { name: "Human Protein Atlas" }).click();
   await expect(
-    page.getByRole("heading", { name: "Expression (Human Protein Atlas)" })
+    page.getByRole("heading", {
+      name: "Protein levels by tissue (IHC staining): Human Protein Atlas",
+    })
   ).toBeVisible();
-  await expect(page.getByTestId("gtex-expression-plot").locator("canvas")).toBeVisible({
+  await page.getByRole("tab", { name: "GTEx" }).click();
+  await expect(page.getByRole("heading", { name: /Expression by tissue: GTEx/ })).toBeVisible();
+  await expect(page.getByTestId("gtex-violin-plot")).toBeVisible({
     timeout: 90000,
   });
   await page.getByRole("button", { name: "table", exact: true }).click();

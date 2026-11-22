@@ -12,7 +12,9 @@ import {
   pValRepr,
 } from "../table/utils/tableutil";
 import { AssocIndex, AssocRow, codingVariantsOfSet } from "./geneAssociation";
+import type { GtexExpression } from "../../../bff/geneAnnotationTypes";
 import { gtexTissueLabel } from "./gtexTissues";
+import { tissueStats } from "./gtexViolin";
 import { hpaLevelLabel, hpaTissueLabel } from "./hpa";
 
 /**
@@ -93,19 +95,32 @@ export const exportCredibleSets = (
   writeTsvFile(exportRows, `gwas_credible_sets_${gene}_${exportRows.length}_rows`);
 };
 
-export const buildGtexExpressionRows = (rows: GeneExpressionRow[]): ExportRow[] =>
-  rows.map((r) => ({
-    gene: r.geneName || NA,
-    gene_id: r.geneId || NA,
-    tissue: gtexTissueLabel(r.tissueCell),
-    tissue_id: r.tissueCell,
-    median_tpm: num(r.level),
-    dataset: datasetDisplayName(r.dataset) || NA,
-  }));
+export const buildGtexExpressionRows = (gene: string, expression: GtexExpression): ExportRow[] =>
+  expression.tissues.flatMap((t) => {
+    const stats = tissueStats(t.tissue, t.values);
+    return stats
+      ? [
+          {
+            gene,
+            gene_id: expression.gencodeId,
+            tissue: gtexTissueLabel(t.tissue.toLowerCase()),
+            tissue_id: t.tissue,
+            samples: stats.n,
+            median_tpm: num(stats.median),
+            q1_tpm: num(stats.q1),
+            q3_tpm: num(stats.q3),
+            dataset: `GTEx ${expression.release}`,
+          },
+        ]
+      : [];
+  });
 
-export const exportGtexExpression = (gene: string, rows: GeneExpressionRow[]): void => {
-  const exportRows = buildGtexExpressionRows(rows);
-  writeTsv(exportRows, `expression_gtex_${gene}_${exportRows.length}_tissues`);
+export const exportGtexExpression = (gene: string, expression: GtexExpression): void => {
+  const exportRows = buildGtexExpressionRows(gene, expression);
+  writeTsv(
+    exportRows,
+    `expression_gtex_${expression.release}_${gene}_${exportRows.length}_tissues`
+  );
 };
 
 export const buildHpaExpressionRows = (rows: GeneExpressionRow[]): ExportRow[] =>
@@ -120,7 +135,7 @@ export const buildHpaExpressionRows = (rows: GeneExpressionRow[]): ExportRow[] =
 
 export const exportHpaExpression = (gene: string, rows: GeneExpressionRow[]): void => {
   const exportRows = buildHpaExpressionRows(rows);
-  writeTsv(exportRows, `expression_hpa_${gene}_${exportRows.length}_rows`);
+  writeTsv(exportRows, `protein_levels_hpa_${gene}_${exportRows.length}_rows`);
 };
 
 export const buildCellTypeSummaryRows = (rows: CellTypeExpressionSummaryRow[]): ExportRow[] =>

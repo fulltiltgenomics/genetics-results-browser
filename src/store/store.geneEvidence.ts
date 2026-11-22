@@ -12,6 +12,9 @@ export const GENE_EVIDENCE_TABS = [
 ] as const;
 export type GeneEvidenceTabName = (typeof GENE_EVIDENCE_TABS)[number];
 
+export const EXPRESSION_TABS = ["gtex", "cellxgene", "hpa"] as const;
+export type ExpressionTabName = (typeof EXPRESSION_TABS)[number];
+
 export type BurdenTraitType = "all" | "binary" | "quantitative";
 export type BurdenMaskMode = "top" | "all";
 export type BurdenView = "table" | "plot";
@@ -34,6 +37,7 @@ const FILTER_DEFAULTS = {
 // how the results are laid out, kept across gene changes and page reloads
 interface GeneEvidencePreferences {
   activeTab: GeneEvidenceTabName;
+  expressionTab: ExpressionTabName;
   burdenMaskMode: BurdenMaskMode;
   burdenView: BurdenView;
   assocTraitMode: AssocTraitMode;
@@ -41,6 +45,7 @@ interface GeneEvidencePreferences {
 
 const PREFERENCE_DEFAULTS: GeneEvidencePreferences = {
   activeTab: "gene burden",
+  expressionTab: "gtex",
   burdenMaskMode: "top",
   burdenView: "table",
   assocTraitMode: "all",
@@ -56,6 +61,7 @@ const preferencesOf = (state: Partial<GeneEvidencePreferences>): Partial<GeneEvi
 type GeneEvidenceState = GeneEvidencePreferences &
   typeof FILTER_DEFAULTS & {
     setActiveTab: (value: GeneEvidenceTabName) => void;
+    setExpressionTab: (value: ExpressionTabName) => void;
     setBurdenTraitType: (value: BurdenTraitType) => void;
     setBurdenMaskMode: (value: BurdenMaskMode) => void;
     setBurdenView: (value: BurdenView) => void;
@@ -72,6 +78,7 @@ export const useGeneEvidenceStore = create<GeneEvidenceState>()(
       ...PREFERENCE_DEFAULTS,
       ...FILTER_DEFAULTS,
       setActiveTab: (value) => set({ activeTab: value }),
+      setExpressionTab: (value) => set({ expressionTab: value }),
       setBurdenTraitType: (value) => set({ burdenTraitType: value }),
       setBurdenMaskMode: (value) => set({ burdenMaskMode: value }),
       setBurdenView: (value) => set({ burdenView: value }),

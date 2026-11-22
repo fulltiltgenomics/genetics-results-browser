@@ -153,6 +153,22 @@ export const handlers = [
   http.get(api("gene_disease/:gene"), () => HttpResponse.json(geneDisease)),
   http.get(api("gene_annotation"), () => HttpResponse.json(geneAnnotation)),
   http.get(api("gene_constraint"), () => HttpResponse.json(geneConstraint)),
+  // the BFF's trimmed GTEx portal record: per tissue, the gene's expression in every sample
+  http.get(api("gtex_expression"), ({ request }) => {
+    const ensemblId = new URL(request.url).searchParams.get("ensembl_id");
+    return HttpResponse.json({
+      ensemblId,
+      gencodeId: `${ensemblId}.11`,
+      dataset: "gtex_v11",
+      release: "v11",
+      unit: "TPM",
+      tissues: [
+        { tissue: "Liver", values: [120, 150, 180, 210, 240, 2000] },
+        { tissue: "Heart_Atrial_Appendage", values: [1, 2, 3, 4] },
+        { tissue: "Whole_Blood", values: [0, 0, 0.5] },
+      ],
+    });
+  }),
 
   // the chat Tools control asks the chat API how big the surface the selected profile resolves to
   // is. Answered by default so every test that renders LLMChat stays offline; a test about the

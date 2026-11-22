@@ -14,7 +14,11 @@ import {
 } from "@/types/types.normalized";
 import { parseQuantLevel } from "@/utils/quantLevel";
 import { GeneModel } from "@/types/types.gene";
-import type { GeneAnnotation, GeneConstraint } from "../../bff/geneAnnotationTypes";
+import type {
+  GeneAnnotation,
+  GeneConstraint,
+  GtexExpression,
+} from "../../bff/geneAnnotationTypes";
 import type {
   GeneAssociationSetIds,
   GeneAssociationSummary,
@@ -230,6 +234,33 @@ export const useGeneAnnotation = (
       }
     },
     enabled: !!hgncId,
+    staleTime: Infinity,
+  });
+};
+
+/**
+ * A gene's expression in every sample of the newest GTEx release, through the BFF; null when that
+ * release has none for it.
+ */
+export const useGtexExpression = (
+  ensemblId: string | null | undefined
+): UseQueryResult<GtexExpression | null, Error> => {
+  return useQuery<GtexExpression | null>({
+    queryKey: ["gtex-expression", ensemblId],
+    queryFn: async () => {
+      try {
+        const { data } = await api.get<GtexExpression>("/v1/gtex_expression", {
+          params: { ensembl_id: ensemblId },
+        });
+        return data;
+      } catch (e) {
+        if (isAxiosError(e) && e.response?.status === 404) {
+          return null;
+        }
+        throw e;
+      }
+    },
+    enabled: !!ensemblId,
     staleTime: Infinity,
   });
 };

@@ -8,8 +8,11 @@
 //                     called from the browser because the frontend CSP is `connect-src 'self'`.
 // MYGENE_API_URL      base URL of mygene.info, queried by GET /api/v1/gene_annotation
 // GNOMAD_API_URL      gnomAD GraphQL endpoint, queried by GET /api/v1/gene_constraint
+// GTEX_API_URL        base URL of the GTEx portal API, queried by GET /api/v1/gtex_expression
 // GENE_ANNOTATION_CACHE_MAX     max records each of those two routes keeps in-process (LRU). 0 disables.
-// GENE_ANNOTATION_CACHE_TTL_MS  staleness bound for a cached record; 0 disables.
+// GENE_ANNOTATION_CACHE_TTL_MS  staleness bound for a cached record of those two routes and of
+//                               /v1/gtex_expression; 0 disables.
+// GTEX_EXPRESSION_CACHE_MAX     max genes /v1/gtex_expression keeps in-process (LRU). 0 disables.
 // GENE_ASSOCIATION_CACHE_MAX   max /v1/gene_association responses (one per gene and window) kept
 //                               in-process (LRU), and max resources whose phenotype metadata is
 //                               kept for it. 0 disables. staleness is RESULTS_CACHE_TTL_MS.
@@ -25,6 +28,9 @@ export const config = {
   ldApiUrl: (process.env.LD_API_URL ?? "https://api.finngen.fi/api/ld").replace(/\/+$/, ""),
   myGeneApiUrl: (process.env.MYGENE_API_URL ?? "https://mygene.info/v3").replace(/\/+$/, ""),
   gnomadApiUrl: process.env.GNOMAD_API_URL ?? "https://gnomad.broadinstitute.org/api",
+  gtexApiUrl: (process.env.GTEX_API_URL ?? "https://gtexportal.org/api/v2").replace(/\/+$/, ""),
+  // a gene is one number per sample, some 20,000 of them in v10
+  gtexExpressionCacheMax: Number(process.env.GTEX_EXPRESSION_CACHE_MAX ?? 200),
   // a trimmed record is a few KB to a few tens of KB, so this bounds memory at tens of MB
   geneAnnotationCacheMax: Number(process.env.GENE_ANNOTATION_CACHE_MAX ?? 2000),
   geneAnnotationCacheTtlMs: Number(process.env.GENE_ANNOTATION_CACHE_TTL_MS ?? 24 * 60 * 60 * 1000),

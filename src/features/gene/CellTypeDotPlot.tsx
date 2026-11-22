@@ -108,7 +108,7 @@ const CellTypeDotPlot = ({
         </text>
       </svg>
       <Typography variant="caption" color="text.secondary" sx={{ display: "block" }}>
-        {grid.cellTypes.length} cell types x {grid.tissues.length} tissues; dots only where data exist
+        {grid.cellTypes.length} cell types x {grid.tissues.length} tissues
       </Typography>
     </Box>
   );
