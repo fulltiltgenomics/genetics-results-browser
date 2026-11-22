@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Typography, Box, Link, useMediaQuery, IconButton, Button, Menu, MenuItem } from "@mui/material";
+import type { Theme } from "@mui/material/styles";
+import { Box, ButtonBase, useMediaQuery, IconButton, Button, Menu, MenuItem } from "@mui/material";
 import Brightness4Icon from "@mui/icons-material/Brightness4";
 import Brightness7Icon from "@mui/icons-material/Brightness7";
 import AdminPanelSettingsIcon from "@mui/icons-material/AdminPanelSettings";
@@ -17,6 +18,23 @@ import { Link as RouterLink, useLocation, useNavigate } from "react-router";
 import McpTokenDialog from "./McpTokenDialog";
 import InstructionsDialog from "../chat/InstructionsDialog";
 import MemoryDialog from "../chat/MemoryDialog";
+
+// the LD lookup is a view of the annotation tool, and / opens the chat
+const NAV = [
+  { label: "Chat", to: "/", isCurrent: (path: string) => path === "/" || under(path, "/chat") },
+  { label: "Gene Evidence", to: "/gene", isCurrent: (path: string) => under(path, "/gene") },
+  {
+    label: "Anno",
+    to: "/anno",
+    isCurrent: (path: string) => under(path, "/anno") || under(path, "/ld"),
+  },
+];
+
+// the main shade of the primary colour is too dim on the dark background
+const mark = (theme: Theme) =>
+  theme.palette.primary[theme.palette.mode === "dark" ? "light" : "main"];
+
+const under = (path: string, root: string) => path === root || path.startsWith(`${root}/`);
 
 const Header = () => {
   const location = useLocation();
@@ -61,6 +79,7 @@ const Header = () => {
           flexDirection: "row",
           width: "100%",
           alignItems: "center",
+          flexWrap: { xs: "wrap", sm: "nowrap" },
           gap: { xs: 1, sm: 2 },
         }}>
         <IconButton onClick={handleThemeClick} color="inherit" aria-label="toggle theme">
@@ -89,20 +108,52 @@ const Header = () => {
           onDoubleClick={() => new Audio(sounds[Math.floor(Math.random() * sounds.length)]).play()}
           sx={{ height: 40, backgroundColor: "white", p: 0.5, borderRadius: 0.5 }}
         />
-        {/* contextual main link: "Anno" to enter the annotation tool, "Chat" while inside it.
-            use client-side routing (RouterLink), NOT href — an href does a full document load of
-            /chat, which the server doesn't serve as a static file (the failing "chat" request). */}
-        <Typography variant="h6" sx={{ paddingLeft: "20px" }}>
-          {location.pathname.startsWith("/anno") ? (
-            <Link component={RouterLink} to="/chat" underline="hover">
-              Chat
-            </Link>
-          ) : (
-            <Link component={RouterLink} to="/anno" underline="hover">
-              Anno
-            </Link>
-          )}
-        </Typography>
+        <Box
+          component="nav"
+          aria-label="main"
+          sx={{
+            display: "flex",
+            alignSelf: "stretch",
+            gap: 0.5,
+            pl: { xs: 0, sm: 1 },
+            // on a phone the links do not fit beside the logos, so they take the row below
+            order: { xs: 1, sm: 0 },
+            flexBasis: { xs: "100%", sm: "auto" },
+          }}>
+          {NAV.map((item) => {
+            const current = item.isCurrent(location.pathname);
+            return (
+              // client-side routing, not href, so moving between pages does not reload the app
+              <ButtonBase
+                key={item.to}
+                component={RouterLink}
+                to={item.to}
+                aria-current={current ? "page" : undefined}
+                sx={(theme) => ({
+                  px: 1.5,
+                  minHeight: 40,
+                  borderRadius: "4px 4px 0 0",
+                  whiteSpace: "nowrap",
+                  fontSize: "1rem",
+                  fontWeight: 500,
+                  color: current ? "text.primary" : "text.secondary",
+                  // the mark of the current page is drawn inside the link, so it takes no room
+                  // and the row does not shift between pages
+                  boxShadow: current ? `inset 0 -2px 0 ${mark(theme)}` : "none",
+                  transition: theme.transitions.create(["color", "background-color"], {
+                    duration: theme.transitions.duration.shortest,
+                  }),
+                  "&:hover": { color: "text.primary", backgroundColor: "action.hover" },
+                  "&.Mui-focusVisible": {
+                    outline: `2px solid ${mark(theme)}`,
+                    outlineOffset: -2,
+                  },
+                })}>
+                {item.label}
+              </ButtonBase>
+            );
+          })}
+        </Box>
         <Box flexGrow={1} />
         {isAdmin &&
           (isNarrow ? (

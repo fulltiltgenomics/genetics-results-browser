@@ -22,9 +22,8 @@ import { exportGtexExpression, exportHpaExpression } from "./geneEvidenceExport"
 import { evidenceTableProps as tableProps, numCell, Section, sortedRows } from "./evidenceTable";
 
 /**
- * Gene evidence tab (refactor.md §6). Surfaces gene-level evidence that is relevant to the gene but
- * not part of the credible-set visualization, one kind of evidence per sub-tab. A sub-tab mounts,
- * and so fetches, only when it is opened, and one failing/empty source never blocks the others.
+ * Gene evidence (refactor.md §6): gene-level evidence, one kind per tab. A tab mounts, and so
+ * fetches, only when it is opened, and one failing/empty source never blocks the others.
  */
 
 // shared by both expression tables, which carry the same dataset ids
@@ -243,7 +242,7 @@ const GeneEvidenceTab = ({ geneName }: { geneName: string }) => {
   return (
     <Box sx={{ p: 2 }}>
       <Typography sx={{ mb: 1 }} variant="body2" color="text.secondary">
-        Gene-level evidence for <b>{geneName}</b> beyond the credible-set view.
+        Gene-level evidence for <b>{geneName}</b>.
       </Typography>
       <Tabs
         value={activeTab}

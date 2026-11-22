@@ -7,11 +7,9 @@ import { server } from "@/test/msw/server";
 import {
   useColocByCredibleSet,
   useDatasets,
-  useGeneCredibleSets,
   GeneNotFoundError,
   useGeneInfo,
   useGenesInRegion,
-  useGeneTransCredibleSets,
   useNormalizedQuery,
   usePhenotypeSearch,
   useSummaryStats,
@@ -77,7 +75,7 @@ describe("useDatasets (currently included datasets for the About page)", () => {
     expect(eqtl.qtlTypes).toEqual(["eQTL"]);
     expect(eqtl.nSamples).toBe(1108);
 
-    // pseudo credible sets are flagged so both the resource filter and the gene view can mark them
+    // pseudo credible sets are flagged so the resource filter can mark them
     expect(finngen.hasPseudoCredibleSets).toBe(false);
     expect(rows.find((r) => r.datasetId === "finngen_mvp_ukbb")!.hasPseudoCredibleSets).toBe(true);
     expect(rows.find((r) => r.datasetId === "finngen_mvp_ukbb_aou")!.hasPseudoCredibleSets).toBe(true);
@@ -204,7 +202,7 @@ describe("usePhenotypeSearch (phenotype autocomplete capability filters)", () =>
   });
 });
 
-describe("gene view hooks (credible sets + gene track on the new API)", () => {
+describe("gene page hooks (gene lookup + gene track)", () => {
   it("useGeneInfo resolves a gene symbol to its coordinates via /search", async () => {
     const { result } = renderHook(() => useGeneInfo("APOE"), { wrapper: makeWrapper() });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
@@ -279,26 +277,6 @@ describe("gene view hooks (credible sets + gene track on the new API)", () => {
     const { result } = renderHook(() => useGeneInfo("NOSUCHGENE"), { wrapper: makeWrapper() });
     await waitFor(() => expect(result.current.isError).toBe(true));
     expect(result.current.error!.message).toBe("Gene NOSUCHGENE not found");
-  });
-
-  it("useGeneCredibleSets returns grouped CSDatum[] from credible_sets_by_gene", async () => {
-    const { result } = renderHook(() => useGeneCredibleSets("APOE"), { wrapper: makeWrapper() });
-    await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    const data = result.current.data!;
-    expect(data.length).toBeGreaterThan(0);
-    // resource is rewritten to the legacy config dataName so the view's color/toggle logic works
-    expect(data.every((d) => d.resource && !d.resource.includes("_catalogue"))).toBe(true);
-    expect(data.every((d) => d.variant.length === d.pip.length)).toBe(true);
-  });
-
-  it("useGeneTransCredibleSets returns grouped CSDatum[] from credible_sets_by_qtl_gene", async () => {
-    const { result } = renderHook(() => useGeneTransCredibleSets("APOE"), {
-      wrapper: makeWrapper(),
-    });
-    await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    const data = result.current.data!;
-    expect(data.length).toBeGreaterThan(0);
-    expect(data.every((d) => ["eQTL", "pQTL", "sQTL"].includes(d.dataType))).toBe(true);
   });
 
   it("useGenesInRegion adapts genes_in_region rows into GeneModel[]", async () => {

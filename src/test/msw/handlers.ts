@@ -3,8 +3,6 @@ import { http, HttpResponse } from "msw";
 // fixtures captured from the live genetics-results-api (see fixtures/README.md)
 import credibleSetsByVariant from "../fixtures/credible_sets_by_variant.json";
 import credibleSetsByVariantBatch from "../fixtures/credible_sets_by_variant_batch.json";
-import credibleSetsByGene from "../fixtures/credible_sets_by_gene.json";
-import credibleSetsByQtlGene from "../fixtures/credible_sets_by_qtl_gene.json";
 import genesInRegion from "../fixtures/genes_in_region.json";
 import searchGenes from "../fixtures/search_genes.json";
 import variantAnnotationFinngen from "../fixtures/variant_annotation_finngen.json";
@@ -60,11 +58,6 @@ export const handlers = [
 
   http.get(api("credible_sets_by_variant/:variant"), () => HttpResponse.json(credibleSetsByVariant)),
   http.post(api("credible_sets_by_variant"), () => HttpResponse.json(credibleSetsByVariantBatch)),
-
-  http.get(api("credible_sets_by_gene/:gene"), () => HttpResponse.json(credibleSetsByGene)),
-  http.get(api("credible_sets_by_qtl_gene/:gene"), () =>
-    HttpResponse.json(credibleSetsByQtlGene)
-  ),
 
   http.get(api("genes_in_region/:chr/:start/:end"), () => HttpResponse.json(genesInRegion)),
 

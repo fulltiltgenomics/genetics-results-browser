@@ -1,10 +1,10 @@
 import { test, expect } from "@playwright/test";
 import { snapshot } from "./helpers/screenshot";
 
-// live verification of the new Gene evidence tab (refactor.md §6): navigate to /gene/APOE, switch to
-// the second tab, and confirm the gene burden, expression, mendelian and annotation sub-tabs render real data
-// from the new genetics-results-api via the BFF.
-test("gene evidence tab shows burden, expression, gene-disease and annotation for APOE", async ({
+// live verification of the gene evidence page (refactor.md §6): navigate to /gene/APOE and confirm
+// the gene burden, expression, mendelian and annotation tabs render real data from the
+// genetics-results-api via the BFF.
+test("gene evidence page shows burden, expression, gene-disease and annotation for APOE", async ({
   page,
 }) => {
   const pageErrors: string[] = [];
@@ -12,15 +12,7 @@ test("gene evidence tab shows burden, expression, gene-disease and annotation fo
 
   await page.goto("/gene/APOE");
 
-  // wait for the CS view (first tab) to finish loading so the tab strip is present
-  await expect(page.getByText("Loading...")).toBeHidden({ timeout: 90000 });
-
-  await page.getByRole("tab", { name: "Gene evidence" }).click();
-
-  // the evidence sub-tab is remembered per browser; a fresh context opens on gene burden. scope to a
-  // table CELL via role: the Credible sets tab stays mounted (display:none) and its DOM holds an
-  // "Apolipoprotein" gene tooltip, so a plain getByText would match that hidden copy. display:none
-  // cells are out of the a11y tree, so getByRole("cell") only resolves the visible evidence tables.
+  // the evidence tab is remembered per browser; a fresh context opens on gene burden
   await expect(page.getByRole("tab", { name: "gene burden" })).toHaveAttribute(
     "aria-selected",
     "true"

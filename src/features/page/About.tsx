@@ -100,7 +100,7 @@ const About = () => {
         Within the expanded view of a variant, each credible set shows the other signals it{" "}
         <b>colocalizes</b> with. A separate phenotype-search view returns full summary statistics for
         all of your input variants for a chosen phenotype, flagging which variants fall in a credible
-        set for that phenotype. The gene view includes a <b>Gene evidence</b> tab with gene burden
+        set for that phenotype. The <b>Gene Evidence</b> page shows variant associations, gene burden
         results, gene expression and Mendelian gene-disease associations. eQTL Catalogue results are
         shown at gene level (ge) by default, with the option to also include exon, transcript,
         txrev and leafcutter quantification levels.

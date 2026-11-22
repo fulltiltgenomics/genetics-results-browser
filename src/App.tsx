@@ -7,7 +7,7 @@ import Header from "./features/page/Header";
 import { NewVersionBanner } from "./features/page/NewVersionBanner";
 import CircularProgress from "@mui/material/CircularProgress"; // Import a component for fallback
 import { Box, useMediaQuery } from "@mui/material";
-import GeneContainer from "./features/GeneContainer";
+import GeneEvidencePage from "./features/gene/GeneEvidencePage";
 import { useThemeStore } from "./store/store.theme";
 import { AuthProvider } from "./features/auth/AuthProvider";
 import { QueryProvider } from "./features/auth/QueryClientProvider";
@@ -72,8 +72,8 @@ export const App = () => {
                   <Route path="/anno" element={<TableContainer />} />
                   {/* the tool lived at /annotate before /anno; shared ?q= links still point there */}
                   <Route path="/annotate" element={<LegacyAnnotateRedirect />} />
-                  <Route path="/gene" element={<GeneContainer />} />
-                  <Route path="/gene/:geneName" element={<GeneContainer />} />
+                  <Route path="/gene" element={<GeneEvidencePage />} />
+                  <Route path="/gene/:geneName" element={<GeneEvidencePage />} />
                   <Route path="/ld" element={<LDContainer />} />
                   <Route path="/chat" element={<ChatPage />} />
                   <Route path="/chat/:sessionId" element={<ChatPage />} />

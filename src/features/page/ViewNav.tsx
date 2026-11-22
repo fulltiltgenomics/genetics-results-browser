@@ -3,16 +3,15 @@ import { useNavigate } from "react-router";
 
 const VIEWS = [
   { key: "annotate", label: "Variant tables", path: "/anno" },
-  { key: "gene", label: "Gene view", path: "/gene" },
   { key: "ld", label: "LD lookup", path: "/ld" },
 ] as const;
 
 export type ViewKey = (typeof VIEWS)[number]["key"];
 
 /**
- * Top-level nav shared by the variant / gene / LD views, under a one-line description of what the
- * tool does: the current view in bold, the others as links. All three views render it with identical
- * markup and spacing, which is what keeps the row from shifting position when switching between them.
+ * Nav shared by the variant and LD views, under a one-line description of what the tool does: the
+ * current view in bold, the other as a link. Both views render it with identical markup and
+ * spacing, which is what keeps the row from shifting position when switching between them.
  */
 const ViewNav = ({ current }: { current: ViewKey }) => {
   const navigate = useNavigate();
@@ -20,9 +19,9 @@ const ViewNav = ({ current }: { current: ViewKey }) => {
   return (
     <>
       <Typography sx={{ mt: 3 }}>
-        In this variant and gene annotation tool you can examine association results for a list of
-        variants (e.g. GWAS lead variants) or a gene, and do LD lookups for a variant or a pair of
-        variants.
+        In this variant annotation tool you can examine association results for a list of variants
+        (e.g. GWAS lead variants) or the variants of a gene, and do LD lookups for a variant or a
+        pair of variants.
       </Typography>
       <Box
         sx={{

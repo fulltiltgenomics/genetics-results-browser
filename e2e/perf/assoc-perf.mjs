@@ -59,9 +59,8 @@ const withFrames = async (page, action) => {
   return { ...frameStats(rec), ...result };
 };
 
-// The gene page opens on its credible-sets tab, whose request for every credible set of the locus
-// keeps the API busy, then the main thread, and then asks for more. Nothing is timed until the
-// page has had three seconds with no request in flight and a main thread that answers at once.
+// The gene page opens on another tab, with requests of its own. Nothing is timed until the page
+// has had three seconds with no request in flight and a main thread that answers at once.
 const untilQuiet = async (page, inFlight) => {
   let quietSince = Date.now();
   const deadline = Date.now() + 300000;
@@ -124,7 +123,6 @@ const measureGene = async (browser, gene) => {
   });
 
   await page.goto(`${BASE}/gene/${gene}`);
-  await page.getByRole("tab", { name: "Gene evidence" }).click();
   await untilQuiet(page, inFlight);
   counting = true;
   const clicked = await page.evaluate(() => performance.now());
@@ -302,7 +300,6 @@ const darkShots = async (browser, gene) => {
   });
   const page = await context.newPage();
   await page.goto(`${BASE}/gene/${gene}`);
-  await page.getByRole("tab", { name: "Gene evidence" }).click();
   await page.getByRole("tab", { name: "variant association" }).click();
   await page.waitForFunction(() => window.__assocPerf?.ready, null, { timeout: 120000 });
   await page.getByTestId("assoc-row").first().waitFor({ timeout: 120000 });

@@ -453,8 +453,8 @@ export interface PhenoSearchRow {
 }
 
 /* ────────────────────────────────────────────────────────────────────────────
- * GENE EVIDENCE TAB (refactor.md §6) — gene-level evidence shown in the gene view,
- * separate from the CS visualization. Three independent reads through the BFF:
+ * GENE EVIDENCE (refactor.md §6) — gene-level evidence shown on the gene evidence page.
+ * Three independent reads through the BFF:
  *   - gene_based/{gene}            -> burden tests (TSV)
  *   - expression_by_gene/{gene}    -> per-tissue/cell expression levels (JSON)
  *   - gene_disease/{gene}          -> Mendelian gene-disease associations (JSON)

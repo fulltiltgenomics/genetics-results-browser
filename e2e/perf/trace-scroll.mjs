@@ -6,12 +6,10 @@ const BASE = process.env.PERF_BASE_URL ?? "http://localhost:3000";
 const browser = await chromium.launch();
 const page = await browser.newPage({ viewport: { width: 1500, height: 1000 } });
 await page.goto(`${BASE}/gene/${process.argv[2] ?? "GCKR"}`);
-await page.getByRole("tab", { name: "Gene evidence" }).click();
 await page.getByRole("tab", { name: "variant association" }).click();
 await page.getByTestId("assoc-row").first().waitFor({ timeout: 120000 });
-// the padded region replaces the gene body a moment later, and the gene page's credible-sets tab
-// goes on working through its own data for a while: wait for three seconds of a main thread that
-// answers at once
+// the padded region replaces the gene body a moment later: wait for three seconds of a main thread
+// that answers at once
 await page.waitForLoadState("networkidle", { timeout: 180000 }).catch(() => {});
 for (let quietSince = Date.now(); Date.now() - quietSince < 3000;) {
   await page.waitForTimeout(200);
