@@ -73,7 +73,6 @@ describe("StructureViewer", () => {
       highlighted: [5],
       colourTheme: "plddt-confidence",
       sphereDrawn: true,
-      labelsDrawn: 1,
       plddtLegend: [{ name: "Very High", colour: "#0053d6" }],
       dispose: vi.fn(),
     });
@@ -96,7 +95,7 @@ describe("StructureViewer", () => {
     highlighted: [5, 900],
     colourTheme: "plddt-confidence",
     sphereDrawn: true,
-    labelsDrawn: 1,
+    regions: [],
     plddtLegend: [],
   };
 
@@ -111,6 +110,293 @@ describe("StructureViewer", () => {
     expect(screen.getByTestId("structure-hover")).toHaveTextContent("ALA 5 · p.A5V");
     act(() => events.onHover(null));
     expect(screen.queryByTestId("structure-hover")).toBeNull();
+  });
+
+  describe("labelled residues in the legend", () => {
+    const LABELLED = {
+      ...SPEC,
+      residues: [
+        { file_position: 600, label: "p.V600E", role: "case" },
+        { file_position: 601, label: "hotspot", colour: "#00aa00" },
+        { file_position: 602 },
+        { file_position: 900, label: "p.X900Y" },
+      ],
+    };
+    const draw = async () => {
+      server.use(http.get(ROUTE, () => HttpResponse.text("ATOM      1")));
+      const emphasise = vi.fn(async (positions: number[], marker?: boolean) => ({
+        positions,
+        marker: positions.length > 0 && marker !== false,
+      }));
+      const focus = vi.fn();
+      createScene.mockResolvedValueOnce({ ...READY, highlighted: [600, 601, 602], emphasise, focus, dispose: vi.fn() });
+      show(b64(LABELLED));
+      await screen.findByTestId("structure-legend");
+      return { emphasise, focus, events: createScene.mock.lastCall?.[3] };
+    };
+
+    it("lists each labelled residue the model holds, with the position where the label has none", async () => {
+      await draw();
+      const entries = screen.getAllByTestId("structure-legend-entry");
+      expect(entries.map((e) => e.textContent)).toEqual(["p.V600E", "hotspot · 601"]);
+      expect(entries.map((e) => e.getAttribute("data-positions"))).toEqual(["600", "601"]);
+    });
+
+    it("emphasises an entry's residues on hover and on focus, and clears on leave and blur", async () => {
+      const { emphasise, focus } = await draw();
+      const [first, second] = screen.getAllByTestId("structure-legend-entry");
+      const canvas = screen.getByTestId("structure-canvas");
+
+      fireEvent.mouseEnter(first);
+      expect(emphasise).toHaveBeenLastCalledWith([600], true);
+      await vi.waitFor(() => expect(canvas).toHaveAttribute("data-emphasised", "600"));
+      expect(canvas).toHaveAttribute("data-emphasis-marker", "true");
+      fireEvent.mouseLeave(first);
+      expect(emphasise).toHaveBeenLastCalledWith([], true);
+      await vi.waitFor(() => expect(canvas).not.toHaveAttribute("data-emphasised"));
+
+      act(() => second.focus());
+      expect(emphasise).toHaveBeenLastCalledWith([601], true);
+      act(() => second.blur());
+      expect(emphasise).toHaveBeenLastCalledWith([], true);
+      // pointing never moves the camera
+      expect(focus).not.toHaveBeenCalled();
+    });
+
+    it("emphasises the entry under the pointer, else the focused one", async () => {
+      const { emphasise } = await draw();
+      const [first, second] = screen.getAllByTestId("structure-legend-entry");
+      act(() => second.focus());
+      fireEvent.mouseEnter(first);
+      expect(emphasise).toHaveBeenLastCalledWith([600], true);
+      // the pointer leaving one entry gives the emphasis back to the focused one
+      fireEvent.mouseLeave(first);
+      expect(emphasise).toHaveBeenLastCalledWith([601], true);
+
+      // neither a blur under the pointer nor the pointer leaving the focused entry ends it
+      fireEvent.mouseEnter(second);
+      const calls = emphasise.mock.calls.length;
+      act(() => second.blur());
+      act(() => second.focus());
+      fireEvent.mouseLeave(second);
+      expect(emphasise.mock.calls.length).toBe(calls);
+      act(() => second.blur());
+      expect(emphasise).toHaveBeenLastCalledWith([], true);
+    });
+
+    it("drops the emphasis when the scene says the pointer took it over, and gives it again when asked", async () => {
+      const { emphasise, events } = await draw();
+      const [first, second] = screen.getAllByTestId("structure-legend-entry");
+      const canvas = screen.getByTestId("structure-canvas");
+      act(() => second.focus());
+      await vi.waitFor(() => expect(canvas).toHaveAttribute("data-emphasised", "601"));
+      act(() => events.onEmphasisEnd());
+      expect(canvas).not.toHaveAttribute("data-emphasised");
+      expect(canvas).not.toHaveAttribute("data-emphasis-marker");
+      // the scene has cleared it already
+      const calls = emphasise.mock.calls.length;
+      act(() => second.blur());
+      expect(emphasise.mock.calls.length).toBe(calls);
+
+      // the still-focused entry is emphasised again once the pointer has been to another and left
+      act(() => second.focus());
+      act(() => events.onEmphasisEnd());
+      fireEvent.mouseEnter(first);
+      fireEvent.mouseLeave(first);
+      expect(emphasise).toHaveBeenLastCalledWith([601], true);
+      await vi.waitFor(() => expect(canvas).toHaveAttribute("data-emphasised", "601"));
+    });
+
+    it("ignores the answer to an emphasis the scene ended while it was being built", async () => {
+      const { emphasise, events } = await draw();
+      const [first] = screen.getAllByTestId("structure-legend-entry");
+      let answer: (held: { positions: number[]; marker: boolean }) => void = () => {};
+      emphasise.mockImplementationOnce(() => new Promise((resolve) => (answer = resolve)));
+      fireEvent.mouseEnter(first);
+      act(() => events.onEmphasisEnd());
+      await act(async () => answer({ positions: [600], marker: true }));
+      expect(screen.getByTestId("structure-canvas")).not.toHaveAttribute("data-emphasised");
+    });
+
+    it("shows the latest emphasis when an earlier answer arrives after it", async () => {
+      const { emphasise } = await draw();
+      const [first] = screen.getAllByTestId("structure-legend-entry");
+      let answerHover: (held: { positions: number[]; marker: boolean }) => void = () => {};
+      emphasise.mockImplementationOnce(() => new Promise((resolve) => (answerHover = resolve)));
+      fireEvent.mouseEnter(first);
+      fireEvent.mouseLeave(first);
+      await act(async () => answerHover({ positions: [600], marker: true }));
+      expect(screen.getByTestId("structure-canvas")).not.toHaveAttribute("data-emphasised");
+    });
+
+    it("centres the camera on a clicked entry, and returns to the whole model on a second click", async () => {
+      const { focus } = await draw();
+      const [first, second] = screen.getAllByTestId("structure-legend-entry");
+      fireEvent.click(first);
+      expect(focus).toHaveBeenLastCalledWith([600]);
+      expect(first).toHaveAttribute("aria-pressed", "true");
+      fireEvent.click(second);
+      expect(focus).toHaveBeenLastCalledWith([601]);
+      expect(first).toHaveAttribute("aria-pressed", "false");
+      fireEvent.click(second);
+      expect(focus).toHaveBeenLastCalledWith([]);
+      expect(second).toHaveAttribute("aria-pressed", "false");
+    });
+
+    it("drops the marker while the pointed-at entry is the centred one", async () => {
+      const { emphasise } = await draw();
+      const [first, second] = screen.getAllByTestId("structure-legend-entry");
+      const canvas = screen.getByTestId("structure-canvas");
+      fireEvent.mouseEnter(first);
+      fireEvent.click(first);
+      expect(emphasise).toHaveBeenLastCalledWith([600], false);
+      await vi.waitFor(() => expect(canvas).toHaveAttribute("data-emphasis-marker", "false"));
+      expect(canvas).toHaveAttribute("data-emphasised", "600");
+      fireEvent.mouseLeave(first);
+      fireEvent.mouseEnter(first);
+      expect(emphasise).toHaveBeenLastCalledWith([600], false);
+      // another entry is not the centred one, and the first is again once the view is back
+      fireEvent.mouseEnter(second);
+      expect(emphasise).toHaveBeenLastCalledWith([601], true);
+      fireEvent.click(first);
+      expect(emphasise).toHaveBeenLastCalledWith([600], true);
+    });
+
+    it("marks the entry of the residue the pointer is over in the scene", async () => {
+      const { events } = await draw();
+      const [first, second] = screen.getAllByTestId("structure-legend-entry");
+      act(() => events.onHover("LYS 601 · hotspot", 601));
+      expect(second).toHaveAttribute("data-marked");
+      expect(first).not.toHaveAttribute("data-marked");
+      // a drawn residue with no label has no entry to mark
+      act(() => events.onHover("GLY 602", 602));
+      expect(screen.getByTestId("structure-legend").querySelector("[data-marked]")).toBeNull();
+      act(() => events.onHover(null, null));
+      expect(second).not.toHaveAttribute("data-marked");
+    });
+  });
+
+  describe("regions in the legend", () => {
+    const WITH_REGIONS = {
+      ...SPEC,
+      residues: [
+        { file_position: 20, label: "p.S20L", role: "case" },
+        { file_position: 70, label: "p.V70M", role: "control" },
+      ],
+      regions: [
+        { name: "EF-hand 1", start: 10, end: 30, colour: "#17becf" },
+        { name: "linker", start: 25, end: 40 },
+        { name: "tail", start: 90, end: 120 },
+        { name: "elsewhere", start: 500, end: 600, colour: "#000000" },
+        { name: "site", start: 70, end: 70 },
+      ],
+    };
+    const range = (first: number, last: number) => Array.from({ length: last - first + 1 }, (_, i) => first + i);
+    // a 94-residue model: the tail is partly outside it, "elsewhere" wholly
+    const HELD = [range(10, 30), range(25, 40), range(90, 94), [], [70]];
+    const draw = async (spec: unknown = WITH_REGIONS, regions = HELD) => {
+      server.use(http.get(ROUTE, () => HttpResponse.text("ATOM      1")));
+      const emphasise = vi.fn(async (positions: number[]) => ({ positions, marker: false }));
+      const focus = vi.fn();
+      createScene.mockResolvedValueOnce({
+        ...READY,
+        highlighted: [20, 70],
+        regions,
+        emphasise,
+        focus,
+        dispose: vi.fn(),
+      });
+      show(b64(spec));
+      await screen.findByTestId("structure-legend");
+      return { emphasise, focus, events: createScene.mock.lastCall?.[3] };
+    };
+    const texts = () => screen.getAllByTestId("structure-legend-entry").map((e) => e.textContent);
+
+    it("lists the regions the model holds before the residues, each with the range it covers", async () => {
+      await draw();
+      expect(texts()).toEqual([
+        "EF-hand 1 · 10–30",
+        "linker · 25–40",
+        "tail · 90–94 (of 90–120)",
+        "site · 70",
+        "p.S20L",
+        "p.V70M",
+      ]);
+      const entries = screen.getAllByTestId("structure-legend-entry");
+      expect(entries.map((e) => e.getAttribute("data-kind"))).toEqual([
+        "region", "region", "region", "region", "residue", "residue",
+      ]);
+      expect(entries[2]).toHaveAttribute("data-positions", "90-94");
+      // a bar for every region, hollow where the spec gave no colour; a residue has none
+      const swatches = screen.getAllByTestId("structure-legend-swatch");
+      expect(swatches.map((s) => s.getAttribute("data-painted"))).toEqual(["true", "false", "false", "false"]);
+      expect(screen.getByTestId("structure-legend")).toHaveTextContent(
+        "1 of 5 regions are outside this model and not shown",
+      );
+    });
+
+    it("emphasises the part of a region the model holds, and centres on it when clicked", async () => {
+      const { emphasise, focus } = await draw();
+      const tail = screen.getByRole("button", { name: /^tail/ });
+      const canvas = screen.getByTestId("structure-canvas");
+      fireEvent.mouseEnter(tail);
+      expect(emphasise).toHaveBeenLastCalledWith(range(90, 94), true);
+      await vi.waitFor(() => expect(canvas).toHaveAttribute("data-emphasised", "90,91,92,93,94"));
+      fireEvent.mouseLeave(tail);
+      expect(focus).not.toHaveBeenCalled();
+
+      // a long range is summarised for whoever reads it back
+      const hand = screen.getByRole("button", { name: /^EF-hand 1/ });
+      act(() => hand.focus());
+      await vi.waitFor(() => expect(canvas).toHaveAttribute("data-emphasised", "21 residues 10-30"));
+      fireEvent.click(hand);
+      expect(focus).toHaveBeenLastCalledWith(range(10, 30));
+      expect(hand).toHaveAttribute("aria-pressed", "true");
+    });
+
+    it("marks every region holding the residue the pointer is over, beside the residue's own entry", async () => {
+      const { events } = await draw();
+      const marked = () =>
+        screen.getAllByTestId("structure-legend-entry").filter((e) => e.hasAttribute("data-marked")).map((e) => e.textContent);
+      act(() => events.onHover("SER 20 · p.S20L", 20));
+      expect(marked()).toEqual(["EF-hand 1 · 10–30", "p.S20L"]);
+      act(() => events.onHover("GLY 27", 27));
+      expect(marked()).toEqual(["EF-hand 1 · 10–30", "linker · 25–40"]);
+      act(() => events.onHover("VAL 70 · p.V70M", 70));
+      expect(marked()).toEqual(["site · 70", "p.V70M"]);
+      act(() => events.onHover("GLY 60", 60));
+      expect(marked()).toEqual([]);
+      act(() => events.onHover(null, null));
+      expect(marked()).toEqual([]);
+    });
+
+    it("says how many regions the cap left out", async () => {
+      const regions = Array.from({ length: 53 }, (_, i) => ({ name: `d${i}`, start: 500 + i, end: 600 }));
+      await draw({ ...WITH_REGIONS, regions: [...WITH_REGIONS.regions.slice(0, 2), ...regions] }, HELD.slice(0, 2));
+      expect(texts().filter((t) => t?.includes("·"))).toEqual(["EF-hand 1 · 10–30", "linker · 25–40"]);
+      expect(screen.getByTestId("structure-legend")).toHaveTextContent("only the first 50 of 55 regions are shown");
+    });
+  });
+
+  it("lists the first 40 labelled residues of the spec and says how many it does not list", async () => {
+    server.use(http.get(ROUTE, () => HttpResponse.text("ATOM      1")));
+    // the second is outside the model: it takes one of the 40 places and gets no entry
+    const residues = Array.from({ length: 50 }, (_, i) => ({ file_position: i === 1 ? 900 : i + 1, label: `p.L${i + 1}` }));
+    createScene.mockResolvedValueOnce({
+      ...READY,
+      highlighted: residues.map((r) => r.file_position).filter((p) => p !== 900),
+      regions: [[3, 4]],
+      dispose: vi.fn(),
+    });
+    show(b64({ ...SPEC, residues, regions: [{ name: "domain", start: 3, end: 4 }] }));
+    const legend = await screen.findByTestId("structure-legend");
+    const entries = screen.getAllByTestId("structure-legend-entry").map((e) => e.textContent);
+    expect(entries).toHaveLength(1 + 39);
+    expect(entries.slice(0, 3)).toEqual(["domain · 3–4", "p.L1", "p.L3"]);
+    expect(entries.at(-1)).toBe("p.L40");
+    expect(legend).toHaveTextContent("10 more labelled residues are not listed here");
+    // a label past the cap is still what the scene's hover text carries
+    expect(createScene.mock.lastCall?.[2].residues).toHaveLength(50);
   });
 
   it("says so when the browser drops the WebGL context, and draws again on request", async () => {
@@ -138,7 +424,8 @@ describe("StructureViewer", () => {
     show(b64({ ...SPEC, residues }));
     const legend = await screen.findByTestId("structure-legend");
     expect(legend).toHaveTextContent("only the first 2,000 of 2,010 listed residues are drawn");
-    expect(legend).toHaveTextContent("only the first 40 of 2000 labels are drawn");
+    expect(legend).toHaveTextContent("1,960 more labelled residues are not listed here");
+    expect(screen.getAllByTestId("structure-legend-entry")).toHaveLength(40);
   });
 
   it("refuses a spec over 1 MB without decoding it", () => {
@@ -153,8 +440,9 @@ describe("StructureViewer", () => {
     server.use(http.get("*/api/v1/protein_structure/structure/*", () => new Promise(() => {})));
     show(b64(SPEC));
     expect(screen.getByTestId("structure-footer")).toHaveTextContent(
-      /Predicted structure from the AlphaFold Protein Structure Database.*CC-BY 4\.0.*Jumper et al/,
+      /Predicted structure from the AlphaFold Protein Structure Database, © DeepMind Technologies Limited, CC-BY 4\.0\./,
     );
+    expect(screen.getByTestId("structure-footer")).not.toHaveTextContent(/Jumper|Nature/);
     cleanup();
     show(b64({ ...SPEC, model_file_id: "AF3-TEST-F1-model_v6" }));
     expect(screen.getByTestId("structure-footer")).toHaveTextContent(
@@ -201,7 +489,7 @@ describe("StructureViewer", () => {
     createScene.mockResolvedValueOnce({ ...READY, setLive, dispose: vi.fn() });
     show(b64(SPEC));
     await screen.findByTestId("structure-legend");
-    expect(Object.keys(createScene.mock.lastCall?.[3]).sort()).toEqual(["onContextLost", "onHover"]);
+    expect(Object.keys(createScene.mock.lastCall?.[3]).sort()).toEqual(["onContextLost", "onEmphasisEnd", "onHover"]);
     expect(setLive).not.toHaveBeenCalled();
     expect(screen.getByTestId("structure-canvas")).not.toHaveAttribute("data-live");
   });
@@ -212,8 +500,9 @@ describe("StructureViewer", () => {
       modelFileId: "AF-TEST-F1-model_v6",
       gene: "GENE1",
       residues: [],
+      regions: [],
       colourMode: "plddt",
-      omitted: { residues: 0, labels: 0 },
+      omitted: { residues: 0, regions: 0 },
     };
     const host = (props: Partial<Parameters<typeof StructureView>[0]>) => (
       <QueryClientProvider client={client}>

@@ -31,6 +31,9 @@ export const MAX_TEXT_LENGTH = 80;
 export const MAX_POSITION = 100_000;
 export const MAX_SPHERE_RADIUS = 100;
 export const MAX_RESIDUES = 2000;
+// these two the producing side knows as well. It tells a spec's author that labels past
+// MAX_LABELS (its VIEW_MAX_LABELS) are told on hover only, so the legend lists that many
+export const MAX_REGIONS = 50;
 export const MAX_LABELS = 40;
 const HEX_COLOUR_RE = /^#[0-9a-fA-F]{6}$/;
 
@@ -61,8 +64,16 @@ export interface ViewResidue {
   role?: ViewRole;
   /** #rrggbb, always resolved: an explicit colour, else the role's, else neutral */
   colour: string;
-  /** false for a label past MAX_LABELS: still told on hover, not drawn in the scene */
-  drawLabel: boolean;
+}
+
+/** a named stretch of the chain, e.g. a domain; regions may overlap */
+export interface ViewRegion {
+  name: string;
+  /** residue numbers as written in the model file, inclusive */
+  start: number;
+  end: number;
+  /** #rrggbb painted over the cartoon; without one the region shows only when pointed at */
+  colour?: string;
 }
 
 export interface ViewSpec {
@@ -71,10 +82,11 @@ export interface ViewSpec {
   accession?: string;
   gene?: string;
   residues: ViewResidue[];
+  regions: ViewRegion[];
   sphere?: { centre: number; radius: number };
   colourMode: ViewColourMode;
   /** what the caps left out, for the viewer to say so */
-  omitted: { residues: number; labels: number };
+  omitted: { residues: number; regions: number };
 }
 
 export type ViewSpecResult =
@@ -100,11 +112,9 @@ const optionalString = (v: unknown, what: string): string | undefined => {
   return v.length > MAX_TEXT_LENGTH ? `${v.slice(0, MAX_TEXT_LENGTH - 1)}…` : v;
 };
 
-type ParsedResidue = Omit<ViewResidue, "drawLabel">;
-
 // one entry per position: the first entry's colour stands, and the first label any entry gives
-const mergeAndCap = (parsed: ParsedResidue[]): Pick<ViewSpec, "residues" | "omitted"> => {
-  const byPosition = new Map<number, ParsedResidue>();
+const mergeAndCap = (parsed: ViewResidue[]): { residues: ViewResidue[]; omitted: number } => {
+  const byPosition = new Map<number, ViewResidue>();
   for (const r of parsed) {
     const first = byPosition.get(r.filePosition);
     if (!first) byPosition.set(r.filePosition, { ...r });
@@ -112,21 +122,10 @@ const mergeAndCap = (parsed: ParsedResidue[]): Pick<ViewSpec, "residues" | "omit
   }
   const distinct = [...byPosition.values()];
   const kept = distinct.slice(0, MAX_RESIDUES);
-  let labels = 0;
-  const residues = kept.map((r) => ({
-    ...r,
-    drawLabel: !!r.label?.trim() && ++labels <= MAX_LABELS,
-  }));
-  return {
-    residues,
-    omitted: {
-      residues: distinct.length - kept.length,
-      labels: Math.max(0, labels - MAX_LABELS),
-    },
-  };
+  return { residues: kept, omitted: distinct.length - kept.length };
 };
 
-const parseResidue = (raw: unknown, i: number): ParsedResidue => {
+const parseResidue = (raw: unknown, i: number): ViewResidue => {
   const what = `residues[${i}]`;
   if (!isRecord(raw)) throw new SpecError(`${what} must be an object`);
   const filePosition = position(raw.file_position, `${what}.file_position`);
@@ -150,16 +149,38 @@ const parseResidue = (raw: unknown, i: number): ParsedResidue => {
   return { filePosition, label, colour: ROLE_COLOURS.neutral };
 };
 
+const parseRegion = (raw: unknown, i: number): ViewRegion => {
+  const what = `regions[${i}]`;
+  if (!isRecord(raw)) throw new SpecError(`${what} must be an object`);
+  const name = optionalString(raw.name, `${what}.name`);
+  if (!name?.trim()) throw new SpecError(`${what}.name is missing or empty`);
+  const start = position(raw.start, `${what}.start`);
+  const end = position(raw.end, `${what}.end`);
+  if (start > end) throw new SpecError(`${what}.start is after its end`);
+  const { colour } = raw;
+  if (colour == null) return { name, start, end };
+  if (typeof colour !== "string" || !HEX_COLOUR_RE.test(colour)) {
+    throw new SpecError(`${what}.colour must be a #rrggbb colour`);
+  }
+  return { name, start, end, colour: colour.toLowerCase() };
+};
+
 const parseV1 = (raw: Record<string, unknown>): ViewSpec => {
   const modelFileId = raw.model_file_id;
   if (typeof modelFileId !== "string" || !MODEL_FILE_ID_RE.test(modelFileId)) {
     throw new SpecError("model_file_id is missing or not a model file id");
   }
 
-  let parsed: ParsedResidue[] = [];
+  let parsed: ViewResidue[] = [];
   if (raw.residues != null) {
     if (!Array.isArray(raw.residues)) throw new SpecError("residues must be a list");
     parsed = raw.residues.map(parseResidue);
+  }
+
+  let regions: ViewRegion[] = [];
+  if (raw.regions != null) {
+    if (!Array.isArray(raw.regions)) throw new SpecError("regions must be a list");
+    regions = raw.regions.map(parseRegion);
   }
 
   let sphere: ViewSpec["sphere"];
@@ -180,14 +201,17 @@ const parseV1 = (raw: Record<string, unknown>): ViewSpec => {
     throw new SpecError(`colour_mode must be one of ${VIEW_COLOUR_MODES.join(", ")}`);
   }
 
+  const merged = mergeAndCap(parsed);
   return {
     version: 1,
     modelFileId,
     accession: optionalString(raw.accession, "accession"),
     gene: optionalString(raw.gene, "gene"),
-    ...mergeAndCap(parsed),
+    residues: merged.residues,
+    regions: regions.slice(0, MAX_REGIONS),
     sphere,
     colourMode: colourMode as ViewColourMode,
+    omitted: { residues: merged.omitted, regions: Math.max(0, regions.length - MAX_REGIONS) },
   };
 };
 

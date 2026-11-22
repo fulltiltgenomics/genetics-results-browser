@@ -4,6 +4,7 @@ import {
   AF3_SOURCE_LABEL,
   MAX_LABELS,
   MAX_POSITION,
+  MAX_REGIONS,
   MAX_RESIDUES,
   MAX_SPHERE_RADIUS,
   MAX_TEXT_LENGTH,
@@ -53,10 +54,11 @@ describe("parseViewSpec", () => {
       accession: "Q9HCU4",
       gene: "CELSR2",
       residues: [
-        { filePosition: 412, label: "p.R612W", role: "case", colour: ROLE_COLOURS.case, drawLabel: true },
-        { filePosition: 415, label: undefined, colour: "#d62728", drawLabel: false },
+        { filePosition: 412, label: "p.R612W", role: "case", colour: ROLE_COLOURS.case },
+        { filePosition: 415, label: undefined, colour: "#d62728" },
       ],
-      omitted: { residues: 0, labels: 0 },
+      regions: [],
+      omitted: { residues: 0, regions: 0 },
       sphere: { centre: 412, radius: 15 },
       colourMode: "plddt",
     });
@@ -90,8 +92,8 @@ describe("parseViewSpec", () => {
       { file_position: 8 },
     ];
     expect(specOf({ ...DOC_EXAMPLE, residues }).residues).toEqual([
-      { filePosition: 7, label: "p.A7V", role: "control", colour: ROLE_COLOURS.control, drawLabel: true },
-      { filePosition: 8, label: undefined, colour: ROLE_COLOURS.neutral, drawLabel: false },
+      { filePosition: 7, label: "p.A7V", role: "control", colour: ROLE_COLOURS.control },
+      { filePosition: 8, label: undefined, colour: ROLE_COLOURS.neutral },
     ]);
   });
 
@@ -99,7 +101,7 @@ describe("parseViewSpec", () => {
     const residues = Array.from({ length: 3000 }, () => ({ file_position: 5, label: "x" }));
     const spec = specOf({ ...DOC_EXAMPLE, residues });
     expect(spec.residues).toHaveLength(1);
-    expect(spec.omitted).toEqual({ residues: 0, labels: 0 });
+    expect(spec.omitted).toEqual({ residues: 0, regions: 0 });
   });
 
   it("keeps the first MAX_RESIDUES distinct residues and counts the rest", () => {
@@ -110,12 +112,40 @@ describe("parseViewSpec", () => {
     expect(spec.omitted.residues).toBe(25);
   });
 
-  it("draws the first MAX_LABELS labels, keeps the rest for hover and counts them", () => {
-    const residues = Array.from({ length: MAX_LABELS + 3 }, (_, i) => ({ file_position: i + 1, label: `L${i}` }));
+  it("keeps every label, however many residues carry one", () => {
+    const residues = Array.from({ length: 60 }, (_, i) => ({ file_position: i + 1, label: `L${i}` }));
     const spec = specOf({ ...DOC_EXAMPLE, residues });
-    expect(spec.residues.filter((r) => r.drawLabel)).toHaveLength(MAX_LABELS);
-    expect(spec.residues.at(-1)).toMatchObject({ label: `L${MAX_LABELS + 2}`, drawLabel: false });
-    expect(spec.omitted.labels).toBe(3);
+    expect(spec.residues.filter((r) => r.label)).toHaveLength(60);
+  });
+
+  it("reads regions in order, overlapping ones included, with and without a colour", () => {
+    const regions = [
+      { name: "EF-hand 1", start: 10, end: 45, colour: "#AABBCC" },
+      { name: "linker", start: 40, end: 52 },
+      { name: "one residue", start: 7, end: 7, colour: null },
+    ];
+    const spec = specOf({ ...DOC_EXAMPLE, regions });
+    expect(spec.regions).toEqual([
+      { name: "EF-hand 1", start: 10, end: 45, colour: "#aabbcc" },
+      { name: "linker", start: 40, end: 52 },
+      { name: "one residue", start: 7, end: 7 },
+    ]);
+    expect(spec.omitted.regions).toBe(0);
+    expect(spec.version).toBe(1);
+  });
+
+  it("keeps the first MAX_REGIONS regions and counts the rest", () => {
+    const regions = Array.from({ length: MAX_REGIONS + 3 }, (_, i) => ({ name: `d${i}`, start: i + 1, end: i + 5 }));
+    const spec = specOf({ ...DOC_EXAMPLE, regions });
+    expect(spec.regions).toHaveLength(MAX_REGIONS);
+    expect(spec.regions.at(-1)?.name).toBe(`d${MAX_REGIONS - 1}`);
+    expect(spec.omitted.regions).toBe(3);
+  });
+
+  it("cuts a region's name to MAX_TEXT_LENGTH with an ellipsis", () => {
+    const [region] = specOf({ ...DOC_EXAMPLE, regions: [{ name: "x".repeat(500), start: 1, end: 2 }] }).regions;
+    expect(region.name).toHaveLength(MAX_TEXT_LENGTH);
+    expect(region.name.endsWith("…")).toBe(true);
   });
 
   it("cuts gene, accession and label to MAX_TEXT_LENGTH with an ellipsis", () => {
@@ -159,6 +189,18 @@ describe("parseViewSpec", () => {
     ["role and colour together", { ...DOC_EXAMPLE, residues: [{ file_position: 1, role: "case", colour: "#000000" }] }],
     ["a colour that is not #rrggbb", { ...DOC_EXAMPLE, residues: [{ file_position: 1, colour: "red" }] }],
     ["a label that is not text", { ...DOC_EXAMPLE, residues: [{ file_position: 1, label: 5 }] }],
+    ["regions not a list", { ...DOC_EXAMPLE, regions: { name: "d", start: 1, end: 2 } }],
+    ["a region that is not an object", { ...DOC_EXAMPLE, regions: ["d"] }],
+    ["a region with no name", { ...DOC_EXAMPLE, regions: [{ start: 1, end: 2 }] }],
+    ["a region with a blank name", { ...DOC_EXAMPLE, regions: [{ name: "  ", start: 1, end: 2 }] }],
+    ["a region whose name is not text", { ...DOC_EXAMPLE, regions: [{ name: 5, start: 1, end: 2 }] }],
+    ["a region with no end", { ...DOC_EXAMPLE, regions: [{ name: "d", start: 1 }] }],
+    ["a region that starts at zero", { ...DOC_EXAMPLE, regions: [{ name: "d", start: 0, end: 2 }] }],
+    ["a region with a fractional start", { ...DOC_EXAMPLE, regions: [{ name: "d", start: 1.5, end: 2 }] }],
+    ["a region that ends before it starts", { ...DOC_EXAMPLE, regions: [{ name: "d", start: 9, end: 2 }] }],
+    ["a region that ends above the cap", { ...DOC_EXAMPLE, regions: [{ name: "d", start: 1, end: MAX_POSITION + 1 }] }],
+    ["a region colour that is not #rrggbb", { ...DOC_EXAMPLE, regions: [{ name: "d", start: 1, end: 2, colour: "blue" }] }],
+    ["an invalid region past the cap", { ...DOC_EXAMPLE, regions: [...Array.from({ length: MAX_REGIONS }, () => ({ name: "d", start: 1, end: 2 })), { name: "d", start: 3, end: 2 }] }],
     ["a sphere with no radius", { ...DOC_EXAMPLE, sphere: { centre: 412 } }],
     ["a sphere with a negative radius", { ...DOC_EXAMPLE, sphere: { centre: 412, radius: -1 } }],
     ["a sphere with no centre", { ...DOC_EXAMPLE, sphere: { radius: 10 } }],
@@ -221,5 +263,11 @@ describe.skipIf(!CONTRACT)("the munge contract module", () => {
     expect(strings(assigned("VIEW_DEFAULT_COLOUR_MODE"))).toEqual([VIEW_DEFAULT_COLOUR_MODE]);
     expect(strings(assigned("AF3_SOURCE_LABEL"))).toEqual([AF3_SOURCE_LABEL]);
     expect(strings(assigned("MODEL_FILE_ID_RE"))).toEqual([MODEL_FILE_ID_RE.source]);
+  });
+
+  it("has the same legend caps", () => {
+    // parseInt stops at the trailing comment
+    expect(parseInt(assigned("VIEW_MAX_LABELS"), 10)).toBe(MAX_LABELS);
+    expect(parseInt(assigned("VIEW_MAX_REGIONS"), 10)).toBe(MAX_REGIONS);
   });
 });

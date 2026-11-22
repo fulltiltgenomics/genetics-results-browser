@@ -145,8 +145,9 @@ const Protein = ({ geneName, models }: { geneName: string; models: ProteinModel[
       accession,
       gene: geneName,
       residues: [],
+      regions: [],
       colourMode: "plddt",
-      omitted: { residues: 0, labels: 0 },
+      omitted: { residues: 0, regions: 0 },
     }),
     [shown.modelFileId, accession, geneName],
   );
