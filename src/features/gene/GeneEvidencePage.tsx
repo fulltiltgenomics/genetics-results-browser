@@ -1,7 +1,8 @@
 import { Box, Button, TextField, Typography } from "@mui/material";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 import { useGeneInfo } from "@/store/serverQuery";
+import { useGeneEvidenceStore } from "@/store/store.geneEvidence";
 import GeneEvidenceTab from "./GeneEvidenceTab";
 import GeneNotFound from "./GeneNotFound";
 
@@ -11,6 +12,8 @@ const GeneEvidencePage = () => {
   const { data: geneInfo, error: geneInfoError } = useGeneInfo(geneName);
   const [inputGeneName, setInputGeneName] = useState("");
   const wanted = inputGeneName.trim();
+  // the filters last from gene to gene, and go when the page is left
+  useEffect(() => () => useGeneEvidenceStore.getState().resetFilters(), []);
 
   return (
     <Box display="flex" flexDirection="column">

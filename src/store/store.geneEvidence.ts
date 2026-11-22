@@ -22,37 +22,55 @@ export type AssocTraitMode = "all" | "top";
 // the variant a credible set has to have to pass: any, a coding one (LoF included), or a LoF one
 export type AssocVariantMode = "any" | "coding" | "lof";
 
-// view preferences of the gene evidence tab, kept across gene changes and page reloads
-interface GeneEvidenceState {
+// filters that take results out of view. they last from gene to gene while the gene page is open
+// and are not stored: one left on from an earlier visit would make a gene look short of evidence
+const FILTER_DEFAULTS = {
+  burdenTraitType: "all" as BurdenTraitType,
+  assocTraitType: "all" as BurdenTraitType,
+  assocCredibleSetKind: "all" as CredibleSetKind,
+  assocVariantMode: "any" as AssocVariantMode,
+};
+
+// how the results are laid out, kept across gene changes and page reloads
+interface GeneEvidencePreferences {
   activeTab: GeneEvidenceTabName;
-  burdenTraitType: BurdenTraitType;
   burdenMaskMode: BurdenMaskMode;
   burdenView: BurdenView;
-  assocTraitType: BurdenTraitType;
-  assocCredibleSetKind: CredibleSetKind;
   assocTraitMode: AssocTraitMode;
-  assocVariantMode: AssocVariantMode;
-  setActiveTab: (value: GeneEvidenceTabName) => void;
-  setBurdenTraitType: (value: BurdenTraitType) => void;
-  setBurdenMaskMode: (value: BurdenMaskMode) => void;
-  setBurdenView: (value: BurdenView) => void;
-  setAssocTraitType: (value: BurdenTraitType) => void;
-  setAssocCredibleSetKind: (value: CredibleSetKind) => void;
-  setAssocTraitMode: (value: AssocTraitMode) => void;
-  setAssocVariantMode: (value: AssocVariantMode) => void;
 }
+
+const PREFERENCE_DEFAULTS: GeneEvidencePreferences = {
+  activeTab: "gene burden",
+  burdenMaskMode: "top",
+  burdenView: "table",
+  assocTraitMode: "all",
+};
+
+const preferencesOf = (state: Partial<GeneEvidencePreferences>): Partial<GeneEvidencePreferences> =>
+  Object.fromEntries(
+    Object.keys(PREFERENCE_DEFAULTS)
+      .filter((key) => key in state)
+      .map((key) => [key, state[key as keyof GeneEvidencePreferences]])
+  );
+
+type GeneEvidenceState = GeneEvidencePreferences &
+  typeof FILTER_DEFAULTS & {
+    setActiveTab: (value: GeneEvidenceTabName) => void;
+    setBurdenTraitType: (value: BurdenTraitType) => void;
+    setBurdenMaskMode: (value: BurdenMaskMode) => void;
+    setBurdenView: (value: BurdenView) => void;
+    setAssocTraitType: (value: BurdenTraitType) => void;
+    setAssocCredibleSetKind: (value: CredibleSetKind) => void;
+    setAssocTraitMode: (value: AssocTraitMode) => void;
+    setAssocVariantMode: (value: AssocVariantMode) => void;
+    resetFilters: () => void;
+  };
 
 export const useGeneEvidenceStore = create<GeneEvidenceState>()(
   persist(
     (set) => ({
-      activeTab: "gene burden",
-      burdenTraitType: "all",
-      burdenMaskMode: "top",
-      burdenView: "table",
-      assocTraitType: "all",
-      assocCredibleSetKind: "all",
-      assocTraitMode: "all",
-      assocVariantMode: "any",
+      ...PREFERENCE_DEFAULTS,
+      ...FILTER_DEFAULTS,
       setActiveTab: (value) => set({ activeTab: value }),
       setBurdenTraitType: (value) => set({ burdenTraitType: value }),
       setBurdenMaskMode: (value) => set({ burdenMaskMode: value }),
@@ -61,13 +79,16 @@ export const useGeneEvidenceStore = create<GeneEvidenceState>()(
       setAssocCredibleSetKind: (value) => set({ assocCredibleSetKind: value }),
       setAssocTraitMode: (value) => set({ assocTraitMode: value }),
       setAssocVariantMode: (value) => set({ assocVariantMode: value }),
+      resetFilters: () => set(FILTER_DEFAULTS),
     }),
     {
       name: "gene-evidence-storage",
-      // a stored tab name that is no longer offered would leave the tab strip with nothing selected
+      partialize: (state) => preferencesOf(state),
+      // only the preferences are read back, so a filter left in storage by an older build is
+      // dropped. a stored tab name that is no longer offered would leave the tab strip with
+      // nothing selected
       merge: (persisted, current) => {
-        const stored = (persisted ?? {}) as Partial<GeneEvidenceState>;
-        const merged = { ...current, ...stored };
+        const merged = { ...current, ...preferencesOf(persisted ?? {}) };
         return GENE_EVIDENCE_TABS.includes(merged.activeTab)
           ? merged
           : { ...merged, activeTab: current.activeTab };

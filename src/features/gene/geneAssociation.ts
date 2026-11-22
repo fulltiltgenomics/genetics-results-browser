@@ -187,7 +187,8 @@ export interface AssocView {
   // others are drawn faint
   variantPasses: Uint8Array;
   // per variant, among the sets that pass the filters whatever is selected: how many hold it and
-  // the highest PIP it has in them. the dots are not drawn from these: a dot never moves
+  // the highest PIP it has in them. a dot is drawn at that PIP; one that no passing set holds is
+  // drawn at its highest PIP over every set, so it moves when a filter takes its last set away
   variantPassingSets: Uint32Array;
   variantPassingPip: Float64Array;
 }

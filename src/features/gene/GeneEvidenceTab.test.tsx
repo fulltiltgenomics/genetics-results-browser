@@ -334,7 +334,7 @@ describe("gene burden tab", () => {
     ).toBeChecked();
   });
 
-  it("filters by trait type and mask mode, and remembers both", async () => {
+  it("filters by trait type and mask mode, and stores only the mask mode", async () => {
     useBurden();
     const user = userEvent.setup();
     renderTab("gene burden");
@@ -347,7 +347,8 @@ describe("gene burden tab", () => {
     expect(bodyRows().map((r) => r[3])).toEqual(["missense|LC", "pLoF", "pLoF"]);
 
     const stored = localStorage.getItem("gene-evidence-storage");
-    expect(stored).toContain('"burdenTraitType":"binary"');
+    expect(useGeneEvidenceStore.getState().burdenTraitType).toBe("binary");
+    expect(stored).not.toContain("burdenTraitType");
     expect(stored).toContain('"burdenMaskMode":"all"');
   });
 

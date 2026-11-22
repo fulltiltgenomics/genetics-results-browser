@@ -255,9 +255,6 @@ const GeneEvidenceTab = ({ geneName }: { geneName: string }) => {
 
   return (
     <Box sx={{ p: 2 }}>
-      <Typography sx={{ mb: 1 }} variant="body2" color="text.secondary">
-        Gene-level evidence for <b>{geneName}</b>.
-      </Typography>
       <Tabs
         value={activeTab}
         onChange={(_e, value) => {
