@@ -150,6 +150,10 @@ describe("GeneEvidenceTab (component)", () => {
 
     await user.click(screen.getByRole("tab", { name: "expression" }));
     expect(await screen.findByText("Expression by tissue: GTEx v11")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "APOE on the GTEx Portal" })).toHaveAttribute(
+      "href",
+      "https://gtexportal.org/home/gene/ENSG00000130203"
+    );
   });
 
   it("reads a gene-disease 404 as no associations rather than a failure", async () => {
@@ -350,6 +354,9 @@ describe("GeneEvidenceTab (component)", () => {
     expect(screen.getByRole("tab", { name: "Human Protein Atlas" })).not.toHaveAttribute(
       "aria-disabled"
     );
+    expect(
+      await screen.findByRole("link", { name: "APOE in the Human Protein Atlas" })
+    ).toHaveAttribute("href", "https://www.proteinatlas.org/ENSG00000130203/tissue");
     // "level" is unique to the HPA table
     const hpaTable = (await screen.findByText("level")).closest("table")!;
     const body = within(hpaTable)

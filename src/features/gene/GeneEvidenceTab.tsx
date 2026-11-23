@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import {
   Box,
+  Link,
   Tab,
   Tabs,
   ToggleButton,
@@ -54,6 +55,17 @@ const EXPRESSION_TAB_LABELS: Record<ExpressionTabName, string> = {
   cellxgene: "CELLxGENE",
   hpa: "Human Protein Atlas",
 };
+
+const SourceLink = ({ href, children }: { href: string; children: string }) => (
+  <Link
+    href={href}
+    target="_blank"
+    rel="noopener noreferrer"
+    variant="body2"
+    sx={{ display: "block", width: "fit-content", mb: 1 }}>
+    {children}
+  </Link>
+);
 
 type GtexTissueRow = TissueStats & { label: string };
 
@@ -124,6 +136,11 @@ const GtexEvidence = ({ geneName }: { geneName: string }) => {
           onClick={() => samples.data && exportGtexExpression(geneName, samples.data)}
         />
       </Box>
+      {ensemblId && (
+        <SourceLink href={`https://gtexportal.org/home/gene/${ensemblId}`}>
+          {`${geneName} on the GTEx Portal`}
+        </SourceLink>
+      )}
       {samples.data &&
         (view === "plot" ? (
           <GtexViolinPlot expression={samples.data} />
@@ -170,6 +187,7 @@ const hpaColumns: MRT_ColumnDef<GeneExpressionRow>[] = [
 
 const ExpressionEvidence = ({ geneName }: { geneName: string }) => {
   const expression = useGeneExpression(geneName);
+  const ensemblId = useGeneInfo(geneName).data?.ensemblId;
   // the same query the CELLxGENE section runs: a deployment without that data gets no tab for it
   const cellTypes = useCellTypeExpressionSummary(geneName);
   const offered = EXPRESSION_TABS.filter(
@@ -227,6 +245,11 @@ const ExpressionEvidence = ({ geneName }: { geneName: string }) => {
           error={expression.error}
           isEmpty={hpaRows.length === 0}
           emptyText={`no Human Protein Atlas protein level data for ${geneName}`}>
+          {ensemblId && (
+            <SourceLink href={`https://www.proteinatlas.org/${ensemblId}/tissue`}>
+              {`${geneName} in the Human Protein Atlas`}
+            </SourceLink>
+          )}
           <MaterialReactTable
             {...tableProps}
             data={hpaRows}

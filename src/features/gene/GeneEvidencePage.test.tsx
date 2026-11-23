@@ -47,6 +47,20 @@ describe("GeneEvidencePage", () => {
     expect(screen.queryByRole("tab", { name: /credible sets/i })).toBeNull();
   });
 
+  it("names the open gene and keeps the search beside it, without the introduction", async () => {
+    renderAt("/gene");
+    expect(screen.getByText(/Browse and plot all of our results/)).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { level: 1 })).toBeNull();
+
+    const input = screen.getByLabelText("Enter a gene name");
+    await userEvent.type(input, "apoe{Enter}");
+    expect(await screen.findByRole("heading", { level: 1, name: "APOE" })).toBeInTheDocument();
+    expect(screen.queryByText(/Browse and plot all of our results/)).toBeNull();
+    // ready for the next gene
+    expect(screen.getByLabelText("Enter a gene name")).toHaveValue("");
+    expect(screen.getByRole("button", { name: "GO" })).toBeDisabled();
+  });
+
   it("keeps the filters from gene to gene and drops them when the page is left", async () => {
     const { unmount } = renderAt("/gene/APOE");
     expect(await screen.findByRole("tablist")).toBeInTheDocument();

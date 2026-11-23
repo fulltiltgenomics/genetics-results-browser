@@ -37,6 +37,18 @@ describe("GtexViolinPlot", () => {
     expect(liver.querySelectorAll("circle")).toHaveLength(1);
   });
 
+  it("fades the other tissues while the pointer is on one, its name included", async () => {
+    render(<GtexViolinPlot expression={expression} />);
+    const [brain, liver, blood] = tissues();
+    await userEvent.hover(within(liver as HTMLElement).getByText("Liver"));
+    expect(liver).toHaveAttribute("opacity", "1");
+    expect(brain).toHaveAttribute("opacity", "0.45");
+    expect(blood).toHaveAttribute("opacity", "0.45");
+
+    await userEvent.unhover(within(liver as HTMLElement).getByText("Liver"));
+    expect(brain).toHaveAttribute("opacity", "1");
+  });
+
   it("orders the tissues by median on request", async () => {
     render(<GtexViolinPlot expression={expression} />);
     await userEvent.click(screen.getByRole("button", { name: "by median" }));

@@ -234,10 +234,15 @@ const CellTypeExpressionSection = ({ geneName }: { geneName: string }) => {
             disabled={rows.length === 0}
             onClick={() => exportCellTypeSummary(geneName, rows)}
           />
-          <Link href={CELLXGENE_GENE_EXPRESSION_URL} target="_blank" rel="noopener noreferrer" variant="body2">
-            CELLxGENE Gene Expression
-          </Link>
         </Box>
+        <Link
+          href={CELLXGENE_GENE_EXPRESSION_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          variant="body2"
+          sx={{ display: "block", width: "fit-content", mb: 1 }}>
+          CELLxGENE Gene Expression
+        </Link>
         <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1 }}>
           normal tissue pooled across datasets. Values are mean log1p CP10K (not TPM); dot colour is the
           mean, dot size the fraction of cells expressing.
