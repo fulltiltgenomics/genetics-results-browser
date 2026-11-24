@@ -168,8 +168,8 @@ const About = () => {
       </Typography>
       <Typography>
         <br />
-        Variant consequence and gene assignments come from gnomAD v4.1.1. rsids are looked up in
-        gnomAD v4.0.
+        Variant consequence and gene assignments come from gnomAD v4.1.1, and rsids are looked up
+        in it too.
         <br />
         The most severe variant consequence is taken from gnomAD's <i>vep115</i> annotation (VEP
         <br />

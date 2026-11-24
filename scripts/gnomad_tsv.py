@@ -9,6 +9,13 @@
 # `vep` (the 4.1 annotation) and `vep115`; --vep-field picks one, and the choice decides the
 # consequence terms and gene symbols every stamped credible set carries
 #
+# the `most_severe` and `gene_most_severe` columns written here are not what gets served:
+# build_gnomad_annotation.py recomputes both from the `consequences` column as the consequence
+# on the canonical transcript. what this export owes that step is `consequences` itself, with
+# gene_id, canonical and biotype on every transcript; the two columns stay as VEP's worst term
+# over every transcript and a gene carrying it, which is what a variant with no transcript
+# consequences keeps
+#
 # to start a cluster (only use a high number of workers if sure that this works):
 # hailctl dataproc start gnomad --region us-central1 --zone us-central1-a --num-workers 2 \
 #   --num-secondary-workers 16 --max-idle 30m
