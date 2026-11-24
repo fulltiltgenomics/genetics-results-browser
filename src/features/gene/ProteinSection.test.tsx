@@ -198,7 +198,7 @@ describe("ProteinSection", () => {
       "Either the variant is not a missense change on the canonical UniProt isoform under the release's annotation, or it is on a protein this deployment does not serve.",
     );
     expect(screen.getByTestId("protein-set-filters")).toHaveTextContent(
-      "lead p ≤ 1e-10, at most 50 variants, QTL sets only for GENE1 itself), from every resource whatever that tab's resource switches say",
+      "credible sets with a lead p ≤ 1e-10 and at most 50 variants, QTL sets only for GENE1 itself, from every resource",
     );
     // least confident first, as the viewer's legend has it; ten residues need no binning
     expect(screen.getByTestId("protein-track-legend")).toHaveTextContent(
@@ -310,7 +310,7 @@ describe("ProteinSection", () => {
     expect(row[0].style.outline).toBe("none");
   });
 
-  it("drops the sets the credible-set tab would not show, and marks a pseudo credible set", async () => {
+  it("drops a weak-lead set and another gene's eQTL set, and marks a pseudo credible set", async () => {
     const posted = serve({
       ...ONE_FILE,
       credibleSets: [

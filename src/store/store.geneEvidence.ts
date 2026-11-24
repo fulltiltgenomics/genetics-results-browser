@@ -44,8 +44,10 @@ interface GeneEvidencePreferences {
   assocTraitMode: AssocTraitMode;
 }
 
+export const DEFAULT_GENE_EVIDENCE_TAB: GeneEvidenceTabName = "gene burden";
+
 const PREFERENCE_DEFAULTS: GeneEvidencePreferences = {
-  activeTab: "gene burden",
+  activeTab: DEFAULT_GENE_EVIDENCE_TAB,
   expressionTab: "gtex",
   burdenMaskMode: "top",
   burdenView: "table",

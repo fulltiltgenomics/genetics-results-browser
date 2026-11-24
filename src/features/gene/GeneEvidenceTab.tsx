@@ -19,6 +19,7 @@ import {
   useGtexExpression,
 } from "@/store/serverQuery";
 import {
+  DEFAULT_GENE_EVIDENCE_TAB,
   EXPRESSION_TABS,
   ExpressionTabName,
   GENE_EVIDENCE_TABS,
@@ -37,6 +38,7 @@ import GtexViolinPlot from "./GtexViolinPlot";
 import { gtexTissueLabel } from "./gtexTissues";
 import { TissueStats, tissueStats } from "./gtexViolin";
 import { hpaLevelLabel, hpaLevelRank, hpaTissueLabel } from "./hpa";
+import { ProteinStructureNotConfigured, useProteinModels } from "./proteinModels";
 import { DownloadButton, toolbarSx } from "../table/ExportToolbar";
 import { exportGtexExpression, exportHpaExpression } from "./geneEvidenceExport";
 import {
@@ -345,8 +347,18 @@ const tabContent = (tab: GeneEvidenceTabName, geneName: string) => {
 };
 
 const GeneEvidenceTab = ({ geneName }: { geneName: string }) => {
-  const activeTab = useGeneEvidenceStore((s) => s.activeTab);
+  const storedTab = useGeneEvidenceStore((s) => s.activeTab);
   const setActiveTab = useGeneEvidenceStore((s) => s.setActiveTab);
+  // the same query the protein section runs, so opening the tab asks nothing again. the tab is
+  // offered only once the deployment is known to serve the layer, so one without it never shows
+  // the tab; a remembered protein tab is held through the wait rather than opening another tab
+  // first, since a browser can only have remembered it where it was once offered
+  const proteinModels = useProteinModels(geneName);
+  const proteinOffered = proteinModels.isPending
+    ? storedTab === "protein"
+    : !(proteinModels.error instanceof ProteinStructureNotConfigured);
+  const offered = GENE_EVIDENCE_TABS.filter((tab) => tab !== "protein" || proteinOffered);
+  const activeTab = offered.includes(storedTab) ? storedTab : DEFAULT_GENE_EVIDENCE_TAB;
 
   return (
     <Box sx={{ p: 2 }}>
@@ -357,7 +369,7 @@ const GeneEvidenceTab = ({ geneName }: { geneName: string }) => {
         }}
         variant="scrollable"
         sx={{ mb: 2, borderBottom: 1, borderColor: "divider" }}>
-        {GENE_EVIDENCE_TABS.map((tab) =>
+        {offered.map((tab) =>
           COMING_SOON.has(tab) ? (
             // not the disabled prop: a disabled button takes no pointer, so it could show no tooltip
             <Tab

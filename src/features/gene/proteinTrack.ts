@@ -215,8 +215,8 @@ const sameGene = (a: string, b: string): boolean => a.toLowerCase() === b.toLowe
 const plural = (n: number, noun: string): string => `${n} ${noun}${n === 1 ? "" : "s"}`;
 
 /**
- * The credible sets that count on the track: the ones the Credible sets tab shows with its
- * controls where they start. Its resource switches are not followed.
+ * The credible sets that count on the track. The thresholds are fixed: the track has no controls
+ * for them, and the page's caption states them.
  */
 export const trackCredibleSets = (gene: string, credibleSets: CSDatum[]): CSDatum[] =>
   credibleSets.filter((d) =>

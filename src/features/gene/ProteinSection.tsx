@@ -14,14 +14,16 @@ import { useNearViewport } from "../structure/useNearViewport";
 import { VIEW_SPEC_VERSION, type ViewSpec } from "../structure/viewSpec";
 import type { LiveSelection, ResidueHandler } from "../structure/StructureViewer";
 import {
-  ProteinStructureNotConfigured,
-  ProteinStructureNotYetAvailable,
   useGeneExomeVariants,
   useProteinFeatures,
-  useProteinModels,
   useProteinResidues,
   useVariantProteinMap,
 } from "./proteinApi";
+import {
+  ProteinStructureNotConfigured,
+  ProteinStructureNotYetAvailable,
+  useProteinModels,
+} from "./proteinModels";
 import ProteinTrack, { PseudoMark, type TrackSelection } from "./ProteinTrack";
 import {
   accessionsOf,
@@ -83,7 +85,6 @@ interface Selection extends TrackSelection {
 const Protein = ({ geneName, models }: { geneName: string; models: ProteinModel[] }) => {
   const residues = useProteinResidues(geneName, true);
   const features = useProteinFeatures(geneName, true);
-  // the same query the credible-set tab runs, so this is its cached answer and not a request
   const credibleSets = useGeneCredibleSets(geneName);
   const exome = useGeneExomeVariants(geneName, true);
   const { data: datasets } = useDatasets();
@@ -267,9 +268,8 @@ const Protein = ({ geneName, models }: { geneName: string; models: ProteinModel[
         {features.isError && " The feature rows failed to load."}
       </Typography>
       <Typography variant="caption" color="text.secondary" sx={{ display: "block" }} data-testid="protein-set-filters">
-        credible sets as the Credible sets tab first shows them (lead p ≤ 1e-{DEFAULT_MIN_LEAD_MLOG10P}, at
-        most {DEFAULT_MAX_CS_SIZE} variants, QTL sets only for {geneName} itself), from every resource
-        whatever that tab&apos;s resource switches say
+        credible sets with a lead p ≤ 1e-{DEFAULT_MIN_LEAD_MLOG10P} and at most {DEFAULT_MAX_CS_SIZE} variants,
+        QTL sets only for {geneName} itself, from every resource
       </Typography>
 
       <Box sx={{ display: "flex", alignItems: "center", gap: 1, mt: 0.5, flexWrap: "wrap", minHeight: 30 }}>

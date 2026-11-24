@@ -179,7 +179,7 @@ describe("variant placement", () => {
     filePosition: aaPos,
   });
 
-  it("compares gene names without regard to case, as the credible-set tab does", () => {
+  it("compares gene names without regard to case", () => {
     expect(missenseCandidates("apoc3", credibleSets, exome).map((c) => c.variant)).toEqual(
       candidates.map((c) => c.variant),
     );
@@ -201,7 +201,7 @@ describe("variant placement", () => {
     expect(candidates[0]).toMatchObject({ pseudo: false, pseudoOnly: false });
   });
 
-  it("keeps only the sets the credible-set tab shows before its controls are touched", () => {
+  it("drops weak-lead and oversized sets, and eQTL and pQTL sets of other genes", () => {
     const member = { variant: ["11:1:G:A"], consequence: ["missense_variant"], gene: ["APOC3"], pip: [0.5] };
     const sets = [
       cs({ ...member, traitCSId: "gwas" }),

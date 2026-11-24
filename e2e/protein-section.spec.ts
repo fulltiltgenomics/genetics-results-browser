@@ -97,7 +97,9 @@ test("the protein track draws and a selected variant is highlighted in the struc
   await expect(page.getByRole("tooltip")).toContainText(
     "not a missense change on the canonical UniProt isoform under the release's annotation, or it is on a protein this deployment does not serve",
   );
-  await expect(section.getByTestId("protein-set-filters")).toContainText("whatever that tab's resource switches say");
+  await expect(section.getByTestId("protein-set-filters")).toContainText(
+    `QTL sets only for ${GENE} itself, from every resource`,
+  );
   // 99 residues on a track this wide: one strip cell per residue, so no binning to mention
   await expect(section.getByTestId("protein-track-legend")).toContainText(/model confidence \(pLDDT\)very low/);
   expect(posted).toHaveLength(1);
@@ -220,19 +222,26 @@ test("a section below the fold asks only for the models until it is scrolled to"
   );
 });
 
-test("the section is absent where results-api serves no protein-structure routes", async ({ page }) => {
-  // FastAPI's own answer for a route that is not registered
-  const harness = await openEvidence(page, (pathname) =>
-    pathname.startsWith("/api/v1/protein_structure/")
-      ? { status: 404, contentType: JSON_TYPE, body: JSON.stringify({ detail: "Not Found" }) }
-      : undefined,
+test("the protein tab is absent where results-api serves no protein-structure routes", async ({ page }) => {
+  // a browser that remembers the tab from a deployment that did serve it
+  await page.addInitScript(() =>
+    localStorage.setItem("gene-evidence-storage", JSON.stringify({ state: { activeTab: "protein" }, version: 0 })),
   );
-  await expect(page.getByRole("tab", { name: "protein" })).toHaveAttribute("aria-selected", "true", {
+  const harness = await serve(page, {}, MODELS, (pathname) => {
+    if (pathname === "/api/v1/search") return { contentType: JSON_TYPE, body: JSON.stringify([GENE_HIT]) };
+    // FastAPI's own answer for a route that is not registered
+    return pathname.startsWith("/api/v1/protein_structure/")
+      ? { status: 404, contentType: JSON_TYPE, body: JSON.stringify({ detail: "Not Found" }) }
+      : undefined;
+  });
+  await page.goto(`${ORIGIN}/gene/${GENE}`);
+  await expect(page.getByRole("tab", { name: "gene burden" })).toHaveAttribute("aria-selected", "true", {
     timeout: 30_000,
   });
   await expect
     .poll(() => harness.requested.filter((p) => p === `/api/v1/protein_structure/models/${GENE}`).length)
     .toBeGreaterThan(0);
+  await expect(page.getByRole("tab", { name: "protein" })).toHaveCount(0);
   await expect(page.getByTestId("protein-section")).toHaveCount(0);
   await expect(page.getByText("Protein structure and variants")).toHaveCount(0);
   // the probe's answer is the end of it: nothing the section would have gone on to ask for

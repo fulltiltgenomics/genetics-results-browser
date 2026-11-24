@@ -124,7 +124,6 @@ describe("GeneEvidenceTab (component)", () => {
       "GWAS",
       "qtl",
       "expression",
-      "protein",
       "mendelian",
       "annotation",
     ]);
@@ -139,6 +138,73 @@ describe("GeneEvidenceTab (component)", () => {
     await waitFor(() => expect(screen.getAllByText("Apolipoprotein A").length).toBeGreaterThan(0));
     // the other tabs' content is not mounted
     expect(screen.queryByText(/Expression \(GTEx/)).not.toBeInTheDocument();
+  });
+
+  describe("the protein tab", () => {
+    const tabNames = () => screen.getAllByRole("tab").map((t) => t.textContent);
+    const serveModels = (status: number, body: unknown) => {
+      let asked = 0;
+      server.use(
+        http.get("*/api/v1/protein_structure/models/:gene", () => {
+          asked += 1;
+          return HttpResponse.json(body as never, { status });
+        })
+      );
+      return () => asked;
+    };
+
+    it("is offered once the deployment answers for the layer, and says when the gene has no model", async () => {
+      const asked = serveModels(404, { detail: "No model file is listed under gene APOE in release r" });
+      const user = userEvent.setup();
+      render(<GeneEvidenceTab geneName="APOE" />, { wrapper: makeWrapper() });
+
+      // not before the answer: a deployment without the layer must never show it
+      expect(tabNames()).not.toContain("protein");
+      await user.click(await screen.findByRole("tab", { name: "protein" }));
+      expect(tabNames().indexOf("protein")).toBe(tabNames().indexOf("expression") + 1);
+      expect(await screen.findByText("no predicted structure for this gene")).toBeInTheDocument();
+      expect(screen.getByRole("tab", { name: "protein" })).toHaveAttribute("aria-selected", "true");
+      // the section reads the tab strip's answer
+      expect(asked()).toBe(1);
+    });
+
+    it("stays while a release is yet to load", async () => {
+      serveModels(503, { detail: "no release loaded" });
+      render(<GeneEvidenceTab geneName="APOE" />, { wrapper: makeWrapper() });
+      expect(await screen.findByRole("tab", { name: "protein" })).toBeInTheDocument();
+    });
+
+    it("is absent where the deployment serves no protein-structure routes", async () => {
+      // the default handler answers as FastAPI does for a route that is not registered
+      const asked = serveModels(404, { detail: "Not Found" });
+      render(<GeneEvidenceTab geneName="APOE" />, { wrapper: makeWrapper() });
+      await waitFor(() => expect(asked()).toBe(1));
+      await waitFor(() => expect(screen.getAllByText("Apolipoprotein A").length).toBeGreaterThan(0));
+      expect(tabNames()).not.toContain("protein");
+    });
+
+    it("falls back to the default tab when a remembered protein tab is not served", async () => {
+      serveModels(404, { detail: "Not Found" });
+      renderTab("protein");
+      await waitFor(() =>
+        expect(screen.getByRole("tab", { name: "gene burden" })).toHaveAttribute(
+          "aria-selected",
+          "true"
+        )
+      );
+      expect(tabNames()).not.toContain("protein");
+      expect(screen.queryByTestId("protein-section")).toBeNull();
+      await waitFor(() => expect(screen.getAllByText("Apolipoprotein A").length).toBeGreaterThan(0));
+    });
+
+    it("opens on a remembered protein tab where the layer is served", async () => {
+      serveModels(404, { detail: "No model file is listed under gene APOE in release r" });
+      renderTab("protein");
+      // held through the wait, so no other tab's content is fetched first
+      expect(screen.getByRole("tab", { name: "protein" })).toHaveAttribute("aria-selected", "true");
+      expect(await screen.findByText("no predicted structure for this gene")).toBeInTheDocument();
+      expect(screen.queryByText("Apolipoprotein A")).toBeNull();
+    });
   });
 
   it("switches tabs and remembers the selection in localStorage", async () => {
