@@ -1187,3 +1187,78 @@ describe("variant association tab", () => {
     ).toBeInTheDocument();
   });
 });
+
+describe("ai summary tab", () => {
+  const summary = {
+    gene: "APOE",
+    generated: "2026-11-23",
+    model: "a-model",
+    headline: "the headline",
+    overview: "the overview",
+    findings: [
+      {
+        statement: "a burden finding",
+        tab: "gene burden",
+        evidence: [
+          {
+            id: "B1",
+            label: "genebass · Apolipoprotein A · missense|LC · p 5.2e-7",
+          },
+          {
+            id: "B2",
+            label: "genebass · C-reactive protein · missense|LC · p 3.2e-10",
+          },
+        ],
+      },
+      {
+        statement: "a QTL finding",
+        tab: "qtl",
+        evidence: [{ id: "Q1", label: "an eQTL" }],
+      },
+    ],
+    gaps: ["nothing colocalizes"],
+  };
+
+  it("shows the summary, with the rows behind a finding on request", async () => {
+    server.use(http.get("*/api/v1/gene_summary/:gene", () => HttpResponse.json(summary)));
+    renderTab("ai summary");
+
+    expect(await screen.findByRole("heading", { name: "the headline" })).toBeInTheDocument();
+    expect(screen.getByText("the overview")).toBeInTheDocument();
+    expect(screen.getByText("nothing colocalizes")).toBeInTheDocument();
+    expect(screen.getByText(/a-model.*2026-11-23/)).toBeInTheDocument();
+
+    expect(screen.queryByText(/Apolipoprotein A/)).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "show the 2 results behind this" }));
+    expect(screen.getByText(/Apolipoprotein A/)).toBeInTheDocument();
+    expect(screen.getByText(/C-reactive protein/)).toBeInTheDocument();
+  });
+
+  it("opens the tab a finding points at, and offers no way into one that is not there yet", async () => {
+    server.use(http.get("*/api/v1/gene_summary/:gene", () => HttpResponse.json(summary)));
+    renderTab("ai summary");
+
+    await screen.findByText("a QTL finding");
+    expect(screen.getByText(/qtl tab, coming soon/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "open the qtl tab" })).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: "open the gene burden tab" }));
+    expect(screen.getByRole("tab", { name: "gene burden" })).toHaveAttribute(
+      "aria-selected",
+      "true"
+    );
+  });
+
+  it("says so for a gene without a summary", async () => {
+    renderTab("ai summary");
+    expect(await screen.findByText("no AI summary for APOE yet")).toBeInTheDocument();
+  });
+
+  it("surfaces a server error", async () => {
+    server.use(
+      http.get("*/api/v1/gene_summary/:gene", () => HttpResponse.json({}, { status: 500 }))
+    );
+    renderTab("ai summary");
+    expect(await screen.findByText(/failed to load/)).toBeInTheDocument();
+  });
+});

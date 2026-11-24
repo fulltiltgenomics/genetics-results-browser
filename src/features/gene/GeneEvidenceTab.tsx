@@ -31,6 +31,8 @@ import CellTypeExpressionSection from "./CellTypeExpressionSection";
 import GeneAnnotationSection from "./GeneAnnotationSection";
 import GeneAssociationSection from "./GeneAssociationSection";
 import GeneBurdenSection from "./GeneBurdenSection";
+import { COMING_SOON, tabLabel } from "./geneEvidenceTabs";
+import GeneSummarySection from "./GeneSummarySection";
 import GtexViolinPlot from "./GtexViolinPlot";
 import { gtexTissueLabel } from "./gtexTissues";
 import { TissueStats, tissueStats } from "./gtexViolin";
@@ -311,6 +313,8 @@ const MendelianEvidence = ({ geneName }: { geneName: string }) => {
 
 const tabContent = (tab: GeneEvidenceTabName, geneName: string) => {
   switch (tab) {
+    case "ai summary":
+      return <GeneSummarySection geneName={geneName} />;
     case "annotation":
       return <GeneAnnotationSection geneName={geneName} />;
     case "gene burden":
@@ -329,12 +333,6 @@ const tabContent = (tab: GeneEvidenceTabName, geneName: string) => {
       );
   }
 };
-
-// the stored tab names stay as they are, so a browser's remembered tab survives a relabelling
-const TAB_LABELS: Partial<Record<GeneEvidenceTabName, string>> = {
-  "variant association": "GWAS",
-};
-const COMING_SOON: ReadonlySet<GeneEvidenceTabName> = new Set(["qtl"]);
 
 const GeneEvidenceTab = ({ geneName }: { geneName: string }) => {
   const activeTab = useGeneEvidenceStore((s) => s.activeTab);
@@ -360,12 +358,12 @@ const GeneEvidenceTab = ({ geneName }: { geneName: string }) => {
               sx={{ cursor: "default", color: "text.disabled" }}
               label={
                 <Tooltip title="coming soon" describeChild>
-                  <span>{TAB_LABELS[tab] ?? tab}</span>
+                  <span>{tabLabel(tab)}</span>
                 </Tooltip>
               }
             />
           ) : (
-            <Tab key={tab} value={tab} label={TAB_LABELS[tab] ?? tab} />
+            <Tab key={tab} value={tab} label={tabLabel(tab)} />
           )
         )}
       </Tabs>

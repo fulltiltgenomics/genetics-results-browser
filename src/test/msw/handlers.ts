@@ -153,6 +153,10 @@ export const handlers = [
   http.get(api("gene_disease/:gene"), () => HttpResponse.json(geneDisease)),
   http.get(api("gene_annotation"), () => HttpResponse.json(geneAnnotation)),
   http.get(api("gene_constraint"), () => HttpResponse.json(geneConstraint)),
+  // no gene has an AI summary unless a test gives it one
+  http.get(api("gene_summary/:gene"), () =>
+    HttpResponse.json({ error: "not_found" }, { status: 404 })
+  ),
   // the BFF's trimmed GTEx portal record: per tissue, the gene's expression in every sample
   http.get(api("gtex_expression"), ({ request }) => {
     const ensemblId = new URL(request.url).searchParams.get("ensembl_id");

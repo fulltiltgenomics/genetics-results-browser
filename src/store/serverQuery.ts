@@ -19,6 +19,7 @@ import type {
   GeneConstraint,
   GtexExpression,
 } from "../../bff/geneAnnotationTypes";
+import type { GeneSummary } from "../../bff/geneSummaryTypes";
 import type {
   GeneAssociationSetIds,
   GeneAssociationSummary,
@@ -261,6 +262,30 @@ export const useGtexExpression = (
       }
     },
     enabled: !!ensemblId,
+    staleTime: Infinity,
+  });
+};
+
+/**
+ * The gene's precomputed AI summary; null when it has none, which is every gene in a deployment
+ * whose API does not have the route.
+ */
+export const useGeneSummary = (geneName: string): UseQueryResult<GeneSummary | null, Error> => {
+  return useQuery<GeneSummary | null>({
+    queryKey: ["gene-summary", geneName],
+    queryFn: async () => {
+      try {
+        const { data } = await api.get<GeneSummary>(
+          `/v1/gene_summary/${encodeURIComponent(geneName)}`
+        );
+        return data;
+      } catch (e) {
+        if (isAxiosError(e) && e.response?.status === 404) {
+          return null;
+        }
+        throw e;
+      }
+    },
     staleTime: Infinity,
   });
 };
