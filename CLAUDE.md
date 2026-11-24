@@ -55,7 +55,7 @@ bd close <id>         # Complete work
 ```bash
 npm install
 npm run dev        # vite dev server on :3000
-npm run bff:dev    # BFF on :5000 (watch mode); `npm run bff` for one-shot
+npm run bff:dev    # BFF on :5001 (watch mode); `npm run bff` for one-shot
 npm run build      # production bundle into static/
 npm run typecheck  # tsc --noEmit over src/
 npm run bff:typecheck # tsc -p bff/tsconfig.json over bff/ (sources + tests)
@@ -110,7 +110,7 @@ See `README.md` for the full dev startup sequence and environment variables.
 React 19 + TypeScript SPA (Vite, MUI v6, material-react-table, zustand, react-router,
 @tanstack/react-query) plus a small Express BFF in `bff/`.
 
-Data flow: browser → vite dev server or nginx → BFF (`:5000`) → `genetics-results-api` (`:2000`).
+Data flow: browser → vite dev server or nginx → BFF (`:5001`) → `genetics-results-api` (`:2000`).
 The chat views are the exception — they talk directly to the chat backend
 (`../genetics-mcp-server`) at `VITE_CHAT_URL`.
 
@@ -122,6 +122,17 @@ The annotation path is split in two stages so that changing a UI control never r
   cached in-process by query hash. `POST /api/v1/gnomad` serves the lazy per-page gnomAD enrichment.
   `GET /api/v1/ld` (`bff/ldRoute.ts`) proxies the external FinnGen LD API (`LD_API_URL`), which the
   browser may not call directly under the production CSP's `connect-src 'self'`.
+  `GET /api/v1/gene_annotation` (`bff/geneAnnotationRoute.ts`) does the same for mygene.info
+  (`MYGENE_API_URL`), trimmed to the fields the gene annotation tab shows and cached in-process,
+  and `GET /api/v1/gene_constraint` (`bff/geneConstraintRoute.ts`) for gnomAD's gene constraint and ClinVar counts
+  (`GNOMAD_API_URL`, its GraphQL API).
+  `GET /api/v1/gene_association/:gene?window=` (`bff/geneAssociationRoute.ts`) is the variant
+  association tab's data: the API's one-row-per-member GWAS credible sets around a gene, grouped
+  per set into a columnar, dictionary-encoded summary (`bff/geneAssociationTypes.ts`) with trait
+  names, trait types and the pseudo flag joined in from `/v1/resource_metadata` and
+  `/v1/datasets`, and without per-member statistics. `…/:gene/set_ids` serves the sets' ids,
+  which the summary leaves out. Both are cached serialized and gzipped. A set's members are
+  fetched through the passthrough from `/v1/credible_sets_by_id` when its row is opened.
   Everything else under `/api` falls through `bff/passthrough.ts` to the API unchanged — except
   that both upstream paths attach `Authorization: Bearer $GENETICS_API_TOKEN`
   (`upstream.ts` for the assembled routes, `passthrough.ts` for the rest, and only when the
@@ -152,7 +163,7 @@ Layout:
   `types.gene.ts` still hold legacy pre-refactor types
 - `src/test/**` — vitest setup, MSW handlers, API fixtures (see `src/test/fixtures/README.md`)
 - `bff/**` — BFF sources and their vitest suite
-- `e2e/**` — Playwright specs
+- `e2e/**` — Playwright specs; `e2e/perf/**` holds performance scripts run by hand, not specs
 
 The chat draws a `[FILE:]` artifact named `*.structure-view.json` as a 3D protein structure
 (`src/features/structure`). The view-spec contract is genetics-results-munge's

@@ -54,25 +54,3 @@ export type GeneModel = {
   cdsStarts: (number | null)[];
   cdsEnds: (number | null)[];
 };
-
-export type TraitStatus = {
-  csOverlappingTraits: number;
-  variantOverlappingTraits: number;
-};
-
-export type CSStatus = {
-  csSize: number;
-  csMinR2: number | null;
-};
-
-export type SelectedVariantStats = {
-  variant: string;
-  consequence: string;
-  isLoF: boolean;
-  isCoding: boolean;
-  mlog10p: number | null;
-  pip: number;
-  beta: number | null;
-  se: number | null;
-  af: string;
-};

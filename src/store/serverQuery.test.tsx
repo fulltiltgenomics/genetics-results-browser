@@ -2,13 +2,14 @@ import { describe, expect, it } from "vitest";
 import { renderHook, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { PropsWithChildren } from "react";
+import { http, HttpResponse } from "msw";
+import { server } from "@/test/msw/server";
 import {
   useColocByCredibleSet,
   useDatasets,
-  useGeneCredibleSets,
+  GeneNotFoundError,
   useGeneInfo,
   useGenesInRegion,
-  useGeneTransCredibleSets,
   useNormalizedQuery,
   usePhenotypeSearch,
   useSummaryStats,
@@ -74,7 +75,7 @@ describe("useDatasets (currently included datasets for the About page)", () => {
     expect(eqtl.qtlTypes).toEqual(["eQTL"]);
     expect(eqtl.nSamples).toBe(1108);
 
-    // pseudo credible sets are flagged so both the resource filter and the gene view can mark them
+    // pseudo credible sets are flagged so the resource filter can mark them
     expect(finngen.hasPseudoCredibleSets).toBe(false);
     expect(rows.find((r) => r.datasetId === "finngen_mvp_ukbb")!.hasPseudoCredibleSets).toBe(true);
     expect(rows.find((r) => r.datasetId === "finngen_mvp_ukbb_aou")!.hasPseudoCredibleSets).toBe(true);
@@ -201,7 +202,7 @@ describe("usePhenotypeSearch (phenotype autocomplete capability filters)", () =>
   });
 });
 
-describe("gene view hooks (credible sets + gene track on the new API)", () => {
+describe("gene page hooks (gene lookup + gene track)", () => {
   it("useGeneInfo resolves a gene symbol to its coordinates via /search", async () => {
     const { result } = renderHook(() => useGeneInfo("APOE"), { wrapper: makeWrapper() });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
@@ -212,24 +213,70 @@ describe("gene view hooks (credible sets + gene track on the new API)", () => {
     expect(info.end).toBeGreaterThan(info.start);
   });
 
-  it("useGeneCredibleSets returns grouped CSDatum[] from credible_sets_by_gene", async () => {
-    const { result } = renderHook(() => useGeneCredibleSets("APOE"), { wrapper: makeWrapper() });
+  it("useGeneInfo returns the canonical symbol for a query in another case", async () => {
+    const { result } = renderHook(() => useGeneInfo("aPoE"), { wrapper: makeWrapper() });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    const data = result.current.data!;
-    expect(data.length).toBeGreaterThan(0);
-    // resource is rewritten to the legacy config dataName so the view's color/toggle logic works
-    expect(data.every((d) => d.resource && !d.resource.includes("_catalogue"))).toBe(true);
-    expect(data.every((d) => d.variant.length === d.pip.length)).toBe(true);
+    expect(result.current.data!.symbol).toBe("APOE");
   });
 
-  it("useGeneTransCredibleSets returns grouped CSDatum[] from credible_sets_by_qtl_gene", async () => {
-    const { result } = renderHook(() => useGeneTransCredibleSets("APOE"), {
-      wrapper: makeWrapper(),
-    });
+  it("useGeneInfo opens the gene an alias names exactly, under its approved symbol", async () => {
+    server.use(
+      http.get("*/v1/search", () =>
+        HttpResponse.json([
+          { type: "gene", symbol: "AR", match_type: "fuzzy", chrom: 23, gene_start: 1, gene_end: 2 },
+          {
+            type: "gene",
+            symbol: "PCSK9",
+            match_type: "exact",
+            chrom: 1,
+            gene_start: 55039445,
+            gene_end: 55064852,
+          },
+        ])
+      )
+    );
+    const { result } = renderHook(() => useGeneInfo("NARC-1"), { wrapper: makeWrapper() });
     await waitFor(() => expect(result.current.isSuccess).toBe(true));
-    const data = result.current.data!;
-    expect(data.length).toBeGreaterThan(0);
-    expect(data.every((d) => ["eQTL", "pQTL", "sQTL"].includes(d.dataType))).toBe(true);
+    expect(result.current.data!.symbol).toBe("PCSK9");
+  });
+
+  it("useGeneInfo does not ask again for a gene that was not found", async () => {
+    let calls = 0;
+    server.use(
+      http.get("*/v1/search", () => {
+        calls += 1;
+        return HttpResponse.json([
+          { type: "gene", symbol: "EYA2", match_type: "fuzzy", matched_key: "EYA2" },
+          { type: "gene", symbol: "OZEMA2", match_type: "fuzzy", matched_key: "OZEMA2" },
+        ]);
+      })
+    );
+    // a client with retries on, as the app's is: the hook itself must decline to retry
+    const client = new QueryClient();
+    const { result } = renderHook(() => useGeneInfo("OZEMA24"), {
+      wrapper: ({ children }: PropsWithChildren) => (
+        <QueryClientProvider client={client}>{children}</QueryClientProvider>
+      ),
+    });
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(result.current.error!.message).toBe("Gene OZEMA24 not found");
+    expect(calls).toBe(1);
+    // the near-miss of the query's own length is offered, the short contained one is not
+    expect((result.current.error as GeneNotFoundError).suggestions).toEqual([
+      { symbol: "OZEMA2", matchedOn: null },
+    ]);
+  });
+
+  it("useGeneInfo fails with a readable message when no gene matches", async () => {
+    // near-misses only, as the API answers a query that names no gene
+    server.use(
+      http.get("*/v1/search", () =>
+        HttpResponse.json([{ type: "gene", symbol: "NOS1", match_type: "fuzzy" }])
+      )
+    );
+    const { result } = renderHook(() => useGeneInfo("NOSUCHGENE"), { wrapper: makeWrapper() });
+    await waitFor(() => expect(result.current.isError).toBe(true));
+    expect(result.current.error!.message).toBe("Gene NOSUCHGENE not found");
   });
 
   it("useGenesInRegion adapts genes_in_region rows into GeneModel[]", async () => {

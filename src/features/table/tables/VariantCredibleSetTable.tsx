@@ -106,7 +106,7 @@ const CellTypeRows = ({ stats }: { stats: CellTypeStat[] }) => (
 
 // human-readable dataset label. eQTL Catalogue sub-datasets (QTD…) are enriched (BFF) with their
 // study + tissue + condition, shown in place of the bare QTD id; everything else uses the shared
-// datasetDisplayName (so the name matches the gene view). a multi-membership group appends its count.
+// datasetDisplayName. a multi-membership group appends its count.
 const datasetLabel = (g: GroupedCredibleSet, datasets: Record<string, DatasetMeta>): string => {
   const meta = datasets[g.dataset];
   let base: string;

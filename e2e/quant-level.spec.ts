@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 import { snapshot } from "./helpers/screenshot";
 
 // live verification of the QTL trait display + eQTL quant-level toggle (refactor.md §4, bd .18).
-// requires the full dev stack: genetics-results-api :2000, BFF :5000, vite :3000. submits a variant
+// requires the full dev stack: genetics-results-api :2000, BFF :5001, vite :3000. submits a variant
 // known to carry eQTL Catalogue multi-level data (19-44908684-T-C has a CLASRP exon-level row),
 // expands the variant, and (filtering the detail table to the CLASRP gene so the relevant rows are
 // on-screen rather than buried among ~1000 credible sets) asserts: default ge-only => CLASRP shows

@@ -49,10 +49,27 @@ const served = (posted: string[][]): ApiMock => (pathname, request) => {
 
 test.use({ viewport: { width: 1280, height: 1400 } });
 
+// the gene page offers its tabs only once the gene lookup has answered
+const GENE_HIT = {
+  type: "gene",
+  hgnc_id: "HGNC:610",
+  symbol: GENE,
+  name: "apolipoprotein C3",
+  ensembl_id: "ENSG00000110245",
+  chrom: 11,
+  gene_start: 116829907,
+  gene_end: 116833072,
+  match_type: "exact",
+};
+
 const openEvidence = async (page: Page, api: ApiMock): Promise<Harness> => {
-  const harness = await serve(page, {}, MODELS, api);
+  const harness = await serve(page, {}, MODELS, (pathname, request) =>
+    pathname === "/api/v1/search"
+      ? { contentType: JSON_TYPE, body: JSON.stringify([GENE_HIT]) }
+      : api(pathname, request),
+  );
   await page.goto(`${ORIGIN}/gene/${GENE}`);
-  await page.getByRole("tab", { name: "Gene evidence" }).click();
+  await page.getByRole("tab", { name: "protein" }).click();
   return harness;
 };
 
@@ -210,11 +227,12 @@ test("the section is absent where results-api serves no protein-structure routes
       ? { status: 404, contentType: JSON_TYPE, body: JSON.stringify({ detail: "Not Found" }) }
       : undefined,
   );
-  await expect(page.getByText("Gene-disease (Mendelian)")).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole("tab", { name: "protein" })).toHaveAttribute("aria-selected", "true", {
+    timeout: 30_000,
+  });
   await expect
     .poll(() => harness.requested.filter((p) => p === `/api/v1/protein_structure/models/${GENE}`).length)
     .toBeGreaterThan(0);
-  await expect(page.getByText("Gene burden")).toBeVisible();
   await expect(page.getByTestId("protein-section")).toHaveCount(0);
   await expect(page.getByText("Protein structure and variants")).toHaveCount(0);
   // the probe's answer is the end of it: nothing the section would have gone on to ask for

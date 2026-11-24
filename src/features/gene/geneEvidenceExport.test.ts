@@ -21,6 +21,7 @@ const burdenRow = (over: Partial<GeneBurdenRow> = {}): GeneBurdenRow => ({
   nControls: 478363,
   traitOriginal: "crohns_disease",
   flags: "NA",
+  resource: "ibd_exome_2026",
   ...over,
 });
 
@@ -44,7 +45,7 @@ describe("buildGeneBurdenRows", () => {
       trait: "crohns disease",
       trait_original: "crohns_disease",
       dataset: "IBD exome",
-      annotation: "pLoF",
+      burden_mask: "pLoF",
       "p-value": "5.25e-7",
       mlog10p: 6.28,
       beta: -0.0028,
@@ -64,15 +65,31 @@ describe("buildGeneBurdenRows", () => {
 });
 
 describe("buildGtexExpressionRows", () => {
-  it("carries the GTEx tissue label and the raw id", () => {
-    expect(buildGtexExpressionRows([expressionRow()])[0]).toEqual({
-      gene: "APOE",
-      gene_id: "ENSG00000130203.10",
-      tissue: "Heart - Atrial Appendage",
-      tissue_id: "heart_atrial_appendage",
-      median_tpm: 94.7488,
-      dataset: "GTEx v10",
-    });
+  it("carries the GTEx tissue label, the raw id and the tissue's statistics", () => {
+    const expression = {
+      ensemblId: "ENSG00000130203",
+      gencodeId: "ENSG00000130203.11",
+      dataset: "gtex_v11",
+      release: "v11",
+      unit: "TPM",
+      tissues: [
+        { tissue: "Heart_Atrial_Appendage", values: [4, 1, 3, 2, 5] },
+        { tissue: "Lung", values: [] },
+      ],
+    };
+    expect(buildGtexExpressionRows("APOE", expression)).toEqual([
+      {
+        gene: "APOE",
+        gene_id: "ENSG00000130203.11",
+        tissue: "Heart - Atrial Appendage",
+        tissue_id: "Heart_Atrial_Appendage",
+        samples: 5,
+        median_tpm: 3,
+        q1_tpm: 2,
+        q3_tpm: 4,
+        dataset: "GTEx v11",
+      },
+    ]);
   });
 });
 

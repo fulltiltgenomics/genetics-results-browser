@@ -1,0 +1,105 @@
+{
+  "symbol": "APOE",
+  "name": "apolipoprotein E",
+  "summary": "The protein encoded by this gene is a major apoprotein of the chylomicron.",
+  "cytoband": "19q13.32",
+  "typeOfGene": "protein-coding",
+  "ncbiGeneId": "348",
+  "ensemblGeneId": "ENSG00000130203",
+  "omimId": "107741",
+  "uniprotId": "P02649",
+  "pharmgkbId": "PA55",
+  "go": {
+    "BP": [
+      {
+        "id": "GO:0000001",
+        "term": "process 01"
+      },
+      {
+        "id": "GO:0000002",
+        "term": "process 02"
+      },
+      {
+        "id": "GO:0000003",
+        "term": "process 03"
+      },
+      {
+        "id": "GO:0000004",
+        "term": "process 04"
+      },
+      {
+        "id": "GO:0000005",
+        "term": "process 05"
+      },
+      {
+        "id": "GO:0000006",
+        "term": "process 06"
+      },
+      {
+        "id": "GO:0000007",
+        "term": "process 07"
+      },
+      {
+        "id": "GO:0000008",
+        "term": "process 08"
+      },
+      {
+        "id": "GO:0000009",
+        "term": "process 09"
+      },
+      {
+        "id": "GO:0000010",
+        "term": "process 10"
+      },
+      {
+        "id": "GO:0000011",
+        "term": "process 11"
+      },
+      {
+        "id": "GO:0000012",
+        "term": "process 12"
+      },
+      {
+        "id": "GO:0000013",
+        "term": "process 13"
+      },
+      {
+        "id": "GO:0000014",
+        "term": "process 14"
+      }
+    ],
+    "MF": [
+      {
+        "id": "GO:0005515",
+        "term": "protein binding"
+      }
+    ],
+    "CC": []
+  },
+  "pathways": [
+    {
+      "source": "kegg",
+      "id": "hsa04979",
+      "name": "Cholesterol metabolism"
+    },
+    {
+      "source": "wikipathways",
+      "id": "WP430",
+      "name": "Statin inhibition of cholesterol production"
+    }
+  ],
+  "interpro": [
+    {
+      "id": "IPR000074",
+      "desc": "Apolipoprotein A/E"
+    }
+  ],
+  "clingen": [
+    {
+      "disease": "hyperlipoproteinemia type 3",
+      "classification": "definitive",
+      "modeOfInheritance": "AR",
+      "report": "https://search.clinicalgenome.org/kb/gene-validity/x"
+    }
+  ]
+}

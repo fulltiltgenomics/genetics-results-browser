@@ -100,7 +100,7 @@ const About = () => {
         Within the expanded view of a variant, each credible set shows the other signals it{" "}
         <b>colocalizes</b> with. A separate phenotype-search view returns full summary statistics for
         all of your input variants for a chosen phenotype, flagging which variants fall in a credible
-        set for that phenotype. The gene view includes a <b>Gene evidence</b> tab with gene burden
+        set for that phenotype. The <b>Gene Evidence</b> page shows variant associations, gene burden
         results, gene expression and Mendelian gene-disease associations. eQTL Catalogue results are
         shown at gene level (ge) by default, with the option to also include exon, transcript,
         txrev and leafcutter quantification levels.
@@ -171,11 +171,13 @@ const About = () => {
         Variant consequence and gene assignments come from gnomAD v4.1.1. rsids are looked up in
         gnomAD v4.0.
         <br />
-        The <i>vep115.most_severe_consequence</i> gnomAD field (VEP 115, GENCODE 49) is used to
+        The most severe variant consequence is taken from gnomAD's <i>vep115</i> annotation (VEP
         <br />
-        determine most severe variant consequence. The transcripts it is assigned from are Ensembl
+        115, GENCODE 49) of the canonical Ensembl transcripts, protein-coding genes first, and the
         <br />
-        transcripts.
+        gene shown is that transcript's gene. A gene without a symbol is shown by its Ensembl gene
+        <br />
+        id.
       </Typography>
       <Typography>
         <br />

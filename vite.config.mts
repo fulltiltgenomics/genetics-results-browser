@@ -59,14 +59,14 @@ export default defineConfig({
     open: false,
     allowedHosts: ["anno.finngen.fi", "annopublic.finngen.fi", "dev.finngen.fi"],
     proxy: {
-      // /api now goes through the standalone BFF (npm run bff:dev, default port 5000),
+      // /api now goes through the standalone BFF (npm run bff:dev, default port 5001),
       // which forwards to the upstream genetics-results-api. mirrors the prod reverse-proxy
       // routing of /api -> BFF. previously this targeted :2000 (the API) directly.
       // no /chat entry: the chat calls use the absolute VITE_CHAT_URL in dev, so a proxy
       // key of /chat would only ever match the SPA routes (/chat, /chat/:sessionId) and
       // forward a page load upstream instead of serving the app.
       "/api": {
-        target: "http://localhost:5000",
+        target: "http://localhost:5001",
         changeOrigin: true,
       },
     },

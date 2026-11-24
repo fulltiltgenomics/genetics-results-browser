@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 import { snapshot } from "./helpers/screenshot";
 
 // per-credible-set colocalization in the expanded variant detail (bd .23, refactor.md §4).
-// requires the full dev stack: genetics-results-api :2000, BFF :5000, vite :3000.
+// requires the full dev stack: genetics-results-api :2000, BFF :5001, vite :3000.
 // flow: submit the APOE variant, expand the variant row, expand a GWAS credible-set detail row,
 // open its lazy colocalization section, and assert real partner colocalizations render.
 const SINGLE = "19-44908684-T-C"; // APOE rs429358 — sits in the AD/dementia GWAS credible sets

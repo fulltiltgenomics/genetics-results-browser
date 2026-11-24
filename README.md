@@ -8,7 +8,10 @@ annotation tool's per-query data from the backend API and proxies everything els
 
 The production nginx config (`nginx.prod.conf`) serves a CSP with `connect-src 'self'`, so the SPA
 cannot call external hosts directly — the LD lookup goes through the BFF's `GET /api/v1/ld` proxy
-(`LD_API_URL`). Anything else the browser must reach off-origin needs either a BFF route or an
+(`LD_API_URL`) the gene annotation from mygene.info through `GET /api/v1/gene_annotation`
+(`MYGENE_API_URL`), gnomAD gene constraint and ClinVar counts through `GET /api/v1/gene_constraint`
+(`GNOMAD_API_URL`) and the GTEx portal's per-sample expression of a gene through
+`GET /api/v1/gtex_expression` (`GTEX_API_URL`). Anything else the browser must reach off-origin needs either a BFF route or an
 explicit CSP source.
 The one page served under a different policy is `/mcp-app-sandbox.html` (from `public/`): the
 chat embeds it, sandboxed without `allow-same-origin`, to host an external MCP server's HTML
@@ -59,21 +62,25 @@ Available modes: `dev`, `dev.finngen`, `dev.public`, `prod`, `prod.finngen`, `pr
 | variable | meaning |
 | --- | --- |
 | `VITE_TARGET` | `finngen` (requires auth) or `public` |
-| `VITE_API_URL` | base URL of the BFF, e.g. `http://localhost:5000/api` |
+| `VITE_API_URL` | base URL of the BFF, e.g. `http://localhost:5001/api` |
 | `VITE_CHAT_URL` | base URL of the chat backend, e.g. `http://localhost:4000/chat` |
 | `VITE_APP_NAME` | product name shown in the UI, defaults to `FinnGenie` |
 | `VITE_SHOW_TOOLS_CONTROL` | `false` hides the chat options' Tools row (the Code execution switch); anything else, unset included, shows it. A deployment that hides it picks its users' surface through chat-backend's `DEFAULT_TOOL_PROFILE`; a user's stored choice still applies. The image build sets it from `--build-arg SHOW_TOOLS_CONTROL` |
 | `VITE_SHOW_TOOLS_BUTTON` | `false` hides the Tools button in the chat header (the list of what the assistant can call); anything else, unset included, shows it. Independent of `VITE_SHOW_TOOLS_CONTROL`. The image build sets it from `--build-arg SHOW_TOOLS_BUTTON` |
 
 The BFF reads `GENETICS_API_URL`, `GENETICS_API_TOKEN`, `BFF_PORT`, `RESULTS_CACHE_MAX`,
-`RESULTS_CACHE_TTL_MS` and `LD_API_URL` — see `bff/.env.example`. It also reads `NODE_ENV`:
+`RESULTS_CACHE_TTL_MS`, `LD_API_URL`, `MYGENE_API_URL`, `GNOMAD_API_URL`, `GENE_ANNOTATION_CACHE_MAX`,
+`GENE_ANNOTATION_CACHE_TTL_MS`, `GTEX_API_URL`, `GTEX_EXPRESSION_CACHE_MAX`,
+`GENE_ASSOCIATION_CACHE_MAX` and `GENE_ASSOCIATION_MAX_WINDOW` — see
+`bff/.env.example`. It also reads `NODE_ENV`:
 anything but `production` (which `bff/Dockerfile` sets) reflects the request origin as permissive
-CORS, so the dev browser can call the BFF cross-origin at `http://localhost:5000/api`.
+CORS, so the dev browser can call the BFF cross-origin at `http://localhost:5001/api`.
 
 `GENETICS_API_TOKEN` is the shared internal secret and is sent as `Authorization: Bearer` on
-**every** call to genetics-results-api, including the generic `/api` passthrough. (The `/api/v1/ld`
-proxy is the one upstream call that does not carry it — it targets the external `LD_API_URL`, not
-genetics-results-api.) It is not just service
+**every** call to genetics-results-api, including the generic `/api` passthrough. (The `/api/v1/ld`,
+`/api/v1/gene_annotation`, `/api/v1/gene_constraint` and `/api/v1/gtex_expression` routes are the
+upstream calls that do not carry it — they target the external `LD_API_URL`, `MYGENE_API_URL`,
+`GNOMAD_API_URL` and `GTEX_API_URL`, not genetics-results-api.) It is not just service
 credentials: it is the trusted-proxy marker that makes results-api believe the forwarded
 `X-Goog-Authenticated-User-Email`, so an auth-enforcing API rejects browser traffic without it.
 Unset in dev, where the dev API runs without auth. A caller's own bearer `Authorization` is
@@ -82,13 +89,13 @@ header and results-api has no Basic path.
 
 ### Local dev startup sequence
 
-In development the data flow is: browser → Vite (`:3000`) → BFF (`:5000`) → genetics-results-api (`:2000`).
+In development the data flow is: browser → Vite (`:3000`) → BFF (`:5001`) → genetics-results-api (`:2000`).
 
 `VITE_API_URL` points at the BFF, so `npm run dev` alone won't serve data. You need three processes running:
 
 ```
 # 1. genetics-results-api on :2000, started separately from ../genetics-results-api
-# 2. the BFF on :5000
+# 2. the BFF on :5001
 npm run bff:dev
 # 3. the Vite dev server on :3000
 npm run dev
@@ -124,6 +131,10 @@ handlers match on `*/api/v1/…`, so every request missed. `VITE_CHAT_URL` is de
 unset; the chat features build fetch URLs from it directly and their tests match the shape that
 produces.
 
+`scripts/install-git-hooks.sh` and `scripts/doc-drift-lib.sh` are copies written by
+genetics-results-suite's `scripts/vendor.py`; edit them there. `scripts/lint-staged.sh` is
+this repo's own.
+
 `scripts/lint-staged.sh` runs eslint over the **staged** files from the `pre-commit` hook
 and **blocks the commit** on an error. Only errors block: warnings are advisory, and
 `@typescript-eslint/no-explicit-any` and `react-hooks/exhaustive-deps` are deliberately
@@ -139,7 +150,14 @@ per clone to wire `core.hooksPath`, which no clone carries; it is shared across 
 so that one run covers every worktree too.
 
 `npm run e2e` reuses an already-running dev server, or starts one in `dev.public` mode; specs that
-need real data still require the API and the BFF to be up.
+need real data still require the API and the BFF to be up. `E2E_PORT` points the specs at a dev
+server on another port than 3000.
+
+`e2e/perf/assoc-perf.mjs` measures the gene page's variant association tab against live data —
+bytes and time to load, frame times while zooming, panning and scrolling the table, and the
+latency of selecting a region in the track and of opening a row — and
+`e2e/perf/trace-scroll.mjs` breaks a table scroll down by timeline event. Both take `PERF_BASE_URL` and need a dev-mode server, since the
+`window.__assocPerf` counters they read exist only there; see the header of each.
 
 ### Docker images
 

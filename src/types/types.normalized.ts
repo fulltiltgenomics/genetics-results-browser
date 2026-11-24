@@ -453,8 +453,8 @@ export interface PhenoSearchRow {
 }
 
 /* ────────────────────────────────────────────────────────────────────────────
- * GENE EVIDENCE TAB (refactor.md §6) — gene-level evidence shown in the gene view,
- * separate from the CS visualization. Three independent reads through the BFF:
+ * GENE EVIDENCE (refactor.md §6) — gene-level evidence shown on the gene evidence page.
+ * Three independent reads through the BFF:
  *   - gene_based/{gene}            -> burden tests (TSV)
  *   - expression_by_gene/{gene}    -> per-tissue/cell expression levels (JSON)
  *   - gene_disease/{gene}          -> Mendelian gene-disease associations (JSON)
@@ -480,6 +480,7 @@ export interface GeneBurdenRow {
   nControls: number | null;
   traitOriginal: string;
   flags: string;
+  resource: string; //            the dataset's resource id as /v1/datasets spells it, e.g. "schema2"
 }
 
 /** One gene expression row from expression_by_gene. `level` arrives as a string and is parsed. */
@@ -534,6 +535,8 @@ export interface CellTypeExpressionSummaryRow {
   donorPseudobulkMeanCp10k: number | null;
   donorPseudobulkNDonors: number | null;
   tau: number | null;
+  /** the API's own judgement that the pooled row is thinly supported; hidden unless asked for */
+  lowSupport: boolean;
 }
 
 /**

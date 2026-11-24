@@ -4,9 +4,17 @@ import {
   GeneBurdenRow,
   GeneExpressionRow,
 } from "@/types/types.normalized";
-import { ExportRow, NA, writeTsv } from "../table/utils/export";
-import { datasetDisplayName, formatTraitName, pValRepr } from "../table/utils/tableutil";
+import { ExportRow, NA, writeTsv, writeTsvFile } from "../table/utils/export";
+import {
+  cleanConsequence,
+  datasetDisplayName,
+  formatTraitName,
+  pValRepr,
+} from "../table/utils/tableutil";
+import { AssocIndex, AssocRow, codingVariantsOfSet } from "./geneAssociation";
+import type { GtexExpression } from "../../../bff/geneAnnotationTypes";
 import { gtexTissueLabel } from "./gtexTissues";
+import { tissueStats } from "./gtexViolin";
 import { hpaLevelLabel, hpaTissueLabel } from "./hpa";
 
 /**
@@ -29,7 +37,7 @@ export const buildGeneBurdenRows = (rows: GeneBurdenRow[]): ExportRow[] =>
     trait: formatTraitName(r.trait) || NA,
     trait_original: r.traitOriginal || NA,
     dataset: datasetDisplayName(r.dataset) || NA,
-    annotation: r.annotation || NA,
+    burden_mask: r.annotation || NA,
     "p-value": r.mlog10pBurden == null ? NA : pValRepr(r.mlog10pBurden),
     mlog10p: num(r.mlog10pBurden),
     beta: num(r.beta),
@@ -41,22 +49,78 @@ export const buildGeneBurdenRows = (rows: GeneBurdenRow[]): ExportRow[] =>
 
 export const exportGeneBurden = (gene: string, rows: GeneBurdenRow[]): void => {
   const exportRows = buildGeneBurdenRows(rows);
-  writeTsv(exportRows, `gene_burden_${gene}_${exportRows.length}_rows`);
+  writeTsvFile(exportRows, `gene_burden_${gene}_${exportRows.length}_rows`);
 };
 
-export const buildGtexExpressionRows = (rows: GeneExpressionRow[]): ExportRow[] =>
+export const buildCredibleSetRows = (
+  gene: string,
+  rows: AssocRow[],
+  index: AssocIndex,
+  csIds: string[]
+): ExportRow[] =>
   rows.map((r) => ({
-    gene: r.geneName || NA,
-    gene_id: r.geneId || NA,
-    tissue: gtexTissueLabel(r.tissueCell),
-    tissue_id: r.tissueCell,
-    median_tpm: num(r.level),
+    gene,
+    trait: r.traitName || NA,
+    trait_original: r.traitCode || NA,
+    trait_type: r.traitType || NA,
     dataset: datasetDisplayName(r.dataset) || NA,
+    credible_set_type: r.pseudo ? "pseudo" : "SuSiE",
+    cs_id: csIds[r.set] ?? NA,
+    cs_size: r.csSize,
+    cs_min_r2: num(r.csMinR2),
+    // the strongest member inside the loaded region, which is all of the set unless it is larger
+    // than cs_variants_loaded
+    lead_variant: r.leadVariant,
+    cs_variants_loaded: r.nMembersLoaded,
+    consequence: r.leadConsequence ? cleanConsequence(r.leadConsequence) : NA,
+    pip: r.leadPip,
+    "p-value": r.leadMlog10p == null ? NA : pValRepr(r.leadMlog10p),
+    mlog10p: num(r.leadMlog10p),
+    beta: num(r.leadBeta),
+    n_coding_variants: r.nCoding,
+    // every coding variant among the set's loaded variants, with its PIP
+    coding_variants:
+      codingVariantsOfSet(index, r.set)
+        .map((v) => `${v.variant}(${v.pip})`)
+        .join(",") || NA,
   }));
 
-export const exportGtexExpression = (gene: string, rows: GeneExpressionRow[]): void => {
-  const exportRows = buildGtexExpressionRows(rows);
-  writeTsv(exportRows, `expression_gtex_${gene}_${exportRows.length}_tissues`);
+export const exportCredibleSets = (
+  gene: string,
+  rows: AssocRow[],
+  index: AssocIndex,
+  csIds: string[]
+): void => {
+  const exportRows = buildCredibleSetRows(gene, rows, index, csIds);
+  writeTsvFile(exportRows, `gwas_credible_sets_${gene}_${exportRows.length}_rows`);
+};
+
+export const buildGtexExpressionRows = (gene: string, expression: GtexExpression): ExportRow[] =>
+  expression.tissues.flatMap((t) => {
+    const stats = tissueStats(t.tissue, t.values);
+    return stats
+      ? [
+          {
+            gene,
+            gene_id: expression.gencodeId,
+            tissue: gtexTissueLabel(t.tissue.toLowerCase()),
+            tissue_id: t.tissue,
+            samples: stats.n,
+            median_tpm: num(stats.median),
+            q1_tpm: num(stats.q1),
+            q3_tpm: num(stats.q3),
+            dataset: `GTEx ${expression.release}`,
+          },
+        ]
+      : [];
+  });
+
+export const exportGtexExpression = (gene: string, expression: GtexExpression): void => {
+  const exportRows = buildGtexExpressionRows(gene, expression);
+  writeTsv(
+    exportRows,
+    `expression_gtex_${expression.release}_${gene}_${exportRows.length}_tissues`
+  );
 };
 
 export const buildHpaExpressionRows = (rows: GeneExpressionRow[]): ExportRow[] =>
@@ -71,7 +135,7 @@ export const buildHpaExpressionRows = (rows: GeneExpressionRow[]): ExportRow[] =
 
 export const exportHpaExpression = (gene: string, rows: GeneExpressionRow[]): void => {
   const exportRows = buildHpaExpressionRows(rows);
-  writeTsv(exportRows, `expression_hpa_${gene}_${exportRows.length}_rows`);
+  writeTsv(exportRows, `protein_levels_hpa_${gene}_${exportRows.length}_rows`);
 };
 
 export const buildCellTypeSummaryRows = (rows: CellTypeExpressionSummaryRow[]): ExportRow[] =>
@@ -90,6 +154,7 @@ export const buildCellTypeSummaryRows = (rows: CellTypeExpressionSummaryRow[]): 
     tau: num(r.tau),
     donor_pseudobulk_mean_cp10k: num(r.donorPseudobulkMeanCp10k),
     donor_pseudobulk_n_donors: num(r.donorPseudobulkNDonors),
+    low_support: String(r.lowSupport),
   }));
 
 export const exportCellTypeSummary = (gene: string, rows: CellTypeExpressionSummaryRow[]): void => {
@@ -117,7 +182,10 @@ export const buildCellTypeDatasetRows = (rows: CellTypeExpressionDatasetRow[]): 
     donor_pseudobulk_mean_cp10k: num(r.donorPseudobulkMeanCp10k),
   }));
 
-export const exportCellTypeDatasets = (gene: string, rows: CellTypeExpressionDatasetRow[]): void => {
+export const exportCellTypeDatasets = (
+  gene: string,
+  rows: CellTypeExpressionDatasetRow[]
+): void => {
   const exportRows = buildCellTypeDatasetRows(rows);
   writeTsv(exportRows, `cell_type_expression_by_dataset_${gene}_${exportRows.length}_rows`);
 };

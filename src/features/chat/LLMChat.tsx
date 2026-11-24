@@ -528,7 +528,9 @@ export const LLMChat = ({
       for (const item of Array.from(items)) {
         if (item.kind === "file" && item.type.startsWith("image/")) {
           const file = item.getAsFile();
-          if (file) {
+          // a clipboard can offer an image flavour with nothing in it; attached, it is a
+          // zero-byte image the model's API refuses on this turn and every replay of it
+          if (file && file.size > 0) {
             const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
             const renamed = new File([file], `pasted-image-${timestamp}.png`, {
               type: file.type,

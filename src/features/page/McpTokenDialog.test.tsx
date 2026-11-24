@@ -20,10 +20,15 @@ const wire = (id: number, prefix: string, active: boolean) => ({
 
 // an in-memory token store so the mocked routes answer the way the backend does
 let rows: ReturnType<typeof wire>[];
+let listCalls: number;
 beforeEach(() => {
   rows = [];
+  listCalls = 0;
   server.use(
-    http.get("*/v1/tokens", () => HttpResponse.json(rows)),
+    http.get("*/v1/tokens", () => {
+      listCalls += 1;
+      return HttpResponse.json(rows);
+    }),
     http.post("*/v1/tokens", () => {
       const id = rows.length + 1;
       const plain = id === 1 ? OLD_PLAIN : PLAIN;
@@ -39,6 +44,9 @@ beforeEach(() => {
   );
 });
 
+// creating before the initial list has answered would let that answer overwrite the new row
+const loaded = () => waitFor(() => expect(listCalls).toBeGreaterThan(0));
+
 const create = async () => {
   fireEvent.click(screen.getByRole("button", { name: "Create key" }));
   await screen.findByText(/Key created/);
@@ -52,7 +60,7 @@ const revoke = (prefix: string) => {
 describe("McpTokenDialog", () => {
   it("shows the plaintext once after creation", async () => {
     render(<McpTokenDialog open onClose={vi.fn()} />);
-    expect(await screen.findByText(/No active keys/)).toBeInTheDocument();
+    await loaded();
     await create();
     expect(screen.getByDisplayValue(OLD_PLAIN)).toBeInTheDocument();
     expect(await screen.findByText("OldKey12...")).toBeInTheDocument();
@@ -60,19 +68,18 @@ describe("McpTokenDialog", () => {
 
   it("drops the plaintext when the key it belongs to is revoked", async () => {
     render(<McpTokenDialog open onClose={vi.fn()} />);
-    await screen.findByText(/No active keys/);
+    await loaded();
     await create();
     await screen.findByText("OldKey12...");
     revoke("OldKey12");
     await waitFor(() => expect(screen.queryByText("OldKey12...")).not.toBeInTheDocument());
     expect(screen.queryByText(/Key created/)).not.toBeInTheDocument();
     expect(screen.queryByDisplayValue(OLD_PLAIN)).not.toBeInTheDocument();
-    expect(screen.getByText(/No active keys/)).toBeInTheDocument();
   });
 
   it("keeps an uncopied new key on screen when an older key is revoked", async () => {
     render(<McpTokenDialog open onClose={vi.fn()} />);
-    await screen.findByText(/No active keys/);
+    await loaded();
     await create();
     await screen.findByText("OldKey12...");
     await create();

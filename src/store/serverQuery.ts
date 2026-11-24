@@ -14,7 +14,16 @@ import {
 } from "@/types/types.normalized";
 import { parseQuantLevel } from "@/utils/quantLevel";
 import { CSDatum, GeneModel } from "@/types/types.gene";
-import config from "@/config.json";
+import type {
+  GeneAnnotation,
+  GeneConstraint,
+  GtexExpression,
+} from "../../bff/geneAnnotationTypes";
+import type { GeneSummary } from "../../bff/geneSummaryTypes";
+import type {
+  GeneAssociationSetIds,
+  GeneAssociationSummary,
+} from "../../bff/geneAssociationTypes";
 import {
   GeneCSApiRow,
   GeneInRegionApiRow,
@@ -22,11 +31,9 @@ import {
   groupCredibleSets,
 } from "./geneCS";
 import api from "./api";
+import { GeneSearchCandidate, GeneSuggestion, suggestGenes } from "./geneSuggestions";
 import { isAxiosError } from "axios";
 import { CohortN } from "./cohorts";
-
-// the gene view's window padding around the gene body (legacy used the same value)
-const GENE_VIEW_PADDING = config.gene_view.gene_padding;
 
 /**
  * raw /datasets row from the new genetics-results-api (snake_case). only the fields the About page
@@ -36,6 +43,8 @@ const GENE_VIEW_PADDING = config.gene_view.gene_padding;
 export interface DatasetApiRow {
   dataset_id: string;
   resource: string;
+  // the label the dataset's result rows carry (FinnGen_R14); dataset_id (finngen_gwas) is not on them
+  dataset?: string;
   version?: string;
   description?: string;
   trait_type?: string | null;
@@ -62,6 +71,7 @@ export interface DatasetApiRow {
 export interface DatasetRow {
   datasetId: string;
   resource: string;
+  dataset?: string;
   version?: string;
   description?: string;
   dataType: string;
@@ -90,6 +100,7 @@ export const useDatasets = (): UseQueryResult<DatasetRow[], Error> => {
       return data.map((row) => ({
         datasetId: row.dataset_id,
         resource: row.resource,
+        dataset: row.dataset,
         version: row.version,
         description: row.description,
         dataType: row.data_type,
@@ -132,25 +143,34 @@ export const useNormalizedQuery = (
   });
 };
 
-/* ────────────────────────────────────────────────────────────────────────────
- * GENE VIEW (refactor.md §6) — migrated from the dead /v1/gene_cs* + /v1/gene_model* endpoints to
- * the new genetics-results-api. cis credible sets come from credible_sets_by_gene, trans (the gene
- * as a QTL molecular trait) from credible_sets_by_qtl_gene, and the gene track from genes_in_region.
- * all three return flat JSON rows that groupCredibleSets / geneModelsFromRegion reshape into the
- * CSDatum[] / GeneModel[] the existing CisView + CSPlot already consume (see store/geneCS.ts).
- * ──────────────────────────────────────────────────────────────────────────── */
-
 // minimal slice of a /search gene hit — used to resolve a gene symbol to its genomic coordinates.
-interface GeneSearchHit {
-  type: string;
-  symbol: string;
+// match_type is "exact" when the query equals one of the gene's indexed strings, not only its symbol
+interface GeneSearchHit extends GeneSearchCandidate {
+  name?: string;
+  aliases?: string[];
+  hgnc_id?: string;
+  ensembl_id?: string;
   chrom: number;
   gene_start: number;
   gene_end: number;
 }
 
+// an answer rather than a failure, so it is not worth asking again
+export class GeneNotFoundError extends Error {
+  constructor(
+    message: string,
+    readonly suggestions: GeneSuggestion[] = []
+  ) {
+    super(message);
+  }
+}
+
 export interface GeneInfo {
   symbol: string;
+  name: string | null;
+  aliases: string[];
+  hgncId: string | null;
+  ensemblId: string | null;
   chr: string;
   start: number;
   end: number;
@@ -158,37 +178,154 @@ export interface GeneInfo {
 
 /**
  * resolve a gene symbol to its coordinates via /search (type=genes). genes_in_region needs an
- * explicit chr/start/end, and the credible-set endpoints don't return the gene body, so this is the
- * one lookup that seeds both the gene track window and the cis/trans plot range.
+ * explicit chr/start/end, so this is the lookup that seeds the gene tracks' window. the returned
+ * symbol is the canonical spelling of a case-insensitive match, or the approved symbol of the gene
+ * an alias, previous symbol, gene name or Ensembl id names; callers key everything else by it.
  */
-export const useGeneInfo = (gene: string | undefined): UseQueryResult<GeneInfo | undefined, Error> => {
-  return useQuery<GeneInfo | undefined>({
+export const useGeneInfo = (gene: string | undefined): UseQueryResult<GeneInfo, Error> => {
+  return useQuery<GeneInfo>({
     queryKey: ["gene-info", gene],
     queryFn: async () => {
       const { data } = await api.get<GeneSearchHit[]>("/v1/search", {
         params: { q: gene, types: "genes", format: "json" },
       });
-      const hit = data.find(
-        (d) => d.type === "gene" && d.symbol.toLowerCase() === gene!.toLowerCase()
-      );
+      const genes = data.filter((d) => d.type === "gene");
+      // the approved symbol wins; failing that, the best-ranked gene the query names exactly by an
+      // alias, a previous symbol, its name or its Ensembl id. a fuzzy near-miss is never opened.
+      const hit =
+        genes.find((d) => d.symbol.toLowerCase() === gene!.toLowerCase()) ??
+        genes.find((d) => d.match_type === "exact");
       if (!hit) {
-        return undefined;
+        // a query function may not resolve to undefined
+        throw new GeneNotFoundError(`Gene ${gene} not found`, suggestGenes(gene!, genes));
       }
       return {
         symbol: hit.symbol,
+        name: hit.name ?? null,
+        aliases: hit.aliases ?? [],
+        hgncId: hit.hgnc_id ?? null,
+        ensemblId: hit.ensembl_id ?? null,
         chr: String(hit.chrom),
         start: hit.gene_start,
         end: hit.gene_end,
       };
     },
     enabled: !!gene,
+    retry: (failureCount, error) => !(error instanceof GeneNotFoundError) && failureCount < 3,
     staleTime: Infinity,
   });
 };
 
 /**
- * cis credible sets overlapping the gene region, grouped into CSDatum[].
- * window mirrors the legacy padding so the same stretch of the locus is fetched.
+ * mygene.info annotation of a gene, through the BFF. Keyed by HGNC id rather than symbol because
+ * symbols are reused and renamed. A gene mygene.info does not know resolves to null: that is an
+ * answer, not a failure.
+ */
+export const useGeneAnnotation = (
+  hgncId: string | null | undefined
+): UseQueryResult<GeneAnnotation | null, Error> => {
+  return useQuery<GeneAnnotation | null>({
+    queryKey: ["gene-annotation", hgncId],
+    queryFn: async () => {
+      try {
+        const { data } = await api.get<GeneAnnotation>("/v1/gene_annotation", {
+          params: { hgnc_id: hgncId },
+        });
+        return data;
+      } catch (e) {
+        if (isAxiosError(e) && e.response?.status === 404) {
+          return null;
+        }
+        throw e;
+      }
+    },
+    enabled: !!hgncId,
+    staleTime: Infinity,
+  });
+};
+
+/**
+ * A gene's expression in every sample of the newest GTEx release, through the BFF; null when that
+ * release has none for it.
+ */
+export const useGtexExpression = (
+  ensemblId: string | null | undefined
+): UseQueryResult<GtexExpression | null, Error> => {
+  return useQuery<GtexExpression | null>({
+    queryKey: ["gtex-expression", ensemblId],
+    queryFn: async () => {
+      try {
+        const { data } = await api.get<GtexExpression>("/v1/gtex_expression", {
+          params: { ensembl_id: ensemblId },
+        });
+        return data;
+      } catch (e) {
+        if (isAxiosError(e) && e.response?.status === 404) {
+          return null;
+        }
+        throw e;
+      }
+    },
+    enabled: !!ensemblId,
+    staleTime: Infinity,
+  });
+};
+
+/**
+ * The gene's precomputed AI summary; null when it has none, which is every gene in a deployment
+ * whose API does not have the route.
+ */
+export const useGeneSummary = (geneName: string): UseQueryResult<GeneSummary | null, Error> => {
+  return useQuery<GeneSummary | null>({
+    queryKey: ["gene-summary", geneName],
+    queryFn: async () => {
+      try {
+        const { data } = await api.get<GeneSummary>(
+          `/v1/gene_summary/${encodeURIComponent(geneName)}`
+        );
+        return data;
+      } catch (e) {
+        if (isAxiosError(e) && e.response?.status === 404) {
+          return null;
+        }
+        throw e;
+      }
+    },
+    staleTime: Infinity,
+  });
+};
+
+/** gnomAD constraint and ClinVar counts of a gene, through the BFF; null when gnomAD does not know it. */
+export const useGeneConstraint = (
+  ensemblId: string | null | undefined
+): UseQueryResult<GeneConstraint | null, Error> => {
+  return useQuery<GeneConstraint | null>({
+    queryKey: ["gene-constraint", ensemblId],
+    queryFn: async () => {
+      try {
+        const { data } = await api.get<GeneConstraint>("/v1/gene_constraint", {
+          params: { ensembl_id: ensemblId },
+        });
+        return data;
+      } catch (e) {
+        if (isAxiosError(e) && e.response?.status === 404) {
+          return null;
+        }
+        throw e;
+      }
+    },
+    enabled: !!ensemblId,
+    staleTime: Infinity,
+  });
+};
+
+// bp either side of the gene body
+const GENE_CREDIBLE_SET_WINDOW = 500000;
+
+/**
+ * credible sets overlapping the gene region with every member's statistics, grouped into
+ * CSDatum[]. the protein track reads members' consequences and PIPs, which the BFF's
+ * gene_association summary does not carry.
  */
 export const useGeneCredibleSets = (
   gene: string | undefined
@@ -198,7 +335,7 @@ export const useGeneCredibleSets = (
     queryFn: async () => {
       const { data } = await api.get<GeneCSApiRow[]>(
         `/v1/credible_sets_by_gene/${encodeURIComponent(gene!)}`,
-        { params: { window: GENE_VIEW_PADDING, format: "json" } }
+        { params: { window: GENE_CREDIBLE_SET_WINDOW, format: "json" } }
       );
       return groupCredibleSets(data);
     },
@@ -208,29 +345,69 @@ export const useGeneCredibleSets = (
 };
 
 /**
- * trans credible sets: QTL credible sets where this gene is the molecular trait, anywhere in the
- * genome. grouped the same way; the upstream `trait` is already the gene symbol for QTL rows so the
- * grouping key matches the cis path.
+ * The GWAS credible sets with a member in the gene or `window` bp either side, as the BFF's
+ * columnar summary: grouped per set, trait names and types joined in, no per-member statistics.
  */
-export const useGeneTransCredibleSets = (
-  gene: string | undefined
-): UseQueryResult<CSDatum[], Error> => {
-  return useQuery<CSDatum[]>({
-    queryKey: ["gene-trans-credible-sets", gene],
+export const useGeneAssociationSummary = (
+  gene: string | undefined,
+  window: number
+): UseQueryResult<GeneAssociationSummary, Error> =>
+  useQuery<GeneAssociationSummary>({
+    queryKey: ["gene-association", gene, window],
+    queryFn: async () => {
+      const { data } = await api.get<GeneAssociationSummary>(
+        `/v1/gene_association/${encodeURIComponent(gene!)}`,
+        { params: { window } }
+      );
+      return data;
+    },
+    enabled: !!gene,
+    staleTime: Infinity,
+  });
+
+/**
+ * The credible-set ids of that summary's sets, which it leaves out. Asked for once the summary is
+ * on screen: they are needed only to open a set or to download the table.
+ */
+export const useGeneAssociationSetIds = (
+  gene: string | undefined,
+  window: number,
+  enabled: boolean
+): UseQueryResult<GeneAssociationSetIds, Error> =>
+  useQuery<GeneAssociationSetIds>({
+    queryKey: ["gene-association-set-ids", gene, window],
+    queryFn: async () => {
+      const { data } = await api.get<GeneAssociationSetIds>(
+        `/v1/gene_association/${encodeURIComponent(gene!)}/set_ids`,
+        { params: { window } }
+      );
+      return data;
+    },
+    enabled: enabled && !!gene,
+    staleTime: Infinity,
+  });
+
+/** Every member of one credible set with its statistics, fetched when the set's row is opened. */
+export const useCredibleSetMembers = (
+  resource: string,
+  trait: string,
+  csId: string | undefined
+): UseQueryResult<GeneCSApiRow[], Error> =>
+  useQuery<GeneCSApiRow[]>({
+    queryKey: ["credible-set-members", resource, trait, csId],
     queryFn: async () => {
       const { data } = await api.get<GeneCSApiRow[]>(
-        `/v1/credible_sets_by_qtl_gene/${encodeURIComponent(gene!)}`,
+        `/v1/credible_sets_by_id/${encodeURIComponent(resource)}/${encodeURIComponent(trait)}/${encodeURIComponent(csId!)}`,
         { params: { format: "json" } }
       );
-      return groupCredibleSets(data);
+      return data;
     },
-    enabled: !!gene,
+    enabled: !!csId,
     staleTime: Infinity,
   });
-};
 
 /**
- * gene track for the plot: the region's genes from genes_in_region, adapted to GeneModel[].
+ * gene track: the region's genes from genes_in_region, adapted to GeneModel[].
  * format=json because the exon columns are arrays, which the TSV form comma-joins.
  */
 export const useGenesInRegion = (
@@ -408,45 +585,48 @@ const metaNum = (v: number | string | undefined): number | null => {
  * so fetching it eagerly in stage-1 would gate every query — hence this is hover-gated per resource).
  * Resources without harmonized metadata 404; the hook swallows that to an empty map.
  */
+const resourceMetadataQuery = (resource: string | undefined) => ({
+  queryKey: ["resource-metadata", resource],
+  queryFn: async (): Promise<Record<string, PhenotypeMetadata>> => {
+    try {
+      const { data } = await api.get<ResourceMetadataApiRow[]>(
+        `/v1/resource_metadata/${encodeURIComponent(resource!)}`,
+        { params: { format: "json" } }
+      );
+      const out: Record<string, PhenotypeMetadata> = {};
+      for (const row of data) {
+        out[String(row.phenotype_code)] = {
+          name: row.phenotype_string ?? "",
+          nCases: metaNum(row.n_cases),
+          nControls: metaNum(row.n_controls),
+          nSamples: metaNum(row.n_samples),
+          traitType: row.trait_type ?? null,
+          study: row.author && row.author !== "NA" ? row.author : null,
+          ...(row.contributing_cohorts?.length
+            ? { contributingCohorts: row.contributing_cohorts }
+            : {}),
+          ...(row.cohort_families?.length ? { cohortFamilies: row.cohort_families } : {}),
+          ...(row.n_by_cohort ? { nByCohort: row.n_by_cohort } : {}),
+        };
+      }
+      return out;
+    } catch {
+      // resources without harmonized metadata (e.g. gnomad-only) -> no counts, not an error
+      return {};
+    }
+  },
+  staleTime: Infinity,
+  gcTime: Infinity,
+});
+
 export const useResourceMetadata = (
   resource: string | undefined,
   enabled: boolean
-): UseQueryResult<Record<string, PhenotypeMetadata>, Error> => {
-  return useQuery<Record<string, PhenotypeMetadata>>({
-    queryKey: ["resource-metadata", resource],
-    queryFn: async (): Promise<Record<string, PhenotypeMetadata>> => {
-      try {
-        const { data } = await api.get<ResourceMetadataApiRow[]>(
-          `/v1/resource_metadata/${encodeURIComponent(resource!)}`,
-          { params: { format: "json" } }
-        );
-        const out: Record<string, PhenotypeMetadata> = {};
-        for (const row of data) {
-          out[String(row.phenotype_code)] = {
-            name: row.phenotype_string ?? "",
-            nCases: metaNum(row.n_cases),
-            nControls: metaNum(row.n_controls),
-            nSamples: metaNum(row.n_samples),
-            traitType: row.trait_type ?? null,
-            study: row.author && row.author !== "NA" ? row.author : null,
-            ...(row.contributing_cohorts?.length
-              ? { contributingCohorts: row.contributing_cohorts }
-              : {}),
-            ...(row.cohort_families?.length ? { cohortFamilies: row.cohort_families } : {}),
-            ...(row.n_by_cohort ? { nByCohort: row.n_by_cohort } : {}),
-          };
-        }
-        return out;
-      } catch {
-        // resources without harmonized metadata (e.g. gnomad-only) -> no counts, not an error
-        return {};
-      }
-    },
+): UseQueryResult<Record<string, PhenotypeMetadata>, Error> =>
+  useQuery<Record<string, PhenotypeMetadata>>({
+    ...resourceMetadataQuery(resource),
     enabled: enabled && !!resource,
-    staleTime: Infinity,
-    gcTime: Infinity,
   });
-};
 
 // one peak_to_genes row (snake_case JSON). only the fields we use are typed; the payload also carries
 // the hurdle model stats + gene/peak coordinates which we don't surface here.
@@ -665,7 +845,7 @@ export const useSummaryStats = (
 
 /* ────────────────────────────────────────────────────────────────────────────
  * GENE EVIDENCE TAB (refactor.md §6) — three independent gene-level reads through the BFF that feed
- * the new "Gene evidence" tab in the gene view (burden, expression, Mendelian gene-disease). These
+ * the gene evidence page (burden, expression, Mendelian gene-disease). These
  * are NOT credible-set data and do not flow through munge; each hook owns its own parse/sort.
  * ──────────────────────────────────────────────────────────────────────────── */
 
@@ -714,13 +894,14 @@ export const parseGeneBurdenTsv = (tsv: string): GeneBurdenRow[] => {
       nControls: parseNum(f[idx["n_controls"]]),
       traitOriginal: f[idx["trait_original"]],
       flags: f[idx["flags"]],
+      resource: f[idx["resource"]] ?? "",
     });
   }
   // descending burden significance; nulls sort last
   return rows.sort((a, b) => (b.mlog10pBurden ?? -Infinity) - (a.mlog10pBurden ?? -Infinity));
 };
 
-/** Gene burden results for the gene view's Gene evidence tab (gene_based/{gene}, TSV). */
+/** Gene burden results for the gene evidence page (gene_based/{gene}, TSV). */
 export const useGeneBurden = (gene: string | undefined): UseQueryResult<GeneBurdenRow[], Error> => {
   return useQuery<GeneBurdenRow[]>({
     queryKey: ["gene-burden", gene],
@@ -730,6 +911,31 @@ export const useGeneBurden = (gene: string | undefined): UseQueryResult<GeneBurd
     },
     enabled: !!gene,
     staleTime: 5 * 60 * 1000,
+  });
+};
+
+/**
+ * Number of traits each gene-based dataset tests, keyed by resource. A dataset spanning many traits
+ * reports the count under `stats`, a single-study one at the top level.
+ */
+export const useGeneBurdenDatasetSizes = (): UseQueryResult<Record<string, number>, Error> => {
+  return useQuery<Record<string, number>>({
+    queryKey: ["gene-burden-dataset-sizes"],
+    queryFn: async () => {
+      const { data } = await api.get<(DatasetApiRow & { n_phenotypes?: number | null })[]>(
+        "/v1/datasets",
+        { params: { data_type: "gene_based", include_stats: true } }
+      );
+      const sizes: Record<string, number> = {};
+      for (const row of data) {
+        const n = row.stats?.n_phenotypes ?? row.n_phenotypes;
+        if (n != null) {
+          sizes[row.resource] = n;
+        }
+      }
+      return sizes;
+    },
+    staleTime: 60 * 60 * 1000,
   });
 };
 
@@ -810,6 +1016,7 @@ export const useCellTypeExpressionSummary = (
             donorPseudobulkMeanCp10k: naNum(r.donor_pseudobulk_mean_cp10k),
             donorPseudobulkNDonors: naNum(r.donor_pseudobulk_n_donors),
             tau: naNum(r.tau),
+            lowSupport: r.low_support === true,
           })
         ),
       };

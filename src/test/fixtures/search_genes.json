@@ -1,6 +1,7 @@
 [
   {
     "type": "gene",
+    "hgnc_id": "HGNC:613",
     "symbol": "APOE",
     "name": "apolipoprotein E",
     "aliases": [

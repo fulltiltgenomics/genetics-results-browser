@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 import { snapshot } from "./helpers/screenshot";
 
 // live verification of the three migrated summary tabs (.19/.20/.21) at /anno.
-// requires the full dev stack: genetics-results-api :2000, BFF :5000, vite :3000.
+// requires the full dev stack: genetics-results-api :2000, BFF :5001, vite :3000.
 // submits a known variant, then clicks through Data type comparison, Phenotype summary, and Tissue
 // summary tabs, asserting each renders real credible-set-derived data (not the migrating placeholder).
 test("migrated summary tabs render credible-set data", async ({ page }) => {

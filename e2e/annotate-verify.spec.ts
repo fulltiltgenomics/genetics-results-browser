@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 import { snapshot } from "./helpers/screenshot";
 
 // comprehensive verification walk of the fully migrated variant table at /anno (bd .22,
-// refactor.md §4). requires the full dev stack: genetics-results-api :2000, BFF :5000, vite :3000.
+// refactor.md §4). requires the full dev stack: genetics-results-api :2000, BFF :5001, vite :3000.
 // this spec is a superset visual capture: it drives a single multi-resource variant through the
 // whole flow (controls panel, main table, expanded credible-set detail, all 4 tabs, resource +
 // quant-level toggles in effect), and separately drives a small multi-variant input WITH betas to

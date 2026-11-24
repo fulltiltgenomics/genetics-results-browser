@@ -25,7 +25,7 @@ const tsv = (rows: Array<Record<string, unknown>>, status = 200): Response =>
 
 // route the stubbed fetch by upstream path: the gene path fans out to credible_sets_by_gene + datasets
 const routeFetch = () =>
-  vi.fn(async (url: string | URL, _init?: RequestInit) => {
+  vi.fn(async (url: string | URL) => {
     const u = String(url);
     if (u.includes("/v1/credible_sets_by_gene")) return tsv(csByGene);
     if (u.includes("/v1/datasets")) return json(datasets);
@@ -122,8 +122,8 @@ describe("GET /v1/gene_results/:gene — gene query normalize", () => {
     expect(finngen.hasSummaryStats).toBe(true);
 
     // phenotypes seeded from the CS rows present, keyed `${resource}|${trait}`
-    expect(res.body.phenotypes["finngen_ukbb|Alzheimer_disease"]).toMatchObject({
-      resource: "finngen_ukbb",
+    expect(res.body.phenotypes["finngen_mvp_ukbb_aou|Alzheimer_disease"]).toMatchObject({
+      resource: "finngen_mvp_ukbb_aou",
       dataType: "GWAS",
       trait: "Alzheimer_disease",
     });

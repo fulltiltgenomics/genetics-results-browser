@@ -1,6 +1,10 @@
 import express, { type Express, type ErrorRequestHandler } from "express";
 import { createPassthrough } from "./passthrough.js";
 import { createVariantsRoute } from "./variantsRoute.js";
+import { createGeneAnnotationRoute } from "./geneAnnotationRoute.js";
+import { createGeneConstraintRoute } from "./geneConstraintRoute.js";
+import { createGtexExpressionRoute } from "./gtexExpressionRoute.js";
+import { createGeneAssociationRoute } from "./geneAssociationRoute.js";
 import { createLdRoute } from "./ldRoute.js";
 
 // turn express.json() body-parse failures into a clean JSON 400 instead of its default HTML
@@ -18,7 +22,7 @@ export const createApp = (): Express => {
   const app = express();
 
   // permissive CORS for dev only: the browser may call the BFF cross-origin when VITE_API_URL is
-  // the absolute http://localhost:5000/api rather than the same-origin vite /api proxy. echo the
+  // the absolute http://localhost:5001/api rather than the same-origin vite /api proxy. echo the
   // requesting origin (not "*") so credentialed XHR is allowed, and short-circuit preflights.
   // gated off in production because reflecting an arbitrary origin together with
   // Access-Control-Allow-Credentials:true is unsafe; prod serves the app same-origin behind a
@@ -52,6 +56,10 @@ export const createApp = (): Express => {
   app.use("/api", createVariantsRoute());
   // /v1/ld proxies an external host (not genetics-results-api), so it must also precede the passthrough
   app.use("/api", createLdRoute());
+  app.use("/api", createGeneAnnotationRoute());
+  app.use("/api", createGeneConstraintRoute());
+  app.use("/api", createGtexExpressionRoute());
+  app.use("/api", createGeneAssociationRoute());
   app.use("/api", createPassthrough());
 
   return app;
