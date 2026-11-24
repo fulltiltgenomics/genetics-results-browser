@@ -19,10 +19,10 @@ import McpTokenDialog from "./McpTokenDialog";
 import InstructionsDialog from "../chat/InstructionsDialog";
 import MemoryDialog from "../chat/MemoryDialog";
 
-// the LD lookup is a view of the annotation tool, and / opens the chat
+// the LD lookup is a view of the annotation tool, and / opens the chat. the gene evidence page
+// (/gene) is routed but not offered here
 const NAV = [
   { label: "Chat", to: "/", isCurrent: (path: string) => path === "/" || under(path, "/chat") },
-  { label: "Gene Evidence", to: "/gene", isCurrent: (path: string) => under(path, "/gene") },
   {
     label: "Anno",
     to: "/anno",
