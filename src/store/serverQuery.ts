@@ -986,6 +986,7 @@ export const useCellTypeExpressionSummary = (
             donorPseudobulkMeanCp10k: naNum(r.donor_pseudobulk_mean_cp10k),
             donorPseudobulkNDonors: naNum(r.donor_pseudobulk_n_donors),
             tau: naNum(r.tau),
+            lowSupport: r.low_support === true,
           })
         ),
       };

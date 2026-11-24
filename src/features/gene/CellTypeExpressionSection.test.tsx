@@ -104,6 +104,28 @@ describe("CellTypeExpressionSection", () => {
     expect(links).toContain(explorerUrl("37a17b78-aaaa"));
   });
 
+  it("hides low-support rows until asked, and says how many", async () => {
+    serveSummary([
+      summaryApi({ low_support: false }),
+      summaryApi({ cell_type_rollup: "stromal cell", tissue_general: "skin of body", low_support: true }),
+    ]);
+    render(<CellTypeExpressionSection geneName="PCSK9" />, { wrapper });
+    await userEvent.click(await screen.findByText("table"));
+    expect(screen.getByText(/hiding 1 cell type and tissue combination/)).toBeInTheDocument();
+    expect(screen.getByText("hepatocyte")).toBeInTheDocument();
+    expect(screen.queryByText("stromal cell")).toBeNull();
+    await userEvent.click(screen.getByText("show them"));
+    expect(await screen.findByText("stromal cell")).toBeInTheDocument();
+    expect(screen.getByText(/showing 1 cell type/)).toBeInTheDocument();
+  });
+
+  it("offers no low-support control when the API flags nothing", async () => {
+    serveSummary([summaryApi({})]);
+    render(<CellTypeExpressionSection geneName="PCSK9" />, { wrapper });
+    await screen.findByTestId("cell-type-dot-plot");
+    expect(screen.queryByText("show them")).toBeNull();
+  });
+
   it("table view labels pseudobulk as secondary and leaves NA blank", async () => {
     serveSummary([summaryApi({})]);
     render(<CellTypeExpressionSection geneName="PCSK9" />, { wrapper });
@@ -118,7 +140,7 @@ describe("cell type helpers", () => {
   const row = (over: Partial<CellTypeExpressionSummaryRow>): CellTypeExpressionSummaryRow => ({
     geneId: "g", geneName: "G", cellType: "a", cellTypeId: "CL:1", tissue: "t1", tissueId: "U:1",
     nCells: 1, nDonors: 1, nDatasets: 1, meanLog1pCp10k: 1, fracExpressing: 0.1,
-    donorPseudobulkMeanCp10k: null, donorPseudobulkNDonors: null, tau: null, ...over,
+    donorPseudobulkMeanCp10k: null, donorPseudobulkNDonors: null, tau: null, lowSupport: false, ...over,
   });
 
   it("orders by strongest expression, caps cell types and drops rows without a mean", () => {

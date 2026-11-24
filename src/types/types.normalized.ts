@@ -535,6 +535,8 @@ export interface CellTypeExpressionSummaryRow {
   donorPseudobulkMeanCp10k: number | null;
   donorPseudobulkNDonors: number | null;
   tau: number | null;
+  /** the API's own judgement that the pooled row is thinly supported; hidden unless asked for */
+  lowSupport: boolean;
 }
 
 /**

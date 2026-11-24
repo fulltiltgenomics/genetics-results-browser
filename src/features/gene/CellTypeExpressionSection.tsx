@@ -171,10 +171,16 @@ const CellTypeExpressionSection = ({ geneName }: { geneName: string }) => {
   const summary = useCellTypeExpressionSummary(geneName);
   const [view, setView] = useState<"plot" | "table">("plot");
   const [showAll, setShowAll] = useState(false);
+  const [showLowSupport, setShowLowSupport] = useState(false);
   const [drill, setDrill] = useState(false);
   const datasets = useCellTypeExpressionDatasets(geneName, drill);
 
   const rows = useMemo(() => summary.data?.rows ?? [], [summary.data]);
+  const lowSupportCount = useMemo(() => rows.filter((r) => r.lowSupport).length, [rows]);
+  const shownRows = useMemo(
+    () => (showLowSupport ? rows : rows.filter((r) => !r.lowSupport)),
+    [rows, showLowSupport]
+  );
   const datasetRows = useMemo(() => datasets.data?.rows ?? [], [datasets.data]);
 
   if (summary.error instanceof CellTypeExpressionNotConfigured) {
@@ -247,10 +253,22 @@ const CellTypeExpressionSection = ({ geneName }: { geneName: string }) => {
           normal tissue pooled across datasets. Values are mean log1p CP10K (not TPM); dot colour is the
           mean, dot size the fraction of cells expressing.
         </Typography>
+        {lowSupportCount > 0 && (
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 1, flexWrap: "wrap" }}>
+            <Typography variant="caption" color="text.secondary">
+              {showLowSupport ? "showing" : "hiding"} {lowSupportCount} cell type and tissue{" "}
+              {lowSupportCount === 1 ? "combination" : "combinations"} with few donors or cells, or
+              a small one seen in a single dataset. The download always has them.
+            </Typography>
+            <Button size="small" onClick={() => setShowLowSupport((v) => !v)}>
+              {showLowSupport ? "hide them" : "show them"}
+            </Button>
+          </Box>
+        )}
         {view === "plot" ? (
           <>
-            <CellTypeDotPlot rows={rows} maxCellTypes={showAll ? Infinity : DEFAULT_CELL_TYPES} />
-            {new Set(rows.map((r) => r.cellType)).size > DEFAULT_CELL_TYPES && (
+            <CellTypeDotPlot rows={shownRows} maxCellTypes={showAll ? Infinity : DEFAULT_CELL_TYPES} />
+            {new Set(shownRows.map((r) => r.cellType)).size > DEFAULT_CELL_TYPES && (
               <Button size="small" onClick={() => setShowAll((v) => !v)}>
                 {showAll ? `show top ${DEFAULT_CELL_TYPES} cell types` : "show all cell types"}
               </Button>
@@ -266,9 +284,9 @@ const CellTypeExpressionSection = ({ geneName }: { geneName: string }) => {
             </Typography>
             <MaterialReactTable
               {...tableProps}
-              data={rows}
+              data={shownRows}
               columns={summaryColumns}
-              enablePagination={rows.length > 20}
+              enablePagination={shownRows.length > 20}
               initialState={{ density: "compact", sorting: [{ id: "meanLog1pCp10k", desc: true }] }}
             />
           </>

@@ -154,6 +154,7 @@ export const buildCellTypeSummaryRows = (rows: CellTypeExpressionSummaryRow[]): 
     tau: num(r.tau),
     donor_pseudobulk_mean_cp10k: num(r.donorPseudobulkMeanCp10k),
     donor_pseudobulk_n_donors: num(r.donorPseudobulkNDonors),
+    low_support: String(r.lowSupport),
   }));
 
 export const exportCellTypeSummary = (gene: string, rows: CellTypeExpressionSummaryRow[]): void => {
