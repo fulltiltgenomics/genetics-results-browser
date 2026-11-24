@@ -94,6 +94,8 @@ describe("CellTypeExpressionSection", () => {
     render(<CellTypeExpressionSection geneName="PCSK9" />, { wrapper });
     expect(await screen.findByText(/release cellxgene-2026-09/)).toBeInTheDocument();
     expect(await screen.findByTestId("cell-type-dot-plot")).toBeInTheDocument();
+    // a measure of the table alone is explained there, not over the plot
+    expect(screen.queryByText(/pseudobulk/)).toBeNull();
     expect(screen.getAllByText("log1p", { exact: false }).length).toBeGreaterThan(0);
 
     await userEvent.click(screen.getByText("show per-dataset breakdown"));
@@ -107,6 +109,7 @@ describe("CellTypeExpressionSection", () => {
     render(<CellTypeExpressionSection geneName="PCSK9" />, { wrapper });
     await userEvent.click(await screen.findByText("table"));
     expect(await screen.findByText(/donor pseudobulk mean CP10K \(secondary\)/)).toBeInTheDocument();
+    expect(screen.getByText(/donor pseudobulk mean is our own calculation/)).toBeInTheDocument();
     expect(screen.queryByText("NA")).not.toBeInTheDocument();
   });
 });

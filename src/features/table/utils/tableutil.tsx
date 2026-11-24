@@ -63,7 +63,7 @@ const DATASET_LABEL_OVERRIDES: Record<string, string> = {
 };
 
 // canonical dataset display name, shared by every view so the same dataset reads identically in the
-// anno tables and the gene view. eQTL Catalogue sub-datasets (QTD ids) are enriched separately by their
+// anno tables and the gene evidence page. eQTL Catalogue sub-datasets (QTD ids) are enriched separately by their
 // callers; this just applies the override map and spaces out the raw id.
 export const datasetDisplayName = (dataset: string): string =>
   DATASET_LABEL_OVERRIDES[dataset] ?? dataset.replace(/_/g, " ");

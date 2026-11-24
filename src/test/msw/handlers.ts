@@ -3,8 +3,6 @@ import { http, HttpResponse } from "msw";
 // fixtures captured from the live genetics-results-api (see fixtures/README.md)
 import credibleSetsByVariant from "../fixtures/credible_sets_by_variant.json";
 import credibleSetsByVariantBatch from "../fixtures/credible_sets_by_variant_batch.json";
-import credibleSetsByGene from "../fixtures/credible_sets_by_gene.json";
-import credibleSetsByQtlGene from "../fixtures/credible_sets_by_qtl_gene.json";
 import genesInRegion from "../fixtures/genes_in_region.json";
 import searchGenes from "../fixtures/search_genes.json";
 import variantAnnotationFinngen from "../fixtures/variant_annotation_finngen.json";
@@ -60,11 +58,6 @@ export const handlers = [
 
   http.get(api("credible_sets_by_variant/:variant"), () => HttpResponse.json(credibleSetsByVariant)),
   http.post(api("credible_sets_by_variant"), () => HttpResponse.json(credibleSetsByVariantBatch)),
-
-  http.get(api("credible_sets_by_gene/:gene"), () => HttpResponse.json(credibleSetsByGene)),
-  http.get(api("credible_sets_by_qtl_gene/:gene"), () =>
-    HttpResponse.json(credibleSetsByQtlGene)
-  ),
 
   http.get(api("genes_in_region/:chr/:start/:end"), () => HttpResponse.json(genesInRegion)),
 
@@ -160,6 +153,26 @@ export const handlers = [
   http.get(api("gene_disease/:gene"), () => HttpResponse.json(geneDisease)),
   http.get(api("gene_annotation"), () => HttpResponse.json(geneAnnotation)),
   http.get(api("gene_constraint"), () => HttpResponse.json(geneConstraint)),
+  // no gene has an AI summary unless a test gives it one
+  http.get(api("gene_summary/:gene"), () =>
+    HttpResponse.json({ error: "not_found" }, { status: 404 })
+  ),
+  // the BFF's trimmed GTEx portal record: per tissue, the gene's expression in every sample
+  http.get(api("gtex_expression"), ({ request }) => {
+    const ensemblId = new URL(request.url).searchParams.get("ensembl_id");
+    return HttpResponse.json({
+      ensemblId,
+      gencodeId: `${ensemblId}.11`,
+      dataset: "gtex_v11",
+      release: "v11",
+      unit: "TPM",
+      tissues: [
+        { tissue: "Liver", values: [120, 150, 180, 210, 240, 2000] },
+        { tissue: "Heart_Atrial_Appendage", values: [1, 2, 3, 4] },
+        { tissue: "Whole_Blood", values: [0, 0, 0.5] },
+      ],
+    });
+  }),
 
   // the chat Tools control asks the chat API how big the surface the selected profile resolves to
   // is. Answered by default so every test that renders LLMChat stays offline; a test about the

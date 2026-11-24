@@ -1,37 +1,3 @@
-export type CSDatum = {
-  resource: string;
-  dataset: string;
-  dataType: string;
-  trait: string;
-  // upstream phenocode/molecular-trait id behind `trait`. equal to `trait` when the API could not
-  // resolve a name (FinnGen drug ATC codes, lab OMOP codes), which is the cue to fall back to the
-  // trait_name_mapping dictionary — see geneViewTraitName.
-  traitOriginal?: string;
-  // QTL tissue/context as "<tissue>|<condition>" (e.g. "macrophage|Listeria_5h"); null for GWAS
-  cellType?: string | null;
-  traitId: string;
-  chr: string;
-  variant: string[];
-  pos: number[];
-  pip: number[];
-  // null where the API row carried no statistic for that member — see GeneCSApiRow
-  mlog10p: (number | null)[];
-  beta: (number | null)[];
-  se: (number | null)[];
-  csId: string; // TODO is this needed
-  traitCSId: string;
-  csNumber: number;
-  numberOfCSs: number;
-  csSize: number;
-  csMinR2: number | null;
-  consequence: string[];
-  isCoding: boolean[];
-  isLoF: boolean[];
-  af: string[];
-  gene: string[];
-  rsid: string[];
-};
-
 /**
  * One gene drawn as a model. The body is min(exonStarts)..max(exonEnds) — the span of the ONE
  * transcript being drawn, GENCODE's Ensembl-canonical one, and deliberately not the gene
@@ -53,26 +19,4 @@ export type GeneModel = {
   exonEnds: number[];
   cdsStarts: (number | null)[];
   cdsEnds: (number | null)[];
-};
-
-export type TraitStatus = {
-  csOverlappingTraits: number;
-  variantOverlappingTraits: number;
-};
-
-export type CSStatus = {
-  csSize: number;
-  csMinR2: number | null;
-};
-
-export type SelectedVariantStats = {
-  variant: string;
-  consequence: string;
-  isLoF: boolean;
-  isCoding: boolean;
-  mlog10p: number | null;
-  pip: number;
-  beta: number | null;
-  se: number | null;
-  af: string;
 };

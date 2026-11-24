@@ -9,8 +9,9 @@ annotation tool's per-query data from the backend API and proxies everything els
 The production nginx config (`nginx.prod.conf`) serves a CSP with `connect-src 'self'`, so the SPA
 cannot call external hosts directly — the LD lookup goes through the BFF's `GET /api/v1/ld` proxy
 (`LD_API_URL`) the gene annotation from mygene.info through `GET /api/v1/gene_annotation`
-(`MYGENE_API_URL`) and gnomAD gene constraint and ClinVar counts through `GET /api/v1/gene_constraint`
-(`GNOMAD_API_URL`). Anything else the browser must reach off-origin needs either a BFF route or an
+(`MYGENE_API_URL`), gnomAD gene constraint and ClinVar counts through `GET /api/v1/gene_constraint`
+(`GNOMAD_API_URL`) and the GTEx portal's per-sample expression of a gene through
+`GET /api/v1/gtex_expression` (`GTEX_API_URL`). Anything else the browser must reach off-origin needs either a BFF route or an
 explicit CSP source.
 The one page served under a different policy is `/mcp-app-sandbox.html` (from `public/`): the
 chat embeds it, sandboxed without `allow-same-origin`, to host an external MCP server's HTML
@@ -68,16 +69,18 @@ Available modes: `dev`, `dev.finngen`, `dev.public`, `prod`, `prod.finngen`, `pr
 | `VITE_SHOW_TOOLS_BUTTON` | `false` hides the Tools button in the chat header (the list of what the assistant can call); anything else, unset included, shows it. Independent of `VITE_SHOW_TOOLS_CONTROL`. The image build sets it from `--build-arg SHOW_TOOLS_BUTTON` |
 
 The BFF reads `GENETICS_API_URL`, `GENETICS_API_TOKEN`, `BFF_PORT`, `RESULTS_CACHE_MAX`,
-`RESULTS_CACHE_TTL_MS`, `LD_API_URL`, `MYGENE_API_URL`, `GNOMAD_API_URL`, `GENE_ANNOTATION_CACHE_MAX` and
-`GENE_ANNOTATION_CACHE_TTL_MS` — see `bff/.env.example`. It also reads `NODE_ENV`:
+`RESULTS_CACHE_TTL_MS`, `LD_API_URL`, `MYGENE_API_URL`, `GNOMAD_API_URL`, `GENE_ANNOTATION_CACHE_MAX`,
+`GENE_ANNOTATION_CACHE_TTL_MS`, `GTEX_API_URL`, `GTEX_EXPRESSION_CACHE_MAX`,
+`GENE_ASSOCIATION_CACHE_MAX` and `GENE_ASSOCIATION_MAX_WINDOW` — see
+`bff/.env.example`. It also reads `NODE_ENV`:
 anything but `production` (which `bff/Dockerfile` sets) reflects the request origin as permissive
 CORS, so the dev browser can call the BFF cross-origin at `http://localhost:5001/api`.
 
 `GENETICS_API_TOKEN` is the shared internal secret and is sent as `Authorization: Bearer` on
 **every** call to genetics-results-api, including the generic `/api` passthrough. (The `/api/v1/ld`,
-`/api/v1/gene_annotation` and `/api/v1/gene_constraint` routes are the upstream calls that do not
-carry it — they target the external `LD_API_URL`, `MYGENE_API_URL` and `GNOMAD_API_URL`, not
-genetics-results-api.) It is not just service
+`/api/v1/gene_annotation`, `/api/v1/gene_constraint` and `/api/v1/gtex_expression` routes are the
+upstream calls that do not carry it — they target the external `LD_API_URL`, `MYGENE_API_URL`,
+`GNOMAD_API_URL` and `GTEX_API_URL`, not genetics-results-api.) It is not just service
 credentials: it is the trusted-proxy marker that makes results-api believe the forwarded
 `X-Goog-Authenticated-User-Email`, so an auth-enforcing API rejects browser traffic without it.
 Unset in dev, where the dev API runs without auth. A caller's own bearer `Authorization` is
@@ -147,7 +150,14 @@ per clone to wire `core.hooksPath`, which no clone carries; it is shared across 
 so that one run covers every worktree too.
 
 `npm run e2e` reuses an already-running dev server, or starts one in `dev.public` mode; specs that
-need real data still require the API and the BFF to be up.
+need real data still require the API and the BFF to be up. `E2E_PORT` points the specs at a dev
+server on another port than 3000.
+
+`e2e/perf/assoc-perf.mjs` measures the gene page's variant association tab against live data —
+bytes and time to load, frame times while zooming, panning and scrolling the table, and the
+latency of selecting a region in the track and of opening a row — and
+`e2e/perf/trace-scroll.mjs` breaks a table scroll down by timeline event. Both take `PERF_BASE_URL` and need a dev-mode server, since the
+`window.__assocPerf` counters they read exist only there; see the header of each.
 
 ### Docker images
 

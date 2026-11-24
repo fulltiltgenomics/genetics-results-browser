@@ -1,179 +1,275 @@
 import { useMemo, useState } from "react";
-import { Box, Tab, Tabs, ToggleButton, ToggleButtonGroup, Typography } from "@mui/material";
-import { MaterialReactTable, MRT_ColumnDef } from "material-react-table";
-import { useGeneDisease, useGeneExpression } from "@/store/serverQuery";
 import {
+  Box,
+  Link,
+  Tab,
+  Tabs,
+  ToggleButton,
+  ToggleButtonGroup,
+  Tooltip,
+  Typography,
+} from "@mui/material";
+import { MaterialReactTable, MRT_ColumnDef } from "material-react-table";
+import {
+  CellTypeExpressionNotConfigured,
+  useCellTypeExpressionSummary,
+  useGeneDisease,
+  useGeneExpression,
+  useGeneInfo,
+  useGtexExpression,
+} from "@/store/serverQuery";
+import {
+  EXPRESSION_TABS,
+  ExpressionTabName,
   GENE_EVIDENCE_TABS,
   GeneEvidenceTabName,
   useGeneEvidenceStore,
 } from "@/store/store.geneEvidence";
 import { GeneDiseaseRow, GeneExpressionRow } from "@/types/types.normalized";
-import { naInfSort } from "../table/utils/sorting";
 import { datasetDisplayName } from "../table/utils/tableutil";
 import CellTypeExpressionSection from "./CellTypeExpressionSection";
 import GeneAnnotationSection from "./GeneAnnotationSection";
 import GeneAssociationSection from "./GeneAssociationSection";
 import GeneBurdenSection from "./GeneBurdenSection";
-import GeneExpressionPlot from "./GeneExpressionPlot";
+import { COMING_SOON, tabLabel } from "./geneEvidenceTabs";
+import GeneSummarySection from "./GeneSummarySection";
+import GtexViolinPlot from "./GtexViolinPlot";
 import { gtexTissueLabel } from "./gtexTissues";
+import { TissueStats, tissueStats } from "./gtexViolin";
 import { hpaLevelLabel, hpaLevelRank, hpaTissueLabel } from "./hpa";
 import { DownloadButton, toolbarSx } from "../table/ExportToolbar";
 import { exportGtexExpression, exportHpaExpression } from "./geneEvidenceExport";
-import { evidenceTableProps as tableProps, numCell, Section, sortedRows } from "./evidenceTable";
+import {
+  countCell,
+  evidenceTableProps as tableProps,
+  numCell,
+  Section,
+  sortedRows,
+} from "./evidenceTable";
 
 /**
- * Gene evidence tab (refactor.md §6). Surfaces gene-level evidence that is relevant to the gene but
- * not part of the credible-set visualization, one kind of evidence per sub-tab. A sub-tab mounts,
- * and so fetches, only when it is opened, and one failing/empty source never blocks the others.
+ * Gene evidence (refactor.md §6): gene-level evidence, one kind per tab. A tab mounts, and so
+ * fetches, only when it is opened, and one failing/empty source never blocks the others.
  */
 
-// shared by both expression tables, which carry the same dataset ids
-const datasetColumn: MRT_ColumnDef<GeneExpressionRow> = {
-  accessorKey: "dataset",
-  header: "dataset",
-  id: "dataset",
-  size: 120,
-  Cell: ({ cell }) => datasetDisplayName(cell.getValue<string>()),
+const EXPRESSION_TAB_LABELS: Record<ExpressionTabName, string> = {
+  gtex: "GTEx",
+  cellxgene: "CELLxGENE",
+  hpa: "Human Protein Atlas",
 };
+
+const SourceLink = ({ href, children }: { href: string; children: string }) => (
+  <Link
+    href={href}
+    target="_blank"
+    rel="noopener noreferrer"
+    variant="body2"
+    sx={{ display: "block", width: "fit-content", mb: 1 }}>
+    {children}
+  </Link>
+);
+
+type GtexTissueRow = TissueStats & { label: string };
+
+const gtexColumns: MRT_ColumnDef<GtexTissueRow>[] = [
+  { accessorKey: "label", header: "tissue", id: "label", size: 260 },
+  { accessorKey: "n", header: "samples", id: "n", size: 100, Cell: countCell },
+  {
+    accessorKey: "median",
+    header: "median TPM",
+    id: "median",
+    sortDescFirst: true,
+    size: 120,
+    Cell: numCell(4),
+  },
+  { accessorKey: "q1", header: "lower quartile", id: "q1", size: 120, Cell: numCell(4) },
+  { accessorKey: "q3", header: "upper quartile", id: "q3", size: 120, Cell: numCell(4) },
+];
+
+/**
+ * GTEx, plot and table both from the samples the GTEx portal serves through the BFF, so the two
+ * are of one release: the one the response names.
+ */
+const GtexEvidence = ({ geneName }: { geneName: string }) => {
+  const info = useGeneInfo(geneName);
+  const ensemblId = info.data?.ensemblId;
+  const samples = useGtexExpression(ensemblId);
+  const [view, setView] = useState<"plot" | "table">("plot");
+
+  const rows = useMemo<GtexTissueRow[]>(
+    () =>
+      (samples.data?.tissues ?? []).flatMap((t) => {
+        const stats = tissueStats(t.tissue, t.values);
+        return stats ? [{ ...stats, label: gtexTissueLabel(t.tissue.toLowerCase()) }] : [];
+      }),
+    [samples.data]
+  );
+
+  return (
+    <Section
+      title={`Expression by tissue: GTEx${samples.data ? ` ${samples.data.release}` : ""}`}
+      isPending={info.isPending || (!!ensemblId && samples.isPending)}
+      isError={info.isError || samples.isError}
+      error={info.error ?? samples.error}
+      isEmpty={!samples.data}
+      emptyText="no GTEx expression data for this gene">
+      <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 1 }}>
+        <ToggleButtonGroup
+          size="small"
+          exclusive
+          value={view}
+          onChange={(_e, value) => {
+            // exclusive group emits null when the active button is re-clicked; ignore that.
+            if (value) setView(value);
+          }}
+          aria-label="GTEx expression view">
+          <ToggleButton value="plot" aria-label="plot">
+            plot
+          </ToggleButton>
+          <ToggleButton value="table" aria-label="table">
+            table
+          </ToggleButton>
+        </ToggleButtonGroup>
+        {/* beside the view toggle rather than in the table toolbar, so the download is there in
+            plot view too */}
+        <DownloadButton
+          label="DOWNLOAD GTEX EXPRESSION"
+          disabled={rows.length === 0}
+          onClick={() => samples.data && exportGtexExpression(geneName, samples.data)}
+        />
+      </Box>
+      {ensemblId && (
+        <SourceLink href={`https://gtexportal.org/home/gene/${ensemblId}`}>
+          {`${geneName} on the GTEx Portal`}
+        </SourceLink>
+      )}
+      {samples.data &&
+        (view === "plot" ? (
+          <GtexViolinPlot expression={samples.data} />
+        ) : (
+          <MaterialReactTable
+            {...tableProps}
+            data={rows}
+            columns={gtexColumns}
+            enablePagination={rows.length > 20}
+            initialState={{ density: "compact", sorting: [{ id: "median", desc: true }] }}
+          />
+        ))}
+    </Section>
+  );
+};
+
+// immunohistochemistry staining, so the level is a category and is shown as served
+const hpaColumns: MRT_ColumnDef<GeneExpressionRow>[] = [
+  {
+    accessorKey: "tissueCell",
+    header: "tissue / cell",
+    id: "tissueCell",
+    size: 260,
+    Cell: ({ cell }) => hpaTissueLabel(cell.getValue<string>()),
+  },
+  {
+    accessorKey: "levelRaw",
+    header: "level",
+    id: "levelRaw",
+    // staining categories, so ordered by intensity rather than alphabetically
+    sortingFn: (a, b) => hpaLevelRank(a.original.levelRaw) - hpaLevelRank(b.original.levelRaw),
+    sortDescFirst: true,
+    size: 120,
+    Cell: ({ cell }) => hpaLevelLabel(cell.getValue<string>()),
+  },
+  {
+    accessorKey: "dataset",
+    header: "dataset",
+    id: "dataset",
+    size: 120,
+    Cell: ({ cell }) => datasetDisplayName(cell.getValue<string>()),
+  },
+];
 
 const ExpressionEvidence = ({ geneName }: { geneName: string }) => {
   const expression = useGeneExpression(geneName);
-  const [gtexView, setGtexView] = useState<"plot" | "table">("plot");
-
-  // the endpoint returns every expression resource in one response; they are split here because GTEx
-  // (numeric median TPM) and HPA (immunohistochemistry) are not comparable in one table or plot
-  const gtexRows = useMemo(
-    () => (expression.data ?? []).filter((r) => r.resource === "gtex"),
-    [expression.data]
+  const ensemblId = useGeneInfo(geneName).data?.ensemblId;
+  // the same query the CELLxGENE section runs: a deployment without that data gets no tab for it
+  const cellTypes = useCellTypeExpressionSummary(geneName);
+  const offered = EXPRESSION_TABS.filter(
+    (tab) => tab !== "cellxgene" || !(cellTypes.error instanceof CellTypeExpressionNotConfigured)
   );
   const hpaRows = useMemo(
     () => (expression.data ?? []).filter((r) => r.resource === "hpa"),
     [expression.data]
   );
-  const gtexVersion = gtexRows[0]?.version ?? "";
-
-  // GTEx rows are numeric median TPM; HPA rows are categorical immunohistochemistry staining levels,
-  // so that table shows the level as served rather than the parsed number
-  const gtexColumns = useMemo<MRT_ColumnDef<GeneExpressionRow>[]>(
-    () => [
-      {
-        accessorKey: "tissueCell",
-        header: "tissue / cell",
-        id: "tissueCell",
-        size: 260,
-        Cell: ({ cell }) => gtexTissueLabel(cell.getValue<string>()),
-      },
-      {
-        accessorKey: "level",
-        header: "median TPM",
-        id: "level",
-        sortingFn: naInfSort,
-        sortDescFirst: true,
-        size: 120,
-        Cell: numCell(4),
-      },
-      datasetColumn,
-    ],
-    []
-  );
-
-  const hpaColumns = useMemo<MRT_ColumnDef<GeneExpressionRow>[]>(
-    () => [
-      {
-        accessorKey: "tissueCell",
-        header: "tissue / cell",
-        id: "tissueCell",
-        size: 260,
-        Cell: ({ cell }) => hpaTissueLabel(cell.getValue<string>()),
-      },
-      {
-        accessorKey: "levelRaw",
-        header: "level",
-        id: "levelRaw",
-        // staining categories, so ordered by intensity rather than alphabetically
-        sortingFn: (a, b) => hpaLevelRank(a.original.levelRaw) - hpaLevelRank(b.original.levelRaw),
-        sortDescFirst: true,
-        size: 120,
-        Cell: ({ cell }) => hpaLevelLabel(cell.getValue<string>()),
-      },
-      datasetColumn,
-    ],
-    []
-  );
+  // known to have nothing: the tab stays, and says so, rather than opening on an empty table
+  const noHpa = expression.isSuccess && hpaRows.length === 0;
+  const storedTab = useGeneEvidenceStore((s) => s.expressionTab);
+  const setTab = useGeneEvidenceStore((s) => s.setExpressionTab);
+  const tab =
+    offered.includes(storedTab) && !(storedTab === "hpa" && noHpa) ? storedTab : offered[0];
 
   return (
     <>
-      <Section
-        title={`Expression (GTEx${gtexVersion ? ` ${gtexVersion}` : ""})`}
-        isPending={expression.isPending}
-        isError={expression.isError}
-        error={expression.error}
-        isEmpty={gtexRows.length === 0}
-        emptyText="no GTEx expression data for this gene">
-        <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 1 }}>
-          <ToggleButtonGroup
-            size="small"
-            exclusive
-            value={gtexView}
-            onChange={(_e, value) => {
-              // exclusive group emits null when the active button is re-clicked; ignore that.
-              if (value) setGtexView(value);
-            }}
-            aria-label="GTEx expression view">
-            <ToggleButton value="plot" aria-label="plot">
-              plot
-            </ToggleButton>
-            <ToggleButton value="table" aria-label="table">
-              table
-            </ToggleButton>
-          </ToggleButtonGroup>
-          {/* beside the view toggle rather than in the table toolbar, so the download is there in
-              plot view too */}
-          <DownloadButton
-            label="DOWNLOAD GTEX EXPRESSION"
-            disabled={gtexRows.length === 0}
-            onClick={() => exportGtexExpression(geneName, gtexRows)}
-          />
-        </Box>
-        {gtexView === "plot" ? (
-          <GeneExpressionPlot rows={gtexRows} />
-        ) : (
+      <Tabs
+        value={tab}
+        onChange={(_e, value) => {
+          if (!(value === "hpa" && noHpa)) setTab(value);
+        }}
+        aria-label="expression source"
+        sx={{ mb: 2, minHeight: 36, "& .MuiTab-root": { minHeight: 36, py: 0.5 } }}>
+        {offered.map((name) =>
+          name === "hpa" && noHpa ? (
+            // not the disabled prop: a disabled button takes no pointer, so it could show no tooltip
+            <Tab
+              key={name}
+              value={name}
+              aria-disabled
+              disableRipple
+              sx={{ cursor: "default", color: "text.disabled" }}
+              label={
+                <Tooltip
+                  title={`No Human Protein Atlas protein level data for ${geneName}`}
+                  describeChild>
+                  <span>{EXPRESSION_TAB_LABELS[name]}</span>
+                </Tooltip>
+              }
+            />
+          ) : (
+            <Tab key={name} value={name} label={EXPRESSION_TAB_LABELS[name]} />
+          )
+        )}
+      </Tabs>
+      {tab === "gtex" && <GtexEvidence geneName={geneName} />}
+      {tab === "cellxgene" && <CellTypeExpressionSection geneName={geneName} />}
+      {tab === "hpa" && (
+        <Section
+          title="Protein levels by tissue (IHC staining): Human Protein Atlas"
+          isPending={expression.isPending}
+          isError={expression.isError}
+          error={expression.error}
+          isEmpty={hpaRows.length === 0}
+          emptyText={`no Human Protein Atlas protein level data for ${geneName}`}>
+          {ensemblId && (
+            <SourceLink href={`https://www.proteinatlas.org/${ensemblId}/tissue`}>
+              {`${geneName} in the Human Protein Atlas`}
+            </SourceLink>
+          )}
           <MaterialReactTable
             {...tableProps}
-            data={gtexRows}
-            columns={gtexColumns}
-            enablePagination={gtexRows.length > 20}
-            initialState={{ density: "compact", sorting: [{ id: "level", desc: true }] }}
+            data={hpaRows}
+            columns={hpaColumns}
+            enablePagination={hpaRows.length > 20}
+            initialState={{ density: "compact", sorting: [{ id: "levelRaw", desc: true }] }}
+            renderTopToolbarCustomActions={({ table }) => (
+              <Box sx={toolbarSx}>
+                <DownloadButton
+                  label="DOWNLOAD HPA PROTEIN LEVELS"
+                  disabled={hpaRows.length === 0}
+                  onClick={() => exportHpaExpression(geneName, sortedRows(table))}
+                />
+              </Box>
+            )}
           />
-        )}
-      </Section>
-
-      <Section
-        title="Expression (Human Protein Atlas)"
-        isPending={expression.isPending}
-        isError={expression.isError}
-        error={expression.error}
-        isEmpty={hpaRows.length === 0}
-        emptyText="no HPA expression data for this gene">
-        <MaterialReactTable
-          {...tableProps}
-          data={hpaRows}
-          columns={hpaColumns}
-          enablePagination={hpaRows.length > 20}
-          initialState={{ density: "compact", sorting: [{ id: "levelRaw", desc: true }] }}
-          renderTopToolbarCustomActions={({ table }) => (
-            <Box sx={toolbarSx}>
-              <DownloadButton
-                label="DOWNLOAD HPA EXPRESSION"
-                disabled={hpaRows.length === 0}
-                onClick={() => exportHpaExpression(geneName, sortedRows(table))}
-              />
-            </Box>
-          )}
-        />
-      </Section>
-
-      <CellTypeExpressionSection geneName={geneName} />
+        </Section>
+      )}
     </>
   );
 };
@@ -217,6 +313,8 @@ const MendelianEvidence = ({ geneName }: { geneName: string }) => {
 
 const tabContent = (tab: GeneEvidenceTabName, geneName: string) => {
   switch (tab) {
+    case "ai summary":
+      return <GeneSummarySection geneName={geneName} />;
     case "annotation":
       return <GeneAnnotationSection geneName={geneName} />;
     case "gene burden":
@@ -242,17 +340,32 @@ const GeneEvidenceTab = ({ geneName }: { geneName: string }) => {
 
   return (
     <Box sx={{ p: 2 }}>
-      <Typography sx={{ mb: 1 }} variant="body2" color="text.secondary">
-        Gene-level evidence for <b>{geneName}</b> beyond the credible-set view.
-      </Typography>
       <Tabs
         value={activeTab}
-        onChange={(_e, value) => setActiveTab(value)}
+        onChange={(_e, value) => {
+          if (!COMING_SOON.has(value)) setActiveTab(value);
+        }}
         variant="scrollable"
         sx={{ mb: 2, borderBottom: 1, borderColor: "divider" }}>
-        {GENE_EVIDENCE_TABS.map((tab) => (
-          <Tab key={tab} value={tab} label={tab} />
-        ))}
+        {GENE_EVIDENCE_TABS.map((tab) =>
+          COMING_SOON.has(tab) ? (
+            // not the disabled prop: a disabled button takes no pointer, so it could show no tooltip
+            <Tab
+              key={tab}
+              value={tab}
+              aria-disabled
+              disableRipple
+              sx={{ cursor: "default", color: "text.disabled" }}
+              label={
+                <Tooltip title="coming soon" describeChild>
+                  <span>{tabLabel(tab)}</span>
+                </Tooltip>
+              }
+            />
+          ) : (
+            <Tab key={tab} value={tab} label={tabLabel(tab)} />
+          )
+        )}
       </Tabs>
       {tabContent(activeTab, geneName)}
     </Box>

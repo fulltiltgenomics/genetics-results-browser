@@ -120,6 +120,13 @@ The annotation path is split in two stages so that changing a UI control never r
   (`MYGENE_API_URL`), trimmed to the fields the gene annotation tab shows and cached in-process,
   and `GET /api/v1/gene_constraint` (`bff/geneConstraintRoute.ts`) for gnomAD's gene constraint and ClinVar counts
   (`GNOMAD_API_URL`, its GraphQL API).
+  `GET /api/v1/gene_association/:gene?window=` (`bff/geneAssociationRoute.ts`) is the variant
+  association tab's data: the API's one-row-per-member GWAS credible sets around a gene, grouped
+  per set into a columnar, dictionary-encoded summary (`bff/geneAssociationTypes.ts`) with trait
+  names, trait types and the pseudo flag joined in from `/v1/resource_metadata` and
+  `/v1/datasets`, and without per-member statistics. `…/:gene/set_ids` serves the sets' ids,
+  which the summary leaves out. Both are cached serialized and gzipped. A set's members are
+  fetched through the passthrough from `/v1/credible_sets_by_id` when its row is opened.
   Everything else under `/api` falls through `bff/passthrough.ts` to the API unchanged — except
   that both upstream paths attach `Authorization: Bearer $GENETICS_API_TOKEN`
   (`upstream.ts` for the assembled routes, `passthrough.ts` for the rest, and only when the
@@ -147,7 +154,7 @@ Layout:
   `types.gene.ts` still hold legacy pre-refactor types
 - `src/test/**` — vitest setup, MSW handlers, API fixtures (see `src/test/fixtures/README.md`)
 - `bff/**` — BFF sources and their vitest suite
-- `e2e/**` — Playwright specs
+- `e2e/**` — Playwright specs; `e2e/perf/**` holds performance scripts run by hand, not specs
 
 `refactor.md` and `refactor.backend.md` document the credible-set-only rewrite that produced this
 architecture; they are historical design records, not a to-do list.

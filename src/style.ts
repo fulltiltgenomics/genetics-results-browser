@@ -1,5 +1,4 @@
 import { styled, TableCell } from "@mui/material";
-import { Link } from "react-router";
 
 const CleanTableCell = styled(TableCell)({
   padding: 0,
@@ -8,13 +7,3 @@ const CleanTableCell = styled(TableCell)({
 });
 
 export default CleanTableCell;
-
-export const StyledLink = styled(Link)({
-  color: "inherit",
-  textDecoration: "none",
-  "&:hover": {
-    color: "inherit",
-    fontWeight: 700,
-    textDecoration: "none",
-  },
-});

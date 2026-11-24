@@ -1,5 +1,13 @@
 import { useMemo, useState } from "react";
-import { Box, Button, CircularProgress, Link, Typography } from "@mui/material";
+import {
+  Box,
+  Button,
+  CircularProgress,
+  Link,
+  ToggleButton,
+  ToggleButtonGroup,
+  Typography,
+} from "@mui/material";
 import { MaterialReactTable, MRT_Cell, MRT_ColumnDef, MRT_RowData } from "material-react-table";
 import {
   CellTypeExpressionNotConfigured,
@@ -173,7 +181,7 @@ const CellTypeExpressionSection = ({ geneName }: { geneName: string }) => {
     return null;
   }
 
-  const title = "Expression by cell type (CELLxGENE)";
+  const title = "Expression by cell type: CELLxGENE";
   const release = summary.data?.release;
   let body: React.ReactNode;
   if (summary.isPending) {
@@ -205,24 +213,39 @@ const CellTypeExpressionSection = ({ geneName }: { geneName: string }) => {
     body = (
       <>
         <Box sx={{ display: "flex", alignItems: "center", gap: 2, mb: 1, flexWrap: "wrap" }}>
-          <Button size="small" variant={view === "plot" ? "contained" : "outlined"} onClick={() => setView("plot")}>
-            dot plot
-          </Button>
-          <Button size="small" variant={view === "table" ? "contained" : "outlined"} onClick={() => setView("table")}>
-            table
-          </Button>
+          <ToggleButtonGroup
+            size="small"
+            exclusive
+            value={view}
+            onChange={(_e, value) => {
+              // exclusive group emits null when the active button is re-clicked; ignore that.
+              if (value) setView(value);
+            }}
+            aria-label="CELLxGENE expression view">
+            <ToggleButton value="plot" aria-label="plot">
+              plot
+            </ToggleButton>
+            <ToggleButton value="table" aria-label="table">
+              table
+            </ToggleButton>
+          </ToggleButtonGroup>
           <DownloadButton
             label="DOWNLOAD CELL TYPE EXPRESSION"
             disabled={rows.length === 0}
             onClick={() => exportCellTypeSummary(geneName, rows)}
           />
-          <Link href={CELLXGENE_GENE_EXPRESSION_URL} target="_blank" rel="noopener noreferrer" variant="body2">
-            CELLxGENE Gene Expression
-          </Link>
         </Box>
+        <Link
+          href={CELLXGENE_GENE_EXPRESSION_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          variant="body2"
+          sx={{ display: "block", width: "fit-content", mb: 1 }}>
+          CELLxGENE Gene Expression
+        </Link>
         <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1 }}>
           normal tissue pooled across datasets. Values are mean log1p CP10K (not TPM); dot colour is the
-          mean, dot size the fraction of cells expressing. Donor pseudobulk is a secondary measure.
+          mean, dot size the fraction of cells expressing.
         </Typography>
         {view === "plot" ? (
           <>
@@ -234,13 +257,21 @@ const CellTypeExpressionSection = ({ geneName }: { geneName: string }) => {
             )}
           </>
         ) : (
-          <MaterialReactTable
-            {...tableProps}
-            data={rows}
-            columns={summaryColumns}
-            enablePagination={rows.length > 20}
-            initialState={{ density: "compact", sorting: [{ id: "meanLog1pCp10k", desc: true }] }}
-          />
+          <>
+            <Typography variant="caption" color="text.secondary" sx={{ display: "block", mb: 1 }}>
+              the donor pseudobulk mean is our own calculation, not a CELLxGENE value: CP10K is
+              worked out per donor from that donor's cells of the group and then averaged over the
+              donors, so a donor with many cells counts once. It is blank where too few donors
+              contribute.
+            </Typography>
+            <MaterialReactTable
+              {...tableProps}
+              data={rows}
+              columns={summaryColumns}
+              enablePagination={rows.length > 20}
+              initialState={{ density: "compact", sorting: [{ id: "meanLog1pCp10k", desc: true }] }}
+            />
+          </>
         )}
 
         <Box sx={{ mt: 2 }}>
