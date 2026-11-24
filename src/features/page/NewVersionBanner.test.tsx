@@ -2,7 +2,7 @@ import { act, render, renderHook, screen } from "@testing-library/react";
 import { http, HttpResponse } from "msw";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { server } from "@/test/msw/server";
-import { fetchDeployedBuildId, useNewVersionAvailable, NewVersionBanner } from "./NewVersionBanner";
+import { fetchDeployedBuildId, useNewVersionAvailable, DeployBanners, NewVersionBanner } from "./NewVersionBanner";
 
 const FIVE_MINUTES = 5 * 60_000;
 
@@ -79,5 +79,19 @@ describe("NewVersionBanner", () => {
   it("renders nothing while this bundle has no build id", () => {
     render(<NewVersionBanner />);
     expect(screen.queryByText(/new version/i)).toBeNull();
+  });
+});
+
+describe("DeployBanners", () => {
+  it("shows the update notice and holds the reload offer back while it is up", () => {
+    render(<DeployBanners stale={true} updating={true} />);
+    expect(screen.getByText(/is being updated/i)).toBeTruthy();
+    expect(screen.queryByText(/new version/i)).toBeNull();
+  });
+
+  it("offers the reload once the update notice has cleared", () => {
+    render(<DeployBanners stale={true} updating={false} />);
+    expect(screen.getByText(/new version/i)).toBeTruthy();
+    expect(screen.queryByText(/is being updated/i)).toBeNull();
   });
 });

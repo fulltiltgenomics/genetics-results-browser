@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Alert, Button, Snackbar } from "@mui/material";
 import { APP_NAME } from "@/config/appName";
+import { useUpdateInProgress } from "./updateNotice";
 
 // index.html is served no-store, so a navigation always gets the current build; a tab that
 // stays open across a deploy does not, and keeps running a bundle the backend has moved on
@@ -53,19 +54,35 @@ export function useNewVersionAvailable(
   return stale;
 }
 
+type BannerProps = { stale: boolean; updating: boolean };
+
+// the reload offer waits for the update notice to clear: a reload taken mid-deploy lands on
+// services that are still being replaced
+export function DeployBanners({ stale, updating }: BannerProps) {
+  return (
+    <>
+      <Snackbar open={updating} anchorOrigin={{ vertical: "top", horizontal: "center" }}>
+        <Alert severity="info">
+          {APP_NAME} is being updated. This can affect functionality and shouldn't take long.
+        </Alert>
+      </Snackbar>
+      <Snackbar open={stale && !updating} anchorOrigin={{ vertical: "top", horizontal: "center" }}>
+        <Alert
+          severity="warning"
+          action={
+            <Button color="inherit" size="small" onClick={() => window.location.reload()}>
+              Reload
+            </Button>
+          }>
+          A new version of {APP_NAME} has been deployed. Reload the page to keep everything working.
+        </Alert>
+      </Snackbar>
+    </>
+  );
+}
+
 export function NewVersionBanner() {
   const stale = useNewVersionAvailable(BUILD_ID);
-  return (
-    <Snackbar open={stale} anchorOrigin={{ vertical: "top", horizontal: "center" }}>
-      <Alert
-        severity="warning"
-        action={
-          <Button color="inherit" size="small" onClick={() => window.location.reload()}>
-            Reload
-          </Button>
-        }>
-        A new version of {APP_NAME} has been deployed. Reload the page to keep everything working.
-      </Alert>
-    </Snackbar>
-  );
+  const updating = useUpdateInProgress(BUILD_ID !== null);
+  return <DeployBanners stale={stale} updating={updating} />;
 }

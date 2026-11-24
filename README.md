@@ -26,6 +26,12 @@ id into the bundle and emits it as `/version.json` (served no-store like `index.
 re-reads it when the tab becomes visible and every five minutes and, when the ids differ,
 shows a banner offering a reload (`src/features/page/NewVersionBanner.tsx`).
 
+While a deploy runs the app can also say so. It reads `/notice/notice.json` at load, when the
+tab becomes visible and every minute (`src/features/page/updateNotice.ts`), and shows an
+"is being updated" notice while the file says `{"updating": true}`. The file is not in the
+image: the deployment mounts it and `scripts/ui-notice.sh` in the suite repo rewrites it. The
+reload banner is held back until the notice clears.
+
 Running the tool requires running the [backend API](https://github.com/fulltiltgenomics/genetics-results-api).
 The chat views additionally require the chat backend (`../genetics-mcp-server`).
 
