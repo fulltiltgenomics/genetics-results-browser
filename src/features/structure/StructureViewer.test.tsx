@@ -475,6 +475,31 @@ describe("StructureViewer", () => {
     expect(screen.getByRole("button", { name: "Download the view spec" })).toBeInTheDocument();
   });
 
+  it("offers the model and a PyMOL script once the model has arrived, and says what the script adds", async () => {
+    server.use(http.get(ROUTE, () => HttpResponse.text("ATOM      1")));
+    createScene.mockResolvedValueOnce({ ...READY, dispose: vi.fn() });
+    show(b64(SPEC));
+    fireEvent.click(await screen.findByRole("button", { name: "Download the model (PDB)" }));
+    expect(downloadBlob).toHaveBeenLastCalledWith("ATOM      1", "AF-TEST-F1-model_v6.pdb", "chemical/x-pdb");
+    fireEvent.click(screen.getByRole("button", { name: "Download the PyMOL script (.pml)" }));
+    expect(downloadBlob).toHaveBeenLastCalledWith(
+      expect.stringContaining("load AF-TEST-F1-model_v6.pdb, structure\n"),
+      "AF-TEST-F1-model_v6.pml",
+      "text/plain",
+    );
+    expect(screen.getByTestId("structure-footer")).toHaveTextContent(
+      /the \.pml script, saved beside it and opened in PyMOL, adds this view's colouring, highlighted residues and labels/,
+    );
+  });
+
+  it("offers neither where the model is missing", async () => {
+    server.use(http.get(ROUTE, () => new HttpResponse(null, { status: 404 })));
+    show(b64(SPEC));
+    await screen.findByRole("alert");
+    expect(screen.queryByRole("button", { name: "Download the model (PDB)" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Download the PyMOL script (.pml)" })).toBeNull();
+  });
+
   it("explains a browser with no WebGL", async () => {
     server.use(http.get(ROUTE, () => HttpResponse.text("ATOM      1")));
     const { WebGLUnavailableError } = await import("./molstarScene");

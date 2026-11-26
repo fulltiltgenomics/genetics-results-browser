@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Alert, Box, Button, CircularProgress, Link, Typography, useTheme } from "@mui/material";
 import { downloadBlob } from "../chat/downloadBlob";
+import { pdbFileName, viewSpecToPml } from "./pml";
 import { base64ByteLength, base64ToBytes } from "../chat/fileMarker";
 import {
   StructureModelNotFound,
@@ -639,6 +640,37 @@ const Attribution = ({ modelFileId }: { modelFileId: string }) => {
   return <>Predicted structure; its source is not recorded in the model id.</>;
 };
 
+// the model text is the one the scene was drawn from: same query, so no second request
+const ModelDownloads = ({ spec, seen }: { spec: ViewSpec; seen: boolean }) => {
+  const model = useStructureModel(spec.modelFileId, seen);
+  if (model.data === undefined) return null;
+  const pdbText = model.data;
+  return (
+    <>
+      {" · "}
+      <Link
+        component="button"
+        type="button"
+        variant="caption"
+        onClick={() => downloadBlob(pdbText, pdbFileName(spec.modelFileId), "chemical/x-pdb")}>
+        Download the model (PDB)
+      </Link>
+      {" · "}
+      <Link
+        component="button"
+        type="button"
+        variant="caption"
+        onClick={() => downloadBlob(viewSpecToPml(spec), `${spec.modelFileId}.pml`, "text/plain")}>
+        Download the PyMOL script (.pml)
+      </Link>
+      <Box component="span" sx={{ display: "block", mt: 0.25 }}>
+        The PDB file is the model alone; the .pml script, saved beside it and opened in PyMOL,
+        adds this view&apos;s colouring, highlighted residues and labels.
+      </Box>
+    </>
+  );
+};
+
 /**
  * The 3D structure a `.structure-view.json` chat artifact describes. `data` is the artifact's
  * base64 as the message carries it.
@@ -700,6 +732,7 @@ export default function StructureViewer({ name, data }: { name: string; data: st
           onClick={() => downloadBlob(base64ToBytes(data), name, "application/json")}>
           Download the view spec
         </Link>
+        {spec && <ModelDownloads spec={spec} seen={seen} />}
       </Typography>
     </Box>
   );
