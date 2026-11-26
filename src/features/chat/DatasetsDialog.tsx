@@ -52,7 +52,12 @@ interface DatasetsDialogProps {
 type Category = {
   label: string;
   filter: (d: Dataset) => boolean;
+  note?: string;
 };
+
+// the registry lists an exome dataset whether or not the API serves variant results for it;
+// one without that product holds allele counts only, read by the assistant through SQL
+const hasExomeResults = (d: Dataset) => d.products?.exome_results !== undefined;
 
 const categories: Category[] = [
   {
@@ -65,7 +70,12 @@ const categories: Category[] = [
   },
   {
     label: "Exome variant associations",
-    filter: (d) => d.data_type === "exome",
+    filter: (d) => d.data_type === "exome" && hasExomeResults(d),
+  },
+  {
+    label: "Exome variant allele counts",
+    filter: (d) => d.data_type === "exome" && !hasExomeResults(d),
+    note: "Per-variant allele counts in cases and controls from exome studies. No per-variant association statistics are held for these datasets. The assistant can query them; they have no tables in the browser.",
   },
   {
     label: "Gene burden results",
@@ -323,6 +333,11 @@ export const DatasetsDialog = ({ open, onClose }: DatasetsDialogProps) => {
                 <Typography variant="h6" sx={{ mb: 1 }}>
                   {cat.label}
                 </Typography>
+                {cat.note && (
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                    {cat.note}
+                  </Typography>
+                )}
                 <DatasetTable datasets={cat.datasets} category={cat.label} />
               </Box>
             ))}
